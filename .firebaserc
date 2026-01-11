@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "probestack-e2068"
+  },
+  "targets": {
+    "probestack-e2068": {
+      "hosting": {
+        "zentra": [
+          "zentra-82a1a"
+        ]
+      }
+    }
+  }
+}

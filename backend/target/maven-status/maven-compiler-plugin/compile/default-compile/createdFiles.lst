@@ -1,0 +1,5 @@
+com\probestack\backend\model\HistoryItem.class
+com\probestack\backend\controller\HistoryController.class
+com\probestack\backend\config\CorsConfig$1.class
+com\probestack\backend\config\CorsConfig.class
+com\probestack\backend\MainApplication.class

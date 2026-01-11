@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dark-900: #0b0d1a;
+  /* Deep Navy Background */
+  --color-dark-800: #15192b;
+  /* Card Background */
+  --color-dark-700: #232942;
+  /* Border/Hover */
+  --color-dark-600: #343b5c;
+  --color-dark-500: #575757;
+  --color-dark-400: #8890aa;
+  --color-primary: #ff5b1f;
+  /* ProbeStack Primary Orange - matches parent site */
+}
+
+@layer base {
+  body {
+    @apply bg-dark-900 text-white overflow-hidden;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px; /* Reduced from default ~16px */
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-dark-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-dark-700 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-dark-600;
+}

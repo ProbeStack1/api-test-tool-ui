@@ -6,9 +6,10 @@
     "probestack-e2068": {
       "hosting": {
         "zentra": [
-          "zentra-82a1a"
+          "zentra-82a1a-75499"
         ]
       }
     }
-  }
+  },
+  "etags": {}
 }

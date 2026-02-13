@@ -1,22 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
-import IDEWorkspaceLayout from './components/IDEWorkspaceLayout';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Home as HomeIcon, LayoutGrid, FileText, Globe, Search as SearchIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
 import Reports from './components/Reports';
 import Explore from './components/Explore';
-
+import TestingToolPage from './pages/TestingToolPage';
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = location.pathname;
+
   const [history, setHistory] = useState(() => {
     const saved = localStorage.getItem('probestack_history');
     return saved ? JSON.parse(saved) : [];
   });
-
-  // Navigation State
-  const [view, setView] = useState('home'); // 'home', 'workspace', 'reports', 'explore'
 
   // Request State
   const [method, setMethod] = useState('GET');
@@ -121,20 +121,19 @@ function App() {
   const loadHistoryItem = (item) => {
     setUrl(item.url);
     setMethod(item.method);
-    setView('workspace');
-    // Note: In a real app we would save/load params/body too
+    navigate('/workspace');
   };
 
   const handleImport = (api) => {
     setUrl(api.url);
     setMethod('GET');
-    setView('workspace');
+    navigate('/workspace');
   };
 
   const handleSelectEndpoint = (endpoint) => {
     setUrl(endpoint.path);
     setMethod(endpoint.method);
-    setView('workspace');
+    navigate('/workspace');
   };
 
   const handleNewRequest = () => {
@@ -151,56 +150,69 @@ function App() {
     setError(null);
   };
 
+  const isWorkspace = pathname === '/workspace';
+
   return (
-    <div className="flex h-screen bg-dark-900 text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
-      <main className="flex-1 flex flex-col min-w-0 bg-dark-900 relative z-0">
-        {/* Header */}
-        <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between bg-dark-800 shrink-0 z-20">
+    <div className="flex h-screen bg-probestack-bg text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-probestack-bg relative z-0 overflow-hidden">
+        {/* Header - same logo block as Migration/DashboardNavbar (porbestack-new-repo) */}
+        <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-probestack-bg">
           <div className="flex items-center gap-4 flex-1">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('home')}>
-              <img src="/logo.png" alt="Logo" className="h-12 w-auto" />
-            </div>
-            
-            {/* Center Search Bar */}
-            <div className="flex-1 max-w-md mx-auto">
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search workspace..."
-                  className="w-full h-9 bg-dark-900/50 border border-dark-700/50 rounded-lg pl-10 pr-4 text-xs text-gray-300 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 placeholder:text-dark-500 transition-all"
-                />
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+              <img
+                src="/assets/justlogo.png"
+                alt="ProbeStack logo"
+                className="h-12 w-auto"
+                onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
+              />
+              <div className="flex flex-col">
+                <span className="text-xl font-extrabold gradient-text font-heading">ProbeStack</span>
+                <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5">A ForgeCrux Company</span>
               </div>
             </div>
+            
+            {/* Center Search Bar - hidden on workspace (workspace has its own search) */}
+            {!isWorkspace && (
+              <div className="flex-1 max-w-md mx-auto">
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Search workspace..."
+                    className="w-full h-9 bg-dark-900/50 border border-dark-700/50 rounded-lg pl-10 pr-4 text-xs text-gray-300 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 placeholder:text-dark-500 transition-all"
+                  />
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
             <nav className="flex items-center gap-1">
               <button
-                onClick={() => setView('home')}
+                onClick={() => navigate('/')}
                 title="Home"
-                className={clsx("p-2 rounded-lg transition-colors", view === 'home' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("p-2 rounded-lg transition-colors", pathname === '/' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
                 <HomeIcon className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setView('workspace')}
+                onClick={() => navigate('/workspace')}
                 title="Workspaces"
-                className={clsx("p-2 rounded-lg transition-colors", view === 'workspace' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("p-2 rounded-lg transition-colors", pathname === '/workspace' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setView('reports')}
+                onClick={() => navigate('/reports')}
                 title="Reports"
-                className={clsx("p-2 rounded-lg transition-colors", view === 'reports' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("p-2 rounded-lg transition-colors", pathname === '/reports' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
                 <FileText className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setView('explore')}
+                onClick={() => navigate('/explore')}
                 title="Explore"
-                className={clsx("p-2 rounded-lg transition-colors", view === 'explore' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("p-2 rounded-lg transition-colors", pathname === '/explore' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
                 <Globe className="w-4 h-4" />
               </button>
@@ -213,42 +225,46 @@ function App() {
           </div>
         </header>
 
-        {view === 'home' && <Home onNavigate={setView} />}
-        {view === 'reports' && <Reports history={history} />}
-        {view === 'explore' && <Explore onImport={handleImport} />}
-
-        {view === 'workspace' && (
-          <IDEWorkspaceLayout
-            history={history}
-            method={method}
-            url={url}
-            queryParams={queryParams}
-            headers={headers}
-            body={body}
-            authType={authType}
-            authData={authData}
-            preRequestScript={preRequestScript}
-            tests={tests}
-            response={response}
-            isLoading={isLoading}
-            error={error}
-            environments={environments}
-            selectedEnvironment={selectedEnvironment}
-            onSelectEndpoint={handleSelectEndpoint}
-            onMethodChange={setMethod}
-            onUrlChange={setUrl}
-            onQueryParamsChange={setQueryParams}
-            onHeadersChange={setHeaders}
-            onBodyChange={setBody}
-            onAuthTypeChange={setAuthType}
-            onAuthDataChange={setAuthData}
-            onPreRequestScriptChange={setPreRequestScript}
-            onTestsChange={setTests}
-            onExecute={handleExecute}
-            onNewRequest={handleNewRequest}
-            onEnvironmentChange={setSelectedEnvironment}
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/reports" element={<Reports history={history} />} />
+          <Route path="/explore" element={<Explore onImport={handleImport} />} />
+          <Route
+            path="/workspace"
+            element={
+              <TestingToolPage
+                history={history}
+                method={method}
+                url={url}
+                queryParams={queryParams}
+                headers={headers}
+                body={body}
+                authType={authType}
+                authData={authData}
+                preRequestScript={preRequestScript}
+                tests={tests}
+                response={response}
+                isLoading={isLoading}
+                error={error}
+                environments={environments}
+                selectedEnvironment={selectedEnvironment}
+                onSelectEndpoint={handleSelectEndpoint}
+                onMethodChange={setMethod}
+                onUrlChange={setUrl}
+                onQueryParamsChange={setQueryParams}
+                onHeadersChange={setHeaders}
+                onBodyChange={setBody}
+                onAuthTypeChange={setAuthType}
+                onAuthDataChange={setAuthData}
+                onPreRequestScriptChange={setPreRequestScript}
+                onTestsChange={setTests}
+                onExecute={handleExecute}
+                onNewRequest={handleNewRequest}
+                onEnvironmentChange={setSelectedEnvironment}
+              />
+            }
           />
-        )}
+        </Routes>
       </main>
     </div>
   );

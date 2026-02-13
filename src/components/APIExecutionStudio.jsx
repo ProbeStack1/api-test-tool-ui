@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal } from 'lucide-react';
+import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X } from 'lucide-react';
 import KeyValueEditor from './KeyValueEditor';
 import AuthPanel from './AuthPanel';
 import ResizableBottomPanel from './ResizableBottomPanel';
 import clsx from 'clsx';
 
+function getTabLabel(request) {
+  const u = request?.url?.trim();
+  if (!u) return 'Untitled';
+  if (u.startsWith('http://') || u.startsWith('https://')) {
+    try {
+      const parsed = new URL(u);
+      return parsed.hostname || u.slice(0, 24);
+    } catch {
+      return u.slice(0, 24);
+    }
+  }
+  return u.length > 24 ? u.slice(0, 24) + '…' : u;
+}
+
 export default function APIExecutionStudio({
+  requests = [],
+  activeRequestIndex = 0,
+  onTabSelect,
+  onNewTab,
+  onCloseTab,
   method,
   url,
   queryParams,
@@ -72,7 +91,72 @@ export default function APIExecutionStudio({
   return (
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        {/* Postman-style: Request line first — Method + URL + Send */}
+        {/* Tab bar: + first, then request tabs (Postman-style) */}
+        <div className="flex items-center border-b border-dark-700 bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
+          <button
+            type="button"
+            onClick={onNewTab}
+            className="flex items-center justify-center w-10 h-10 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors"
+            title="New request"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <div className="flex-1 flex items-center overflow-x-auto custom-scrollbar min-w-0">
+            {requests.map((req, index) => {
+              const isActive = index === activeRequestIndex;
+              const label = getTabLabel(req);
+              return (
+                <div
+                  key={req.id}
+                  role="tab"
+                  tabIndex={0}
+                  onClick={() => onTabSelect(index)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onTabSelect(index);
+                    }
+                  }}
+                  className={clsx(
+                    'flex items-center gap-2 pl-3 pr-1 py-2 min-w-0 max-w-[200px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group',
+                    isActive
+                      ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      'text-[10px] font-bold shrink-0',
+                      req.method === 'GET' && 'text-green-400',
+                      req.method === 'POST' && 'text-yellow-400',
+                      req.method === 'PUT' && 'text-blue-400',
+                      req.method === 'DELETE' && 'text-red-400',
+                      'text-purple-400'
+                    )}
+                  >
+                    {req.method}
+                  </span>
+                  <span className="text-xs truncate flex-1">{label}</span>
+                  {requests.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseTab(index);
+                      }}
+                      className="p-1 rounded text-gray-500 hover:text-white hover:bg-dark-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title="Close tab"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Postman-style: Request line — Method + URL + Send */}
         <div className="px-5 py-4 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
           <div className="flex gap-3 flex-wrap items-center">
             <div className="relative w-[110px] flex-shrink-0">

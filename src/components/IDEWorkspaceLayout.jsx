@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown } from 'lucide-react';
+import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3 } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
+import CodeSnippetPanel from './CodeSnippetPanel';
 import CollectionsPanel from './CollectionsPanel';
 import clsx from 'clsx';
 
 export default function IDEWorkspaceLayout({
   history,
+  requests,
+  activeRequestIndex,
+  onTabSelect,
+  onNewTab,
+  onCloseTab,
   method,
   url,
   queryParams,
@@ -38,6 +44,7 @@ export default function IDEWorkspaceLayout({
   const [topMenuActive, setTopMenuActive] = useState('collections');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [workspaceSearch, setWorkspaceSearch] = useState('');
+  const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
 
   const topMenuItems = [
     { id: 'history', label: 'History', icon: History },
@@ -210,6 +217,11 @@ export default function IDEWorkspaceLayout({
         <section className="flex-1 flex min-h-0 overflow-hidden min-w-0">
           <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
             <APIExecutionStudio
+              requests={requests}
+              activeRequestIndex={activeRequestIndex}
+              onTabSelect={onTabSelect}
+              onNewTab={onNewTab}
+              onCloseTab={onCloseTab}
               method={method}
               url={url}
               queryParams={queryParams}
@@ -237,14 +249,49 @@ export default function IDEWorkspaceLayout({
             />
           </div>
 
-          {/* Right sidebar - Forgeq Execution Insights (fixed width, no shrink) */}
-          <IDEExecutionInsights
-            response={response}
-            isLoading={isLoading}
-            error={error}
-            executionHistory={history}
-            forgeqStyle
-          />
+          {/* Right side: Code snippet and Execution Insights (both closed by default), + icon strip */}
+          <div className="flex flex-shrink-0 border-l border-dark-700 bg-dark-800/30 min-h-0">
+            {rightPanelOpen === 'code' && <CodeSnippetPanel />}
+            {rightPanelOpen === 'insights' && (
+              <IDEExecutionInsights
+                response={response}
+                isLoading={isLoading}
+                error={error}
+                executionHistory={history}
+                forgeqStyle
+              />
+            )}
+            <div className="flex flex-col border-l border-dark-700 bg-dark-800/60 w-12 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setRightPanelOpen((prev) => (prev === 'code' ? null : 'code'))}
+                className={clsx(
+                  'flex flex-col items-center justify-center gap-0.5 py-3 px-2 border-b border-dark-700 transition-colors',
+                  rightPanelOpen === 'code'
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+                )}
+                title="Code snippet (cURL)"
+              >
+                <span className="font-mono text-sm font-semibold leading-none">&lt;/&gt;</span>
+                <span className="text-[9px] font-medium">Code</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightPanelOpen((prev) => (prev === 'insights' ? null : 'insights'))}
+                className={clsx(
+                  'flex flex-col items-center justify-center gap-0.5 py-3 px-2 transition-colors',
+                  rightPanelOpen === 'insights'
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+                )}
+                title="Execution Insights"
+              >
+                <BarChart3 className="w-5 h-5" />
+                <span className="text-[9px] font-medium">Insights</span>
+              </button>
+            </div>
+          </div>
         </section>
       </main>
 

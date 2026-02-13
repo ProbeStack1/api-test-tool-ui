@@ -153,6 +153,16 @@ const DEFAULT_COLLECTIONS = [
       },
     ],
   },
+  {
+    id: '3',
+    name: 'External APIs',
+    type: 'collection',
+    icon: 'globe',
+    items: [
+      { id: '3-1', name: 'GitHub Users API', method: 'GET', type: 'request', path: 'https://api.github.com/users' },
+      { id: '3-2', name: 'JSONPlaceholder Posts', method: 'GET', type: 'request', path: 'https://jsonplaceholder.typicode.com/posts' },
+    ],
+  },
 ];
 
 function ContextMenu({ x, y, type, onClose, onAction }) {
@@ -225,7 +235,7 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
 
 export default function CollectionsPanel({ onSelectEndpoint }) {
   const [collections, setCollections] = useState(DEFAULT_COLLECTIONS);
-  const [expanded, setExpanded] = useState({});
+  const [expanded, setExpanded] = useState({ '3': true }); // External APIs expanded by default (original design)
   const [search, setSearch] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -404,6 +414,11 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
           >
             {item.method}
           </span>
+        ) : item.icon === 'globe' ? (
+          <Globe
+            className="w-4 h-4 shrink-0 text-sky-400/90"
+            aria-hidden
+          />
         ) : (
           <Folder
             className={clsx(

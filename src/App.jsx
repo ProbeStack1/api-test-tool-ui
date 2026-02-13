@@ -18,16 +18,42 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Request State
-  const [method, setMethod] = useState('GET');
-  const [url, setUrl] = useState('');
-  const [queryParams, setQueryParams] = useState([{ key: '', value: '' }]);
-  const [headers, setHeaders] = useState([{ key: '', value: '' }]);
-  const [body, setBody] = useState('{\n  \n}');
-  const [authType, setAuthType] = useState('none');
-  const [authData, setAuthData] = useState({});
-  const [preRequestScript, setPreRequestScript] = useState('');
-  const [tests, setTests] = useState('');
+  const createEmptyRequest = () => ({
+    id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    method: 'GET',
+    url: '',
+    queryParams: [{ key: '', value: '' }],
+    headers: [{ key: '', value: '' }],
+    body: '{\n  \n}',
+    authType: 'none',
+    authData: {},
+    preRequestScript: '',
+    tests: '',
+  });
+
+  const [requests, setRequests] = useState(() => [createEmptyRequest()]);
+  const [activeRequestIndex, setActiveRequestIndex] = useState(0);
+
+  const currentRequest = requests[activeRequestIndex] || requests[0];
+  const method = currentRequest?.method ?? 'GET';
+  const url = currentRequest?.url ?? '';
+  const queryParams = currentRequest?.queryParams ?? [{ key: '', value: '' }];
+  const headers = currentRequest?.headers ?? [{ key: '', value: '' }];
+  const body = currentRequest?.body ?? '{\n  \n}';
+  const authType = currentRequest?.authType ?? 'none';
+  const authData = currentRequest?.authData ?? {};
+  const preRequestScript = currentRequest?.preRequestScript ?? '';
+  const tests = currentRequest?.tests ?? '';
+
+  const updateActiveRequest = (field, value) => {
+    setRequests((prev) => {
+      const next = [...prev];
+      const idx = activeRequestIndex >= 0 && activeRequestIndex < next.length ? activeRequestIndex : 0;
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  };
+
   const [environments, setEnvironments] = useState([
     { id: 'no-env', name: 'No Environment' },
     { id: 'dev', name: 'Development' },
@@ -119,35 +145,45 @@ function App() {
   };
 
   const loadHistoryItem = (item) => {
-    setUrl(item.url);
-    setMethod(item.method);
+    updateActiveRequest('url', item.url);
+    updateActiveRequest('method', item.method);
     navigate('/workspace');
   };
 
   const handleImport = (api) => {
-    setUrl(api.url);
-    setMethod('GET');
+    updateActiveRequest('url', api.url);
+    updateActiveRequest('method', 'GET');
     navigate('/workspace');
   };
 
   const handleSelectEndpoint = (endpoint) => {
-    setUrl(endpoint.path);
-    setMethod(endpoint.method);
+    updateActiveRequest('url', endpoint.path);
+    updateActiveRequest('method', endpoint.method);
     navigate('/workspace');
   };
 
-  const handleNewRequest = () => {
-    setMethod('GET');
-    setUrl('');
-    setQueryParams([{ key: '', value: '' }]);
-    setHeaders([{ key: '', value: '' }]);
-    setBody('{\n  \n}');
-    setAuthType('none');
-    setAuthData({});
-    setPreRequestScript('');
-    setTests('');
+  const handleNewTab = () => {
+    setRequests((prev) => {
+      const next = [...prev, createEmptyRequest()];
+      setActiveRequestIndex(next.length - 1);
+      return next;
+    });
     setResponse(null);
     setError(null);
+  };
+
+  const handleTabSelect = (index) => {
+    setActiveRequestIndex(index);
+  };
+
+  const handleCloseTab = (index) => {
+    if (requests.length <= 1) return;
+    setRequests((prev) => prev.filter((_, i) => i !== index));
+    setActiveRequestIndex((prev) => {
+      if (index < prev) return prev - 1;
+      if (index === prev) return Math.max(0, prev - 1);
+      return prev;
+    });
   };
 
   const isWorkspace = pathname === '/workspace';
@@ -234,6 +270,11 @@ function App() {
             element={
               <TestingToolPage
                 history={history}
+                requests={requests}
+                activeRequestIndex={activeRequestIndex}
+                onTabSelect={handleTabSelect}
+                onNewTab={handleNewTab}
+                onCloseTab={handleCloseTab}
                 method={method}
                 url={url}
                 queryParams={queryParams}
@@ -249,17 +290,17 @@ function App() {
                 environments={environments}
                 selectedEnvironment={selectedEnvironment}
                 onSelectEndpoint={handleSelectEndpoint}
-                onMethodChange={setMethod}
-                onUrlChange={setUrl}
-                onQueryParamsChange={setQueryParams}
-                onHeadersChange={setHeaders}
-                onBodyChange={setBody}
-                onAuthTypeChange={setAuthType}
-                onAuthDataChange={setAuthData}
-                onPreRequestScriptChange={setPreRequestScript}
-                onTestsChange={setTests}
+                onMethodChange={(v) => updateActiveRequest('method', v)}
+                onUrlChange={(v) => updateActiveRequest('url', v)}
+                onQueryParamsChange={(v) => updateActiveRequest('queryParams', v)}
+                onHeadersChange={(v) => updateActiveRequest('headers', v)}
+                onBodyChange={(v) => updateActiveRequest('body', v)}
+                onAuthTypeChange={(v) => updateActiveRequest('authType', v)}
+                onAuthDataChange={(v) => updateActiveRequest('authData', v)}
+                onPreRequestScriptChange={(v) => updateActiveRequest('preRequestScript', v)}
+                onTestsChange={(v) => updateActiveRequest('tests', v)}
                 onExecute={handleExecute}
-                onNewRequest={handleNewRequest}
+                onNewRequest={handleNewTab}
                 onEnvironmentChange={setSelectedEnvironment}
               />
             }

@@ -7,6 +7,11 @@ import IDEWorkspaceLayout from '../components/IDEWorkspaceLayout';
  */
 export default function TestingToolPage({
   history,
+  requests,
+  activeRequestIndex,
+  onTabSelect,
+  onNewTab,
+  onCloseTab,
   method,
   url,
   queryParams,
@@ -38,6 +43,11 @@ export default function TestingToolPage({
   return (
     <IDEWorkspaceLayout
       history={history}
+      requests={requests}
+      activeRequestIndex={activeRequestIndex}
+      onTabSelect={onTabSelect}
+      onNewTab={onNewTab}
+      onCloseTab={onCloseTab}
       method={method}
       url={url}
       queryParams={queryParams}

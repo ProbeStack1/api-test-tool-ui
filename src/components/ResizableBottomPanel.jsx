@@ -53,7 +53,7 @@ export default function ResizableBottomPanel({
     <div 
       ref={panelRef}
       className={clsx(
-        "border-t border-dark-700 bg-dark-800 flex flex-col transition-all relative",
+        "border-t border-dark-700 bg-dark-800/50 flex flex-col transition-all relative flex-shrink-0",
         collapsed ? "h-8" : ""
       )}
       style={collapsed ? {} : { height: `${height}px` }}

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Server, Globe, Layers, ChevronRight, Search, Plus, Tag, User } from 'lucide-react';
+import { Server, Globe, Layers, ChevronRight, Search, Plus, Tag, User, Filter } from 'lucide-react';
 import clsx from 'clsx';
 
-export default function APISourcesPanel({ onSelectEndpoint, showHeader = true }) {
+export default function APISourcesPanel({ onSelectEndpoint, showHeader = true, forgeqStyle = false }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedServices, setExpandedServices] = useState(new Set());
 
@@ -91,30 +91,52 @@ export default function APISourcesPanel({ onSelectEndpoint, showHeader = true })
         </div>
       )}
       
-      {/* Search (when no header) */}
+      {/* Search (when no header) - Forgeq style: Collections + Filter + Filter input */}
       {!showHeader && (
-        <div className="px-3 py-2 border-b border-dark-700/50">
+        <div className={clsx('border-b border-dark-700/50', forgeqStyle ? 'p-4 space-y-3' : 'px-3 py-2')}>
+          {forgeqStyle && (
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Collections</span>
+              <button type="button" className="p-1.5 rounded-lg transition-colors hover:bg-dark-700 text-gray-500 hover:text-white">
+                <Filter className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
             <input
               type="text"
               placeholder="Filter..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-dark-900/50 border border-dark-700/50 rounded px-7 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-primary/50 placeholder:text-dark-500"
+              className={clsx(
+                'w-full border border-dark-700 rounded-lg pl-9 pr-3 text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-gray-500',
+                forgeqStyle ? 'bg-dark-800 py-2 text-xs' : 'bg-dark-900/50 px-7 py-1.5 text-xs'
+              )}
             />
           </div>
         </div>
       )}
 
       {/* Services List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-        {filteredSources.map(source => {
+      <div className={clsx('flex-1 overflow-y-auto custom-scrollbar min-h-0', forgeqStyle ? 'p-3 space-y-2.5' : 'p-2 space-y-2')}>
+        {filteredSources.map((source, index) => {
           const isExpanded = expandedServices.has(source.id);
           const Icon = source.icon;
+          const isFirst = index === 0;
 
           return (
-            <div key={source.id} className="bg-dark-800/40 border border-dark-700/50 rounded-xl overflow-hidden">
+            <div
+              key={source.id}
+              className={clsx(
+                'rounded-xl overflow-hidden border cursor-pointer transition-all shadow-sm',
+                forgeqStyle
+                  ? isFirst
+                    ? 'border-primary/30 bg-primary/10 border-l-4 border-l-primary shadow-primary/5'
+                    : 'border-dark-700 bg-dark-800 hover:border-primary/20 hover:bg-dark-700/50'
+                  : 'bg-dark-800/40 border-dark-700/50'
+              )}
+            >
               {/* Service Header */}
               <button
                 onClick={() => toggleService(source.id)}

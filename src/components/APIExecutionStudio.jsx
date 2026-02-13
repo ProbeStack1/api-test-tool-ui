@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus } from 'lucide-react';
+import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X } from 'lucide-react';
 import KeyValueEditor from './KeyValueEditor';
 import AuthPanel from './AuthPanel';
 import ResizableBottomPanel from './ResizableBottomPanel';
 import clsx from 'clsx';
 
+function getTabLabel(request) {
+  const u = request?.url?.trim();
+  if (!u) return 'Untitled';
+  if (u.startsWith('http://') || u.startsWith('https://')) {
+    try {
+      const parsed = new URL(u);
+      return parsed.hostname || u.slice(0, 24);
+    } catch {
+      return u.slice(0, 24);
+    }
+  }
+  return u.length > 24 ? u.slice(0, 24) + '…' : u;
+}
+
 export default function APIExecutionStudio({
+  requests = [],
+  activeRequestIndex = 0,
+  onTabSelect,
+  onNewTab,
+  onCloseTab,
   method,
   url,
   queryParams,
@@ -34,6 +53,8 @@ export default function APIExecutionStudio({
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
   const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(false);
+  const [bodyType, setBodyType] = useState('raw'); // none | form-data | x-www-form-urlencoded | raw
+  const [rawBodyFormat, setRawBodyFormat] = useState('json'); // json, text, etc.
 
   const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 
@@ -47,9 +68,12 @@ export default function APIExecutionStudio({
     }
   };
 
+  const paramsCount = queryParams.filter((p) => p.key?.trim()).length;
+  const headersCount = headers.filter((h) => h.key?.trim()).length;
+
   const sections = [
-    { id: 'params', label: 'Params' },
-    { id: 'headers', label: 'Headers' },
+    { id: 'params', label: 'Params', count: paramsCount },
+    { id: 'headers', label: 'Headers', count: headersCount },
     { id: 'body', label: 'Body' },
     { id: 'auth', label: 'Auth' },
     { id: 'pre-request', label: 'Pre-request Script' },
@@ -65,176 +89,282 @@ export default function APIExecutionStudio({
   }, [response, error]);
 
   return (
-    <div className="flex-1 flex flex-col bg-dark-900 min-h-0 overflow-hidden">
-      {/* Center Panel - Editor-First Request Definition */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Section Tabs (Editor-style) */}
-        <div className="flex items-center gap-0 border-b border-dark-700 bg-dark-800/40 px-2">
-          {sections.map(section => (
+    <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* Tab bar: + first, then request tabs (Postman-style) */}
+        <div className="flex items-center border-b border-dark-700 bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
+          <button
+            type="button"
+            onClick={onNewTab}
+            className="flex items-center justify-center w-10 h-10 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors"
+            title="New request"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <div className="flex-1 flex items-center overflow-x-auto custom-scrollbar min-w-0">
+            {requests.map((req, index) => {
+              const isActive = index === activeRequestIndex;
+              const label = getTabLabel(req);
+              return (
+                <div
+                  key={req.id}
+                  role="tab"
+                  tabIndex={0}
+                  onClick={() => onTabSelect(index)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onTabSelect(index);
+                    }
+                  }}
+                  className={clsx(
+                    'flex items-center gap-2 pl-3 pr-1 py-2 min-w-0 max-w-[200px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group',
+                    isActive
+                      ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      'text-[10px] font-bold shrink-0',
+                      req.method === 'GET' && 'text-green-400',
+                      req.method === 'POST' && 'text-yellow-400',
+                      req.method === 'PUT' && 'text-blue-400',
+                      req.method === 'DELETE' && 'text-red-400',
+                      'text-purple-400'
+                    )}
+                  >
+                    {req.method}
+                  </span>
+                  <span className="text-xs truncate flex-1">{label}</span>
+                  {requests.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseTab(index);
+                      }}
+                      className="p-1 rounded text-gray-500 hover:text-white hover:bg-dark-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title="Close tab"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Postman-style: Request line — Method + URL + Send */}
+        <div className="px-5 py-4 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
+          <div className="flex gap-3 flex-wrap items-center">
+            <div className="relative w-[110px] flex-shrink-0">
+              <select
+                value={method}
+                onChange={(e) => onMethodChange(e.target.value)}
+                className={clsx(
+                  'w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2.5 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none',
+                  getMethodColor(method)
+                )}
+              >
+                {methods.map((m) => (
+                  <option key={m} value={m} className="bg-dark-800 text-white">
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 1L6 6L11 1" />
+                </svg>
+              </div>
+            </div>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => onUrlChange(e.target.value)}
+              placeholder="https://api.example.com/v1/endpoint"
+              className="flex-1 min-w-[220px] bg-dark-800 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
+            />
             <button
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              className={clsx(
-                "px-3 py-1.5 text-xs font-medium rounded-t transition-all relative",
-                activeSection === section.id
-                  ? "text-gray-200 bg-dark-900 border-t border-l border-r border-dark-700"
-                  : "text-gray-500 hover:text-gray-300"
-              )}
+              onClick={onExecute}
+              disabled={isLoading || !url}
+              className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {section.label}
-              {activeSection === section.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Sending...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Send</span>
+                </>
               )}
             </button>
-          ))}
-          <div className="flex-1" />
-          {/* New Request Button */}
+          </div>
+        </div>
+
+        {/* Postman-style: Tabs below request line — Params, Headers, Body, Auth, Pre-request Script, Tests */}
+        <div className="border-b border-dark-700 px-5 flex items-center justify-between flex-shrink-0 bg-dark-900/30 gap-2 min-h-0">
+          <div className="flex items-center gap-0 overflow-x-auto min-w-0 flex-1 scrollbar-thin">
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                className={clsx(
+                  'px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-all -mb-px flex-shrink-0 border-b-2',
+                  activeSection === section.id
+                    ? 'border-primary text-primary bg-transparent'
+                    : 'border-transparent text-gray-400 hover:text-white'
+                )}
+              >
+                {section.label}
+                {section.count != null && section.count > 0 && (
+                  <span className="ml-1 text-gray-500 font-normal">({section.count})</span>
+                )}
+              </button>
+            ))}
+          </div>
           <button
             onClick={onNewRequest}
-            className="px-2 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-200 hover:bg-dark-700/50 rounded transition-all flex items-center gap-1.5"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors flex-shrink-0 whitespace-nowrap"
             title="New Request"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4 flex-shrink-0" />
             <span>New</span>
           </button>
         </div>
 
-        {/* Editor Content Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-dark-900">
-          {/* Method and Endpoint - Always visible at top */}
-          <div className="p-4 space-y-4 border-b border-dark-700/50">
-            {/* Method Badge */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 font-medium w-20">Method</span>
-              <div className="relative">
-                <select
-                  value={method}
-                  onChange={(e) => onMethodChange(e.target.value)}
-                  className={clsx(
-                    "px-3 py-1 text-xs font-bold border rounded focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer appearance-none pr-7",
-                    getMethodColor(method)
-                  )}
-                >
-                  {methods.map(m => (
-                    <option key={m} value={m} className="text-white bg-dark-800">{m}</option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                  <svg width="6" height="4" viewBox="0 0 6 4" fill="currentColor">
-                    <path d="M1 1L3 3L5 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Endpoint URL (Editor-style) */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 font-medium w-20">Endpoint</span>
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => onUrlChange(e.target.value)}
-                placeholder="https://api.example.com/v1/endpoint"
-                className="flex-1 bg-dark-900 border border-dark-700 rounded px-3 py-1.5 text-xs focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 font-mono text-gray-200 placeholder:text-dark-500"
-              />
-              <button
-                onClick={onExecute}
-                disabled={isLoading || !url}
-                className={clsx(
-                  "px-3 py-1.5 text-xs font-medium rounded transition-all flex items-center gap-1.5",
-                  "bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-primary/30 text-gray-300 hover:text-white",
-                  "disabled:opacity-40 disabled:cursor-not-allowed"
-                )}
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
-                    <span>Executing</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3 h-3" />
-                    <span>Execute</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+        {/* Tab content area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-probestack-bg min-h-0">
 
           {/* Tab-specific content */}
           {activeSection === 'params' && (
-            <div className="p-4">
-              {/* Query Parameters */}
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 font-medium">Query Parameters</label>
+            <div className="p-5">
+              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+                  Query parameters for the request URL
                 </div>
-                <KeyValueEditor pairs={queryParams} onChange={onQueryParamsChange} />
+                <div className="p-4">
+                  <KeyValueEditor pairs={queryParams} onChange={onQueryParamsChange} />
+                </div>
               </div>
             </div>
           )}
 
           {activeSection === 'headers' && (
-            <div className="p-4">
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 font-medium">Headers</label>
+            <div className="p-5">
+              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+                  Request headers (e.g. Content-Type, Authorization)
                 </div>
-                <KeyValueEditor pairs={headers} onChange={onHeadersChange} />
+                <div className="p-4">
+                  <KeyValueEditor pairs={headers} onChange={onHeadersChange} />
+                </div>
               </div>
             </div>
           )}
 
           {activeSection === 'body' && (
-            <div className="p-4">
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 font-medium">Request Body</label>
-                </div>
-                {(method === 'POST' || method === 'PUT' || method === 'PATCH') ? (
-                  <textarea
-                    value={body}
-                    onChange={(e) => onBodyChange(e.target.value)}
-                    className="w-full h-64 bg-dark-900 border border-dark-700 rounded p-3 font-mono text-xs focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none text-gray-300"
-                    placeholder='{\n  "key": "value"\n}'
-                    spellCheck={false}
-                  />
-                ) : (
-                  <div className="h-64 flex items-center justify-center text-gray-500 text-xs border border-dark-700 rounded">
-                    Body not supported for {method} requests
+            <div className="p-5">
+              {(method === 'POST' || method === 'PUT' || method === 'PATCH') ? (
+                <>
+                  {/* Postman-style body type: none | form-data | x-www-form-urlencoded | raw */}
+                  <div className="flex items-center gap-1 mb-3 flex-wrap">
+                    {['none', 'form-data', 'x-www-form-urlencoded', 'raw'].map((type) => (
+                      <label
+                        key={type}
+                        className={clsx(
+                          'inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-colors',
+                          bodyType === type
+                            ? 'bg-primary/20 text-primary border border-primary/40'
+                            : 'text-gray-400 hover:text-gray-200 border border-transparent'
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="bodyType"
+                          checked={bodyType === type}
+                          onChange={() => setBodyType(type)}
+                          className="sr-only"
+                        />
+                        {type === 'x-www-form-urlencoded' ? 'x-www-form-urlencoded' : type.charAt(0).toUpperCase() + type.slice(1)}
+                      </label>
+                    ))}
+                    {bodyType === 'raw' && (
+                      <select
+                        value={rawBodyFormat}
+                        onChange={(e) => setRawBodyFormat(e.target.value)}
+                        className="ml-2 bg-dark-800 border border-dark-700 rounded-md text-xs text-gray-300 py-2 px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
+                      >
+                        <option value="json">JSON</option>
+                        <option value="text">Text</option>
+                      </select>
+                    )}
                   </div>
-                )}
-              </div>
+                  {bodyType === 'raw' ? (
+                    <div className="rounded-lg border border-dark-700 overflow-hidden bg-[#1e1e1e]">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-dark-800/80 border-b border-dark-700 text-xs text-gray-400">
+                        <span className="font-medium text-gray-300">{rawBodyFormat === 'json' ? 'JSON' : 'Text'}</span>
+                      </div>
+                      <textarea
+                        value={body}
+                        onChange={(e) => onBodyChange(e.target.value)}
+                        className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
+                        placeholder={rawBodyFormat === 'json' ? '{\n  "key": "value"\n}' : 'Enter request body...'}
+                        spellCheck={false}
+                      />
+                    </div>
+                  ) : bodyType === 'none' ? (
+                    <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
+                      This request does not have a body
+                    </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
+                      {bodyType === 'form-data' ? 'Form-data editor coming soon. Use Raw for now.' : 'x-www-form-urlencoded editor coming soon. Use Raw for now.'}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
+                  Body not supported for {method} requests
+                </div>
+              )}
             </div>
           )}
 
           {activeSection === 'auth' && (
-            <div className="p-4">
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 font-medium">Authentication</label>
+            <div className="p-5">
+              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+                  Authentication type and credentials for the request
                 </div>
-                <AuthPanel 
-                  authType={authType} 
-                  onAuthTypeChange={onAuthTypeChange}
-                  authData={authData}
-                  onAuthDataChange={onAuthDataChange}
-                />
+                <div className="p-4">
+                  <AuthPanel 
+                    authType={authType} 
+                    onAuthTypeChange={onAuthTypeChange}
+                    authData={authData}
+                    onAuthDataChange={onAuthDataChange}
+                  />
+                </div>
               </div>
             </div>
           )}
 
           {activeSection === 'pre-request' && (
-            <div className="p-4">
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 font-medium">Pre-request Script</label>
-                  <span className="text-[10px] text-gray-500">JavaScript code to run before the request</span>
+            <div className="p-5">
+              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-medium">Pre-request Script</span>
+                  <span className="text-[10px] text-gray-500">Runs before the request is sent</span>
                 </div>
                 <textarea
                   value={preRequestScript}
                   onChange={(e) => onPreRequestScriptChange && onPreRequestScriptChange(e.target.value)}
-                  className="w-full h-96 bg-dark-900 border border-dark-700 rounded p-3 font-mono text-xs focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none text-gray-300"
+                  className="w-full h-80 p-4 font-mono text-sm bg-[#1e1e1e] focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
                   placeholder="// Add custom JavaScript code here\n// Example: pm.environment.set('token', 'abc123');"
                   spellCheck={false}
                 />
@@ -243,16 +373,16 @@ export default function APIExecutionStudio({
           )}
 
           {activeSection === 'tests' && (
-            <div className="p-4">
-              <div className="mt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-gray-400 font-medium">Tests (Post-request Script)</label>
-                  <span className="text-[10px] text-gray-500">JavaScript code to run after the response</span>
+            <div className="p-5">
+              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-medium">Tests</span>
+                  <span className="text-[10px] text-gray-500">Runs after the response is received</span>
                 </div>
                 <textarea
                   value={tests}
                   onChange={(e) => onTestsChange && onTestsChange(e.target.value)}
-                  className="w-full h-96 bg-dark-900 border border-dark-700 rounded p-3 font-mono text-xs focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none text-gray-300"
+                  className="w-full h-80 p-4 font-mono text-sm bg-[#1e1e1e] focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
                   placeholder="// Add test scripts here\n// Example: pm.test('Status code is 200', () => {\n//   pm.response.to.have.status(200);\n// });"
                   spellCheck={false}
                 />
@@ -270,18 +400,18 @@ export default function APIExecutionStudio({
         collapsed={bottomPanelCollapsed}
         onCollapseChange={setBottomPanelCollapsed}
       >
-        {/* Panel Header */}
-        <div className="h-8 px-3 flex items-center justify-between border-b border-dark-700 bg-dark-800/80 shrink-0">
-          <div className="flex items-center gap-1">
-            {['response', 'logs', 'validation'].map(tab => (
+        {/* Forgeq-style Panel Header */}
+        <div className="h-12 px-5 flex items-center justify-between border-b border-dark-700 bg-probestack-bg/80 shrink-0 gap-2 min-w-0">
+          <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-thin">
+            {['response', 'logs', 'validation'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setBottomPanelTab(tab)}
                 className={clsx(
-                  "px-2 py-1 text-xs font-medium rounded transition-all capitalize",
+                  'px-4 py-3 text-sm font-medium -mb-px transition-colors rounded-t capitalize whitespace-nowrap flex-shrink-0',
                   bottomPanelTab === tab
-                    ? "text-gray-200 bg-dark-700"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? 'border-b-2 border-primary text-primary font-semibold bg-dark-800'
+                    : 'text-gray-400 hover:text-white'
                 )}
               >
                 {tab === 'validation' ? 'Validation Results' : tab}
@@ -360,8 +490,12 @@ export default function APIExecutionStudio({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500 text-xs">
-                    Execute a request to see response
+                  <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
+                    <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">
+                      <Terminal className="h-7 w-7" />
+                    </div>
+                    <p className="text-sm font-medium text-white/80">Execute a request to see response</p>
+                    <p className="text-xs mt-1">Output will be formatted as JSON by default</p>
                   </div>
                 )}
               </>

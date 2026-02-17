@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Home as HomeIcon, LayoutGrid, FileText, Globe, Search as SearchIcon } from 'lucide-react';
 import clsx from 'clsx';
@@ -54,7 +54,7 @@ function App() {
     });
   };
 
-  const [environments, setEnvironments] = useState([
+  const [environments] = useState([
     { id: 'no-env', name: 'No Environment' },
     { id: 'dev', name: 'Development' },
     { id: 'staging', name: 'Staging' },
@@ -66,10 +66,23 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
   }, [history]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleExecute = async () => {
     if (!url) return;
@@ -186,7 +199,7 @@ function App() {
     });
   };
 
-  const isWorkspace = pathname === '/workspace';
+  const isWorkspace = pathname.startsWith('/workspace');
 
   return (
     <div className="flex h-screen bg-probestack-bg text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
@@ -234,7 +247,7 @@ function App() {
               <button
                 onClick={() => navigate('/workspace')}
                 title="Workspaces"
-                className={clsx("p-2 rounded-lg transition-colors", pathname === '/workspace' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("p-2 rounded-lg transition-colors", pathname.startsWith('/workspace') ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
@@ -257,7 +270,41 @@ function App() {
             <button className="px-4 py-2 bg-[#ff5b1f] hover:bg-[#ff6d2f] text-white text-xs font-bold rounded-lg shadow-lg transition-all">
               Invite
             </button>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 ring-2 ring-dark-800"></div>
+            <div className="relative" ref={profileMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 ring-2 ring-dark-800"
+                title="Profile menu"
+              />
+              {isProfileMenuOpen && (
+                <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-dark-700 bg-dark-800 shadow-2xl p-2">
+                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    Settings
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/workspace/settings/general');
+                      setIsProfileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+                  >
+                    General
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate('/workspace/settings/certificates');
+                      setIsProfileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+                  >
+                    Certificates
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -266,7 +313,7 @@ function App() {
           <Route path="/reports" element={<Reports history={history} />} />
           <Route path="/explore" element={<Explore onImport={handleImport} />} />
           <Route
-            path="/workspace"
+            path="/workspace/*"
             element={
               <TestingToolPage
                 history={history}

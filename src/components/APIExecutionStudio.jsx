@@ -47,8 +47,7 @@ export default function APIExecutionStudio({
   onAuthDataChange,
   onPreRequestScriptChange,
   onTestsChange,
-  onExecute,
-  onNewRequest
+  onExecute
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
@@ -96,10 +95,11 @@ export default function APIExecutionStudio({
           <button
             type="button"
             onClick={onNewTab}
-            className="flex items-center justify-center w-10 h-10 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors"
+            className="flex items-center justify-center gap-1.5 px-3 h-10 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
             title="New request"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
+            <span>NEW</span>
           </button>
           <div className="flex-1 flex items-center overflow-x-auto custom-scrollbar min-w-0">
             {requests.map((req, index) => {
@@ -228,14 +228,6 @@ export default function APIExecutionStudio({
               </button>
             ))}
           </div>
-          <button
-            onClick={onNewRequest}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors flex-shrink-0 whitespace-nowrap"
-            title="New Request"
-          >
-            <Plus className="w-4 h-4 flex-shrink-0" />
-            <span>New</span>
-          </button>
         </div>
 
         {/* Tab content area */}
@@ -394,8 +386,8 @@ export default function APIExecutionStudio({
 
       {/* Bottom Panel - Docked Output (IDE Terminal Style) */}
       <ResizableBottomPanel
-        defaultHeight={256}
-        minHeight={100}
+        defaultHeight={120}
+        minHeight={48}
         maxHeight={600}
         collapsed={bottomPanelCollapsed}
         onCollapseChange={setBottomPanelCollapsed}

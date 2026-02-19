@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
@@ -41,15 +42,44 @@ export default function IDEWorkspaceLayout({
   onNewRequest,
   onEnvironmentChange
 }) {
-  const [topMenuActive, setTopMenuActive] = useState('collections');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const getTopMenuFromPath = (pathname) => {
+    if (pathname.includes('/workspace/history')) return 'history';
+    if (pathname.includes('/workspace/variables')) return 'environments';
+    if (pathname.includes('/workspace/load-testing')) return 'load-testing';
+    if (pathname.includes('/workspace/mock-service')) return 'mock-service';
+    if (pathname.includes('/workspace/settings/general')) return 'settings-general';
+    if (pathname.includes('/workspace/settings/certificates')) return 'settings-certificates';
+    return 'collections';
+  };
+  const getPathFromTopMenu = (menuId) => {
+    if (menuId === 'history') return '/workspace/history';
+    if (menuId === 'environments') return '/workspace/variables';
+    if (menuId === 'load-testing') return '/workspace/load-testing';
+    if (menuId === 'mock-service') return '/workspace/mock-service';
+    return '/workspace/collections';
+  };
+  const [topMenuActive, setTopMenuActive] = useState(() => getTopMenuFromPath(location.pathname));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [workspaceSearch, setWorkspaceSearch] = useState('');
   const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
+  const [variablesScope, setVariablesScope] = useState('environment-scope');
+
+  useEffect(() => {
+    if (location.pathname === '/workspace' || location.pathname === '/workspace/') {
+      navigate('/workspace/collections', { replace: true });
+      return;
+    }
+    setTopMenuActive(getTopMenuFromPath(location.pathname));
+  }, [location.pathname, navigate]);
 
   const topMenuItems = [
     { id: 'history', label: 'History', icon: History },
     { id: 'collections', label: 'Collections', icon: LayoutGrid },
-    { id: 'environments', label: 'Environments', icon: Layers },
+    { id: 'environments', label: 'Variables', icon: Layers },
+    { id: 'load-testing', label: 'Load Testing', icon: BarChart3 },
+    { id: 'mock-service', label: 'Mock Service', icon: Layers },
   ];
 
   const loadHistoryItem = (item) => {
@@ -69,7 +99,10 @@ export default function IDEWorkspaceLayout({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setTopMenuActive(item.id)}
+                  onClick={() => {
+                    setTopMenuActive(item.id);
+                    navigate(getPathFromTopMenu(item.id));
+                  }}
                   className={clsx(
                     'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                     topMenuActive === item.id
@@ -121,7 +154,7 @@ export default function IDEWorkspaceLayout({
         )}>
           <div className="px-3 py-2 border-b border-dark-700/50 flex items-center justify-between shrink-0">
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-              {topMenuItems.find(m => m.id === topMenuActive)?.label}
+              {topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
             </h2>
             {!sidebarCollapsed && (
               <button
@@ -177,27 +210,103 @@ export default function IDEWorkspaceLayout({
             {topMenuActive === 'environments' && (
               <div className="flex-1 flex flex-col p-4">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Environments</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Variables</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      title="Save Variables"
+                      className="p-2 rounded-lg transition-colors hover:bg-primary/15 text-gray-500 hover:text-primary border border-transparent hover:border-primary/30"
+                    >
+                      <Save className="w-4 h-4" />
+                    </button>
+                    <button type="button" className="p-2 rounded-lg transition-colors hover:bg-primary/15 text-gray-500 hover:text-primary border border-transparent hover:border-primary/30">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                      Environment Scope
+                    </div>
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setVariablesScope('environment-scope')}
+                        className={clsx(
+                          'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                          variablesScope === 'environment-scope'
+                            ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                        )}
+                      >
+                        Environment Scope
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                      Global Scope
+                    </div>
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setVariablesScope('global-scope')}
+                        className={clsx(
+                          'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                          variablesScope === 'global-scope'
+                            ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                        )}
+                      >
+                        Global Scope
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {topMenuActive === 'load-testing' && (
+              <div className="flex-1 flex flex-col p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Load Testing</span>
                   <button type="button" className="p-2 rounded-lg transition-colors hover:bg-primary/15 text-gray-500 hover:text-primary border border-transparent hover:border-primary/30">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="space-y-1">
-                  {environments && environments.map((env) => (
-                    <button
-                      key={env.id}
-                      type="button"
-                      onClick={() => onEnvironmentChange && onEnvironmentChange(env.id)}
-                      className={clsx(
-                        'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-                        selectedEnvironment === env.id
-                          ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                          : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
-                      )}
-                    >
-                      {env.name}
-                    </button>
-                  ))}
+                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6 text-center">
+                  <p className="text-sm text-gray-300">No load tests configured</p>
+                  <p className="text-xs text-gray-500 mt-1">Create a load test scenario to run concurrency checks.</p>
+                </div>
+              </div>
+            )}
+            {topMenuActive === 'mock-service' && (
+              <div className="flex-1 flex flex-col p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Mock Service</span>
+                  <button type="button" className="p-2 rounded-lg transition-colors hover:bg-primary/15 text-gray-500 hover:text-primary border border-transparent hover:border-primary/30">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6 text-center">
+                  <p className="text-sm text-gray-300">No mock services available</p>
+                  <p className="text-xs text-gray-500 mt-1">Define mock endpoints for local or staged testing.</p>
+                </div>
+              </div>
+            )}
+            {topMenuActive === 'settings-general' && (
+              <div className="flex-1 flex flex-col p-4">
+                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
+                  <h3 className="text-sm font-semibold text-gray-200">Settings - General</h3>
+                  <p className="text-xs text-gray-500 mt-2">General workspace settings are available here.</p>
+                </div>
+              </div>
+            )}
+            {topMenuActive === 'settings-certificates' && (
+              <div className="flex-1 flex flex-col p-4">
+                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
+                  <h3 className="text-sm font-semibold text-gray-200">Settings - Certificates</h3>
+                  <p className="text-xs text-gray-500 mt-2">Manage certificates for secure request execution.</p>
                 </div>
               </div>
             )}

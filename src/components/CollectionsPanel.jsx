@@ -4,7 +4,6 @@ import {
   ChevronDown,
   Folder,
   MoreHorizontal,
-  Plus,
   Search,
   FilePlus,
   FolderPlus,
@@ -19,6 +18,7 @@ import {
   Zap,
   Layers,
   LayoutGrid,
+  Save,
   X,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -186,6 +186,7 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   const collectionOptions = [
     { id: 'add-request', label: 'Add Request', icon: FilePlus },
     { id: 'add-folder', label: 'Add Folder', icon: FolderPlus },
+    { id: 'save', label: 'Save', icon: Save },
     { id: 'share', label: 'Share', icon: Share2 },
     { id: 'rename', label: 'Rename', icon: Edit3 },
     { id: 'clone', label: 'Clone', icon: Copy },
@@ -269,6 +270,7 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
     // Placeholder: in a real app you would mutate collections, show modals, etc.
     if (actionId === 'add-request') return; // TODO: add request
     if (actionId === 'add-folder') return; // TODO: add folder
+    if (actionId === 'save') return; // TODO: save
     if (actionId === 'share') return; // TODO: share
     if (actionId === 'rename') return; // TODO: rename
     if (actionId === 'clone') return; // TODO: clone
@@ -295,12 +297,12 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
             onClick={() => setShowNewModal(true)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
             New
           </button>
           <button
             type="button"
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            title="Import Collections"
           >
             Import
           </button>

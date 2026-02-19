@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X } from 'lucide-react';
 import KeyValueEditor from './KeyValueEditor';
 import AuthPanel from './AuthPanel';
@@ -51,7 +51,7 @@ export default function APIExecutionStudio({
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
-  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(false);
+  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
   const [bodyType, setBodyType] = useState('raw'); // none | form-data | x-www-form-urlencoded | raw
   const [rawBodyFormat, setRawBodyFormat] = useState('json'); // json, text, etc.
 
@@ -79,13 +79,15 @@ export default function APIExecutionStudio({
     { id: 'tests', label: 'Tests' },
   ];
 
-  // Auto-expand bottom panel when response arrives
-  useEffect(() => {
-    if (response || error) {
-      setBottomPanelCollapsed(false);
-      setBottomPanelTab('response');
-    }
-  }, [response, error]);
+  const handleSendClick = () => {
+    const hasUrl = Boolean(url && url.trim());
+    if (!hasUrl || isLoading) return;
+
+    // Bring response panel up immediately on send.
+    setBottomPanelCollapsed(false);
+    setBottomPanelTab('response');
+    onExecute();
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
@@ -99,7 +101,7 @@ export default function APIExecutionStudio({
             title="New request"
           >
             <Plus className="w-4 h-4" />
-            <span>NEW</span>
+            <span>New</span>
           </button>
           <div className="flex-1 flex items-center overflow-x-auto custom-scrollbar min-w-0">
             {requests.map((req, index) => {
@@ -188,8 +190,8 @@ export default function APIExecutionStudio({
               className="flex-1 min-w-[220px] bg-dark-800 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
             />
             <button
-              onClick={onExecute}
-              disabled={isLoading || !url}
+              onClick={handleSendClick}
+              disabled={isLoading || !url?.trim()}
               className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isLoading ? (
@@ -386,7 +388,7 @@ export default function APIExecutionStudio({
 
       {/* Bottom Panel - Docked Output (IDE Terminal Style) */}
       <ResizableBottomPanel
-        defaultHeight={120}
+        defaultHeight={200}
         minHeight={48}
         maxHeight={600}
         collapsed={bottomPanelCollapsed}

@@ -294,17 +294,17 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
         <div className="flex gap-2">
           <button
             type="button"
+            onClick={() => setShowNewModal(true)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
-            Import
+            New
           </button>
           <button
             type="button"
             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
-            title="Save Collections"
+            title="Import Collections"
           >
-            <Save className="w-3.5 h-3.5" />
-            Save
+            Import
           </button>
         </div>
       </div>

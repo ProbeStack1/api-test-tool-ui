@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Home as HomeIcon, LayoutGrid, FileText, Globe, Search as SearchIcon } from 'lucide-react';
+import { Sun, UserRound, LogOut, ChevronDown, Search as SearchIcon, Settings } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
@@ -66,8 +66,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const profileMenuRef = useRef(null);
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
+  const settingsMenuRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
@@ -75,8 +75,8 @@ function App() {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
-        setIsProfileMenuOpen(false);
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setIsSettingsMenuOpen(false);
       }
     };
 
@@ -236,75 +236,82 @@ function App() {
           </div>
           
           <div className="flex items-center gap-2">
-            <nav className="flex items-center gap-1">
+            <nav className="flex items-center gap-1 rounded-xl border border-dark-700 bg-dark-800/80 px-1 py-1">
               <button
                 onClick={() => navigate('/')}
                 title="Home"
-                className={clsx("p-2 rounded-lg transition-colors", pathname === '/' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname === '/' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
-                <HomeIcon className="w-4 h-4" />
+                <Sun className="w-4 h-4" />
               </button>
               <button
                 onClick={() => navigate('/workspace')}
                 title="Workspaces"
-                className={clsx("p-2 rounded-lg transition-colors", pathname.startsWith('/workspace') ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname.startsWith('/workspace') ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
-                <LayoutGrid className="w-4 h-4" />
+                <div className="flex items-center gap-0.5">
+                  <UserRound className="w-3.5 h-3.5" />
+                  <ChevronDown className="w-3 h-3" />
+                </div>
               </button>
               <button
                 onClick={() => navigate('/reports')}
                 title="Reports"
-                className={clsx("p-2 rounded-lg transition-colors", pathname === '/reports' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
+                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname === '/reports' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
               >
-                <FileText className="w-4 h-4" />
+                <LogOut className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => navigate('/explore')}
-                title="Explore"
-                className={clsx("p-2 rounded-lg transition-colors", pathname === '/explore' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <Globe className="w-4 h-4" />
-              </button>
+              <div className="relative" ref={settingsMenuRef}>
+                <button
+                  onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
+                  title="Settings"
+                  className={clsx(
+                    "w-8 h-8 flex items-center justify-center rounded-full transition-colors",
+                    pathname.includes('/workspace/settings') || isSettingsMenuOpen
+                      ? "bg-dark-700 text-white"
+                      : "text-gray-400 hover:text-gray-200 hover:bg-dark-700"
+                  )}
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                {isSettingsMenuOpen && (
+                  <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-dark-700 bg-dark-800 shadow-2xl p-2">
+                    <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      Settings
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate('/workspace/settings/general');
+                        setIsSettingsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+                    >
+                      General
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate('/workspace/settings/certificates');
+                        setIsSettingsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+                    >
+                      Certificates
+                    </button>
+                  </div>
+                )}
+              </div>
             </nav>
             <div className="h-6 w-[1px] bg-dark-600 mx-2"></div>
             <button className="px-4 py-2 bg-[#ff5b1f] hover:bg-[#ff6d2f] text-white text-xs font-bold rounded-lg shadow-lg transition-all">
               Invite
             </button>
-            <div className="relative" ref={profileMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-                className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 ring-2 ring-dark-800"
-                title="Profile menu"
-              />
-              {isProfileMenuOpen && (
-                <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-dark-700 bg-dark-800 shadow-2xl p-2">
-                  <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Settings
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigate('/workspace/settings/general');
-                      setIsProfileMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-                  >
-                    General
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigate('/workspace/settings/certificates');
-                      setIsProfileMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-                  >
-                    Certificates
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 ring-2 ring-dark-800"
+              title="Profile"
+            />
           </div>
         </header>
 

@@ -64,6 +64,7 @@ export default function IDEWorkspaceLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [workspaceSearch, setWorkspaceSearch] = useState('');
   const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
+  const [variablesScope, setVariablesScope] = useState('environment-scope');
 
   useEffect(() => {
     if (location.pathname === '/workspace' || location.pathname === '/workspace/') {
@@ -229,29 +230,37 @@ export default function IDEWorkspaceLayout({
                       Environment Scope
                     </div>
                     <div className="space-y-1">
-                      {environments && environments.map((env) => (
-                        <button
-                          key={env.id}
-                          type="button"
-                          onClick={() => onEnvironmentChange && onEnvironmentChange(env.id)}
-                          className={clsx(
-                            'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-                            selectedEnvironment === env.id
-                              ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                              : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
-                          )}
-                        >
-                          {env.name}
-                        </button>
-                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setVariablesScope('environment-scope')}
+                        className={clsx(
+                          'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                          variablesScope === 'environment-scope'
+                            ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                        )}
+                      >
+                        Environment Scope
+                      </button>
                     </div>
                   </div>
                   <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
                     <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
                       Global Scope
                     </div>
-                    <div className="rounded-lg border border-dashed border-dark-700 bg-dark-900/30 px-3 py-3 text-xs text-gray-500">
-                      No global variables configured
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setVariablesScope('global-scope')}
+                        className={clsx(
+                          'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                          variablesScope === 'global-scope'
+                            ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                        )}
+                      >
+                        Global Scope
+                      </button>
                     </div>
                   </div>
                 </div>

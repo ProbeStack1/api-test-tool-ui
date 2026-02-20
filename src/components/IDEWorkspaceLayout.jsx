@@ -14,6 +14,7 @@ export default function IDEWorkspaceLayout({
   onTabSelect,
   onNewTab,
   onCloseTab,
+  onTabRename,
   method,
   url,
   queryParams,
@@ -331,6 +332,7 @@ export default function IDEWorkspaceLayout({
               onTabSelect={onTabSelect}
               onNewTab={onNewTab}
               onCloseTab={onCloseTab}
+              onTabRename={onTabRename}
               method={method}
               url={url}
               queryParams={queryParams}
@@ -360,7 +362,16 @@ export default function IDEWorkspaceLayout({
 
           {/* Right side: Code snippet and Execution Insights (both closed by default), + icon strip */}
           <div className="flex flex-shrink-0 border-l border-dark-700 bg-dark-800/30 min-h-0">
-            {rightPanelOpen === 'code' && <CodeSnippetPanel />}
+            {rightPanelOpen === 'code' && (
+              <CodeSnippetPanel 
+                method={method}
+                url={url}
+                headers={headers}
+                body={body}
+                authType={authType}
+                authData={authData}
+              />
+            )}
             {rightPanelOpen === 'insights' && (
               <IDEExecutionInsights
                 response={response}

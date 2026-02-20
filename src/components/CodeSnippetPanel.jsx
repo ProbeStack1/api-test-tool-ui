@@ -4,9 +4,56 @@ import clsx from 'clsx';
 
 /**
  * Postman-style code snippet panel (e.g. cURL equivalent).
- * UI only for now; functionality (generate curl from request) later.
  */
-export default function CodeSnippetPanel({ className }) {
+export default function CodeSnippetPanel({ className, method, url, headers, body, authType, authData }) {
+  const generateCurl = () => {
+    if (!url || !url.trim()) {
+      return '# Execute a request to see the equivalent cURL command.';
+    }
+
+    let curl = `curl -X ${method || 'GET'} '${url}'`;
+
+    // Add headers
+    if (headers && Array.isArray(headers)) {
+      headers.forEach(header => {
+        if (header.key && header.key.trim()) {
+          curl += ` \\
+  -H '${header.key}: ${header.value || ''}'`;
+        }
+      });
+    }
+
+    // Add auth headers
+    if (authType === 'bearer' && authData?.token) {
+      curl += ` \\
+  -H 'Authorization: Bearer ${authData.token}'`;
+    } else if (authType === 'basic' && authData?.username) {
+      const credentials = `${authData.username}:${authData.password || ''}`;
+      const encoded = btoa(credentials);
+      curl += ` \\
+  -H 'Authorization: Basic ${encoded}'`;
+    } else if (authType === 'apikey' && authData?.key && authData?.value) {
+      if (authData.in === 'header') {
+        curl += ` \\
+  -H '${authData.key}: ${authData.value}'`;
+      }
+    }
+
+    // Add body for POST/PUT/PATCH
+    if ((method === 'POST' || method === 'PUT' || method === 'PATCH') && body && body.trim()) {
+      const escapedBody = body.replace(/'/g, "'\\\\''" );
+      curl += ` \\
+  -d '${escapedBody}'`;
+    }
+
+    return curl;
+  };
+
+  const curlCommand = generateCurl();
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(curlCommand);
+  };
   return (
     <aside
       className={clsx(
@@ -18,6 +65,7 @@ export default function CodeSnippetPanel({ className }) {
         <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Code snippet</h3>
         <button
           type="button"
+          onClick={handleCopy}
           className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-700 transition-colors"
           title="Copy"
         >
@@ -37,7 +85,7 @@ export default function CodeSnippetPanel({ className }) {
         </div>
         <div className="flex-1 min-h-0 rounded-lg border border-dark-700 bg-dark-900/80 overflow-auto">
           <pre className="p-4 text-xs font-mono text-gray-400 whitespace-pre-wrap break-all leading-relaxed">
-            {`# Execute a request to see the equivalent cURL command.`}
+            {curlCommand}
           </pre>
         </div>
       </div>

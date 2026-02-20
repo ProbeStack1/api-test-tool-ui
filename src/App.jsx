@@ -31,8 +31,29 @@ function App() {
     tests: '',
   });
 
-  const [requests, setRequests] = useState(() => [createEmptyRequest()]);
-  const [activeRequestIndex, setActiveRequestIndex] = useState(0);
+  const [requests, setRequests] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_requests');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.length > 0 ? parsed : [createEmptyRequest()];
+      }
+    } catch (error) {
+      console.error('Failed to load requests from localStorage:', error);
+    }
+    return [createEmptyRequest()];
+  });
+  const [activeRequestIndex, setActiveRequestIndex] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_active_request_index');
+      if (stored !== null) {
+        return parseInt(stored, 10);
+      }
+    } catch (error) {
+      console.error('Failed to load active request index from localStorage:', error);
+    }
+    return 0;
+  });
 
   const currentRequest = requests[activeRequestIndex] || requests[0];
   const method = currentRequest?.method ?? 'GET';
@@ -72,6 +93,22 @@ function App() {
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
   }, [history]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_requests', JSON.stringify(requests));
+    } catch (error) {
+      console.error('Failed to save requests to localStorage:', error);
+    }
+  }, [requests]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_active_request_index', activeRequestIndex.toString());
+    } catch (error) {
+      console.error('Failed to save active request index to localStorage:', error);
+    }
+  }, [activeRequestIndex]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -170,8 +207,30 @@ function App() {
   };
 
   const handleSelectEndpoint = (endpoint) => {
-    updateActiveRequest('url', endpoint.path);
-    updateActiveRequest('method', endpoint.method);
+    // Check if a tab with this exact endpoint already exists
+    const existingTabIndex = requests.findIndex(
+      (req) => req.url === endpoint.path && req.method === endpoint.method
+    );
+
+    if (existingTabIndex !== -1) {
+      // If tab exists, just switch to it
+      setActiveRequestIndex(existingTabIndex);
+    } else {
+      // Create new tab with the endpoint data
+      const newRequest = {
+        ...createEmptyRequest(),
+        url: endpoint.path,
+        method: endpoint.method,
+        name: endpoint.name || 'Untitled Request',
+      };
+      setRequests((prev) => {
+        const next = [...prev, newRequest];
+        setActiveRequestIndex(next.length - 1);
+        return next;
+      });
+    }
+    setResponse(null);
+    setError(null);
     navigate('/workspace');
   };
 
@@ -196,6 +255,16 @@ function App() {
       if (index < prev) return prev - 1;
       if (index === prev) return Math.max(0, prev - 1);
       return prev;
+    });
+  };
+
+  const handleTabRename = (index, newName) => {
+    setRequests((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { ...next[index], name: newName };
+      }
+      return next;
     });
   };
 
@@ -329,6 +398,7 @@ function App() {
                 onTabSelect={handleTabSelect}
                 onNewTab={handleNewTab}
                 onCloseTab={handleCloseTab}
+                onTabRename={handleTabRename}
                 method={method}
                 url={url}
                 queryParams={queryParams}

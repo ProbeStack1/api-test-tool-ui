@@ -25,6 +25,7 @@ export default function APIExecutionStudio({
   onTabSelect,
   onNewTab,
   onCloseTab,
+  onTabRename,
   method,
   url,
   queryParams,
@@ -54,6 +55,8 @@ export default function APIExecutionStudio({
   const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
   const [bodyType, setBodyType] = useState('raw'); // none | form-data | x-www-form-urlencoded | raw
   const [rawBodyFormat, setRawBodyFormat] = useState('json'); // json, text, etc.
+  const [editingTabIndex, setEditingTabIndex] = useState(null);
+  const [editingTabName, setEditingTabName] = useState('');
 
   const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 
@@ -107,14 +110,19 @@ export default function APIExecutionStudio({
             {requests.map((req, index) => {
               const isActive = index === activeRequestIndex;
               const label = getTabLabel(req);
+              const isEditing = editingTabIndex === index;
               return (
                 <div
                   key={req.id}
                   role="tab"
                   tabIndex={0}
-                  onClick={() => onTabSelect(index)}
+                  onClick={() => !isEditing && onTabSelect(index)}
+                  onDoubleClick={() => {
+                    setEditingTabIndex(index);
+                    setEditingTabName(req.name || label);
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
                       e.preventDefault();
                       onTabSelect(index);
                     }
@@ -138,7 +146,38 @@ export default function APIExecutionStudio({
                   >
                     {req.method}
                   </span>
-                  <span className="text-xs truncate flex-1">{label}</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editingTabName}
+                      onChange={(e) => setEditingTabName(e.target.value)}
+                      onBlur={() => {
+                        if (editingTabName.trim() && onTabRename) {
+                          onTabRename(index, editingTabName.trim());
+                        }
+                        setEditingTabIndex(null);
+                        setEditingTabName('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (editingTabName.trim() && onTabRename) {
+                            onTabRename(index, editingTabName.trim());
+                          }
+                          setEditingTabIndex(null);
+                          setEditingTabName('');
+                        } else if (e.key === 'Escape') {
+                          setEditingTabIndex(null);
+                          setEditingTabName('');
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="text-xs flex-1 bg-dark-700 border border-primary rounded px-1 py-0.5 outline-none text-white min-w-0"
+                    />
+                  ) : (
+                    <span className="text-xs truncate flex-1">{req.name || label}</span>
+                  )}
                   {requests.length > 1 && (
                     <button
                       type="button"
@@ -388,9 +427,9 @@ export default function APIExecutionStudio({
 
       {/* Bottom Panel - Docked Output (IDE Terminal Style) */}
       <ResizableBottomPanel
-        defaultHeight={200}
+        defaultHeight={257}
         minHeight={48}
-        maxHeight={600}
+        maxHeight={800}
         collapsed={bottomPanelCollapsed}
         onCollapseChange={setBottomPanelCollapsed}
       >

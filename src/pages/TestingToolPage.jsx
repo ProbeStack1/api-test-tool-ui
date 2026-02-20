@@ -12,6 +12,7 @@ export default function TestingToolPage({
   onTabSelect,
   onNewTab,
   onCloseTab,
+  onTabRename,
   method,
   url,
   queryParams,
@@ -48,6 +49,7 @@ export default function TestingToolPage({
       onTabSelect={onTabSelect}
       onNewTab={onNewTab}
       onCloseTab={onCloseTab}
+      onTabRename={onTabRename}
       method={method}
       url={url}
       queryParams={queryParams}

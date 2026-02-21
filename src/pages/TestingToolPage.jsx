@@ -8,6 +8,8 @@ import IDEWorkspaceLayout from '../components/IDEWorkspaceLayout';
 export default function TestingToolPage({
   history,
   requests,
+  collections,
+  projects,
   activeRequestIndex,
   onTabSelect,
   onNewTab,
@@ -40,11 +42,24 @@ export default function TestingToolPage({
   onExecute,
   onNewRequest,
   onEnvironmentChange,
+  onSaveRequest,
+  onAddProject,
+  onCollectionsChange,
+  onDeleteHistoryItem,
+  environmentVariables,
+  globalVariables,
+  onEnvironmentVariablesChange,
+  onGlobalVariablesChange,
+  substituteVariables,
+  collectionRunResults,
+  onRunCollection,
 }) {
   return (
     <IDEWorkspaceLayout
       history={history}
       requests={requests}
+      collections={collections}
+      projects={projects}
       activeRequestIndex={activeRequestIndex}
       onTabSelect={onTabSelect}
       onNewTab={onNewTab}
@@ -77,6 +92,17 @@ export default function TestingToolPage({
       onExecute={onExecute}
       onNewRequest={onNewRequest}
       onEnvironmentChange={onEnvironmentChange}
+      onSaveRequest={onSaveRequest}
+      onAddProject={onAddProject}
+      onCollectionsChange={onCollectionsChange}
+      onDeleteHistoryItem={onDeleteHistoryItem}
+      environmentVariables={environmentVariables}
+      globalVariables={globalVariables}
+      onEnvironmentVariablesChange={onEnvironmentVariablesChange}
+      onGlobalVariablesChange={onGlobalVariablesChange}
+      substituteVariables={substituteVariables}
+      collectionRunResults={collectionRunResults}
+      onRunCollection={onRunCollection}
     />
   );
 }

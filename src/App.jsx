@@ -20,6 +20,7 @@ function App() {
 
   const createEmptyRequest = () => ({
     id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    name: 'Untitled Request',
     method: 'GET',
     url: '',
     queryParams: [{ key: '', value: '' }],
@@ -42,6 +43,33 @@ function App() {
       console.error('Failed to load requests from localStorage:', error);
     }
     return [createEmptyRequest()];
+  });
+
+  const [collections, setCollections] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_collections');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load collections from localStorage:', error);
+    }
+    return [];
+  });
+
+  const [projects, setProjects] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_projects');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load projects from localStorage:', error);
+    }
+    return [
+      { id: 'auth-security', name: 'Auth and Security' },
+      { id: 'payment-gateway', name: 'Payment Gateway' }
+    ];
   });
   const [activeRequestIndex, setActiveRequestIndex] = useState(() => {
     try {
@@ -83,12 +111,41 @@ function App() {
   ]);
   const [selectedEnvironment, setSelectedEnvironment] = useState('no-env');
 
+  // Variables state with localStorage persistence
+  const [environmentVariables, setEnvironmentVariables] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_environment_variables');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load environment variables from localStorage:', error);
+    }
+    return [{ key: '', value: '' }];
+  });
+
+  const [globalVariables, setGlobalVariables] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_global_variables');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load global variables from localStorage:', error);
+    }
+    return [{ key: '', value: '' }];
+  });
+
   // UI State
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
   const settingsMenuRef = useRef(null);
+
+  // Collection Run Results state
+  const [collectionRunResults, setCollectionRunResults] = useState(null);
+  const [isRunningCollection, setIsRunningCollection] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
@@ -104,11 +161,43 @@ function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('probestack_collections', JSON.stringify(collections));
+    } catch (error) {
+      console.error('Failed to save collections to localStorage:', error);
+    }
+  }, [collections]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_projects', JSON.stringify(projects));
+    } catch (error) {
+      console.error('Failed to save projects to localStorage:', error);
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('probestack_active_request_index', activeRequestIndex.toString());
     } catch (error) {
       console.error('Failed to save active request index to localStorage:', error);
     }
   }, [activeRequestIndex]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
+    } catch (error) {
+      console.error('Failed to save environment variables to localStorage:', error);
+    }
+  }, [environmentVariables]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_global_variables', JSON.stringify(globalVariables));
+    } catch (error) {
+      console.error('Failed to save global variables to localStorage:', error);
+    }
+  }, [globalVariables]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -208,8 +297,9 @@ function App() {
 
   const handleSelectEndpoint = (endpoint) => {
     // Check if a tab with this exact endpoint already exists
+    // Match by name to handle empty requests correctly
     const existingTabIndex = requests.findIndex(
-      (req) => req.url === endpoint.path && req.method === endpoint.method
+      (req) => req.name === endpoint.name && req.url === endpoint.path && req.method === endpoint.method
     );
 
     if (existingTabIndex !== -1) {
@@ -234,9 +324,68 @@ function App() {
     navigate('/workspace');
   };
 
+  // Get all request names from collections (recursively)
+  const getAllRequestNamesFromCollections = () => {
+    const names = [];
+    const traverse = (items) => {
+      if (!items) return;
+      items.forEach(item => {
+        if (item.type === 'request' && item.name) {
+          names.push(item.name.toLowerCase());
+        } else if (item.items) {
+          traverse(item.items);
+        }
+      });
+    };
+    
+    collections.forEach(collection => {
+      traverse(collection.items || []);
+    });
+    
+    return names;
+  };
+
+  // Generate unique request name checking BOTH tabs and collections
+  const generateUniqueRequestName = (baseName = 'Untitled Request') => {
+    // Get names from both tabs and collections
+    const tabNames = requests.map(req => req.name?.toLowerCase() || '');
+    const collectionNames = getAllRequestNamesFromCollections();
+    const allExistingNames = [...tabNames, ...collectionNames];
+    
+    // If base name doesn't exist, return it
+    if (!allExistingNames.includes(baseName.toLowerCase())) {
+      return baseName;
+    }
+    
+    // Find the highest number suffix
+    let maxNumber = 0;
+    const baseNameLower = baseName.toLowerCase();
+    
+    allExistingNames.forEach(name => {
+      if (name === baseNameLower) {
+        maxNumber = Math.max(maxNumber, 1);
+      } else if (name.startsWith(baseNameLower + ' ')) {
+        const suffix = name.substring(baseNameLower.length + 1);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num)) {
+          maxNumber = Math.max(maxNumber, num);
+        }
+      }
+    });
+    
+    // Return next number
+    return `${baseName} ${maxNumber + 1}`;
+  };
+
   const handleNewTab = () => {
     setRequests((prev) => {
-      const next = [...prev, createEmptyRequest()];
+      const uniqueName = generateUniqueRequestName();
+      
+      const newRequest = {
+        ...createEmptyRequest(),
+        name: uniqueName
+      };
+      const next = [...prev, newRequest];
       setActiveRequestIndex(next.length - 1);
       return next;
     });
@@ -266,6 +415,187 @@ function App() {
       }
       return next;
     });
+  };
+
+  const handleAddProject = (projectName) => {
+    const newProjectId = `project-${Date.now()}`;
+    const newProject = { id: newProjectId, name: projectName.trim() };
+    setProjects((prev) => [...prev, newProject]);
+    return newProject;
+  };
+
+  const handleCollectionsChange = (newCollections) => {
+    setCollections(newCollections);
+  };
+
+  const savedRequestIdsRef = useRef(new Set());
+
+  const handleSaveRequest = (saveData) => {
+    const { projectId, projectName, collectionId, collectionName, isNewCollection, request } = saveData;
+    
+    // Prevent duplicate saves of the same request ID
+    if (savedRequestIdsRef.current.has(request.id)) {
+      return;
+    }
+    savedRequestIdsRef.current.add(request.id);
+    
+    setCollections((prev) => {
+      const newCollections = [...prev];
+      
+      if (isNewCollection) {
+        // Create new collection in the project
+        const newCollection = {
+          id: `col-${Date.now()}`,
+          name: collectionName,
+          type: 'collection',
+          project: projectId,
+          projectName: projectName,
+          items: [request]
+        };
+        newCollections.push(newCollection);
+      } else {
+        // Add to existing collection
+        const collectionIndex = newCollections.findIndex(col => col.id === collectionId);
+        if (collectionIndex !== -1) {
+          if (!newCollections[collectionIndex].items) {
+            newCollections[collectionIndex].items = [];
+          }
+          // Guard: Prevent duplicate request IDs
+          const existingRequestIndex = newCollections[collectionIndex].items.findIndex(
+            item => item.id === request.id
+          );
+          if (existingRequestIndex === -1) {
+            newCollections[collectionIndex].items.push(request);
+          }
+        }
+      }
+      
+      return newCollections;
+    });
+  };
+
+  const handleDeleteHistoryItem = (index) => {
+    setHistory((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Variable substitution function - replaces {{variable}} with actual values
+  const substituteVariables = (text) => {
+    if (!text || typeof text !== 'string') return text;
+    
+    // Combine environment and global variables (environment takes precedence)
+    const allVariables = [...globalVariables, ...environmentVariables].filter(v => v.key && v.value);
+    const variableMap = {};
+    
+    // Environment variables override global variables
+    allVariables.forEach(v => {
+      variableMap[v.key] = v.value;
+    });
+    
+    // Replace {{variable}} with value
+    return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+      return variableMap[varName] !== undefined ? variableMap[varName] : match;
+    });
+  };
+
+  // Handle running all requests in a collection
+  const handleRunCollection = async (collection) => {
+    if (!collection || !collection.items) return;
+
+    setIsRunningCollection(true);
+    setCollectionRunResults({
+      collectionName: collection.name,
+      startTime: new Date().toISOString(),
+      status: 'running',
+      results: []
+    });
+
+    // Recursively collect all requests from collection
+    const collectRequests = (items, folderPath = '') => {
+      const requests = [];
+      items.forEach(item => {
+        if (item.type === 'request') {
+          requests.push({
+            ...item,
+            folderPath: folderPath || 'Root'
+          });
+        } else if (item.type === 'folder' && item.items) {
+          const newPath = folderPath ? `${folderPath} / ${item.name}` : item.name;
+          requests.push(...collectRequests(item.items, newPath));
+        }
+      });
+      return requests;
+    };
+
+    const allRequests = collectRequests(collection.items);
+    const results = [];
+
+    // Execute requests sequentially
+    for (let i = 0; i < allRequests.length; i++) {
+      const request = allRequests[i];
+      
+      setCollectionRunResults(prev => ({
+        ...prev,
+        currentIndex: i,
+        totalRequests: allRequests.length,
+        currentRequest: request.name
+      }));
+
+      try {
+        const res = await sendRequest({
+          url: substituteVariables(request.path || ''),
+          method: request.method || 'GET',
+          queryParams: request.queryParams || [{ key: '', value: '' }],
+          headers: request.headers || [{ key: '', value: '' }],
+          body: request.body || null,
+          authType: request.authType || 'none',
+          authData: request.authData || {},
+          preRequestScript: request.preRequestScript || ''
+        });
+
+        results.push({
+          requestId: request.id,
+          requestName: request.name,
+          method: request.method,
+          url: request.path,
+          folderPath: request.folderPath,
+          status: res.status,
+          statusText: res.statusText,
+          time: res.time,
+          size: res.size,
+          data: res.data,
+          success: res.status >= 200 && res.status < 300,
+          error: null
+        });
+      } catch (err) {
+        results.push({
+          requestId: request.id,
+          requestName: request.name,
+          method: request.method,
+          url: request.path,
+          folderPath: request.folderPath,
+          status: 0,
+          statusText: 'Error',
+          time: 0,
+          size: 0,
+          data: null,
+          success: false,
+          error: err.message || 'Request failed'
+        });
+      }
+    }
+
+    setCollectionRunResults({
+      collectionName: collection.name,
+      startTime: results[0]?.startTime || new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      status: 'completed',
+      totalRequests: allRequests.length,
+      passedRequests: results.filter(r => r.success).length,
+      failedRequests: results.filter(r => !r.success).length,
+      results: results
+    });
+
+    setIsRunningCollection(false);
   };
 
   const isWorkspace = pathname.startsWith('/workspace');
@@ -394,6 +724,8 @@ function App() {
               <TestingToolPage
                 history={history}
                 requests={requests}
+                collections={collections}
+                projects={projects}
                 activeRequestIndex={activeRequestIndex}
                 onTabSelect={handleTabSelect}
                 onNewTab={handleNewTab}
@@ -426,6 +758,17 @@ function App() {
                 onExecute={handleExecute}
                 onNewRequest={handleNewTab}
                 onEnvironmentChange={setSelectedEnvironment}
+                onSaveRequest={handleSaveRequest}
+                onAddProject={handleAddProject}
+                onCollectionsChange={handleCollectionsChange}
+                onDeleteHistoryItem={handleDeleteHistoryItem}
+                environmentVariables={environmentVariables}
+                globalVariables={globalVariables}
+                onEnvironmentVariablesChange={setEnvironmentVariables}
+                onGlobalVariablesChange={setGlobalVariables}
+                substituteVariables={substituteVariables}
+                collectionRunResults={collectionRunResults}
+                onRunCollection={handleRunCollection}
               />
             }
           />

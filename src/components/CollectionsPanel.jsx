@@ -20,6 +20,9 @@ import {
   LayoutGrid,
   Save,
   X,
+  Plus,
+  Check,
+  Play,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -119,8 +122,12 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
   );
 }
 
-function NewCollectionModal({ isOpen, onClose, onCreate }) {
+function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects = [], onAddProject }) {
   const [collectionName, setCollectionName] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
+  const [isAddingNewProject, setIsAddingNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [validationError, setValidationError] = useState('');
   const modalRef = useRef(null);
 
   useEffect(() => {
@@ -135,15 +142,50 @@ function NewCollectionModal({ isOpen, onClose, onCreate }) {
   useEffect(() => {
     if (isOpen) {
       setCollectionName('');
+      setSelectedProject(projects.length > 0 ? projects[0].id : '');
+      setIsAddingNewProject(false);
+      setNewProjectName('');
+      setValidationError('');
     }
   }, [isOpen]);
+
+  // Update selected project if projects list changes and current selection is invalid
+  useEffect(() => {
+    if (isOpen && projects.length > 0) {
+      // Only reset if current selection is not in the projects list
+      const currentSelectionValid = projects.some(p => p.id === selectedProject);
+      if (!currentSelectionValid) {
+        setSelectedProject(projects[0].id);
+      }
+    }
+  }, [projects, isOpen]);
 
   if (!isOpen) return null;
 
   const handleCreate = () => {
-    if (collectionName.trim()) {
-      onCreate(collectionName.trim());
+    if (collectionName.trim() && selectedProject) {
+      // Check for duplicate collection name in the same project
+      const duplicateInProject = collections.some(
+        col => col.project === selectedProject && col.name.toLowerCase() === collectionName.trim().toLowerCase()
+      );
+      
+      if (duplicateInProject) {
+        setValidationError(`Collection "${collectionName.trim()}" already exists in the current project`);
+        return;
+      }
+      
+      const projectName = projects.find(p => p.id === selectedProject)?.name || selectedProject;
+      onCreate(collectionName.trim(), selectedProject, projectName);
       onClose();
+    }
+  };
+
+  const handleAddNewProject = () => {
+    if (newProjectName.trim() && onAddProject) {
+      const newProject = onAddProject(newProjectName.trim());
+      setSelectedProject(newProject.id);
+      setIsAddingNewProject(false);
+      setNewProjectName('');
     }
   };
 
@@ -169,21 +211,85 @@ function NewCollectionModal({ isOpen, onClose, onCreate }) {
           </button>
         </div>
 
-        <div className="p-5">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Collection Name
-          </label>
-          <input
-            type="text"
-            value={collectionName}
-            onChange={(e) => setCollectionName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreate();
-            }}
-            placeholder="Enter collection name"
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-            autoFocus
-          />
+        <div className="p-5 space-y-4">
+          {/* Project Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Project
+            </label>
+            {isAddingNewProject ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddNewProject();
+                    if (e.key === 'Escape') {
+                      setIsAddingNewProject(false);
+                      setNewProjectName('');
+                    }
+                  }}
+                  placeholder="Enter project name"
+                  className="flex-1 bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNewProject}
+                  disabled={!newProjectName.trim()}
+                  className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Add project"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <select
+                value={selectedProject}
+                onChange={(e) => {
+                  if (e.target.value === 'add-new') {
+                    setIsAddingNewProject(true);
+                  } else {
+                    setSelectedProject(e.target.value);
+                  }
+                }}
+                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
+              >
+                <option value="add-new" className="bg-dark-800 text-primary flex items-center">
+                  + Add New Project
+                </option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id} className="bg-dark-800 text-white">
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Collection Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Collection Name
+            </label>
+            <input
+              type="text"
+              value={collectionName}
+              onChange={(e) => {
+                setCollectionName(e.target.value);
+                setValidationError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isAddingNewProject) handleCreate();
+              }}
+              placeholder="Enter collection name"
+              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+            {validationError && (
+              <p className="mt-2 text-xs text-red-400">{validationError}</p>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
@@ -301,8 +407,9 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
   );
 }
 
-function NewFolderModal({ isOpen, onClose, onCreate }) {
+function NewFolderModal({ isOpen, onClose, onCreate, parentItem }) {
   const [folderName, setFolderName] = useState('');
+  const [validationError, setValidationError] = useState('');
   const modalRef = useRef(null);
 
   useEffect(() => {
@@ -317,6 +424,7 @@ function NewFolderModal({ isOpen, onClose, onCreate }) {
   useEffect(() => {
     if (isOpen) {
       setFolderName('');
+      setValidationError('');
     }
   }, [isOpen]);
 
@@ -324,6 +432,18 @@ function NewFolderModal({ isOpen, onClose, onCreate }) {
 
   const handleCreate = () => {
     if (folderName.trim()) {
+      // Check for duplicate folder name in the same parent
+      if (parentItem && parentItem.items) {
+        const duplicateFolder = parentItem.items.some(
+          item => item.type === 'folder' && item.name.toLowerCase() === folderName.trim().toLowerCase()
+        );
+        
+        if (duplicateFolder) {
+          setValidationError(`Folder "${folderName.trim()}" already exists in the current folder`);
+          return;
+        }
+      }
+      
       onCreate(folderName.trim());
       onClose();
     }
@@ -358,7 +478,10 @@ function NewFolderModal({ isOpen, onClose, onCreate }) {
           <input
             type="text"
             value={folderName}
-            onChange={(e) => setFolderName(e.target.value)}
+            onChange={(e) => {
+              setFolderName(e.target.value);
+              setValidationError('');
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleCreate();
             }}
@@ -366,6 +489,9 @@ function NewFolderModal({ isOpen, onClose, onCreate }) {
             className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             autoFocus
           />
+          {validationError && (
+            <p className="mt-2 text-xs text-red-400">{validationError}</p>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
@@ -455,6 +581,7 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   }, [onClose]);
 
   const collectionOptions = [
+    { id: 'run-collection', label: 'Run Collection', icon: Play },
     { id: 'add-request', label: 'Add Request', icon: FilePlus },
     { id: 'add-folder', label: 'Add Folder', icon: FolderPlus },
     { id: 'save', label: 'Save', icon: Save },
@@ -528,18 +655,9 @@ const sortItems = (items) => {
   });
 };
 
-export default function CollectionsPanel({ onSelectEndpoint }) {
-  const [collections, setCollections] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load collections from localStorage:', error);
-    }
-    return DEFAULT_COLLECTIONS;
-  });
+export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests = [], collections: externalCollections, projects = [], onAddProject, onCollectionsChange, onRunCollection }) {
+  // Use externalCollections directly from App.jsx - no local state management
+  const collections = externalCollections || DEFAULT_COLLECTIONS;
   const [expanded, setExpanded] = useState({ '3': true }); // External APIs expanded by default (original design)
   const [search, setSearch] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
@@ -551,15 +669,18 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
   const [selectedItemForRename, setSelectedItemForRename] = useState(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
+  const [untitledRequestCounter, setUntitledRequestCounter] = useState(0);
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(collections));
-    } catch (error) {
-      console.error('Failed to save collections to localStorage:', error);
+  // Helper to update collections - notifies parent via callback
+  const setCollections = (newCollectionsOrUpdater) => {
+    if (onCollectionsChange) {
+      const newCollections = typeof newCollectionsOrUpdater === 'function' 
+        ? newCollectionsOrUpdater(collections) 
+        : newCollectionsOrUpdater;
+      onCollectionsChange(newCollections);
     }
-  }, [collections]);
+  };
 
   const toggle = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -617,14 +738,90 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
     return null;
   };
 
-  const deepCloneItem = (item) => {
+  // Get all request names in a collection (recursively)
+  const getAllRequestNamesInCollection = (collectionId) => {
+    const collection = findItemById(collections, collectionId);
+    if (!collection) return [];
+    
+    const names = [];
+    const traverse = (items) => {
+      if (!items) return;
+      items.forEach(item => {
+        if (item.type === 'request') {
+          names.push(item.name.toLowerCase());
+        } else if (item.items) {
+          traverse(item.items);
+        }
+      });
+    };
+    
+    traverse(collection.items || []);
+    return names;
+  };
+
+  // Generate unique request name with auto-increment
+  // Checks BOTH collection requests AND tab requests for unified validation
+  const generateUniqueRequestName = (collectionId, baseName = 'Untitled Request') => {
+    // Get names from collection
+    const collectionNames = getAllRequestNamesInCollection(collectionId);
+    
+    // Get names from existing tabs
+    const tabNames = existingTabRequests.map(req => req.name?.toLowerCase() || '');
+    
+    // Combine all existing names
+    const existingNames = [...collectionNames, ...tabNames];
+    
+    // If base name doesn't exist, return it
+    if (!existingNames.includes(baseName.toLowerCase())) {
+      return baseName;
+    }
+    
+    // Find the highest number suffix
+    let maxNumber = 0;
+    const baseNameLower = baseName.toLowerCase();
+    existingNames.forEach(name => {
+      if (name === baseNameLower) {
+        maxNumber = Math.max(maxNumber, 1);
+      } else if (name.startsWith(baseNameLower + ' ')) {
+        const suffix = name.substring(baseNameLower.length + 1);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num)) {
+          maxNumber = Math.max(maxNumber, num);
+        }
+      }
+    });
+    
+    // Return next number
+    return `${baseName} ${maxNumber + 1}`;
+  };
+
+  const deepCloneItem = (item, collectionId = null) => {
+    let clonedName = item.name;
+    
+    // For requests, ensure unique name in collection
+    if (item.type === 'request' && collectionId) {
+      const existingNames = getAllRequestNamesInCollection(collectionId);
+      let suffix = 1;
+      let testName = `${item.name} Copy`;
+      
+      while (existingNames.includes(testName.toLowerCase())) {
+        suffix++;
+        testName = `${item.name} Copy ${suffix}`;
+      }
+      clonedName = testName;
+    } else if (item.type === 'folder') {
+      clonedName = `${item.name} Copy`;
+    } else {
+      clonedName = `${item.name} Clone`;
+    }
+    
     const cloned = {
       ...item,
       id: `${item.id}-clone-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name: `${item.name} Clone`
+      name: clonedName
     };
     if (item.items && Array.isArray(item.items)) {
-      cloned.items = item.items.map(child => deepCloneItem(child));
+      cloned.items = item.items.map(child => deepCloneItem(child, collectionId));
     }
     return cloned;
   };
@@ -635,7 +832,11 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
     const item = findItemById(collections, contextMenu.itemId);
     if (!item) return;
 
-    if (actionId === 'add-request') {
+    if (actionId === 'run-collection') {
+      if (item && item.type === 'collection' && onRunCollection) {
+        onRunCollection(item);
+      }
+    } else if (actionId === 'add-request') {
       setSelectedCollectionId(contextMenu.itemId);
       setShowRequestTypeModal(true);
     } else if (actionId === 'add-folder') {
@@ -646,9 +847,12 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
       setShowRenameModal(true);
     } else if (actionId === 'clone') {
       const parent = findParentCollection(collections, item.id);
+      const rootCollection = findRootCollection(item.id);
+      const collectionId = rootCollection ? rootCollection.id : null;
+      
       if (parent) {
         // Cloning a folder or request (has a parent)
-        const clonedItem = deepCloneItem(item);
+        const clonedItem = deepCloneItem(item, collectionId);
         const newCollections = [...collections];
         const parentInNew = findItemById(newCollections, parent.id);
         if (parentInNew && parentInNew.items) {
@@ -657,7 +861,7 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
         }
       } else {
         // Cloning a collection (no parent)
-        const clonedCollection = deepCloneItem(item);
+        const clonedCollection = deepCloneItem(item, collectionId);
         setCollections([...collections, clonedCollection]);
       }
     } else if (actionId === 'delete') {
@@ -682,9 +886,16 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
   const handleRequestTypeSelect = (optionId) => {
     if (optionId === 'http') {
       if (selectedCollectionId) {
+        // Find the root collection for this item
+        const rootCollection = findRootCollection(selectedCollectionId);
+        const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
+        
+        // Generate unique name
+        const uniqueName = generateUniqueRequestName(collectionId);
+        
         const newRequest = {
           id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: 'Untitled Request',
+          name: uniqueName,
           method: 'GET',
           type: 'request',
           path: ''
@@ -703,11 +914,13 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
     }
   };
 
-  const handleCreateCollection = (name) => {
+  const handleCreateCollection = (name, projectId, projectName) => {
     const newCollection = {
       id: `col-${Date.now()}`,
       name: name,
       type: 'collection',
+      project: projectId,
+      projectName: projectName,
       items: []
     };
     setCollections([...collections, newCollection]);
@@ -822,8 +1035,9 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
       return;
     }
 
-    // Clone the dragged item
-    const clonedItem = deepCloneItem(draggedItem);
+    // Clone the dragged item with unique naming
+    const targetRootCollectionId = targetRootCollection ? targetRootCollection.id : targetItem.id;
+    const clonedItem = deepCloneItem(draggedItem, targetRootCollectionId);
     
     // Add to target
     const newCollections = [...collections];
@@ -949,6 +1163,8 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
       name: collectionName,
       type: 'collection',
       icon: 'folder',
+      project: 'auth-security',
+      projectName: 'Auth and Security',
       items: items.filter(Boolean)
     };
   };
@@ -1006,7 +1222,7 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
             onClick={() => setShowNewCollectionModal(true)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
-            New
+            Create Collection
           </button>
           <button
             type="button"
@@ -1040,37 +1256,74 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
         </div>
       </div>
 
-      {/* Tree */}
+      {/* Tree - Grouped by Projects */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
         {filteredCollections.length === 0 ? (
           <div className="py-8 text-center text-gray-500 text-xs">No collections match your search</div>
         ) : (
-          filteredCollections.map((col) => (
-            <CollectionNode
-              key={col.id}
-              item={col}
-              expanded={expanded}
-              onToggle={toggle}
-              level={0}
-              onSelectEndpoint={onSelectEndpoint}
-              onOpenMenu={(e, item, itemType) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setContextMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  itemId: item.id,
-                  type: itemType,
-                });
-              }}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onDragEnd={handleDragEnd}
-              dragOverItem={dragOverItem}
-            />
-          ))
+          (() => {
+            // Group collections by project
+            const projectGroups = {};
+            filteredCollections.forEach((col) => {
+              const projectId = col.project || 'default';
+              const projectName = col.projectName || 'Default Project';
+              if (!projectGroups[projectId]) {
+                projectGroups[projectId] = {
+                  id: projectId,
+                  name: projectName,
+                  collections: []
+                };
+              }
+              projectGroups[projectId].collections.push(col);
+            });
+
+            return Object.values(projectGroups).map((project) => (
+              <div key={project.id} className="mb-4">
+                {/* Project Header */}
+                <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <Folder className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                      {project.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-medium">
+                    {project.collections.length}
+                  </span>
+                </div>
+                
+                {/* Collections under this project */}
+                <div className="ml-2">
+                  {project.collections.map((col) => (
+                    <CollectionNode
+                      key={col.id}
+                      item={col}
+                      expanded={expanded}
+                      onToggle={toggle}
+                      level={0}
+                      onSelectEndpoint={onSelectEndpoint}
+                      onOpenMenu={(e, item, itemType) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          itemId: item.id,
+                          type: itemType,
+                        });
+                      }}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                      dragOverItem={dragOverItem}
+                    />
+                  ))}
+                </div>
+              </div>
+            ));
+          })()
         )}
       </div>
 
@@ -1088,6 +1341,9 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
         isOpen={showNewCollectionModal}
         onClose={() => setShowNewCollectionModal(false)}
         onCreate={handleCreateCollection}
+        collections={collections}
+        projects={projects}
+        onAddProject={onAddProject}
       />
 
       <NewRequestTypeModal
@@ -1106,6 +1362,7 @@ export default function CollectionsPanel({ onSelectEndpoint }) {
           setSelectedCollectionId(null);
         }}
         onCreate={handleCreateFolder}
+        parentItem={selectedCollectionId ? findItemById(collections, selectedCollectionId) : null}
       />
 
       <RenameModal

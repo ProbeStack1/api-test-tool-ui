@@ -144,10 +144,6 @@ function App() {
   const [collectionRunResults, setCollectionRunResults] = useState(null);
   const [isRunningCollection, setIsRunningCollection] = useState(false);
 
-  // Collection Run Results state
-  const [collectionRunResults, setCollectionRunResults] = useState(null);
-  const [isRunningCollection, setIsRunningCollection] = useState(false);
-
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
   }, [history]);

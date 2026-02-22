@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X } from 'lucide-react';
+import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X, Save, Folder, ChevronDown, ChevronRight } from 'lucide-react';
 import KeyValueEditor from './KeyValueEditor';
 import AuthPanel from './AuthPanel';
 import ResizableBottomPanel from './ResizableBottomPanel';
+import SaveRequestModal from './SaveRequestModal';
 import clsx from 'clsx';
 
 function getTabLabel(request) {
@@ -25,6 +26,7 @@ export default function APIExecutionStudio({
   onTabSelect,
   onNewTab,
   onCloseTab,
+  onTabRename,
   method,
   url,
   queryParams,
@@ -47,13 +49,31 @@ export default function APIExecutionStudio({
   onAuthDataChange,
   onPreRequestScriptChange,
   onTestsChange,
-  onExecute
+  onExecute,
+  onSaveRequest,
+  collections = [],
+  projects = [],
+  onAddProject,
+  substituteVariables,
+  collectionRunResults,
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
   const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
   const [bodyType, setBodyType] = useState('raw'); // none | form-data | x-www-form-urlencoded | raw
   const [rawBodyFormat, setRawBodyFormat] = useState('json'); // json, text, etc.
+  const [editingTabIndex, setEditingTabIndex] = useState(null);
+  const [editingTabName, setEditingTabName] = useState('');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [expandedRunFolders, setExpandedRunFolders] = useState({});
+
+  // Auto-expand bottom panel and switch to Collection Run tab when collection run starts
+  React.useEffect(() => {
+    if (collectionRunResults) {
+      setBottomPanelCollapsed(false);
+      setBottomPanelTab('collection-run');
+    }
+  }, [collectionRunResults]);
 
   const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 
@@ -86,6 +106,15 @@ export default function APIExecutionStudio({
     // Bring response panel up immediately on send.
     setBottomPanelCollapsed(false);
     setBottomPanelTab('response');
+    
+    // Substitute variables in URL before sending
+    if (substituteVariables) {
+      const substitutedUrl = substituteVariables(url);
+      if (substitutedUrl !== url) {
+        onUrlChange(substitutedUrl);
+      }
+    }
+    
     onExecute();
   };
 
@@ -103,18 +132,23 @@ export default function APIExecutionStudio({
             <Plus className="w-4 h-4" />
             <span>New</span>
           </button>
-          <div className="flex-1 flex items-center overflow-x-auto custom-scrollbar min-w-0">
+          <div className="flex-1 flex items-center overflow-hidden min-w-0">
             {requests.map((req, index) => {
               const isActive = index === activeRequestIndex;
               const label = getTabLabel(req);
+              const isEditing = editingTabIndex === index;
               return (
                 <div
                   key={req.id}
                   role="tab"
                   tabIndex={0}
-                  onClick={() => onTabSelect(index)}
+                  onClick={() => !isEditing && onTabSelect(index)}
+                  onDoubleClick={() => {
+                    setEditingTabIndex(index);
+                    setEditingTabName(req.name || label);
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
                       e.preventDefault();
                       onTabSelect(index);
                     }
@@ -138,7 +172,38 @@ export default function APIExecutionStudio({
                   >
                     {req.method}
                   </span>
-                  <span className="text-xs truncate flex-1">{label}</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editingTabName}
+                      onChange={(e) => setEditingTabName(e.target.value)}
+                      onBlur={() => {
+                        if (editingTabName.trim() && onTabRename) {
+                          onTabRename(index, editingTabName.trim());
+                        }
+                        setEditingTabIndex(null);
+                        setEditingTabName('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (editingTabName.trim() && onTabRename) {
+                            onTabRename(index, editingTabName.trim());
+                          }
+                          setEditingTabIndex(null);
+                          setEditingTabName('');
+                        } else if (e.key === 'Escape') {
+                          setEditingTabIndex(null);
+                          setEditingTabName('');
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="text-xs flex-1 bg-dark-700 border border-primary rounded px-1 py-0.5 outline-none text-white min-w-0"
+                    />
+                  ) : (
+                    <span className="text-xs truncate flex-1">{req.name || label}</span>
+                  )}
                   {requests.length > 1 && (
                     <button
                       type="button"
@@ -153,7 +218,7 @@ export default function APIExecutionStudio({
                     </button>
                   )}
                 </div>
-              );
+            );
             })}
           </div>
         </div>
@@ -189,6 +254,15 @@ export default function APIExecutionStudio({
               placeholder="https://api.example.com/v1/endpoint"
               className="flex-1 min-w-[220px] bg-dark-800 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
             />
+            <button
+              type="button"
+              onClick={() => setShowSaveModal(true)}
+              className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0"
+              title="Save request"
+            >
+              <Save className="w-4 h-4" />
+              <span>Save</span>
+            </button>
             <button
               onClick={handleSendClick}
               disabled={isLoading || !url?.trim()}
@@ -388,16 +462,16 @@ export default function APIExecutionStudio({
 
       {/* Bottom Panel - Docked Output (IDE Terminal Style) */}
       <ResizableBottomPanel
-        defaultHeight={200}
+        defaultHeight={257}
         minHeight={48}
-        maxHeight={600}
+        maxHeight={800}
         collapsed={bottomPanelCollapsed}
         onCollapseChange={setBottomPanelCollapsed}
       >
         {/* Forgeq-style Panel Header */}
         <div className="h-12 px-5 flex items-center justify-between border-b border-dark-700 bg-probestack-bg/80 shrink-0 gap-2 min-w-0">
           <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-thin">
-            {['response', 'logs', 'validation'].map((tab) => (
+            {['response', 'logs', 'validation', 'collection-run'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setBottomPanelTab(tab)}
@@ -408,7 +482,8 @@ export default function APIExecutionStudio({
                     : 'text-gray-400 hover:text-white'
                 )}
               >
-                {tab === 'validation' ? 'Validation Results' : tab}
+                {tab === 'validation' ? 'Validation Results' : 
+                 tab === 'collection-run' ? 'Collection Run' : tab}
               </button>
             ))}
           </div>
@@ -577,9 +652,230 @@ export default function APIExecutionStudio({
                 )}
               </div>
             )}
+            {bottomPanelTab === 'collection-run' && (
+              <div className="space-y-4">
+                {collectionRunResults ? (
+                  <>
+                    {/* Collection Run Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-dark-700">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-gray-200">
+                          {collectionRunResults.collectionName}
+                        </span>
+                        {collectionRunResults.status === 'running' ? (
+                          <span className="flex items-center gap-1.5 text-xs text-yellow-400">
+                            <div className="w-3 h-3 border-2 border-yellow-400/20 border-t-yellow-400 rounded-full animate-spin" />
+                            Running...
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className={clsx(
+                              'text-xs px-2 py-0.5 rounded font-medium',
+                              collectionRunResults.failedRequests === 0
+                                ? 'text-green-400 bg-green-400/10'
+                                : 'text-red-400 bg-red-400/10'
+                            )}>
+                              {collectionRunResults.passedRequests} / {collectionRunResults.totalRequests} Passed
+                            </span>
+                            {collectionRunResults.failedRequests > 0 && (
+                              <span className="text-xs px-2 py-0.5 rounded font-medium text-red-400 bg-red-400/10">
+                                {collectionRunResults.failedRequests} Failed
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {collectionRunResults.status === 'completed' && (
+                        <span className="text-xs text-gray-500">
+                          Completed in {new Date(collectionRunResults.endTime).getTime() - new Date(collectionRunResults.startTime).getTime()}ms
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Progress Bar for Running State */}
+                    {collectionRunResults.status === 'running' && (
+                      <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">
+                            Executing: {collectionRunResults.currentRequest}
+                          </span>
+                          <span className="text-gray-500">
+                            {collectionRunResults.currentIndex + 1} / {collectionRunResults.totalRequests}
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary rounded-full transition-all duration-300"
+                            style={{ 
+                              width: `${((collectionRunResults.currentIndex + 1) / collectionRunResults.totalRequests) * 100}%` 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Results Grouped by Folder */}
+                    {collectionRunResults.results && collectionRunResults.results.length > 0 && (
+                      <div className="space-y-3">
+                        {(() => {
+                          // Group results by folder path
+                          const grouped = collectionRunResults.results.reduce((acc, result) => {
+                            const path = result.folderPath || 'Root';
+                            if (!acc[path]) acc[path] = [];
+                            acc[path].push(result);
+                            return acc;
+                          }, {});
+
+                          return Object.entries(grouped).map(([folderPath, results]) => (
+                            <div key={folderPath} className="border border-dark-700 rounded-lg overflow-hidden">
+                              {/* Folder Header */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedRunFolders(prev => ({
+                                  ...prev,
+                                  [folderPath]: !prev[folderPath]
+                                }))}
+                                className="w-full flex items-center gap-2 px-3 py-2 bg-dark-800/50 hover:bg-dark-800 transition-colors"
+                              >
+                                {expandedRunFolders[folderPath] !== false ? (
+                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                                )}
+                                <Folder className="w-4 h-4 text-amber-500/90" />
+                                <span className="text-xs font-medium text-gray-300">{folderPath}</span>
+                                <span className="text-xs text-gray-500 ml-auto">
+                                  {results.length} request{results.length !== 1 ? 's' : ''}
+                                </span>
+                              </button>
+
+                              {/* Requests in Folder */}
+                              {expandedRunFolders[folderPath] !== false && (
+                                <div className="divide-y divide-dark-700/50">
+                                  {results.map((result, idx) => (
+                                    <div 
+                                      key={idx}
+                                      className="px-3 py-2.5 hover:bg-dark-800/30 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {/* Method Badge */}
+                                        <span className={clsx(
+                                          'text-[10px] font-bold w-10 text-center shrink-0',
+                                          result.method === 'GET' && 'text-green-400',
+                                          result.method === 'POST' && 'text-yellow-400',
+                                          result.method === 'PUT' && 'text-blue-400',
+                                          result.method === 'DELETE' && 'text-red-400',
+                                          'text-purple-400'
+                                        )}>
+                                          {result.method}
+                                        </span>
+
+                                        {/* Request Name */}
+                                        <span className="text-xs text-gray-300 truncate flex-1">
+                                          {result.requestName}
+                                        </span>
+
+                                        {/* Status */}
+                                        {result.status > 0 ? (
+                                          <span className={clsx(
+                                            'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                                            result.success
+                                              ? 'text-green-400 bg-green-400/10'
+                                              : 'text-red-400 bg-red-400/10'
+                                          )}>
+                                            {result.status}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-red-400 bg-red-400/10">
+                                            ERR
+                                          </span>
+                                        )}
+
+                                        {/* Time */}
+                                        <span className="text-xs text-gray-500 w-14 text-right">
+                                          {result.time}ms
+                                        </span>
+                                      </div>
+
+                                      {/* URL */}
+                                      <div className="mt-1 ml-[52px] text-[10px] text-gray-500 truncate">
+                                        {result.url}
+                                      </div>
+
+                                      {/* Error Message */}
+                                      {result.error && (
+                                        <div className="mt-1 ml-[52px] text-[10px] text-red-400">
+                                          {result.error}
+                                        </div>
+                                      )}
+
+                                      {/* Response Preview (if available) */}
+                                      {result.data && (
+                                        <div className="mt-2 ml-[52px]">
+                                          <pre className="text-[10px] text-gray-400 bg-dark-900/50 rounded p-2 overflow-x-auto max-h-24">
+                                            {JSON.stringify(result.data, null, 2).slice(0, 200)}
+                                            {JSON.stringify(result.data, null, 2).length > 200 ? '...' : ''}
+                                          </pre>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
+                    <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">
+                      <Play className="h-7 w-7 text-gray-500" />
+                    </div>
+                    <p className="text-sm font-medium text-white/80">No collection run yet</p>
+                    <p className="text-xs mt-1">Right-click a collection and select &quot;Run Collection&quot; to start</p>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         )}
       </ResizableBottomPanel>
+
+      {/* Save Request Modal */}
+      <SaveRequestModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={(saveData) => {
+          if (onSaveRequest) {
+            const currentRequest = requests[activeRequestIndex];
+            onSaveRequest({
+              ...saveData,
+              request: {
+                id: currentRequest.id,
+                name: currentRequest.name || 'Untitled Request',
+                method: method,
+                url: url,
+                path: url,
+                queryParams: queryParams,
+                headers: headers,
+                body: body,
+                authType: authType,
+                authData: authData,
+                preRequestScript: preRequestScript,
+                tests: tests,
+                type: 'request'
+              }
+            });
+          }
+        }}
+        requestName={requests[activeRequestIndex]?.name || 'Untitled Request'}
+        collections={collections}
+        projects={projects}
+        onAddProject={onAddProject}
+      />
     </div>
   );
 }

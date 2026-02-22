@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, UserRound, LogOut, ChevronDown, Search as SearchIcon, Settings } from 'lucide-react';
+import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
@@ -20,6 +20,7 @@ function App() {
 
   const createEmptyRequest = () => ({
     id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    name: 'Untitled Request',
     method: 'GET',
     url: '',
     queryParams: [{ key: '', value: '' }],
@@ -31,8 +32,56 @@ function App() {
     tests: '',
   });
 
-  const [requests, setRequests] = useState(() => [createEmptyRequest()]);
-  const [activeRequestIndex, setActiveRequestIndex] = useState(0);
+  const [requests, setRequests] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_requests');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.length > 0 ? parsed : [createEmptyRequest()];
+      }
+    } catch (error) {
+      console.error('Failed to load requests from localStorage:', error);
+    }
+    return [createEmptyRequest()];
+  });
+
+  const [collections, setCollections] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_collections');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load collections from localStorage:', error);
+    }
+    return [];
+  });
+
+  const [projects, setProjects] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_projects');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load projects from localStorage:', error);
+    }
+    return [
+      { id: 'auth-security', name: 'Auth and Security' },
+      { id: 'payment-gateway', name: 'Payment Gateway' }
+    ];
+  });
+  const [activeRequestIndex, setActiveRequestIndex] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_active_request_index');
+      if (stored !== null) {
+        return parseInt(stored, 10);
+      }
+    } catch (error) {
+      console.error('Failed to load active request index from localStorage:', error);
+    }
+    return 0;
+  });
 
   const currentRequest = requests[activeRequestIndex] || requests[0];
   const method = currentRequest?.method ?? 'GET';
@@ -62,27 +111,106 @@ function App() {
   ]);
   const [selectedEnvironment, setSelectedEnvironment] = useState('no-env');
 
+  // Variables state with localStorage persistence
+  const [environmentVariables, setEnvironmentVariables] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_environment_variables');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load environment variables from localStorage:', error);
+    }
+    return [{ key: '', value: '' }];
+  });
+
+  const [globalVariables, setGlobalVariables] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_global_variables');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load global variables from localStorage:', error);
+    }
+    return [{ key: '', value: '' }];
+  });
+
   // UI State
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
-  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
-  const settingsMenuRef = useRef(null);
+  // Collection Run Results state
+  const [collectionRunResults, setCollectionRunResults] = useState(null);
+  const [isRunningCollection, setIsRunningCollection] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
   }, [history]);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
-        setIsSettingsMenuOpen(false);
-      }
-    };
+    try {
+      localStorage.setItem('probestack_requests', JSON.stringify(requests));
+    } catch (error) {
+      console.error('Failed to save requests to localStorage:', error);
+    }
+  }, [requests]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_collections', JSON.stringify(collections));
+    } catch (error) {
+      console.error('Failed to save collections to localStorage:', error);
+    }
+  }, [collections]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_projects', JSON.stringify(projects));
+    } catch (error) {
+      console.error('Failed to save projects to localStorage:', error);
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_active_request_index', activeRequestIndex.toString());
+    } catch (error) {
+      console.error('Failed to save active request index to localStorage:', error);
+    }
+  }, [activeRequestIndex]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
+    } catch (error) {
+      console.error('Failed to save environment variables to localStorage:', error);
+    }
+  }, [environmentVariables]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_global_variables', JSON.stringify(globalVariables));
+    } catch (error) {
+      console.error('Failed to save global variables to localStorage:', error);
+    }
+  }, [globalVariables]);
+
+  const handleSaveEnvironmentVariables = () => {
+    try {
+      localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
+    } catch (error) {
+      console.error('Failed to save environment variables to localStorage:', error);
+    }
+  };
+
+  const handleSaveGlobalVariables = () => {
+    try {
+      localStorage.setItem('probestack_global_variables', JSON.stringify(globalVariables));
+    } catch (error) {
+      console.error('Failed to save global variables to localStorage:', error);
+    }
+  };
 
   const handleExecute = async () => {
     if (!url) return;
@@ -170,14 +298,96 @@ function App() {
   };
 
   const handleSelectEndpoint = (endpoint) => {
-    updateActiveRequest('url', endpoint.path);
-    updateActiveRequest('method', endpoint.method);
+    // Check if a tab with this exact endpoint already exists
+    // Match by name to handle empty requests correctly
+    const existingTabIndex = requests.findIndex(
+      (req) => req.name === endpoint.name && req.url === endpoint.path && req.method === endpoint.method
+    );
+
+    if (existingTabIndex !== -1) {
+      // If tab exists, just switch to it
+      setActiveRequestIndex(existingTabIndex);
+    } else {
+      // Create new tab with the endpoint data
+      const newRequest = {
+        ...createEmptyRequest(),
+        url: endpoint.path,
+        method: endpoint.method,
+        name: endpoint.name || 'Untitled Request',
+      };
+      setRequests((prev) => {
+        const next = [...prev, newRequest];
+        setActiveRequestIndex(next.length - 1);
+        return next;
+      });
+    }
+    setResponse(null);
+    setError(null);
     navigate('/workspace');
+  };
+
+  // Get all request names from collections (recursively)
+  const getAllRequestNamesFromCollections = () => {
+    const names = [];
+    const traverse = (items) => {
+      if (!items) return;
+      items.forEach(item => {
+        if (item.type === 'request' && item.name) {
+          names.push(item.name.toLowerCase());
+        } else if (item.items) {
+          traverse(item.items);
+        }
+      });
+    };
+    
+    collections.forEach(collection => {
+      traverse(collection.items || []);
+    });
+    
+    return names;
+  };
+
+  // Generate unique request name checking BOTH tabs and collections
+  const generateUniqueRequestName = (baseName = 'Untitled Request') => {
+    // Get names from both tabs and collections
+    const tabNames = requests.map(req => req.name?.toLowerCase() || '');
+    const collectionNames = getAllRequestNamesFromCollections();
+    const allExistingNames = [...tabNames, ...collectionNames];
+    
+    // If base name doesn't exist, return it
+    if (!allExistingNames.includes(baseName.toLowerCase())) {
+      return baseName;
+    }
+    
+    // Find the highest number suffix
+    let maxNumber = 0;
+    const baseNameLower = baseName.toLowerCase();
+    
+    allExistingNames.forEach(name => {
+      if (name === baseNameLower) {
+        maxNumber = Math.max(maxNumber, 1);
+      } else if (name.startsWith(baseNameLower + ' ')) {
+        const suffix = name.substring(baseNameLower.length + 1);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num)) {
+          maxNumber = Math.max(maxNumber, num);
+        }
+      }
+    });
+    
+    // Return next number
+    return `${baseName} ${maxNumber + 1}`;
   };
 
   const handleNewTab = () => {
     setRequests((prev) => {
-      const next = [...prev, createEmptyRequest()];
+      const uniqueName = generateUniqueRequestName();
+      
+      const newRequest = {
+        ...createEmptyRequest(),
+        name: uniqueName
+      };
+      const next = [...prev, newRequest];
       setActiveRequestIndex(next.length - 1);
       return next;
     });
@@ -199,7 +409,247 @@ function App() {
     });
   };
 
+  const handleTabRename = (index, newName) => {
+    setRequests((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { ...next[index], name: newName };
+      }
+      return next;
+    });
+  };
+
+  const handleAddProject = (projectName) => {
+    const newProjectId = `project-${Date.now()}`;
+    const newProject = { id: newProjectId, name: projectName.trim() };
+    setProjects((prev) => [...prev, newProject]);
+    return newProject;
+  };
+
+  const handleCollectionsChange = (newCollections) => {
+    setCollections(newCollections);
+  };
+
+  const savedRequestIdsRef = useRef(new Set());
+
+  const handleSaveRequest = (saveData) => {
+    const { projectId, projectName, collectionId, collectionName, isNewCollection, request } = saveData;
+    
+    // Prevent duplicate saves of the same request ID
+    if (savedRequestIdsRef.current.has(request.id)) {
+      return;
+    }
+    savedRequestIdsRef.current.add(request.id);
+    
+    setCollections((prev) => {
+      const newCollections = [...prev];
+      
+      if (isNewCollection) {
+        // Create new collection in the project
+        const newCollection = {
+          id: `col-${Date.now()}`,
+          name: collectionName,
+          type: 'collection',
+          project: projectId,
+          projectName: projectName,
+          items: [request]
+        };
+        newCollections.push(newCollection);
+      } else {
+        // Add to existing collection
+        const collectionIndex = newCollections.findIndex(col => col.id === collectionId);
+        if (collectionIndex !== -1) {
+          if (!newCollections[collectionIndex].items) {
+            newCollections[collectionIndex].items = [];
+          }
+          // Guard: Prevent duplicate request IDs
+          const existingRequestIndex = newCollections[collectionIndex].items.findIndex(
+            item => item.id === request.id
+          );
+          if (existingRequestIndex === -1) {
+            newCollections[collectionIndex].items.push(request);
+          }
+        }
+      }
+      
+      return newCollections;
+    });
+  };
+
+  const handleDeleteHistoryItem = (index) => {
+    setHistory((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Variable substitution function - replaces {{variable}} with actual values
+  const substituteVariables = (text) => {
+    if (!text || typeof text !== 'string') return text;
+    
+    // Combine environment and global variables (environment takes precedence)
+    const allVariables = [...globalVariables, ...environmentVariables].filter(v => v.key && v.value);
+    const variableMap = {};
+    
+    // Environment variables override global variables
+    allVariables.forEach(v => {
+      variableMap[v.key] = v.value;
+    });
+    
+    // Replace {{variable}} with value
+    return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+      return variableMap[varName] !== undefined ? variableMap[varName] : match;
+    });
+  };
+
+  // Handle running all requests in a collection
+  const handleRunCollection = async (collection) => {
+    if (!collection || !collection.items) return;
+
+    setIsRunningCollection(true);
+    setCollectionRunResults({
+      collectionName: collection.name,
+      startTime: new Date().toISOString(),
+      status: 'running',
+      results: []
+    });
+
+    // Recursively collect all requests from collection
+    const collectRequests = (items, folderPath = '') => {
+      const requests = [];
+      items.forEach(item => {
+        if (item.type === 'request') {
+          requests.push({
+            ...item,
+            folderPath: folderPath || 'Root'
+          });
+        } else if (item.type === 'folder' && item.items) {
+          const newPath = folderPath ? `${folderPath} / ${item.name}` : item.name;
+          requests.push(...collectRequests(item.items, newPath));
+        }
+      });
+      return requests;
+    };
+
+    const allRequests = collectRequests(collection.items);
+    const results = [];
+
+    // Execute requests sequentially
+    for (let i = 0; i < allRequests.length; i++) {
+      const request = allRequests[i];
+      
+      setCollectionRunResults(prev => ({
+        ...prev,
+        currentIndex: i,
+        totalRequests: allRequests.length,
+        currentRequest: request.name
+      }));
+
+      try {
+        const res = await sendRequest({
+          url: substituteVariables(request.path || ''),
+          method: request.method || 'GET',
+          queryParams: request.queryParams || [{ key: '', value: '' }],
+          headers: request.headers || [{ key: '', value: '' }],
+          body: request.body || null,
+          authType: request.authType || 'none',
+          authData: request.authData || {},
+          preRequestScript: request.preRequestScript || ''
+        });
+
+        results.push({
+          requestId: request.id,
+          requestName: request.name,
+          method: request.method,
+          url: request.path,
+          folderPath: request.folderPath,
+          status: res.status,
+          statusText: res.statusText,
+          time: res.time,
+          size: res.size,
+          data: res.data,
+          success: res.status >= 200 && res.status < 300,
+          error: null
+        });
+      } catch (err) {
+        results.push({
+          requestId: request.id,
+          requestName: request.name,
+          method: request.method,
+          url: request.path,
+          folderPath: request.folderPath,
+          status: 0,
+          statusText: 'Error',
+          time: 0,
+          size: 0,
+          data: null,
+          success: false,
+          error: err.message || 'Request failed'
+        });
+      }
+    }
+
+    setCollectionRunResults({
+      collectionName: collection.name,
+      startTime: results[0]?.startTime || new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      status: 'completed',
+      totalRequests: allRequests.length,
+      passedRequests: results.filter(r => r.success).length,
+      failedRequests: results.filter(r => !r.success).length,
+      results: results
+    });
+
+    setIsRunningCollection(false);
+  };
+
   const isWorkspace = pathname.startsWith('/workspace');
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [theme, setTheme] = useState('dark');
+  const userMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setIsUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Hydrate theme from localStorage after mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('probestack_theme');
+      if (stored === 'light' || stored === 'dark') setTheme(stored);
+    } catch (_) {}
+  }, []);
+
+  // Apply theme to document and persist
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('probestack_theme', theme);
+    } catch (_) {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
+  const handleLogout = () => {
+    try {
+      [
+        'isLoggedIn',
+        'userEmail',
+        'userName',
+        'userFirstName',
+        'authToken',
+        'pendingAuthEmail',
+        'userRole',
+        'userOrganization',
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch (_) {}
+    // Auth0 logout: clear session and redirect to probestack.io
+    window.location.assign(
+      'https://probestack-usa-dev.us.auth0.com/v2/logout?client_id=rV9Ihy7REI9vFE7Uclelwp89wQfg3a4S&returnTo=https://probestack.io/'
+    );
+  };
 
   return (
     <div className="flex h-screen bg-probestack-bg text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
@@ -215,7 +665,7 @@ function App() {
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading">ProbeStack</span>
+                <span className="text-xl font-extrabold gradient-text font-heading">{isWorkspace ? 'ForgeQ' : 'ProbeStack'}</span>
                 <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5">A ForgeCrux Company</span>
               </div>
             </div>
@@ -235,83 +685,65 @@ function App() {
             )}
           </div>
           
-          <div className="flex items-center gap-2">
-            <nav className="flex items-center gap-1 rounded-xl border border-dark-700 bg-dark-800/80 px-1 py-1">
-              <button
-                onClick={() => navigate('/')}
-                title="Home"
-                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname === '/' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <Sun className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => navigate('/workspace')}
-                title="Workspaces"
-                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname.startsWith('/workspace') ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <div className="flex items-center gap-0.5">
-                  <UserRound className="w-3.5 h-3.5" />
-                  <ChevronDown className="w-3 h-3" />
-                </div>
-              </button>
-              <button
-                onClick={() => navigate('/reports')}
-                title="Reports"
-                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname === '/reports' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-              <div className="relative" ref={settingsMenuRef}>
-                <button
-                  onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
-                  title="Settings"
-                  className={clsx(
-                    "w-8 h-8 flex items-center justify-center rounded-full transition-colors",
-                    pathname.includes('/workspace/settings') || isSettingsMenuOpen
-                      ? "bg-dark-700 text-white"
-                      : "text-gray-400 hover:text-gray-200 hover:bg-dark-700"
-                  )}
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-                {isSettingsMenuOpen && (
-                  <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-dark-700 bg-dark-800 shadow-2xl p-2">
-                    <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      Settings
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigate('/workspace/settings/general');
-                        setIsSettingsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-                    >
-                      General
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigate('/workspace/settings/certificates');
-                        setIsSettingsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-                    >
-                      Certificates
-                    </button>
-                  </div>
-                )}
-              </div>
-            </nav>
-            <div className="h-6 w-[1px] bg-dark-600 mx-2"></div>
-            <button className="px-4 py-2 bg-[#ff5b1f] hover:bg-[#ff6d2f] text-white text-xs font-bold rounded-lg shadow-lg transition-all">
-              Invite
-            </button>
+          <div className="flex items-center gap-3">
+            {/* Theme Toggle - same as DashboardNavbar (porbestack-new-repo) */}
             <button
               type="button"
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 ring-2 ring-dark-800"
-              title="Profile"
-            />
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            {/* User Menu Dropdown - same as DashboardNavbar */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen((o) => !o)}
+                className="w-8 h-8 flex items-center justify-center gap-0.5 rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+              >
+                <User className="w-4 h-4" />
+                <ChevronDown className={clsx('w-3 h-3 transition-transform', isUserMenuOpen && 'rotate-180')} />
+              </button>
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => { navigate('/'); setIsUserMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
+                    >
+                      <User className="w-4 h-4" />
+                      Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsUserMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      Knowledgebase
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+              title="Log out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+
+            {/* KR ELIXIR TECHNOLOGY - same as DashboardNavbar */}
+            <div className="flex flex-col items-end ml-4">
+              <div className="text-xl font-bold text-white leading-tight whitespace-nowrap">KR ELIXIR</div>
+              <div className="text-xs text-gray-400 leading-tight whitespace-nowrap">TECHNOLOGY</div>
+            </div>
           </div>
         </header>
 
@@ -325,10 +757,13 @@ function App() {
               <TestingToolPage
                 history={history}
                 requests={requests}
+                collections={collections}
+                projects={projects}
                 activeRequestIndex={activeRequestIndex}
                 onTabSelect={handleTabSelect}
                 onNewTab={handleNewTab}
                 onCloseTab={handleCloseTab}
+                onTabRename={handleTabRename}
                 method={method}
                 url={url}
                 queryParams={queryParams}
@@ -356,6 +791,19 @@ function App() {
                 onExecute={handleExecute}
                 onNewRequest={handleNewTab}
                 onEnvironmentChange={setSelectedEnvironment}
+                onSaveRequest={handleSaveRequest}
+                onAddProject={handleAddProject}
+                onCollectionsChange={handleCollectionsChange}
+                onDeleteHistoryItem={handleDeleteHistoryItem}
+                environmentVariables={environmentVariables}
+                globalVariables={globalVariables}
+                onEnvironmentVariablesChange={setEnvironmentVariables}
+                onGlobalVariablesChange={setGlobalVariables}
+                onSaveEnvironmentVariables={handleSaveEnvironmentVariables}
+                onSaveGlobalVariables={handleSaveGlobalVariables}
+                substituteVariables={substituteVariables}
+                collectionRunResults={collectionRunResults}
+                onRunCollection={handleRunCollection}
               />
             }
           />

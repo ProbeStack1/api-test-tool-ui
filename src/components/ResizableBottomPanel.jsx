@@ -3,7 +3,7 @@ import clsx from 'clsx';
 
 export default function ResizableBottomPanel({ 
   children, 
-  defaultHeight = 256, 
+  defaultHeight = 450, 
   minHeight = 100, 
   maxHeight = 600,
   collapsed = false,

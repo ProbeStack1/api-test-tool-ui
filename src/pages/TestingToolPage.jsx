@@ -8,10 +8,13 @@ import IDEWorkspaceLayout from '../components/IDEWorkspaceLayout';
 export default function TestingToolPage({
   history,
   requests,
+  collections,
+  projects,
   activeRequestIndex,
   onTabSelect,
   onNewTab,
   onCloseTab,
+  onTabRename,
   method,
   url,
   queryParams,
@@ -39,15 +42,31 @@ export default function TestingToolPage({
   onExecute,
   onNewRequest,
   onEnvironmentChange,
+  onSaveRequest,
+  onAddProject,
+  onCollectionsChange,
+  onDeleteHistoryItem,
+  environmentVariables,
+  globalVariables,
+  onEnvironmentVariablesChange,
+  onGlobalVariablesChange,
+  onSaveEnvironmentVariables,
+  onSaveGlobalVariables,
+  substituteVariables,
+  collectionRunResults,
+  onRunCollection,
 }) {
   return (
     <IDEWorkspaceLayout
       history={history}
       requests={requests}
+      collections={collections}
+      projects={projects}
       activeRequestIndex={activeRequestIndex}
       onTabSelect={onTabSelect}
       onNewTab={onNewTab}
       onCloseTab={onCloseTab}
+      onTabRename={onTabRename}
       method={method}
       url={url}
       queryParams={queryParams}
@@ -75,6 +94,19 @@ export default function TestingToolPage({
       onExecute={onExecute}
       onNewRequest={onNewRequest}
       onEnvironmentChange={onEnvironmentChange}
+      onSaveRequest={onSaveRequest}
+      onAddProject={onAddProject}
+      onCollectionsChange={onCollectionsChange}
+      onDeleteHistoryItem={onDeleteHistoryItem}
+      environmentVariables={environmentVariables}
+      globalVariables={globalVariables}
+      onEnvironmentVariablesChange={onEnvironmentVariablesChange}
+      onGlobalVariablesChange={onGlobalVariablesChange}
+      onSaveEnvironmentVariables={onSaveEnvironmentVariables}
+      onSaveGlobalVariables={onSaveGlobalVariables}
+      substituteVariables={substituteVariables}
+      collectionRunResults={collectionRunResults}
+      onRunCollection={onRunCollection}
     />
   );
 }

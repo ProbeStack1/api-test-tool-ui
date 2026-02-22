@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, UserRound, LogOut, ChevronDown, Search as SearchIcon, Settings } from 'lucide-react';
+import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
@@ -140,8 +140,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState(null);
   const [error, setError] = useState(null);
-  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
-  const settingsMenuRef = useRef(null);
+  // Collection Run Results state
+  const [collectionRunResults, setCollectionRunResults] = useState(null);
+  const [isRunningCollection, setIsRunningCollection] = useState(false);
 
   // Collection Run Results state
   const [collectionRunResults, setCollectionRunResults] = useState(null);
@@ -199,16 +200,21 @@ function App() {
     }
   }, [globalVariables]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
-        setIsSettingsMenuOpen(false);
-      }
-    };
+  const handleSaveEnvironmentVariables = () => {
+    try {
+      localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
+    } catch (error) {
+      console.error('Failed to save environment variables to localStorage:', error);
+    }
+  };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const handleSaveGlobalVariables = () => {
+    try {
+      localStorage.setItem('probestack_global_variables', JSON.stringify(globalVariables));
+    } catch (error) {
+      console.error('Failed to save global variables to localStorage:', error);
+    }
+  };
 
   const handleExecute = async () => {
     if (!url) return;
@@ -599,6 +605,55 @@ function App() {
   };
 
   const isWorkspace = pathname.startsWith('/workspace');
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [theme, setTheme] = useState('dark');
+  const userMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setIsUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Hydrate theme from localStorage after mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('probestack_theme');
+      if (stored === 'light' || stored === 'dark') setTheme(stored);
+    } catch (_) {}
+  }, []);
+
+  // Apply theme to document and persist
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem('probestack_theme', theme);
+    } catch (_) {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
+  const handleLogout = () => {
+    try {
+      [
+        'isLoggedIn',
+        'userEmail',
+        'userName',
+        'userFirstName',
+        'authToken',
+        'pendingAuthEmail',
+        'userRole',
+        'userOrganization',
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch (_) {}
+    // Auth0 logout: clear session and redirect to probestack.io
+    window.location.assign(
+      'https://probestack-usa-dev.us.auth0.com/v2/logout?client_id=rV9Ihy7REI9vFE7Uclelwp89wQfg3a4S&returnTo=https://probestack.io/'
+    );
+  };
 
   return (
     <div className="flex h-screen bg-probestack-bg text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
@@ -614,7 +669,7 @@ function App() {
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading">ProbeStack</span>
+                <span className="text-xl font-extrabold gradient-text font-heading">{isWorkspace ? 'ForgeQ' : 'ProbeStack'}</span>
                 <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5">A ForgeCrux Company</span>
               </div>
             </div>
@@ -634,83 +689,65 @@ function App() {
             )}
           </div>
           
-          <div className="flex items-center gap-2">
-            <nav className="flex items-center gap-1 rounded-xl border border-dark-700 bg-dark-800/80 px-1 py-1">
-              <button
-                onClick={() => navigate('/')}
-                title="Home"
-                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname === '/' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <Sun className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => navigate('/workspace')}
-                title="Workspaces"
-                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname.startsWith('/workspace') ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <div className="flex items-center gap-0.5">
-                  <UserRound className="w-3.5 h-3.5" />
-                  <ChevronDown className="w-3 h-3" />
-                </div>
-              </button>
-              <button
-                onClick={() => navigate('/reports')}
-                title="Reports"
-                className={clsx("w-8 h-8 flex items-center justify-center rounded-full transition-colors", pathname === '/reports' ? "bg-dark-700 text-white" : "text-gray-400 hover:text-gray-200 hover:bg-dark-700")}
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-              <div className="relative" ref={settingsMenuRef}>
-                <button
-                  onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
-                  title="Settings"
-                  className={clsx(
-                    "w-8 h-8 flex items-center justify-center rounded-full transition-colors",
-                    pathname.includes('/workspace/settings') || isSettingsMenuOpen
-                      ? "bg-dark-700 text-white"
-                      : "text-gray-400 hover:text-gray-200 hover:bg-dark-700"
-                  )}
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-                {isSettingsMenuOpen && (
-                  <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-dark-700 bg-dark-800 shadow-2xl p-2">
-                    <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      Settings
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigate('/workspace/settings/general');
-                        setIsSettingsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-                    >
-                      General
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigate('/workspace/settings/certificates');
-                        setIsSettingsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-                    >
-                      Certificates
-                    </button>
-                  </div>
-                )}
-              </div>
-            </nav>
-            <div className="h-6 w-[1px] bg-dark-600 mx-2"></div>
-            <button className="px-4 py-2 bg-[#ff5b1f] hover:bg-[#ff6d2f] text-white text-xs font-bold rounded-lg shadow-lg transition-all">
-              Invite
-            </button>
+          <div className="flex items-center gap-3">
+            {/* Theme Toggle - same as DashboardNavbar (porbestack-new-repo) */}
             <button
               type="button"
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 ring-2 ring-dark-800"
-              title="Profile"
-            />
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            {/* User Menu Dropdown - same as DashboardNavbar */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen((o) => !o)}
+                className="w-8 h-8 flex items-center justify-center gap-0.5 rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+              >
+                <User className="w-4 h-4" />
+                <ChevronDown className={clsx('w-3 h-3 transition-transform', isUserMenuOpen && 'rotate-180')} />
+              </button>
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => { navigate('/'); setIsUserMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
+                    >
+                      <User className="w-4 h-4" />
+                      Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsUserMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      Knowledgebase
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+              title="Log out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+
+            {/* KR ELIXIR TECHNOLOGY - same as DashboardNavbar */}
+            <div className="flex flex-col items-end ml-4">
+              <div className="text-xl font-bold text-white leading-tight whitespace-nowrap">KR ELIXIR</div>
+              <div className="text-xs text-gray-400 leading-tight whitespace-nowrap">TECHNOLOGY</div>
+            </div>
           </div>
         </header>
 
@@ -766,6 +803,8 @@ function App() {
                 globalVariables={globalVariables}
                 onEnvironmentVariablesChange={setEnvironmentVariables}
                 onGlobalVariablesChange={setGlobalVariables}
+                onSaveEnvironmentVariables={handleSaveEnvironmentVariables}
+                onSaveGlobalVariables={handleSaveGlobalVariables}
                 substituteVariables={substituteVariables}
                 collectionRunResults={collectionRunResults}
                 onRunCollection={handleRunCollection}

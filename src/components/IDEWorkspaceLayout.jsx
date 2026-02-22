@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, Trash2 } from 'lucide-react';
+import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, Trash2, FileSearch, Play, Upload, FolderOpen } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
@@ -54,6 +54,8 @@ export default function IDEWorkspaceLayout({
   globalVariables,
   onEnvironmentVariablesChange,
   onGlobalVariablesChange,
+  onSaveEnvironmentVariables,
+  onSaveGlobalVariables,
   substituteVariables,
   collectionRunResults,
   onRunCollection,
@@ -63,7 +65,7 @@ export default function IDEWorkspaceLayout({
   const getTopMenuFromPath = (pathname) => {
     if (pathname.includes('/workspace/history')) return 'history';
     if (pathname.includes('/workspace/variables')) return 'environments';
-    if (pathname.includes('/workspace/load-testing')) return 'load-testing';
+    if (pathname.includes('/workspace/testing')) return 'testing';
     if (pathname.includes('/workspace/mock-service')) return 'mock-service';
     if (pathname.includes('/workspace/settings/general')) return 'settings-general';
     if (pathname.includes('/workspace/settings/certificates')) return 'settings-certificates';
@@ -72,7 +74,7 @@ export default function IDEWorkspaceLayout({
   const getPathFromTopMenu = (menuId) => {
     if (menuId === 'history') return '/workspace/history';
     if (menuId === 'environments') return '/workspace/variables';
-    if (menuId === 'load-testing') return '/workspace/load-testing';
+    if (menuId === 'testing') return '/workspace/testing';
     if (menuId === 'mock-service') return '/workspace/mock-service';
     return '/workspace/collections';
   };
@@ -88,6 +90,16 @@ export default function IDEWorkspaceLayout({
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
   const [selectedHistoryIndex, setSelectedHistoryIndex] = useState(null);
 
+  // Variables save feedback: 'environment' | 'global' | null, cleared after delay
+  const [variablesSavedMessage, setVariablesSavedMessage] = useState(null);
+  const variablesSavedTimeoutRef = React.useRef(null);
+  const showVariablesSaved = (scope) => {
+    setVariablesSavedMessage(scope);
+    if (variablesSavedTimeoutRef.current) clearTimeout(variablesSavedTimeoutRef.current);
+    variablesSavedTimeoutRef.current = setTimeout(() => setVariablesSavedMessage(null), 2500);
+  };
+  useEffect(() => () => { if (variablesSavedTimeoutRef.current) clearTimeout(variablesSavedTimeoutRef.current); }, []);
+
   useEffect(() => {
     if (location.pathname === '/workspace' || location.pathname === '/workspace/') {
       navigate('/workspace/collections', { replace: true });
@@ -100,9 +112,38 @@ export default function IDEWorkspaceLayout({
     { id: 'history', label: 'History', icon: History },
     { id: 'collections', label: 'Collections', icon: LayoutGrid },
     { id: 'environments', label: 'Variables', icon: Layers },
-    { id: 'load-testing', label: 'Load Testing', icon: BarChart3 },
+    { id: 'testing', label: 'Testing', icon: BarChart3 },
     { id: 'mock-service', label: 'Mock Service', icon: Layers },
   ];
+
+  // Testing sub-tabs: generate | functional | load
+  const [testingSubTab, setTestingSubTab] = useState('generate');
+  const testingSubTabs = [
+    { id: 'generate', label: 'Generate Testcases', icon: FileSearch },
+    { id: 'functional', label: 'Functional Test', icon: Play },
+    { id: 'load', label: 'Load Test', icon: BarChart3 },
+  ];
+  const [generateTestcasesSearch, setGenerateTestcasesSearch] = useState('');
+  const [specFileName, setSpecFileName] = useState('');
+  const [specFile, setSpecFile] = useState(null);
+  const specFileInputRef = React.useRef(null);
+  const handleSpecFileChange = (e) => {
+    const file = e.target.files?.[0];
+    setSpecFile(file ?? null);
+    setSpecFileName(file?.name ?? '');
+  };
+  const handleUploadSpec = () => {
+    if (!specFile) return;
+    // TODO: call upload API or process file
+  };
+  const [functionalRunMode, setFunctionalRunMode] = useState('manual');
+  const [functionalIterations, setFunctionalIterations] = useState(1);
+  const [functionalDelay, setFunctionalDelay] = useState(0);
+  const [loadProfile, setLoadProfile] = useState('fixed');
+  const [loadVirtualUsers, setLoadVirtualUsers] = useState(20);
+  const [loadDuration, setLoadDuration] = useState(10);
+  const [loadDurationUnit, setLoadDurationUnit] = useState('mins');
+  const [loadRunMode, setLoadRunMode] = useState('app');
 
   const loadHistoryItem = (item) => {
     onUrlChange(item.url);
@@ -287,7 +328,9 @@ export default function IDEWorkspaceLayout({
         )}>
           <div className="px-3 py-2 border-b border-dark-700/50 flex items-center justify-between shrink-0">
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-              {topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
+              {topMenuActive === 'testing'
+                ? (testingSubTabs.find(t => t.id === testingSubTab)?.label ?? 'Testing')
+                : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
             </h2>
             {!sidebarCollapsed && (
               <button
@@ -403,13 +446,30 @@ export default function IDEWorkspaceLayout({
                         type="button"
                         onClick={() => setVariablesScope('environment-scope')}
                         className={clsx(
-                          'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                          'w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
                           variablesScope === 'environment-scope'
                             ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
                             : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
                         )}
                       >
-                        Environment Scope
+                        <span>Environment Scope</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          {variablesSavedMessage === 'environment' && (
+                            <span className="text-xs font-medium text-primary">Saved</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSaveEnvironmentVariables?.();
+                              showVariablesSaved('environment');
+                            }}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Save environment variables"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -422,30 +482,64 @@ export default function IDEWorkspaceLayout({
                         type="button"
                         onClick={() => setVariablesScope('global-scope')}
                         className={clsx(
-                          'w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                          'w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
                           variablesScope === 'global-scope'
                             ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
                             : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
                         )}
                       >
-                        Global Scope
+                        <span>Global Scope</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          {variablesSavedMessage === 'global' && (
+                            <span className="text-xs font-medium text-primary">Saved</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSaveGlobalVariables?.();
+                              showVariablesSaved('global');
+                            }}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Save global variables"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                        </span>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-            {topMenuActive === 'load-testing' && (
+            {topMenuActive === 'testing' && (
               <div className="flex-1 flex flex-col p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Load Testing</span>
-                  <button type="button" className="p-2 rounded-lg transition-colors hover:bg-primary/15 text-gray-500 hover:text-primary border border-transparent hover:border-primary/30">
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6 text-center">
-                  <p className="text-sm text-gray-300">No load tests configured</p>
-                  <p className="text-xs text-gray-500 mt-1">Create a load test scenario to run concurrency checks.</p>
+                <div className="space-y-3">
+                  {testingSubTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <div key={tab.id} className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                          {tab.label}
+                        </div>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => setTestingSubTab(tab.id)}
+                            className={clsx(
+                              'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+                              testingSubTab === tab.id
+                                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                            )}
+                          >
+                            <Icon className="w-4 h-4 shrink-0" />
+                            <span>{tab.label}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -495,14 +589,167 @@ export default function IDEWorkspaceLayout({
         <section className="flex-1 flex min-h-0 overflow-hidden min-w-0">
           <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
             {topMenuActive === 'environments' ? (
-              // Variables Editor for variables section
               <VariablesEditor
                 pairs={variablesScope === 'environment-scope' ? environmentVariables : globalVariables}
                 onChange={variablesScope === 'environment-scope' ? onEnvironmentVariablesChange : onGlobalVariablesChange}
                 title={variablesScope === 'environment-scope' ? 'Environment Variables' : 'Global Variables'}
               />
+            ) : topMenuActive === 'testing' ? (
+              // Testing: Generate Testcases | Functional Test | Load Test
+              <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
+                {testingSubTab === 'generate' && (
+                  <div className="max-w-2xl space-y-6">
+                    <h2 className="text-lg font-semibold text-white">Generate Testcases</h2>
+                    <p className="text-sm text-gray-400">Search or upload an API spec file to generate test cases.</p>
+                    <div className="flex flex-col gap-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                        <input
+                          type="text"
+                          placeholder="Search spec or paste URL..."
+                          value={generateTestcasesSearch}
+                          onChange={(e) => setGenerateTestcasesSearch(e.target.value)}
+                          className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <input
+                          ref={specFileInputRef}
+                          type="file"
+                          accept=".json,.yaml,.yml,.openapi,.spec"
+                          className="hidden"
+                          onChange={handleSpecFileChange}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => specFileInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-dark-600 bg-dark-800 text-gray-300 hover:bg-dark-700 hover:text-white transition-colors text-sm font-medium"
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                          Browse
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleUploadSpec}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={!specFile}
+                          title={specFile ? 'Upload spec file' : 'Select a file first'}
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload
+                        </button>
+                        {specFileName && <span className="text-sm text-gray-400 truncate">{specFileName}</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {testingSubTab === 'functional' && (
+                  <div className="max-w-2xl space-y-6">
+                    <h2 className="text-lg font-semibold text-white">Functional Test</h2>
+                    <p className="text-sm text-gray-400">Choose how to run your collection and configure run options.</p>
+                    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+                      <div>
+                        <h3 className="text-sm font-medium text-white mb-3">Choose how to run your collection</h3>
+                        <div className="space-y-2">
+                          {[
+                            { id: 'manual', label: 'Run manually', desc: 'Run this collection in the Collection Runner.' },
+                            { id: 'schedule', label: 'Schedule runs', desc: 'Periodically run collection at a specified time.' },
+                            { id: 'cli', label: 'Automate runs via CLI', desc: 'Configure CLI command to run on your build pipeline.' },
+                          ].map((opt) => (
+                            <label key={opt.id} className="flex items-start gap-3 p-3 rounded-lg border border-dark-700 hover:bg-dark-800/50 cursor-pointer">
+                              <input type="radio" name="functionalRunMode" checked={functionalRunMode === opt.id} onChange={() => setFunctionalRunMode(opt.id)} className="mt-1 text-primary" />
+                              <div>
+                                <span className="text-sm font-medium text-white">{opt.label}</span>
+                                <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-white mb-3">Run configuration</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Iterations</label>
+                            <input type="number" min={1} value={functionalIterations} onChange={(e) => setFunctionalIterations(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Delay (ms)</label>
+                            <input type="number" min={0} value={functionalDelay} onChange={(e) => setFunctionalDelay(Number(e.target.value) || 0)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Test data file: Only JSON and CSV files are accepted.</p>
+                        <button type="button" className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm">Select File</button>
+                      </div>
+                      <details className="group">
+                        <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none flex items-center gap-1">Advanced settings</summary>
+                        <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">Additional options can be added here.</div>
+                      </details>
+                      <button type="button" className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm">Run collection</button>
+                    </div>
+                  </div>
+                )}
+                {testingSubTab === 'load' && (
+                  <div className="max-w-2xl space-y-6">
+                    <h2 className="text-lg font-semibold text-white">Load Test</h2>
+                    <p className="text-sm text-gray-400">Set up your performance test with virtual users and duration.</p>
+                    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+                      <div>
+                        <h3 className="text-sm font-medium text-white mb-3">Set up your performance test</h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Load profile</label>
+                            <select value={loadProfile} onChange={(e) => setLoadProfile(e.target.value)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                              <option value="fixed" className="bg-dark-800">Fixed</option>
+                              <option value="ramp" className="bg-dark-800">Ramp up</option>
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Virtual users</label>
+                              <input type="number" min={1} value={loadVirtualUsers} onChange={(e) => setLoadVirtualUsers(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+                            <div className="flex gap-2 items-end">
+                              <div className="flex-1">
+                                <label className="block text-xs text-gray-500 mb-1">Test duration</label>
+                                <input type="number" min={1} value={loadDuration} onChange={(e) => setLoadDuration(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                              <select value={loadDurationUnit} onChange={(e) => setLoadDurationUnit(e.target.value)} className="bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                                <option value="mins" className="bg-dark-800">mins</option>
+                                <option value="secs" className="bg-dark-800">secs</option>
+                              </select>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">{loadVirtualUsers} virtual users run for {loadDuration} {loadDurationUnit}, each executing all requests sequentially.</p>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Data file</label>
+                            <button type="button" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm">Select file</button>
+                          </div>
+                          <details className="group">
+                            <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none">Pass test if...</summary>
+                            <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">Configure pass/fail conditions.</div>
+                          </details>
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-white mb-2">Run</h3>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="loadRunMode" checked={loadRunMode === 'app'} onChange={() => setLoadRunMode('app')} className="text-primary" />
+                            <span className="text-sm text-gray-300">In the app</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="loadRunMode" checked={loadRunMode === 'cli'} onChange={() => setLoadRunMode('cli')} className="text-primary" />
+                            <span className="text-sm text-gray-300">via the CLI</span>
+                          </label>
+                        </div>
+                      </div>
+                      <button type="button" className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm">Run performance test</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
-              // API Execution Studio for collections, history, and other sections
               <APIExecutionStudio
                 requests={requests}
                 activeRequestIndex={activeRequestIndex}

@@ -50,6 +50,8 @@ export default function TestingToolPage({
   globalVariables,
   onEnvironmentVariablesChange,
   onGlobalVariablesChange,
+  onSaveEnvironmentVariables,
+  onSaveGlobalVariables,
   substituteVariables,
   collectionRunResults,
   onRunCollection,
@@ -100,6 +102,8 @@ export default function TestingToolPage({
       globalVariables={globalVariables}
       onEnvironmentVariablesChange={onEnvironmentVariablesChange}
       onGlobalVariablesChange={onGlobalVariablesChange}
+      onSaveEnvironmentVariables={onSaveEnvironmentVariables}
+      onSaveGlobalVariables={onSaveGlobalVariables}
       substituteVariables={substituteVariables}
       collectionRunResults={collectionRunResults}
       onRunCollection={onRunCollection}

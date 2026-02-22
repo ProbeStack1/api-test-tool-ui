@@ -16,13 +16,63 @@
   --color-probestack-bg: #0a0a2e;
 }
 
+/* Light theme: override Tailwind theme variables so all components update */
+[data-theme="light"] {
+  --color-probestack-bg: #f6f7fb;
+  --color-dark-900: #f0f2f5;
+  --color-dark-800: #eef1f8;
+  --color-dark-700: #d9deea;
+  --color-dark-600: #cfd6e8;
+  --color-dark-500: #5a617a;
+  --color-dark-400: #5a617a;
+}
+
+/* Light theme: make text and UI elements dark so they are visible */
+[data-theme="light"] .text-white {
+  color: #1c2240 !important;
+}
+[data-theme="light"] .gradient-text {
+  color: transparent !important; /* keep gradient for logo/brand */
+}
+[data-theme="light"] .text-gray-200,
+[data-theme="light"] .text-gray-300,
+[data-theme="light"] .text-gray-400 {
+  color: #3d4560 !important;
+}
+[data-theme="light"] .text-gray-500 {
+  color: #5a617a !important;
+}
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  color: #1c2240 !important;
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #8890aa !important;
+}
+[data-theme="light"] .placeholder\:text-dark-500::placeholder {
+  color: #8890aa !important;
+}
+[data-theme="light"] .text-primary {
+  color: #c94a1a !important;
+}
+[data-theme="light"] .text-muted-foreground,
+[data-theme="light"] [class*="text-muted"] {
+  color: #5a617a !important;
+}
+
 @layer base {
   body {
     @apply bg-probestack-bg text-white overflow-hidden;
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     font-size: 13px; /* Reduced from default ~16px */
   }
-  
+
+  [data-theme="light"] body {
+    color: #1c2240;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
     font-weight: 600;

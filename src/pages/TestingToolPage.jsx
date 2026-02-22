@@ -55,6 +55,13 @@ export default function TestingToolPage({
   substituteVariables,
   collectionRunResults,
   onRunCollection,
+  testFiles,
+  onTestFilesChange,
+  mockApis,
+  dummyMockRequests,
+  onCreateMock,
+  onDeleteMock,
+  onSelectMockRequest,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -107,6 +114,13 @@ export default function TestingToolPage({
       substituteVariables={substituteVariables}
       collectionRunResults={collectionRunResults}
       onRunCollection={onRunCollection}
+      testFiles={testFiles}
+      onTestFilesChange={onTestFilesChange}
+      mockApis={mockApis}
+      dummyMockRequests={dummyMockRequests}
+      onCreateMock={onCreateMock}
+      onDeleteMock={onDeleteMock}
+      onSelectMockRequest={onSelectMockRequest}
     />
   );
 }

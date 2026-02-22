@@ -1,0 +1,354 @@
+import React, { useState, useMemo } from 'react';
+import { Building2, ChevronLeft, ChevronRight, Search, BarChart3, Zap, CheckCircle2, Clock } from 'lucide-react';
+import clsx from 'clsx';
+
+// Dummy data for the spec table - all organizations are ProbeStack
+const dummySpecData = [
+  {
+    id: 1,
+    organization: 'ProbeStack',
+    projectName: 'API Testing Platform',
+    appId: 'APP-PROBE-001',
+    specName: 'User Management API',
+    version: '2.1.0',
+    testCases: 45,
+    collectionDetails: 'User Collection v3',
+    requestStatus: 'success',
+  },
+  {
+    id: 2,
+    organization: 'ProbeStack',
+    projectName: 'E-commerce Backend',
+    appId: 'APP-ACME-102',
+    specName: 'Order Processing API',
+    version: '1.5.2',
+    testCases: 128,
+    collectionDetails: 'Orders Collection v2',
+    requestStatus: 'success',
+  },
+  {
+    id: 3,
+    organization: 'ProbeStack',
+    projectName: 'Cloud Services',
+    appId: 'APP-TG-893',
+    specName: 'Storage Management API',
+    version: '3.0.1',
+    testCases: 67,
+    collectionDetails: 'Storage Collection v1',
+    requestStatus: 'failure',
+  },
+  {
+    id: 4,
+    organization: 'ProbeStack',
+    projectName: 'Payment Gateway',
+    appId: 'APP-SU-445',
+    specName: 'Payment Processing API',
+    version: '1.0.0',
+    testCases: 89,
+    collectionDetails: 'Payments Collection v1',
+    requestStatus: 'success',
+  },
+  {
+    id: 5,
+    organization: 'ProbeStack',
+    projectName: 'Banking Integration',
+    appId: 'APP-FH-221',
+    specName: 'Account Management API',
+    version: '2.3.4',
+    testCases: 156,
+    collectionDetails: 'Banking Collection v4',
+    requestStatus: 'success',
+  },
+  {
+    id: 6,
+    organization: 'ProbeStack',
+    projectName: 'Medical Records',
+    appId: 'APP-HS-778',
+    specName: 'Patient Data API',
+    version: '1.2.0',
+    testCases: 34,
+    collectionDetails: 'Health Collection v2',
+    requestStatus: 'failure',
+  },
+  {
+    id: 7,
+    organization: 'ProbeStack',
+    projectName: 'Learning Management',
+    appId: 'APP-EDU-332',
+    specName: 'Course Management API',
+    version: '2.0.0',
+    testCases: 78,
+    collectionDetails: 'Education Collection v3',
+    requestStatus: 'success',
+  },
+  {
+    id: 8,
+    organization: 'ProbeStack',
+    projectName: 'Inventory System',
+    appId: 'APP-RT-567',
+    specName: 'Stock Management API',
+    version: '1.8.5',
+    testCases: 92,
+    collectionDetails: 'Inventory Collection v2',
+    requestStatus: 'success',
+  },
+];
+
+// Metrics data for testing module
+const metricsData = [
+  {
+    label: 'Total Requests',
+    value: '12.5K',
+    change: '+12.5%',
+    trend: 'up',
+    icon: BarChart3,
+  },
+  {
+    label: 'Test Executions',
+    value: '856',
+    change: '+23',
+    trend: 'up',
+    icon: Zap,
+  },
+  {
+    label: 'Success Rate',
+    value: '98.7%',
+    change: '+1.2%',
+    trend: 'up',
+    icon: CheckCircle2,
+  },
+  {
+    label: 'Avg Response Time',
+    value: '142ms',
+    change: '-12ms',
+    trend: 'down',
+    icon: Clock,
+  },
+];
+
+// Helper function to get organization color - single color for ProbeStack
+const getOrgColor = () => {
+  return 'bg-primary/20 text-primary';
+};
+
+export default function DashboardSpecTable() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  // Filter data based on search
+  const filteredData = useMemo(() => {
+    return dummySpecData.filter((item) =>
+      item.organization.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.specName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.appId.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery]);
+
+  // Paginate data
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-probestack-bg">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">ForgeQ Dashboard</h2>
+          </div>
+          <div className="relative w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search specs..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Scrollable Area with Metrics + Table */}
+      <div className="flex-1 overflow-auto p-6">
+        {/* Metrics Section */}
+        <div className="mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {metricsData.map((metric, index) => (
+              <div
+                key={index}
+                className="bg-dark-800/50 border border-dark-700 rounded-xl p-4 hover:border-primary/30 transition-all duration-300"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                      {metric.label}
+                    </div>
+                    <div className="text-2xl font-bold text-white mb-1">
+                      {metric.value}
+                    </div>
+                    <div className={`text-xs font-medium ${
+                      metric.trend === 'up' ? 'text-green-400' : 'text-primary'
+                    }`}>
+                      {metric.change} from last week
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <metric.icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Table Container */}
+        <div className="bg-[#161B30] border border-slate-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[1200px]">
+              <thead>
+                <tr className="bg-slate-800/50 border-b border-slate-700">
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Organization
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Project Name
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    App ID
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Spec Name
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Version
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Test Cases
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Collection Details
+                  </th>
+                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    Request Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((item) => (
+                    <tr key={item.id} className="group hover:bg-slate-800/30 transition-colors">
+                      <td className="px-8 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
+                            <Building2 className="h-3 w-3" />
+                          </div>
+                          <span className="font-medium text-white">{item.organization}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-4 font-medium text-slate-200 whitespace-nowrap">
+                        {item.projectName}
+                      </td>
+                      <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase tracking-tighter whitespace-nowrap">
+                        {item.appId}
+                      </td>
+                      <td className="px-8 py-4 whitespace-nowrap">
+                        <span className="font-medium text-slate-200">{item.specName}</span>
+                      </td>
+                      <td className="px-8 py-4 whitespace-nowrap">
+                        <span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">
+                          {item.version}
+                        </span>
+                      </td>
+                      <td className="px-8 py-4 whitespace-nowrap">
+                        <span className="text-sm text-slate-300">{item.testCases}</span>
+                      </td>
+                      <td className="px-8 py-4 whitespace-nowrap">
+                        <span className="text-sm text-slate-300">{item.collectionDetails}</span>
+                      </td>
+                      <td className="px-8 py-4 whitespace-nowrap">
+                        <span
+                          className={clsx(
+                            'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border',
+                            item.requestStatus === 'success'
+                              ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                              : 'bg-red-500/20 text-red-400 border-red-500/30'
+                          )}
+                        >
+                          {item.requestStatus === 'success' ? 'Success' : 'Failure'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
+                      {searchQuery ? 'No specs found matching your search' : 'No spec records found'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">
+                Showing{' '}
+                <span className="font-semibold text-slate-200">
+                  {paginatedData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to{' '}
+                  {Math.min(currentPage * itemsPerPage, filteredData.length)}
+                </span>{' '}
+                of {filteredData.length} results
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm bg-[#161B30] border border-slate-700 rounded hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={clsx(
+                        'w-8 h-8 flex items-center justify-center text-sm font-medium rounded transition-colors',
+                        currentPage === i + 1
+                          ? 'bg-[#F97316] text-white'
+                          : 'text-slate-300 hover:bg-slate-800'
+                      )}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="px-3 py-1 text-sm bg-[#161B30] border border-slate-700 rounded hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 flex items-center gap-1"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

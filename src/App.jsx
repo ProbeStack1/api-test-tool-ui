@@ -144,6 +144,100 @@ function App() {
   const [collectionRunResults, setCollectionRunResults] = useState(null);
   const [isRunningCollection, setIsRunningCollection] = useState(false);
 
+  // Test files state for Generate Testcases - persisted to localStorage
+  const [testFiles, setTestFiles] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_test_files');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load test files from localStorage:', error);
+    }
+    return [];
+  });
+
+  // Mock Service state - persisted to localStorage
+  const [mockApis, setMockApis] = useState(() => {
+    try {
+      const stored = localStorage.getItem('probestack_mock_apis');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load mock APIs from localStorage:', error);
+    }
+    return [];
+  });
+
+  // Dummy mock requests for the sidebar (pre-defined examples)
+  const dummyMockRequests = [
+    {
+      id: 'mock-req-1',
+      name: 'Get User Profile',
+      method: 'GET',
+      path: '/users/profile',
+      description: 'Retrieve current user profile information',
+      mockResponse: { id: 1, name: 'John Doe', email: 'john@example.com', role: 'admin' }
+    },
+    {
+      id: 'mock-req-2',
+      name: 'Create Order',
+      method: 'POST',
+      path: '/orders',
+      description: 'Create a new order in the system',
+      mockResponse: { orderId: 'ORD-12345', status: 'created', total: 99.99 }
+    },
+    {
+      id: 'mock-req-3',
+      name: 'Update Product',
+      method: 'PUT',
+      path: '/products/{id}',
+      description: 'Update existing product details',
+      mockResponse: { id: 101, name: 'Updated Product', price: 49.99, updated: true }
+    },
+    {
+      id: 'mock-req-4',
+      name: 'Delete Session',
+      method: 'DELETE',
+      path: '/sessions/{id}',
+      description: 'Delete user session by ID',
+      mockResponse: { deleted: true, sessionId: 'sess-abc123' }
+    },
+    {
+      id: 'mock-req-5',
+      name: 'Search Products',
+      method: 'GET',
+      path: '/products/search',
+      description: 'Search products with filters',
+      mockResponse: { results: [{ id: 1, name: 'Product A' }, { id: 2, name: 'Product B' }], total: 2 }
+    },
+    {
+      id: 'mock-req-6',
+      name: 'Webhook Event',
+      method: 'POST',
+      path: '/webhooks/events',
+      description: 'Receive webhook event notifications',
+      mockResponse: { received: true, eventId: 'evt-xyz789', timestamp: new Date().toISOString() }
+    }
+  ];
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_mock_apis', JSON.stringify(mockApis));
+    } catch (error) {
+      console.error('Failed to save mock APIs to localStorage:', error);
+    }
+  }, [mockApis]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_test_files', JSON.stringify(testFiles));
+    } catch (error) {
+      console.error('Failed to save test files to localStorage:', error);
+    }
+  }, [testFiles]);
+
   useEffect(() => {
     localStorage.setItem('probestack_history', JSON.stringify(history));
   }, [history]);
@@ -480,6 +574,51 @@ function App() {
     setHistory((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Mock Service handlers
+  const handleCreateMock = (request) => {
+    const mockId = `mock-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const endpointName = request.path.replace(/^\//, '').replace(/\//g, '-');
+    const mockUrl = `api.probestack.io/api/v1/${endpointName}`;
+    
+    const newMock = {
+      id: mockId,
+      originalRequestId: request.id,
+      name: request.name,
+      method: request.method,
+      path: request.path,
+      mockUrl: mockUrl,
+      description: request.description,
+      mockResponse: request.mockResponse,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setMockApis((prev) => [...prev, newMock]);
+    return newMock;
+  };
+
+  const handleDeleteMock = (mockId) => {
+    setMockApis((prev) => prev.filter(m => m.id !== mockId));
+  };
+
+  const handleSelectMockRequest = (request) => {
+    // Create a new tab with the mock request data
+    const newRequest = {
+      ...createEmptyRequest(),
+      name: request.name,
+      method: request.method,
+      url: request.mockUrl || request.path,
+      path: request.mockUrl || request.path,
+    };
+    setRequests((prev) => {
+      const next = [...prev, newRequest];
+      setActiveRequestIndex(next.length - 1);
+      return next;
+    });
+    setResponse(null);
+    setError(null);
+    navigate('/workspace');
+  };
+
   // Variable substitution function - replaces {{variable}} with actual values
   const substituteVariables = (text) => {
     if (!text || typeof text !== 'string') return text;
@@ -739,11 +878,13 @@ function App() {
               <LogOut className="w-4 h-4" />
             </button>
 
-            {/* KR ELIXIR TECHNOLOGY - same as DashboardNavbar */}
+            {/* KR ELIXIR TECHNOLOGY - same as DashboardNavbar - commented out */}
+            {/*
             <div className="flex flex-col items-end ml-4">
               <div className="text-xl font-bold text-white leading-tight whitespace-nowrap">KR ELIXIR</div>
               <div className="text-xs text-gray-400 leading-tight whitespace-nowrap">TECHNOLOGY</div>
             </div>
+            */}
           </div>
         </header>
 
@@ -804,6 +945,13 @@ function App() {
                 substituteVariables={substituteVariables}
                 collectionRunResults={collectionRunResults}
                 onRunCollection={handleRunCollection}
+                testFiles={testFiles}
+                onTestFilesChange={setTestFiles}
+                mockApis={mockApis}
+                dummyMockRequests={dummyMockRequests}
+                onCreateMock={handleCreateMock}
+                onDeleteMock={handleDeleteMock}
+                onSelectMockRequest={handleSelectMockRequest}
               />
             }
           />

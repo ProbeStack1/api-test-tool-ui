@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2 } from 'lucide-react';
+import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
@@ -8,6 +8,7 @@ import CollectionsPanel from './CollectionsPanel';
 import SaveRequestModal from './SaveRequestModal';
 import VariablesEditor from './VariablesEditor';
 import DashboardSpecTable from './DashboardSpecTable';
+import GenerateTestCase from './GenerateTestCase';
 import clsx from 'clsx';
 
 export default function IDEWorkspaceLayout({
@@ -130,7 +131,7 @@ export default function IDEWorkspaceLayout({
   // Testing sub-tabs
   const [testingSubTab, setTestingSubTab] = useState('generate');
   const testingSubTabs = [
-    { id: 'generate', label: 'Generate Testcases', icon: FileSearch },
+    { id: 'generate', label: 'Generate Test Cases', icon: FileSearch },
     { id: 'functional', label: 'Functional Test', icon: Play },
     { id: 'load', label: 'Load Test', icon: BarChart3 },
   ];
@@ -771,25 +772,12 @@ export default function IDEWorkspaceLayout({
             )}
             {topMenuActive === 'mock-service' && (
               <div className="flex-1 flex flex-col p-4 min-h-0">
-                <div className="flex items-center justify-between mb-4 shrink-0">
-                  <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Mock Service</span>
-                  {/* <div className="flex items-center gap-2">
-                    <button 
-                      type="button" 
-                      className="p-2 rounded-lg transition-colors hover:bg-primary/15 text-gray-500 hover:text-primary border border-transparent hover:border-primary/30"
-                      title="Create new mock"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div> */}
-                </div>
-                
                 {/* Search */}
                 <div className="relative mb-4 shrink-0">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
                     type="text"
-                    placeholder="Search mock requests..."
+                    placeholder="Search requests..."
                     value={mockSearch}
                     onChange={(e) => setMockSearch(e.target.value)}
                     className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -804,9 +792,10 @@ export default function IDEWorkspaceLayout({
                       {mockApis.map((mock) => (
                         <div 
                           key={mock.id} 
-                          className="group rounded-xl border border-dark-700 bg-dark-800/60 p-3 hover:border-primary/30 transition-all"
+                          onClick={() => onSelectMockRequest(mock)}
+                          className="group rounded-xl border border-dark-700 bg-dark-800/60 p-3 hover:border-primary/30 transition-all cursor-pointer"
                         >
-                          <div className="flex items-start gap-2 mb-2">
+                          <div className="flex items-start gap-2">
                             <span className={clsx(
                               'text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0',
                               mock.method === 'GET' && 'text-green-400 bg-green-400/10',
@@ -833,81 +822,31 @@ export default function IDEWorkspaceLayout({
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => onSelectMockRequest(mock)}
-                            className="w-full text-left text-[10px] text-primary hover:text-primary/80 transition-colors truncate"
-                          >
-                            Click to test →
-                          </button>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Dummy Requests Section */}
+                  {/* Collection Requests Section */}
                   <div className="space-y-2">
-                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Requests</h3>
-                    {dummyMockRequests
-                      .filter(req => 
-                        !mockSearch || 
-                        req.name.toLowerCase().includes(mockSearch.toLowerCase()) ||
-                        req.path.toLowerCase().includes(mockSearch.toLowerCase())
-                      )
-                      .map((request) => {
-                        const isMocked = mockApis.some(m => m.originalRequestId === request.id);
-                        return (
-                          <div 
-                            key={request.id} 
-                            className={clsx(
-                              'group rounded-xl border p-3 transition-all',
-                              isMocked 
-                                ? 'border-primary/30 bg-primary/5' 
-                                : 'border-dark-700 bg-dark-800/40 hover:border-dark-600'
-                            )}
-                          >
-                            <div className="flex items-start gap-2 mb-2">
-                              <span className={clsx(
-                                'text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0',
-                                request.method === 'GET' && 'text-green-400 bg-green-400/10',
-                                request.method === 'POST' && 'text-yellow-400 bg-yellow-400/10',
-                                request.method === 'PUT' && 'text-blue-400 bg-blue-400/10',
-                                request.method === 'DELETE' && 'text-red-400 bg-red-400/10',
-                                'text-purple-400 bg-purple-400/10'
-                              )}>
-                                {request.method}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-white truncate">{request.name}</p>
-                                <p className="text-[10px] text-gray-500 truncate font-mono">{request.path}</p>
-                              </div>
-                            </div>
-                            <p className="text-[10px] text-gray-400 mb-2 line-clamp-2">{request.description}</p>
-                            
-                            {/* Action Button - Mock API */}
-                            <div className="flex items-center gap-2">
-                              {!isMocked ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedMockRequest(request);
-                                    setShowMockModal(true);
-                                  }}
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-primary/20 text-gray-300 hover:text-primary border border-dark-600 hover:border-primary/40 transition-all"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Mock API
-                                </button>
-                              ) : (
-                                <div className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                                  Mocked
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Collection Requests</h3>
+                    {collections && collections.length > 0 ? (
+                      <MockServiceCollectionTree
+                        collections={collections}
+                        mockApis={mockApis}
+                        searchQuery={mockSearch}
+                        onSelectRequest={(request) => {
+                          setSelectedMockRequest(request);
+                          setShowMockModal(true);
+                        }}
+                        onSelectMockRequest={onSelectMockRequest}
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-4 text-center">
+                        <p className="text-xs text-gray-500">No collections available</p>
+                        <p className="text-[10px] text-gray-600 mt-1">Create collections in the Collections tab</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -973,78 +912,7 @@ export default function IDEWorkspaceLayout({
               // Testing: Generate Testcases | Functional Test | Load Test
               <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
                 {testingSubTab === 'generate' && (
-                  <div className="max-w-2xl space-y-6">
-                    <h2 className="text-lg font-semibold text-white">Generate Testcases</h2>
-                    <p className="text-sm text-gray-400">Upload JSON or CSV test data files. Only JSON and CSV files are accepted.</p>
-                    <div className="flex flex-col gap-4">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                        <input
-                          type="text"
-                          placeholder="Search test cases..."
-                          value={generateTestcasesSearch}
-                          onChange={(e) => setGenerateTestcasesSearch(e.target.value)}
-                          className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                        />
-                      </div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <input
-                          ref={testDataFileInputRef}
-                          type="file"
-                          accept=".json,.csv"
-                          className="hidden"
-                          onChange={handleTestDataFileChange}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => testDataFileInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-dark-600 bg-dark-800 text-gray-300 hover:bg-dark-700 hover:text-white transition-colors text-sm font-medium"
-                        >
-                          <Upload className="w-4 h-4" />
-                          Upload Test Data
-                        </button>
-                      </div>
-                      
-                      {/* Uploaded Files List */}
-                      {testFiles && testFiles.length > 0 && (
-                        <div className="space-y-2 mt-4">
-                          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Uploaded Files</h3>
-                          <div className="space-y-2">
-                            {testFiles.map((file) => (
-                              <div 
-                                key={file.id} 
-                                className="flex items-center justify-between p-3 rounded-lg border border-dark-700 bg-dark-800/50 hover:bg-dark-800 transition-colors"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                    {file.type === '.json' ? (
-                                      <span className="text-xs font-bold text-primary">JSON</span>
-                                    ) : (
-                                      <span className="text-xs font-bold text-primary">CSV</span>
-                                    )}
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium text-white">{file.name}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {(file.size / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteTestFile(file.id)}
-                                  className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                  title="Delete file"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <GenerateTestCase />
                 )}
                 {testingSubTab === 'functional' && (
                   <div className="flex gap-6">
@@ -1574,7 +1442,7 @@ export default function IDEWorkspaceLayout({
                 className="h-6 w-auto"
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
-              <span className="font-semibold gradient-text font-heading">ProbeStack</span>
+              <span className="font-semibold gradient-text font-heading">ForgeQ</span>
               <span className="text-gray-400">
                 © {new Date().getFullYear()} All rights reserved
               </span>
@@ -1601,11 +1469,11 @@ export default function IDEWorkspaceLayout({
           onClick={() => setShowFileSelectionModal(false)}
         >
           <div
-            className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+            className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-              <h3 className="text-base font-semibold text-white">Select Test Data File</h3>
+              <h3 className="text-base font-semibold text-white">Select Test Data</h3>
               <button
                 type="button"
                 onClick={() => setShowFileSelectionModal(false)}
@@ -1615,56 +1483,146 @@ export default function IDEWorkspaceLayout({
               </button>
             </div>
             
-            <div className="p-5">
-              {testFiles && testFiles.length > 0 ? (
-                <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                  {testFiles.map((file) => (
-                    <button
-                      key={file.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedFunctionalFile(file);
-                        setShowFileSelectionModal(false);
-                      }}
-                      className={clsx(
-                        'w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
-                        selectedFunctionalFile?.id === file.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-dark-700 hover:bg-dark-800'
-                      )}
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        {file.type === '.json' ? (
-                          <span className="text-xs font-bold text-primary">JSON</span>
-                        ) : (
-                          <span className="text-xs font-bold text-primary">CSV</span>
-                        )}
+            <div className="p-5 overflow-y-auto max-h-[60vh]">
+              {/* Test Specs from Generate Test Case */}
+              {(() => {
+                // Read specs from localStorage
+                let testSpecs = [];
+                try {
+                  const stored = localStorage.getItem('probestack_test_specs');
+                  if (stored) {
+                    testSpecs = JSON.parse(stored);
+                  }
+                } catch (e) {
+                  console.error('Failed to load test specs:', e);
+                }
+                
+                const hasSpecs = testSpecs.length > 0;
+                const hasFiles = testFiles && testFiles.length > 0;
+                
+                if (!hasSpecs && !hasFiles) {
+                  return (
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 bg-dark-800 rounded-xl flex items-center justify-center mx-auto mb-3 border border-dark-700">
+                        <Upload className="w-6 h-6 text-gray-500" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{file.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {(file.size / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      {selectedFunctionalFile?.id === file.id && (
-                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
+                      <p className="text-sm text-gray-400">No test data available</p>
+                      <p className="text-xs text-gray-500 mt-1">Create specs in the Generate Testcases section</p>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-6">
+                    {/* Test Specs Section */}
+                    {hasSpecs && (
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+                          Test Case Specs
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {testSpecs.map((spec) => (
+                            <button
+                              key={spec.id}
+                              type="button"
+                              onClick={() => {
+                                // Create a file-like object from the spec
+                                const specFile = {
+                                  id: spec.id,
+                                  name: `${spec.name}.json`,
+                                  type: '.json',
+                                  size: new Blob([spec.content]).size,
+                                  uploadedAt: spec.updatedAt,
+                                  isSpec: true,
+                                  content: spec.content,
+                                };
+                                setSelectedFunctionalFile(specFile);
+                                setShowFileSelectionModal(false);
+                              }}
+                              className={clsx(
+                                'flex flex-col p-4 rounded-lg border transition-all text-left',
+                                selectedFunctionalFile?.id === spec.id
+                                  ? 'border-primary bg-primary/10'
+                                  : 'border-dark-700 hover:bg-dark-800 hover:border-primary/30'
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                                  <FileCode className="w-5 h-5 text-blue-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">{spec.name}</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Spec • {new Date(spec.updatedAt).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                              {selectedFunctionalFile?.id === spec.id && (
+                                <div className="mt-3 pt-3 border-t border-primary/20 flex items-center justify-between">
+                                  <span className="text-xs text-primary font-medium">Selected</span>
+                                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              )}
+                            </button>
+                          ))}
                         </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-dark-800 rounded-xl flex items-center justify-center mx-auto mb-3 border border-dark-700">
-                    <Upload className="w-6 h-6 text-gray-500" />
+                      </div>
+                    )}
+                    
+                    {/* Uploaded Files Section */}
+                    {hasFiles && (
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+                          Uploaded Files
+                        </h4>
+                        <div className="space-y-2">
+                          {testFiles.map((file) => (
+                            <button
+                              key={file.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedFunctionalFile(file);
+                                setShowFileSelectionModal(false);
+                              }}
+                              className={clsx(
+                                'w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
+                                selectedFunctionalFile?.id === file.id
+                                  ? 'border-primary bg-primary/10'
+                                  : 'border-dark-700 hover:bg-dark-800'
+                              )}
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                {file.type === '.json' ? (
+                                  <span className="text-xs font-bold text-primary">JSON</span>
+                                ) : (
+                                  <span className="text-xs font-bold text-primary">CSV</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{file.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {(file.size / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                              {selectedFunctionalFile?.id === file.id && (
+                                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-400">No test files uploaded</p>
-                  <p className="text-xs text-gray-500 mt-1">Upload files in the Generate Testcases section</p>
-                </div>
-              )}
+                );
+              })()}
             </div>
             
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
@@ -1788,6 +1746,316 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Mock Service Collection Tree Component - Read-only view of collections with Mock API action
+function MockServiceCollectionTree({ collections, mockApis, searchQuery, onSelectRequest, onSelectMockRequest }) {
+  // Auto-expand all collections that have children on initial load
+  const getInitialExpandedState = () => {
+    const initial = {};
+    const markExpanded = (items) => {
+      items.forEach(item => {
+        if (item.items && item.items.length > 0) {
+          initial[item.id] = true;
+          markExpanded(item.items);
+        }
+      });
+    };
+    markExpanded(collections);
+    return initial;
+  };
+  
+  const [expanded, setExpanded] = useState(getInitialExpandedState);
+  const [contextMenu, setContextMenu] = useState(null);
+
+  const toggle = (id) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleOpenMenu = (e, item) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      item,
+    });
+  };
+
+  const handleCloseMenu = () => {
+    setContextMenu(null);
+  };
+
+  const handleMockAction = () => {
+    if (contextMenu?.item) {
+      onSelectRequest(contextMenu.item);
+    }
+    setContextMenu(null);
+  };
+
+  // Filter tree based on search query
+  const filterTree = (items, q) => {
+    if (!q.trim()) return items;
+    const lower = q.toLowerCase();
+    return items
+      .map((item) => {
+        if (item.type === 'request') {
+          const match = item.name.toLowerCase().includes(lower) || (item.method && item.method.toLowerCase().includes(lower));
+          return match ? item : null;
+        }
+        const filteredChildren = item.items ? filterTree(item.items, q) : [];
+        const nameMatch = item.name.toLowerCase().includes(lower);
+        if (nameMatch || filteredChildren.length > 0) {
+          return { ...item, items: filteredChildren.length ? filteredChildren : item.items };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  };
+
+  // Group collections by project
+  const groupByProject = (cols) => {
+    const groups = {};
+    cols.forEach((col) => {
+      const projectId = col.project || 'default';
+      const projectName = col.projectName || 'Default Project';
+      if (!groups[projectId]) {
+        groups[projectId] = { id: projectId, name: projectName, collections: [] };
+      }
+      groups[projectId].collections.push(col);
+    });
+    return Object.values(groups);
+  };
+
+  const filteredCollections = filterTree(collections, searchQuery);
+  const projectGroups = groupByProject(filteredCollections);
+
+  // Sort items: folders first, then requests
+  const sortItems = (items) => {
+    if (!items || !Array.isArray(items)) return items;
+    return [...items].sort((a, b) => {
+      const aIsFolder = a.type === 'folder';
+      const bIsFolder = b.type === 'folder';
+      if (aIsFolder && !bIsFolder) return -1;
+      if (!aIsFolder && bIsFolder) return 1;
+      return 0;
+    });
+  };
+
+  // Check if a request is already mocked
+  const isRequestMocked = (requestId) => {
+    return mockApis.some(m => m.originalRequestId === requestId);
+  };
+
+  // Get mock for a request if it exists
+  const getMockForRequest = (requestId) => {
+    return mockApis.find(m => m.originalRequestId === requestId);
+  };
+
+  return (
+    <div className="space-y-4">
+      {projectGroups.map((project) => (
+        <div key={project.id} className="space-y-2">
+          {/* Project Header */}
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <Folder className="w-4 h-4 text-primary" />
+            <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+              {project.name}
+            </span>
+            <span className="text-[10px] text-gray-500 font-medium">
+              {project.collections.length}
+            </span>
+          </div>
+
+          {/* Collections under this project */}
+          <div className="ml-2 space-y-1">
+            {project.collections.map((collection) => (
+              <MockCollectionNode
+                key={collection.id}
+                item={collection}
+                expanded={expanded}
+                onToggle={toggle}
+                level={0}
+                sortItems={sortItems}
+                isRequestMocked={isRequestMocked}
+                getMockForRequest={getMockForRequest}
+                onSelectRequest={onSelectRequest}
+                onSelectMockRequest={onSelectMockRequest}
+                onOpenMenu={handleOpenMenu}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {projectGroups.length === 0 && (
+        <div className="text-center py-4">
+          <p className="text-xs text-gray-500">No collections match your search</p>
+        </div>
+      )}
+
+      {/* Context Menu for Mock API action */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[140px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={handleMockAction}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-primary/10 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Mock API
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Individual node component for the mock service collection tree
+function MockCollectionNode({ item, expanded, onToggle, level, sortItems, isRequestMocked, getMockForRequest, onSelectRequest, onSelectMockRequest, onOpenMenu }) {
+  const isExpanded = expanded[item.id];
+  const hasChildren = item.items && item.items.length > 0;
+  const isRequest = item.type === 'request';
+  const isFolder = item.type === 'folder';
+  const isCollection = level === 0;
+
+  const handleRowClick = () => {
+    if (isRequest) {
+      // Requests populate the testing area when clicked (both mocked and non-mocked)
+      const mock = getMockForRequest(item.id);
+      if (mock) {
+        // If mocked, use the mock URL
+        onSelectMockRequest(mock);
+      } else {
+        // If not mocked, populate with the original request for testing
+        onSelectMockRequest({
+          ...item,
+          mockUrl: item.path || '',
+          originalRequestId: item.id
+        });
+      }
+    } else if (!isRequest) {
+      onToggle(item.id);
+    }
+  };
+
+  // Indentation: 12px per nesting level
+  const indentPx = level * 12;
+
+  // Get mock status for requests
+  const mocked = isRequest ? isRequestMocked(item.id) : false;
+  const existingMock = isRequest ? getMockForRequest(item.id) : null;
+
+  return (
+    <div className="select-none">
+      <div
+        style={{ paddingLeft: indentPx }}
+        onClick={handleRowClick}
+        className={clsx(
+          'flex items-center gap-1 py-1.5 pr-2 rounded-md group cursor-pointer',
+          isRequest 
+            ? 'hover:bg-dark-700/30' 
+            : 'hover:bg-dark-700/50',
+          mocked && 'bg-primary/5'
+        )}
+      >
+        {/* Expand/Chevron */}
+        <div 
+          className="w-4 h-4 flex items-center justify-center shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isRequest && hasChildren) {
+              onToggle(item.id);
+            }
+          }}
+        >
+          {!isRequest && hasChildren ? (
+            isExpanded ? (
+              <ChevronDown className="w-3 h-3 text-gray-500 cursor-pointer hover:text-gray-400" />
+            ) : (
+              <ChevronRight className="w-3 h-3 text-gray-500 cursor-pointer hover:text-gray-400" />
+            )
+          ) : (
+            <div className="w-3 h-3" />
+          )}
+        </div>
+
+        {/* Icon or Method Badge */}
+        {isRequest ? (
+          <span
+            className={clsx(
+              'text-[9px] font-bold w-8 text-right shrink-0',
+              item.method === 'GET' && 'text-green-400',
+              item.method === 'POST' && 'text-yellow-400',
+              item.method === 'PUT' && 'text-blue-400',
+              item.method === 'DELETE' && 'text-red-400',
+              !['GET', 'POST', 'PUT', 'DELETE'].includes(item.method) && 'text-purple-400'
+            )}
+          >
+            {item.method}
+          </span>
+        ) : (
+          <Folder
+            className={clsx(
+              'w-3.5 h-3.5 shrink-0',
+              isCollection ? 'text-amber-500/90' : 'text-gray-500'
+            )}
+          />
+        )}
+
+        {/* Name */}
+        <span 
+          className={clsx(
+            'text-xs truncate flex-1',
+            isRequest ? 'text-gray-300' : 'text-gray-200 font-medium'
+          )}
+        >
+          {item.name}
+        </span>
+
+        {/* Action Button - Only for requests */}
+        {isRequest && (
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenMenu(e, item);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity"
+              title="More actions"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Render children */}
+      {hasChildren && isExpanded && (
+        <div>
+          {sortItems(item.items).map((child) => (
+            <MockCollectionNode
+              key={child.id}
+              item={child}
+              expanded={expanded}
+              onToggle={onToggle}
+              level={level + 1}
+              sortItems={sortItems}
+              isRequestMocked={isRequestMocked}
+              getMockForRequest={getMockForRequest}
+              onSelectRequest={onSelectRequest}
+              onSelectMockRequest={onSelectMockRequest}
+              onOpenMenu={onOpenMenu}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

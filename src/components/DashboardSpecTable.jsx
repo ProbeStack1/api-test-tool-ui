@@ -1,6 +1,42 @@
 import React, { useState, useMemo } from 'react';
-import { Building2, ChevronLeft, ChevronRight, Search, BarChart3, Zap, CheckCircle2, Clock } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable } from 'lucide-react';
 import clsx from 'clsx';
+
+// Storage keys for reading persisted data
+const STORAGE_KEYS = {
+  COLLECTIONS: 'probestack_collections',
+  MOCKS: 'probestack_mock_apis',
+  ENV_VARS: 'probestack_env_vars',
+  GLOBAL_VARS: 'probestack_global_vars',
+  TEST_FILES: 'probestack_test_files',
+};
+
+const getStorageData = (key, defaultVal = []) => {
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : defaultVal;
+  } catch {
+    return defaultVal;
+  }
+};
+
+const calculateTotalRequests = (collections) => {
+  let count = 0;
+  const countRequests = (items) => {
+    items?.forEach(item => {
+      if (item.type === 'request') count++;
+      if (item.items) countRequests(item.items);
+    });
+  };
+  collections?.forEach(col => countRequests(col.items));
+  return count;
+};
+
+const calculateTotalVariables = (envVars, globalVars) => {
+  const envCount = envVars?.reduce((sum, env) => sum + (env.variables?.length || 0), 0) || 0;
+  const globalCount = globalVars?.length || 0;
+  return envCount + globalCount;
+};
 
 // Dummy data for the spec table - all organizations are ProbeStack
 const dummySpecData = [
@@ -94,38 +130,6 @@ const dummySpecData = [
   },
 ];
 
-// Metrics data for testing module
-const metricsData = [
-  {
-    label: 'Total Requests',
-    value: '12.5K',
-    change: '+12.5%',
-    trend: 'up',
-    icon: BarChart3,
-  },
-  {
-    label: 'Test Executions',
-    value: '856',
-    change: '+23',
-    trend: 'up',
-    icon: Zap,
-  },
-  {
-    label: 'Success Rate',
-    value: '98.7%',
-    change: '+1.2%',
-    trend: 'up',
-    icon: CheckCircle2,
-  },
-  {
-    label: 'Avg Response Time',
-    value: '142ms',
-    change: '-12ms',
-    trend: 'down',
-    icon: Clock,
-  },
-];
-
 // Helper function to get organization color - single color for ProbeStack
 const getOrgColor = () => {
   return 'bg-primary/20 text-primary';
@@ -135,6 +139,69 @@ export default function DashboardSpecTable() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // Read persisted data from localStorage
+  const collections = getStorageData(STORAGE_KEYS.COLLECTIONS);
+  const mockApis = getStorageData(STORAGE_KEYS.MOCKS);
+  const envVars = getStorageData(STORAGE_KEYS.ENV_VARS);
+  const globalVars = getStorageData(STORAGE_KEYS.GLOBAL_VARS);
+  const testFiles = getStorageData(STORAGE_KEYS.TEST_FILES);
+
+  // Calculate metrics for the 5 cards
+  const totalRequests = calculateTotalRequests(collections);
+  const mockedServicesCount = mockApis.length;
+  const totalVariables = calculateTotalVariables(envVars, globalVars);
+  const loadTestsCount = testFiles.length;
+  const functionalTestsCount = collections.filter(c => c.items?.some(i => i.type === 'request')).length;
+
+  // Metrics data with real values
+  const metricsData = [
+    {
+      label: 'Requests',
+      value: totalRequests.toString(),
+      change: `in collections`,
+      trend: 'up',
+      icon: Activity,
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-400/10',
+    },
+    {
+      label: 'Load Testing',
+      value: loadTestsCount.toString(),
+      change: 'test files',
+      trend: 'up',
+      icon: Zap,
+      color: 'text-purple-400',
+      bgColor: 'bg-purple-400/10',
+    },
+    {
+      label: 'Functional Testing',
+      value: functionalTestsCount.toString(),
+      change: 'collections',
+      trend: 'up',
+      icon: CheckCircle,
+      color: 'text-green-400',
+      bgColor: 'bg-green-400/10',
+    },
+    {
+      label: 'Mocked Services',
+      value: mockedServicesCount.toString(),
+      change: 'active mocks',
+      trend: 'up',
+      icon: Server,
+      color: 'text-amber-400',
+      bgColor: 'bg-amber-400/10',
+    },
+    {
+      label: 'Variables',
+      value: totalVariables.toString(),
+      change: 'configured',
+      trend: 'up',
+      icon: Variable,
+      color: 'text-cyan-400',
+      bgColor: 'bg-cyan-400/10',
+    },
+  ];
 
   // Filter data based on search
   const filteredData = useMemo(() => {
@@ -182,7 +249,7 @@ export default function DashboardSpecTable() {
       <div className="flex-1 overflow-auto p-6">
         {/* Metrics Section */}
         <div className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {metricsData.map((metric, index) => (
               <div
                 key={index}
@@ -196,13 +263,11 @@ export default function DashboardSpecTable() {
                     <div className="text-2xl font-bold text-white mb-1">
                       {metric.value}
                     </div>
-                    <div className={`text-xs font-medium ${
-                      metric.trend === 'up' ? 'text-green-400' : 'text-primary'
-                    }`}>
-                      {metric.change} from last week
+                    <div className="text-xs font-medium text-green-400">
+                      {metric.change}
                     </div>
                   </div>
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <div className={`p-2 rounded-lg ${metric.bgColor} ${metric.color}`}>
                     <metric.icon className="h-5 w-5" />
                   </div>
                 </div>

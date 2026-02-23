@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen } from 'lucide-react';
+import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
 import Reports from './components/Reports';
 import Explore from './components/Explore';
 import TestingToolPage from './pages/TestingToolPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   const navigate = useNavigate();
@@ -616,7 +617,7 @@ function App() {
     });
     setResponse(null);
     setError(null);
-    navigate('/workspace');
+    // Stay on current tab - no navigation
   };
 
   // Variable substitution function - replaces {{variable}} with actual values
@@ -804,7 +805,7 @@ function App() {
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading">{isWorkspace ? 'ForgeQ' : 'ProbeStack'}</span>
+                <span className="text-xl font-extrabold gradient-text font-heading">ForgeQ</span>
                 <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5">A ForgeCrux Company</span>
               </div>
             </div>
@@ -825,6 +826,16 @@ function App() {
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Settings Button */}
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              aria-label="Settings"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
             {/* Theme Toggle - same as DashboardNavbar (porbestack-new-repo) */}
             <button
               type="button"
@@ -892,6 +903,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/reports" element={<Reports history={history} />} />
           <Route path="/explore" element={<Explore onImport={handleImport} />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route
             path="/workspace/*"
             element={

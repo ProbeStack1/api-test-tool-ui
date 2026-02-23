@@ -15,7 +15,7 @@ export default function Home() {
               Production-Grade API Testing
             </div>
             <h1 className="text-5xl font-bold mb-4 gradient-text">
-              API Gateway Testing & Verification Hub
+              API Testing & Verification Hub
             </h1>
             <p className="text-xl text-gray-400 mb-8">
               Automate your API workflows, verify responses, and collaborate with your team with confidence.
@@ -98,7 +98,7 @@ export default function Home() {
                 className="h-6 w-auto"
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
-              <span className="font-semibold gradient-text font-heading">ProbeStack</span>
+              <span className="font-semibold gradient-text font-heading">ForgeQ</span>
               <span className="text-gray-400">
                 © {new Date().getFullYear()} All rights reserved
               </span>

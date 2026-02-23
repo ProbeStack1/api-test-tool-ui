@@ -3,13 +3,62 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Activity, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Activity, Zap, CheckCircle, Server, Variable } from 'lucide-react';
+
+// Storage keys for reading persisted data
+const STORAGE_KEYS = {
+    COLLECTIONS: 'probestack_collections',
+    MOCKS: 'probestack_mock_apis',
+    ENV_VARS: 'probestack_env_vars',
+    GLOBAL_VARS: 'probestack_global_vars',
+    TEST_FILES: 'probestack_test_files',
+};
+
+const getStorageData = (key, defaultVal = []) => {
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : defaultVal;
+    } catch {
+        return defaultVal;
+    }
+};
+
+const calculateTotalRequests = (collections) => {
+    let count = 0;
+    const countRequests = (items) => {
+        items?.forEach(item => {
+            if (item.type === 'request') count++;
+            if (item.items) countRequests(item.items);
+        });
+    };
+    collections?.forEach(col => countRequests(col.items));
+    return count;
+};
+
+const calculateTotalVariables = (envVars, globalVars) => {
+    const envCount = envVars?.reduce((sum, env) => sum + (env.variables?.length || 0), 0) || 0;
+    const globalCount = globalVars?.length || 0;
+    return envCount + globalCount;
+};
 
 export default function Reports({ history }) {
-    // Process Data
-    const totalRequests = history.length;
+    // Read persisted data from localStorage
+    const collections = getStorageData(STORAGE_KEYS.COLLECTIONS);
+    const mockApis = getStorageData(STORAGE_KEYS.MOCKS);
+    const envVars = getStorageData(STORAGE_KEYS.ENV_VARS);
+    const globalVars = getStorageData(STORAGE_KEYS.GLOBAL_VARS);
+    const testFiles = getStorageData(STORAGE_KEYS.TEST_FILES);
+
+    // Calculate metrics for the 5 cards
+    const totalRequests = calculateTotalRequests(collections);
+    const mockedServicesCount = mockApis.length;
+    const totalVariables = calculateTotalVariables(envVars, globalVars);
+    const loadTestsCount = testFiles.length;
+    const functionalTestsCount = collections.filter(c => c.items?.some(i => i.type === 'request')).length;
+
+    // Process history data for charts
     const successCount = history.filter(h => !h.error && (!h.status || (h.status >= 200 && h.status < 400))).length;
-    const errorCount = totalRequests - successCount;
+    const errorCount = history.length - successCount;
 
     const pieData = [
         { name: 'Success', value: successCount },
@@ -18,7 +67,6 @@ export default function Reports({ history }) {
     const COLORS = ['#22c55e', '#ef4444'];
 
     // Mock trend data logic mixed with real history for demo purposes
-    // Group by time (simple index version)
     const lineData = history.slice(0, 20).reverse().map((h, i) => ({
         name: `R-${i}`,
         time: h.time || Math.floor(Math.random() * 200) + 50,
@@ -32,12 +80,13 @@ export default function Reports({ history }) {
                 <p className="text-gray-400">Analytics overview for your API activities</p>
             </header>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <StatCard icon={Activity} label="Total Requests" value={totalRequests} color="text-blue-400" />
-                <StatCard icon={CheckCircle} label="Success Rate" value={`${totalRequests ? Math.round((successCount / totalRequests) * 100) : 0}%`} color="text-green-400" />
-                <StatCard icon={AlertTriangle} label="Error Rate" value={`${totalRequests ? Math.round((errorCount / totalRequests) * 100) : 0}%`} color="text-red-400" />
-                <StatCard icon={Clock} label="Avg Time" value="124ms" color="text-yellow-400" />
+            {/* Stats Grid - 5 Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                <StatCard icon={Activity} label="Requests" value={totalRequests} color="text-blue-400" />
+                <StatCard icon={Zap} label="Load Testing" value={loadTestsCount} color="text-purple-400" />
+                <StatCard icon={CheckCircle} label="Functional Testing" value={functionalTestsCount} color="text-green-400" />
+                <StatCard icon={Server} label="Mocked Services" value={mockedServicesCount} color="text-amber-400" />
+                <StatCard icon={Variable} label="Variables" value={totalVariables} color="text-cyan-400" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">

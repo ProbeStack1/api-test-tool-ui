@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings } from 'lucide-react';
+import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3 } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
@@ -8,6 +8,9 @@ import Reports from './components/Reports';
 import Explore from './components/Explore';
 import TestingToolPage from './pages/TestingToolPage';
 import SettingsPage from './pages/SettingsPage';
+import { Profile } from './pages/Profile';
+import { ProfileSupport } from './pages/ProfileSupport';
+import { ProfileSupportTicket } from './pages/ProfileSupportTicket';
 
 function App() {
   const navigate = useNavigate();
@@ -60,12 +63,13 @@ function App() {
 
   const [projects, setProjects] = useState(() => {
     try {
-      const stored = localStorage.getItem('probestack_projects');
+      // Check for new workspaces key first, then fall back to old projects key for migration
+      const stored = localStorage.getItem('probestack_workspaces') || localStorage.getItem('probestack_projects');
       if (stored) {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Failed to load projects from localStorage:', error);
+      console.error('Failed to load workspaces from localStorage:', error);
     }
     return [
       { id: 'auth-security', name: 'Auth and Security' },
@@ -253,22 +257,6 @@ function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('probestack_collections', JSON.stringify(collections));
-    } catch (error) {
-      console.error('Failed to save collections to localStorage:', error);
-    }
-  }, [collections]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('probestack_projects', JSON.stringify(projects));
-    } catch (error) {
-      console.error('Failed to save projects to localStorage:', error);
-    }
-  }, [projects]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('probestack_active_request_index', activeRequestIndex.toString());
     } catch (error) {
       console.error('Failed to save active request index to localStorage:', error);
@@ -290,6 +278,15 @@ function App() {
       console.error('Failed to save global variables to localStorage:', error);
     }
   }, [globalVariables]);
+
+  // Persist workspaces to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('probestack_workspaces', JSON.stringify(projects));
+    } catch (error) {
+      console.error('Failed to save workspaces to localStorage:', error);
+    }
+  }, [projects]);
 
   const handleSaveEnvironmentVariables = () => {
     try {
@@ -576,20 +573,42 @@ function App() {
   };
 
   // Mock Service handlers
-  const handleCreateMock = (request) => {
+  const handleCreateMock = (collectionOrFolder) => {
     const mockId = `mock-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const endpointName = request.path.replace(/^\//, '').replace(/\//g, '-');
-    const mockUrl = `api.probestack.io/api/v1/${endpointName}`;
+    
+    // Recursively collect all requests from the collection/folder
+    const collectRequests = (items, folderPath = '') => {
+      const requests = [];
+      items.forEach(item => {
+        if (item.type === 'request') {
+          const endpointName = (item.path || '').replace(/^\//, '').replace(/\//g, '-') || 'endpoint';
+          const mockUrl = `api.probestack.io/api/v1/${endpointName}`;
+          
+          requests.push({
+            id: item.id,
+            name: item.name,
+            method: item.method,
+            path: item.path,
+            mockUrl: mockUrl,
+            folderPath: folderPath || 'Root',
+            mockResponse: item.mockResponse || { message: 'Mock response' }
+          });
+        } else if (item.type === 'folder' && item.items) {
+          const newPath = folderPath ? `${folderPath} / ${item.name}` : item.name;
+          requests.push(...collectRequests(item.items, newPath));
+        }
+      });
+      return requests;
+    };
+    
+    const mockedRequests = collectRequests(collectionOrFolder.items || []);
     
     const newMock = {
       id: mockId,
-      originalRequestId: request.id,
-      name: request.name,
-      method: request.method,
-      path: request.path,
-      mockUrl: mockUrl,
-      description: request.description,
-      mockResponse: request.mockResponse,
+      originalItemId: collectionOrFolder.id,
+      name: collectionOrFolder.name,
+      type: collectionOrFolder.type, // 'collection' or 'folder'
+      requests: mockedRequests,
       createdAt: new Date().toISOString(),
     };
     
@@ -601,23 +620,79 @@ function App() {
     setMockApis((prev) => prev.filter(m => m.id !== mockId));
   };
 
-  const handleSelectMockRequest = (request) => {
-    // Create a new tab with the mock request data
-    const newRequest = {
-      ...createEmptyRequest(),
-      name: request.name,
-      method: request.method,
-      url: request.mockUrl || request.path,
-      path: request.mockUrl || request.path,
-    };
-    setRequests((prev) => {
-      const next = [...prev, newRequest];
-      setActiveRequestIndex(next.length - 1);
-      return next;
+  const handleSelectMockRequest = async (mockedCollection) => {
+    // Run the mocked collection/folder as a collection with mock URLs
+    if (!mockedCollection || !mockedCollection.requests) return;
+
+    setIsRunningCollection(true);
+    setCollectionRunResults({
+      collectionName: mockedCollection.name,
+      startTime: new Date().toISOString(),
+      status: 'running',
+      results: []
     });
-    setResponse(null);
-    setError(null);
-    // Stay on current tab - no navigation
+
+    const results = [];
+
+    // Execute all mocked requests sequentially
+    for (let i = 0; i < mockedCollection.requests.length; i++) {
+      const request = mockedCollection.requests[i];
+      
+      setCollectionRunResults(prev => ({
+        ...prev,
+        currentIndex: i,
+        totalRequests: mockedCollection.requests.length,
+        currentRequest: request.name
+      }));
+
+      try {
+        // Simulate API call with mock URL
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+        
+        results.push({
+          requestId: request.id,
+          requestName: request.name,
+          method: request.method,
+          url: request.mockUrl,
+          folderPath: request.folderPath,
+          status: 200,
+          statusText: 'OK (Mocked)',
+          time: Math.floor(Math.random() * 200) + 50,
+          size: JSON.stringify(request.mockResponse).length,
+          data: request.mockResponse,
+          success: true,
+          error: null
+        });
+      } catch (err) {
+        results.push({
+          requestId: request.id,
+          requestName: request.name,
+          method: request.method,
+          url: request.mockUrl,
+          folderPath: request.folderPath,
+          status: 0,
+          statusText: 'Error',
+          time: 0,
+          size: 0,
+          data: null,
+          success: false,
+          error: err.message || 'Request failed'
+        });
+      }
+    }
+
+    setCollectionRunResults({
+      collectionName: mockedCollection.name,
+      startTime: results[0]?.startTime || new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      status: 'completed',
+      totalRequests: mockedCollection.requests.length,
+      passedRequests: results.filter(r => r.success).length,
+      failedRequests: results.filter(r => !r.success).length,
+      results: results
+    });
+
+    setIsRunningCollection(false);
   };
 
   // Variable substitution function - replaces {{variable}} with actual values
@@ -745,6 +820,29 @@ function App() {
   const [theme, setTheme] = useState('dark');
   const userMenuRef = useRef(null);
 
+  // Top menu navigation items
+  const topMenuItems = [
+    { id: 'history', label: 'History', path: '/workspace/history', icon: History },
+    { id: 'collections', label: 'Collections', path: '/workspace/collections', icon: LayoutGrid },
+    { id: 'environments', label: 'Variables', path: '/workspace/variables', icon: Layers },
+    { id: 'testing', label: 'Testing', path: '/workspace/testing', icon: BarChart3 },
+    { id: 'mock-service', label: 'Mock Service', path: '/workspace/mock-service', icon: Layers },
+    { id: 'dashboard', label: 'Dashboard', path: '/workspace/dashboard', icon: BarChart3 },
+  ];
+
+  // Determine active menu based on current path
+  const getActiveMenu = () => {
+    if (pathname.includes('/workspace/profile')) return null; // Profile pages don't highlight navigation
+    if (pathname.includes('/workspace/history')) return 'history';
+    if (pathname.includes('/workspace/variables')) return 'environments';
+    if (pathname.includes('/workspace/testing')) return 'testing';
+    if (pathname.includes('/workspace/mock-service')) return 'mock-service';
+    if (pathname.includes('/workspace/dashboard')) return 'dashboard';
+    if (pathname.includes('/workspace/collections')) return 'collections';
+    return 'collections';
+  };
+  const activeMenu = getActiveMenu();
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setIsUserMenuOpen(false);
@@ -796,8 +894,8 @@ function App() {
       <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-probestack-bg relative z-0 overflow-hidden">
         {/* Header - same logo block as Migration/DashboardNavbar (porbestack-new-repo) */}
         <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-probestack-bg">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+          <div className="flex items-center gap-6 flex-1">
+            <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => navigate('/')}>
               <img
                 src="/assets/justlogo.png"
                 alt="ProbeStack logo"
@@ -805,23 +903,35 @@ function App() {
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading">ForgeQ</span>
-                <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5">A ForgeCrux Company</span>
+                <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ForgeQ</span>
+                <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5 whitespace-nowrap">A ForgeCrux Company</span>
               </div>
             </div>
             
-            {/* Center Search Bar - hidden on workspace (workspace has its own search) */}
-            {!isWorkspace && (
-              <div className="flex-1 max-w-md mx-auto">
-                <div className="relative">
-                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    placeholder="Search workspace..."
-                    className="w-full h-9 bg-dark-900/50 border border-dark-700/50 rounded-lg pl-10 pr-4 text-xs text-gray-300 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 placeholder:text-dark-500 transition-all"
-                  />
-                </div>
-              </div>
+            {/* Navigation Links - only show on workspace pages */}
+            {isWorkspace && (
+              <nav className="flex items-center gap-1 ml-12">
+                {topMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeMenu === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.path)}
+                      className={clsx(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap',
+                        isActive
+                          ? 'bg-primary/15 border border-primary/40 text-primary shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                      )}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
             )}
           </div>
           
@@ -861,7 +971,7 @@ function App() {
                   <div className="py-1">
                     <button
                       type="button"
-                      onClick={() => { navigate('/'); setIsUserMenuOpen(false); }}
+                      onClick={() => { navigate('/workspace/profile'); setIsUserMenuOpen(false); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
                     >
                       <User className="w-4 h-4" />
@@ -904,6 +1014,9 @@ function App() {
           <Route path="/reports" element={<Reports history={history} />} />
           <Route path="/explore" element={<Explore onImport={handleImport} />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/workspace/profile" element={<Profile />} />
+          <Route path="/workspace/profile/support" element={<ProfileSupport />} />
+          <Route path="/workspace/profile/support/ticket" element={<ProfileSupportTicket />} />
           <Route
             path="/workspace/*"
             element={

@@ -90,11 +90,22 @@ export default function IDEWorkspaceLayout({
     return '/workspace/collections';
   };
   const [topMenuActive, setTopMenuActive] = useState(() => getTopMenuFromPath(location.pathname));
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // Sidebar should be collapsed by default only on dashboard page
+    const initialMenu = getTopMenuFromPath(location.pathname);
+    return initialMenu === 'dashboard';
+  });
   const [workspaceSearch, setWorkspaceSearch] = useState('');
   const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
   const [variablesScope, setVariablesScope] = useState('environment-scope');
   
+  // Collapse sidebar when navigating to dashboard, expand when leaving
+  useEffect(() => {
+    if (topMenuActive === 'dashboard') {
+      setSidebarCollapsed(true);
+    }
+  }, [topMenuActive]);
+
   // History menu state
   const [historyMenu, setHistoryMenu] = useState(null);
   const [showHistorySaveModal, setShowHistorySaveModal] = useState(false);
@@ -194,6 +205,7 @@ export default function IDEWorkspaceLayout({
   const [selectedMockRequest, setSelectedMockRequest] = useState(null);
   const [mockSearch, setMockSearch] = useState('');
   const [mockMenu, setMockMenu] = useState(null);
+  const [showCreateMockServiceModal, setShowCreateMockServiceModal] = useState(false);
 
   // Handler for Functional Testing Run Collection
   const handleRunFunctionalTest = () => {
@@ -490,44 +502,21 @@ export default function IDEWorkspaceLayout({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
-      {/* Forgeq-style header bar: History | Collections | Environments + Search + Environment */}
+      {/* Workspace header bar: Search + Environment selector */}
       <header className="shrink-0 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm">
-        <div className="flex items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-1">
-            {topMenuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setTopMenuActive(item.id);
-                    navigate(getPathFromTopMenu(item.id));
-                  }}
-                  className={clsx(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                    topMenuActive === item.id
-                      ? 'bg-primary/15 border border-primary/40 text-primary shadow-sm'
-                      : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {item.label}
-                </button>
-              );
-            })}
+        <div className="flex items-center justify-between gap-3 px-4 py-2">
+          <div className="flex-1"></div>
+          <div className="relative w-full max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search workspace..."
+              value={workspaceSearch}
+              onChange={(e) => setWorkspaceSearch(e.target.value)}
+              className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
+            />
           </div>
-          <div className="flex items-center gap-3 flex-1 max-w-md justify-end">
-            <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search workspace..."
-                value={workspaceSearch}
-                onChange={(e) => setWorkspaceSearch(e.target.value)}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
-              />
-            </div>
+          <div className="flex-1 flex justify-end">
             <div className="relative min-w-[140px]">
               <select
                 value={selectedEnvironment}
@@ -772,23 +761,33 @@ export default function IDEWorkspaceLayout({
             )}
             {topMenuActive === 'mock-service' && (
               <div className="flex-1 flex flex-col p-4 min-h-0">
-                {/* Search */}
-                <div className="relative mb-4 shrink-0">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    placeholder="Search requests..."
-                    value={mockSearch}
-                    onChange={(e) => setMockSearch(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
+                {/* Search and Create Mock Service Button */}
+                <div className="mb-4 shrink-0 space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search services..."
+                      value={mockSearch}
+                      onChange={(e) => setMockSearch(e.target.value)}
+                      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateMockServiceModal(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-primary hover:bg-primary/90 text-white transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Mock Service
+                  </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 space-y-4">
                   {/* Created Mocks Section */}
                   {mockApis && mockApis.length > 0 && (
                     <div className="space-y-2">
-                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Active Mocks</h3>
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Available Mocks</h3>
                       {mockApis.map((mock) => (
                         <div 
                           key={mock.id} 
@@ -796,19 +795,12 @@ export default function IDEWorkspaceLayout({
                           className="group rounded-xl border border-dark-700 bg-dark-800/60 p-3 hover:border-primary/30 transition-all cursor-pointer"
                         >
                           <div className="flex items-start gap-2">
-                            <span className={clsx(
-                              'text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0',
-                              mock.method === 'GET' && 'text-green-400 bg-green-400/10',
-                              mock.method === 'POST' && 'text-yellow-400 bg-yellow-400/10',
-                              mock.method === 'PUT' && 'text-blue-400 bg-blue-400/10',
-                              mock.method === 'DELETE' && 'text-red-400 bg-red-400/10',
-                              'text-purple-400 bg-purple-400/10'
-                            )}>
-                              {mock.method}
-                            </span>
+                            <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-white truncate">{mock.name}</p>
-                              <p className="text-[10px] text-gray-500 truncate font-mono">{mock.mockUrl}</p>
+                              <p className="text-[10px] text-gray-500 truncate">
+                                {mock.requests?.length || 0} {mock.requests?.length === 1 ? 'request' : 'requests'} • {mock.type}
+                              </p>
                             </div>
                             <button
                               type="button"
@@ -1651,6 +1643,17 @@ export default function IDEWorkspaceLayout({
           }}
         />
       )}
+
+      {/* Create Mock Service Modal */}
+      {showCreateMockServiceModal && (
+        <CreateMockServiceModal
+          onClose={() => setShowCreateMockServiceModal(false)}
+          onCreateMock={(specMock) => {
+            onCreateMock(specMock);
+            setShowCreateMockServiceModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1673,9 +1676,6 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
     return () => clearTimeout(timer);
   }, [onCreateMock, onClose]);
 
-  const endpointName = request.path.replace(/^\//, '').replace(/\//g, '-');
-  const mockUrl = `api.probestack.io/api/v1/${endpointName}`;
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -1687,7 +1687,7 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
           <h3 className="text-base font-semibold text-white">
-            {status === 'creating' ? 'Creating Mock API...' : 'Mock API Created!'}
+            {status === 'creating' ? 'Creating Mock Service...' : 'Mock Service Created!'}
           </h3>
           {status === 'success' && (
             <button
@@ -1708,7 +1708,7 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
                 <div className="absolute inset-0 border-4 border-dark-700 rounded-full" />
                 <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
-              <p className="text-sm text-gray-400">Setting up mock endpoint...</p>
+              <p className="text-sm text-gray-400">Setting up mock service...</p>
               <p className="text-xs text-gray-500 mt-1 font-mono">{request.name}</p>
             </div>
           ) : (
@@ -1719,28 +1719,162 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-sm text-green-400 font-medium mb-1">Mock created successfully!</p>
-              
-              {/* Mock URL display */}
-              <div className="w-full mt-4 p-3 rounded-lg bg-dark-900/60 border border-dark-700">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Mock URL</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs text-primary font-mono truncate">
-                    {mockUrl}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => navigator.clipboard?.writeText(mockUrl)}
-                    className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-                    title="Copy URL"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                </div>
+              <p className="text-sm text-green-400 font-medium mb-1">Mock service created successfully!</p>
+              <p className="text-xs text-gray-400 mt-1">All endpoints are now mocked</p>
+              <p className="text-xs text-gray-500 mt-3">Closing automatically...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Create Mock Service Modal Component with spec selection
+function CreateMockServiceModal({ onClose, onCreateMock }) {
+  const [selectedSpec, setSelectedSpec] = useState('');
+  const [status, setStatus] = useState('form'); // 'form' | 'creating' | 'success'
+
+  // Dummy spec data
+  const dummySpecs = [
+    { id: 'payment-api-v1', name: 'Payment API v1.0', version: '1.0.0', endpoints: 8 },
+    { id: 'user-mgmt-v2', name: 'User Management API v2.0', version: '2.0.1', endpoints: 12 },
+    { id: 'order-service-v1', name: 'Order Service API v1.5', version: '1.5.2', endpoints: 15 },
+    { id: 'inventory-api-v3', name: 'Inventory API v3.0', version: '3.0.0', endpoints: 10 },
+    { id: 'notification-v1', name: 'Notification Service v1.0', version: '1.0.3', endpoints: 6 }
+  ];
+
+  const selectedSpecData = dummySpecs.find(s => s.id === selectedSpec);
+
+  const handleCreate = () => {
+    if (!selectedSpec) return;
+
+    setStatus('creating');
+
+    // Simulate creation process
+    setTimeout(() => {
+      setStatus('success');
+      
+      // Create dummy mock with spec data
+      const specMock = {
+        id: `spec-mock-${Date.now()}`,
+        name: selectedSpecData.name,
+        type: 'collection',
+        requests: Array.from({ length: selectedSpecData.endpoints }, (_, i) => ({
+          id: `spec-req-${i}`,
+          name: `Endpoint ${i + 1}`,
+          method: ['GET', 'POST', 'PUT', 'DELETE'][i % 4],
+          path: `/api/v1/endpoint-${i + 1}`,
+          mockUrl: `api.probestack.io/api/v1/endpoint-${i + 1}`,
+          folderPath: 'Root',
+          mockResponse: { message: `Mock response for endpoint ${i + 1}`, data: { id: i + 1 } }
+        })),
+        createdAt: new Date().toISOString()
+      };
+
+      onCreateMock(specMock);
+
+      // Auto close after showing success
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    }, 2000);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-base font-semibold text-white">
+            {status === 'form' ? 'Create Mock Service' : status === 'creating' ? 'Creating Mock Service...' : 'Mock Service Created!'}
+          </h3>
+          {status !== 'creating' && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        <div className="p-5">
+          {status === 'form' ? (
+            <div className="space-y-4">
+              {/* Spec Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Select Spec
+                </label>
+                <select
+                  value={selectedSpec}
+                  onChange={(e) => setSelectedSpec(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
+                >
+                  <option value="">Choose a spec...</option>
+                  {dummySpecs.map((spec) => (
+                    <option key={spec.id} value={spec.id} className="bg-dark-800 text-white">
+                      {spec.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
+              {/* Spec Information */}
+              {selectedSpecData && (
+                <div className="p-4 rounded-lg bg-dark-900/60 border border-dark-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Spec Name</span>
+                    <span className="text-xs text-white font-medium">{selectedSpecData.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Version</span>
+                    <span className="text-xs text-white font-medium">{selectedSpecData.version}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Endpoints</span>
+                    <span className="text-xs text-white font-medium">{selectedSpecData.endpoints}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Create Button */}
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={!selectedSpec}
+                className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Mock Service
+              </button>
+            </div>
+          ) : status === 'creating' ? (
+            <div className="flex flex-col items-center py-8">
+              {/* Animated loader */}
+              <div className="relative w-16 h-16 mb-4">
+                <div className="absolute inset-0 border-4 border-dark-700 rounded-full" />
+                <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+              <p className="text-sm text-gray-400">Setting up mock service...</p>
+              <p className="text-xs text-gray-500 mt-1 font-mono">{selectedSpecData?.name}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-4">
+              {/* Success checkmark */}
+              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-sm text-green-400 font-medium mb-1">Mock service created successfully!</p>
+              <p className="text-xs text-gray-400 mt-1">{selectedSpecData?.endpoints} endpoints mocked</p>
               <p className="text-xs text-gray-500 mt-3">Closing automatically...</p>
             </div>
           )}
@@ -2018,8 +2152,8 @@ function MockCollectionNode({ item, expanded, onToggle, level, sortItems, isRequ
           {item.name}
         </span>
 
-        {/* Action Button - Only for requests */}
-        {isRequest && (
+        {/* Action Button - Only for collections and folders */}
+        {(isCollection || isFolder) && (
           <div className="shrink-0">
             <button
               type="button"
@@ -2028,7 +2162,7 @@ function MockCollectionNode({ item, expanded, onToggle, level, sortItems, isRequ
                 onOpenMenu(e, item);
               }}
               className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity"
-              title="More actions"
+              title="Mock API"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>

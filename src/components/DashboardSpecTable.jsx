@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable, Columns, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 
 // Storage keys for reading persisted data
@@ -39,6 +39,7 @@ const calculateTotalVariables = (envVars, globalVars) => {
 };
 
 // Dummy data for the spec table - all organizations are ProbeStack
+// Data is minimal: 5 specs total, 2-3 test cases per spec
 const dummySpecData = [
   {
     id: 1,
@@ -47,7 +48,7 @@ const dummySpecData = [
     appId: 'APP-PROBE-001',
     specName: 'User Management API',
     version: '2.1.0',
-    testCases: 45,
+    testCases: 3,
     collectionDetails: 'User Collection v3',
     requestStatus: 'success',
   },
@@ -58,7 +59,7 @@ const dummySpecData = [
     appId: 'APP-ACME-102',
     specName: 'Order Processing API',
     version: '1.5.2',
-    testCases: 128,
+    testCases: 2,
     collectionDetails: 'Orders Collection v2',
     requestStatus: 'success',
   },
@@ -69,7 +70,7 @@ const dummySpecData = [
     appId: 'APP-TG-893',
     specName: 'Storage Management API',
     version: '3.0.1',
-    testCases: 67,
+    testCases: 3,
     collectionDetails: 'Storage Collection v1',
     requestStatus: 'failure',
   },
@@ -80,7 +81,7 @@ const dummySpecData = [
     appId: 'APP-SU-445',
     specName: 'Payment Processing API',
     version: '1.0.0',
-    testCases: 89,
+    testCases: 2,
     collectionDetails: 'Payments Collection v1',
     requestStatus: 'success',
   },
@@ -91,41 +92,8 @@ const dummySpecData = [
     appId: 'APP-FH-221',
     specName: 'Account Management API',
     version: '2.3.4',
-    testCases: 156,
+    testCases: 3,
     collectionDetails: 'Banking Collection v4',
-    requestStatus: 'success',
-  },
-  {
-    id: 6,
-    organization: 'ProbeStack',
-    projectName: 'Medical Records',
-    appId: 'APP-HS-778',
-    specName: 'Patient Data API',
-    version: '1.2.0',
-    testCases: 34,
-    collectionDetails: 'Health Collection v2',
-    requestStatus: 'failure',
-  },
-  {
-    id: 7,
-    organization: 'ProbeStack',
-    projectName: 'Learning Management',
-    appId: 'APP-EDU-332',
-    specName: 'Course Management API',
-    version: '2.0.0',
-    testCases: 78,
-    collectionDetails: 'Education Collection v3',
-    requestStatus: 'success',
-  },
-  {
-    id: 8,
-    organization: 'ProbeStack',
-    projectName: 'Inventory System',
-    appId: 'APP-RT-567',
-    specName: 'Stock Management API',
-    version: '1.8.5',
-    testCases: 92,
-    collectionDetails: 'Inventory Collection v2',
     requestStatus: 'success',
   },
 ];
@@ -139,6 +107,66 @@ export default function DashboardSpecTable() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // Column visibility state
+  const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false);
+  const columnVisibilityRef = useRef(null);
+  const [visibleColumns, setVisibleColumns] = useState({
+    organization: true,
+    projectName: true,
+    appId: true,
+    specName: true,
+    version: true,
+    testCases: true,
+    collectionDetails: true,
+    requestStatus: true,
+  });
+
+  // Column definitions
+  const columnDefinitions = [
+    { key: 'organization', label: 'Organization' },
+    { key: 'projectName', label: 'Project Name' },
+    { key: 'appId', label: 'App ID' },
+    { key: 'specName', label: 'Spec Name' },
+    { key: 'version', label: 'Version' },
+    { key: 'testCases', label: 'Test Cases' },
+    { key: 'collectionDetails', label: 'Collection Details' },
+    { key: 'requestStatus', label: 'Request Status' },
+  ];
+
+  // Close column visibility dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (columnVisibilityRef.current && !columnVisibilityRef.current.contains(event.target)) {
+        setColumnVisibilityOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Check if all columns are visible
+  const allColumnsVisible = Object.values(visibleColumns).every(v => v);
+
+  // Check if any column is visible
+  const anyColumnVisible = Object.values(visibleColumns).some(v => v);
+
+  // Toggle all columns
+  const toggleAllColumns = (checked) => {
+    const newVisibility = {};
+    Object.keys(visibleColumns).forEach(key => {
+      newVisibility[key] = checked;
+    });
+    setVisibleColumns(newVisibility);
+  };
+
+  // Toggle individual column
+  const toggleColumn = (columnKey) => {
+    setVisibleColumns(prev => ({
+      ...prev,
+      [columnKey]: !prev[columnKey]
+    }));
+  };
 
   // Read persisted data from localStorage
   const collections = getStorageData(STORAGE_KEYS.COLLECTIONS);
@@ -157,9 +185,9 @@ export default function DashboardSpecTable() {
   // Metrics data with real values
   const metricsData = [
     {
-      label: 'Requests',
-      value: totalRequests.toString(),
-      change: `in collections`,
+      label: 'Specs',
+      value: dummySpecData.length.toString(),
+      change: `total specs`,
       trend: 'up',
       icon: Activity,
       color: 'text-blue-400',
@@ -276,94 +304,174 @@ export default function DashboardSpecTable() {
           </div>
         </div>
 
+        {/* Manage Columns Dropdown */}
+        <div className="mb-4 relative" ref={columnVisibilityRef}>
+          <button
+            onClick={() => setColumnVisibilityOpen(!columnVisibilityOpen)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dark-700 bg-dark-800/50 text-white hover:border-primary/50 focus:ring-2 focus:ring-primary/30 focus:border-transparent transition-all outline-none cursor-pointer"
+          >
+            <Columns className="h-4 w-4" />
+            <span className="text-sm font-medium">Manage Columns</span>
+            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${columnVisibilityOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {columnVisibilityOpen && (
+            <div className="absolute left-0 mt-2 w-72 rounded-lg border border-dark-700 bg-dark-800/95 backdrop-blur-xl shadow-lg overflow-hidden z-30 max-h-96 overflow-y-auto">
+              <div className="py-2">
+                {/* Select All Checkbox */}
+                <div className="px-4 py-2.5 border-b border-dark-700">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allColumnsVisible}
+                      onChange={(e) => toggleAllColumns(e.target.checked)}
+                      className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
+                    />
+                    <span className="text-sm font-semibold text-white">Select All</span>
+                  </label>
+                </div>
+                
+                {/* Individual Column Checkboxes */}
+                {columnDefinitions.map((col) => (
+                  <label
+                    key={col.key}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer hover:bg-dark-700/50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns[col.key]}
+                      onChange={() => toggleColumn(col.key)}
+                      className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
+                    />
+                    <span className="text-gray-300">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Table Container */}
-        <div className="bg-[#161B30] border border-slate-800 rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1200px]">
-              <thead>
-                <tr className="bg-slate-800/50 border-b border-slate-700">
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Organization
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Project Name
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    App ID
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Spec Name
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Version
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Test Cases
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Collection Details
-                  </th>
-                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                    Request Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {paginatedData.length > 0 ? (
-                  paginatedData.map((item) => (
-                    <tr key={item.id} className="group hover:bg-slate-800/30 transition-colors">
-                      <td className="px-8 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
-                            <Building2 className="h-3 w-3" />
-                          </div>
-                          <span className="font-medium text-white">{item.organization}</span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-4 font-medium text-slate-200 whitespace-nowrap">
-                        {item.projectName}
-                      </td>
-                      <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase tracking-tighter whitespace-nowrap">
-                        {item.appId}
-                      </td>
-                      <td className="px-8 py-4 whitespace-nowrap">
-                        <span className="font-medium text-slate-200">{item.specName}</span>
-                      </td>
-                      <td className="px-8 py-4 whitespace-nowrap">
-                        <span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">
-                          {item.version}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-300">{item.testCases}</span>
-                      </td>
-                      <td className="px-8 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-300">{item.collectionDetails}</span>
-                      </td>
-                      <td className="px-8 py-4 whitespace-nowrap">
-                        <span
-                          className={clsx(
-                            'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border',
-                            item.requestStatus === 'success'
-                              ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                              : 'bg-red-500/20 text-red-400 border-red-500/30'
-                          )}
-                        >
-                          {item.requestStatus === 'success' ? 'Success' : 'Failure'}
-                        </span>
+        {anyColumnVisible ? (
+          <div className="bg-[#161B30] border border-slate-800 rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1200px]">
+                <thead>
+                  <tr className="bg-slate-800/50 border-b border-slate-700">
+                    {visibleColumns.organization && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Organization
+                      </th>
+                    )}
+                    {visibleColumns.projectName && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Project Name
+                      </th>
+                    )}
+                    {visibleColumns.appId && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        App ID
+                      </th>
+                    )}
+                    {visibleColumns.specName && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Spec Name
+                      </th>
+                    )}
+                    {visibleColumns.version && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Version
+                      </th>
+                    )}
+                    {visibleColumns.testCases && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Test Cases
+                      </th>
+                    )}
+                    {visibleColumns.collectionDetails && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Collection Details
+                      </th>
+                    )}
+                    {visibleColumns.requestStatus && (
+                      <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                        Request Status
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {paginatedData.length > 0 ? (
+                    paginatedData.map((item) => (
+                      <tr key={item.id} className="group hover:bg-slate-800/30 transition-colors">
+                        {visibleColumns.organization && (
+                          <td className="px-8 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
+                                <Building2 className="h-3 w-3" />
+                              </div>
+                              <span className="font-medium text-white">{item.organization}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.projectName && (
+                          <td className="px-8 py-4 font-medium text-slate-200 whitespace-nowrap">
+                            {item.projectName}
+                          </td>
+                        )}
+                        {visibleColumns.appId && (
+                          <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase tracking-tighter whitespace-nowrap">
+                            {item.appId}
+                          </td>
+                        )}
+                        {visibleColumns.specName && (
+                          <td className="px-8 py-4 whitespace-nowrap">
+                            <span className="font-medium text-slate-200">{item.specName}</span>
+                          </td>
+                        )}
+                        {visibleColumns.version && (
+                          <td className="px-8 py-4 whitespace-nowrap">
+                            <span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">
+                              {item.version}
+                            </span>
+                          </td>
+                        )}
+                        {visibleColumns.testCases && (
+                          <td className="px-8 py-4 whitespace-nowrap">
+                            <span className="text-sm text-slate-300">{item.testCases}</span>
+                          </td>
+                        )}
+                        {visibleColumns.collectionDetails && (
+                          <td className="px-8 py-4 whitespace-nowrap">
+                            <span className="text-sm text-slate-300">{item.collectionDetails}</span>
+                          </td>
+                        )}
+                        {visibleColumns.requestStatus && (
+                          <td className="px-8 py-4 whitespace-nowrap">
+                            <span
+                              className={clsx(
+                                'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border',
+                                item.requestStatus === 'success'
+                                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                  : 'bg-red-500/20 text-red-400 border-red-500/30'
+                              )}
+                            >
+                              {item.requestStatus === 'success' ? 'Success' : 'Failure'}
+                            </span>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">
+                        {searchQuery ? 'No specs found matching your search' : 'No spec records found'}
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
-                      {searchQuery ? 'No specs found matching your search' : 'No spec records found'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
           {/* Pagination Footer */}
           <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700">
@@ -413,6 +521,11 @@ export default function DashboardSpecTable() {
             </div>
           </div>
         </div>
+        ) : (
+          <div className="bg-[#161B30] border border-slate-800 rounded-xl shadow-sm overflow-hidden p-12 text-center">
+            <p className="text-slate-400">No columns selected. Please select at least one column to display the table.</p>
+          </div>
+        )}
       </div>
     </div>
   );

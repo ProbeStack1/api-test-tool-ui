@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Switch } from "../components/ui/switch";
-import { User, Key, Sun, Bell, LogOut, Headphones } from "lucide-react";
+import { User, Key, Sun, Bell, LogOut, Headphones, ArrowLeft } from "lucide-react";
 
 export const Profile = () => {
   const navigate = useNavigate();
@@ -71,6 +71,16 @@ export const Profile = () => {
 
   return (
     <div className="min-h-screen bg-probestack-bg overflow-y-auto">
+      {/* Back Button */}
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pt-4">
+        <button
+          onClick={() => navigate("/workspace/collections")}
+          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <span className="text-sm">Back</span>
+        </button>
+      </div>
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Profile Section */}
         <Card className="mb-6 bg-dark-800/50 border-dark-700">
@@ -107,11 +117,11 @@ export const Profile = () => {
               {/* Support Button */}
               <Button
                 variant="outline"
-                size="sm"
-                className="border-dark-700 text-white hover:bg-dark-700"
+                size="md"
+                className="border-primary bg-primary text-white hover:bg-primary/90 px-4 py-2"
                 onClick={() => navigate("/workspace/profile/support")}
               >
-                <Headphones className="h-4 w-4 mr-2" />
+                <Headphones className="h-5 w-5 mr-2" />
                 Support
               </Button>
             </div>

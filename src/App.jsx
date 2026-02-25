@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3 } from 'lucide-react';
+import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
 import Home from './components/Home';
@@ -11,6 +11,7 @@ import SettingsPage from './pages/SettingsPage';
 import { Profile } from './pages/Profile';
 import { ProfileSupport } from './pages/ProfileSupport';
 import { ProfileSupportTicket } from './pages/ProfileSupportTicket';
+import AIAssisted from './pages/AIAssisted';
 
 function App() {
   const navigate = useNavigate();
@@ -511,10 +512,137 @@ function App() {
     });
   };
 
-  const handleAddProject = (projectName) => {
+  // Parse Postman collection JSON to internal format
+  const parsePostmanCollection = (postmanJson, projectId, projectName) => {
+    const parseUrl = (urlObj) => {
+      if (typeof urlObj === 'string') return urlObj;
+      if (!urlObj) return '';
+      
+      const protocol = urlObj.protocol || 'http';
+      const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
+      const port = urlObj.port ? `:${urlObj.port}` : '';
+      const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
+      const query = urlObj.query && urlObj.query.length > 0 
+        ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` 
+        : '';
+      
+      return `${protocol}://${host}${port}${path}${query}`;
+    };
+
+    const parseHeaders = (headers) => {
+      if (!headers || !Array.isArray(headers)) return [];
+      return headers.map(h => ({
+        key: h.key || '',
+        value: h.value || '',
+        enabled: h.disabled !== true
+      }));
+    };
+
+    const parseBody = (body) => {
+      if (!body) return { type: 'none', data: '' };
+      
+      if (body.mode === 'raw') {
+        return { type: 'raw', data: body.raw || '' };
+      } else if (body.mode === 'formdata') {
+        return { 
+          type: 'form-data', 
+          data: body.formdata || [] 
+        };
+      } else if (body.mode === 'urlencoded') {
+        return { 
+          type: 'x-www-form-urlencoded', 
+          data: body.urlencoded || [] 
+        };
+      }
+      return { type: 'none', data: '' };
+    };
+
+    const parseAuth = (auth) => {
+      if (!auth || !auth.type) return { type: 'none' };
+      
+      if (auth.type === 'bearer') {
+        const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+        return { type: 'bearer', token };
+      } else if (auth.type === 'basic') {
+        const username = auth.basic?.find(b => b.key === 'username')?.value || '';
+        const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+        return { type: 'basic', username, password };
+      } else if (auth.type === 'apikey') {
+        const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
+        const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
+        const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
+        return { type: 'apikey', key, value, in: addTo };
+      }
+      return { type: 'none' };
+    };
+
+    const parseItem = (item, depth = 0) => {
+      // If item has 'request' property, it's a request
+      if (item.request) {
+        const request = item.request;
+        return {
+          id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          name: item.name || 'Untitled Request',
+          type: 'request',
+          method: (request.method || 'GET').toUpperCase(),
+          path: parseUrl(request.url),
+          headers: parseHeaders(request.header),
+          body: parseBody(request.body),
+          auth: parseAuth(request.auth),
+          params: request.url?.query || [],
+        };
+      }
+      
+      // If item has 'item' array, it's a folder
+      if (item.item && Array.isArray(item.item)) {
+        return {
+          id: `imported-folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          name: item.name || 'Untitled Folder',
+          type: 'folder',
+          icon: 'folder',
+          items: item.item.map(subItem => parseItem(subItem, depth + 1))
+        };
+      }
+      
+      return null;
+    };
+
+    // Parse the collection
+    const collectionName = postmanJson.info?.name || 'Imported Collection';
+    const items = postmanJson.item ? postmanJson.item.map(item => parseItem(item)) : [];
+    
+    return {
+      id: `imported-collection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      name: collectionName,
+      type: 'collection',
+      icon: 'folder',
+      project: projectId,
+      projectName: projectName,
+      items: items.filter(Boolean)
+    };
+  };
+
+  const handleAddProject = (workspaceData) => {
+    // Handle both old string format and new object format
+    const isLegacyFormat = typeof workspaceData === 'string';
+    const name = isLegacyFormat ? workspaceData : workspaceData.name;
+    const visibility = isLegacyFormat ? 'private' : (workspaceData.visibility || 'private');
+    const importedCollection = isLegacyFormat ? null : workspaceData.importedCollection;
+    
     const newProjectId = `project-${Date.now()}`;
-    const newProject = { id: newProjectId, name: projectName.trim() };
+    const newProject = { 
+      id: newProjectId, 
+      name: name.trim(),
+      visibility
+    };
     setProjects((prev) => [...prev, newProject]);
+    
+    // If there's an imported collection, create it under this workspace
+    if (importedCollection && importedCollection.content) {
+      const parsedCollection = parsePostmanCollection(importedCollection.content, newProjectId, name.trim());
+      setCollections((prev) => [...prev, parsedCollection]);
+    }
+    
     return newProject;
   };
 
@@ -618,6 +746,15 @@ function App() {
 
   const handleDeleteMock = (mockId) => {
     setMockApis((prev) => prev.filter(m => m.id !== mockId));
+  };
+
+  const handleRenameMock = (mockId, newName) => {
+    setMockApis((prev) => prev.map(m => {
+      if (m.id === mockId) {
+        return { ...m, name: newName };
+      }
+      return m;
+    }));
   };
 
   const handleSelectMockRequest = async (mockedCollection) => {
@@ -827,6 +964,7 @@ function App() {
     { id: 'environments', label: 'Variables', path: '/workspace/variables', icon: Layers },
     { id: 'testing', label: 'Testing', path: '/workspace/testing', icon: BarChart3 },
     { id: 'mock-service', label: 'Mock Service', path: '/workspace/mock-service', icon: Layers },
+    { id: 'ai-assisted', label: 'AI-Assisted', path: '/workspace/ai-assisted', icon: Bot },
     { id: 'dashboard', label: 'Dashboard', path: '/workspace/dashboard', icon: BarChart3 },
   ];
 
@@ -837,6 +975,7 @@ function App() {
     if (pathname.includes('/workspace/variables')) return 'environments';
     if (pathname.includes('/workspace/testing')) return 'testing';
     if (pathname.includes('/workspace/mock-service')) return 'mock-service';
+    if (pathname.includes('/workspace/ai-assisted')) return 'ai-assisted';
     if (pathname.includes('/workspace/dashboard')) return 'dashboard';
     if (pathname.includes('/workspace/collections')) return 'collections';
     return 'collections';
@@ -1076,6 +1215,7 @@ function App() {
                 dummyMockRequests={dummyMockRequests}
                 onCreateMock={handleCreateMock}
                 onDeleteMock={handleDeleteMock}
+                onRenameMock={handleRenameMock}
                 onSelectMockRequest={handleSelectMockRequest}
               />
             }

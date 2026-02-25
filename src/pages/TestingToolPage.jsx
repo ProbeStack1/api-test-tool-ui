@@ -61,6 +61,7 @@ export default function TestingToolPage({
   dummyMockRequests,
   onCreateMock,
   onDeleteMock,
+  onRenameMock,
   onSelectMockRequest,
 }) {
   return (
@@ -120,6 +121,7 @@ export default function TestingToolPage({
       dummyMockRequests={dummyMockRequests}
       onCreateMock={onCreateMock}
       onDeleteMock={onDeleteMock}
+      onRenameMock={onRenameMock}
       onSelectMockRequest={onSelectMockRequest}
     />
   );

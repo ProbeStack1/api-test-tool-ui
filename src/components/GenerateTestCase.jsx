@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Editor from '@monaco-editor/react';
 import { 
   Plus, Upload, FileSearch, Sparkles, X, Edit2, Trash2, 
-  FileCode, Check, Search, Download
+  FileCode, Check, Search, Download, Save
 } from 'lucide-react';
 
 // Storage key for test specs - separate from other data
@@ -94,10 +94,19 @@ export default function GenerateTestCase() {
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSpecName, setNewSpecName] = useState('');
-  const [createMode, setCreateMode] = useState('blank'); // 'blank', 'library', 'ai', 'upload', 'url'
+  const [createMode, setCreateMode] = useState('upload'); // 'upload', 'library', 'url'
+  const [selectedLibrarySpec, setSelectedLibrarySpec] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [importUrl, setImportUrl] = useState('');
   const fileInputRef = useRef(null);
+  
+  // Dummy organization specification library data
+  const ORG_SPEC_LIBRARY = [
+    { id: 'spec-1', name: 'REST API Testing Guide', description: 'Standard REST API test specifications with CRUD operations', category: 'General' },
+    { id: 'spec-2', name: 'Auth Service Tests', description: 'Authentication and authorization test cases', category: 'Security' },
+    { id: 'spec-3', name: 'Payment Gateway Spec', description: 'Payment processing API test specifications', category: 'Financial' },
+    { id: 'spec-4', name: 'User Management API', description: 'User CRUD and profile management tests', category: 'General' },
+  ];
   
   // Sidebar search
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,8 +200,9 @@ export default function GenerateTestCase() {
   // Handle create new spec
   const handleCreateNewSpec = () => {
     setNewSpecName('');
-    setCreateMode('blank');
+    setCreateMode('upload');
     setUploadedFile(null);
+    setSelectedLibrarySpec(null);
     setShowCreateModal(true);
   };
 
@@ -210,21 +220,45 @@ export default function GenerateTestCase() {
       return;
     }
     
-    // Handle non-functional options
-    if (createMode === 'library') {
-      alert('Spec Library feature coming soon!');
-      setShowCreateModal(false);
-      return;
-    }
-    
-    if (createMode === 'ai') {
-      alert('AI Assistant feature coming soon!');
-      setShowCreateModal(false);
-      return;
-    }
-    
     let specContent = '';
     let specName = newSpecName.trim();
+    
+    // Handle non-functional options
+    if (createMode === 'library') {
+      if (!selectedLibrarySpec) {
+        alert('Please select a specification from the library.');
+        return;
+      }
+      // Create spec from library selection with dummy content
+      const librarySpec = ORG_SPEC_LIBRARY.find(s => s.id === selectedLibrarySpec);
+      const newSpec = {
+        id: `spec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        name: specName,
+        content: JSON.stringify({
+          openapi: "3.0.0",
+          info: {
+            title: librarySpec.name,
+            version: "1.0.0",
+            description: librarySpec.description
+          },
+          paths: {},
+          components: { schemas: {} }
+        }, null, 2),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        source: 'library',
+        sourceId: selectedLibrarySpec
+      };
+      setSpecs(prev => [newSpec, ...prev]);
+      setActiveSpecId(newSpec.id);
+      setShowCreateModal(false);
+      setNewSpecName('');
+      setCreateMode('upload');
+      setUploadedFile(null);
+      setSelectedLibrarySpec(null);
+      setImportUrl('');
+      return;
+    }
     
     if (createMode === 'blank') {
       specContent = JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2);
@@ -281,8 +315,9 @@ export default function GenerateTestCase() {
     // Close modal
     setShowCreateModal(false);
     setNewSpecName('');
-    setCreateMode('blank');
+    setCreateMode('upload');
     setUploadedFile(null);
+    setSelectedLibrarySpec(null);
     setImportUrl('');
   };
 
@@ -492,13 +527,22 @@ export default function GenerateTestCase() {
             </div>
             
             {activeSpec && (
-              <button
-                onClick={handleDownload}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-                title="Download JSON"
-              >
-                <Download className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {}}
+                  className="p-2 rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors"
+                  title="Save"
+                >
+                  <Save className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleDownload}
+                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+                  title="Download JSON"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              </div>
             )}
           </div>
 
@@ -533,8 +577,8 @@ export default function GenerateTestCase() {
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-dark-700 flex items-center justify-between bg-dark-800/50">
               <div>
-                <h3 className="text-lg font-semibold text-white">Create New Test Case Spec</h3>
-                <p className="text-sm text-gray-400">Create a test case specification using various methods</p>
+                <h3 className="text-lg font-semibold text-white">Create New Test Case</h3>
+                <p className="text-sm text-gray-400">Create a test case using various methods</p>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -546,16 +590,16 @@ export default function GenerateTestCase() {
 
             {/* Modal Body */}
             <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh]">
-              {/* Spec Name Input */}
+              {/* Test Case Name Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Spec Name <span className="text-red-400">*</span>
+                  Test Case Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
                   value={newSpecName}
                   onChange={(e) => setNewSpecName(e.target.value)}
-                  placeholder="Enter test case spec name"
+                  placeholder="Enter test case name"
                   className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
@@ -566,72 +610,6 @@ export default function GenerateTestCase() {
                   Creation Method
                 </label>
                 <div className="space-y-3">
-                  {/* Blank Template */}
-                  <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${
-                    createMode === 'blank'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-dark-700 hover:border-primary/50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="createMode"
-                      value="blank"
-                      checked={createMode === 'blank'}
-                      onChange={(e) => setCreateMode(e.target.value)}
-                      className="mt-1 mr-3 text-primary"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-white">Create Blank Template</div>
-                      <div className="text-sm text-gray-400 mt-1">
-                        Start with an empty OpenAPI specification template
-                      </div>
-                    </div>
-                  </label>
-
-                  {/* Spec Library */}
-                  <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${
-                    createMode === 'library'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-dark-700 hover:border-primary/50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="createMode"
-                      value="library"
-                      checked={createMode === 'library'}
-                      onChange={(e) => setCreateMode(e.target.value)}
-                      className="mt-1 mr-3 text-primary"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-white">Create from Organization Spec Library</div>
-                      <div className="text-sm text-gray-400 mt-1">
-                        Browse and select from the spec library
-                      </div>
-                    </div>
-                  </label>
-
-                  {/* AI Assistant */}
-                  <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${
-                    createMode === 'ai'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-dark-700 hover:border-primary/50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="createMode"
-                      value="ai"
-                      checked={createMode === 'ai'}
-                      onChange={(e) => setCreateMode(e.target.value)}
-                      className="mt-1 mr-3 text-primary"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-white">Create using AI Assistance</div>
-                      <div className="text-sm text-gray-400 mt-1">
-                        Use AI to help generate your specification
-                      </div>
-                    </div>
-                  </label>
-
                   {/* Upload File */}
                   <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${
                     createMode === 'upload'
@@ -668,6 +646,64 @@ export default function GenerateTestCase() {
                             <Upload className="h-4 w-4" />
                             {uploadedFile ? `Selected: ${uploadedFile.name}` : 'Choose JSON File'}
                           </button>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Specification Library */}
+                  <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${
+                    createMode === 'library'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-dark-700 hover:border-primary/50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="createMode"
+                      value="library"
+                      checked={createMode === 'library'}
+                      onChange={(e) => setCreateMode(e.target.value)}
+                      className="mt-1 mr-3 text-primary"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-white">Create from organization Specification Library</div>
+                      <div className="text-sm text-gray-400 mt-1">
+                        Browse and select from the specification library
+                      </div>
+                      {createMode === 'library' && (
+                        <div className="mt-4 space-y-2">
+                          {ORG_SPEC_LIBRARY.map((spec) => (
+                            <div
+                              key={spec.id}
+                              onClick={() => setSelectedLibrarySpec(spec.id)}
+                              className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                selectedLibrarySpec === spec.id
+                                  ? 'border-primary bg-primary/10'
+                                  : 'border-dark-600 hover:border-primary/50 hover:bg-dark-700/50'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
+                                  selectedLibrarySpec === spec.id
+                                    ? 'border-primary bg-primary'
+                                    : 'border-dark-500'
+                                }`}>
+                                  {selectedLibrarySpec === spec.id && (
+                                    <Check className="w-3 h-3 text-white" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-medium text-white text-sm">{spec.name}</div>
+                                  <div className="text-xs text-gray-400 mt-0.5">{spec.description}</div>
+                                  <div className="mt-1">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-dark-600 text-gray-400">
+                                      {spec.category}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -723,12 +759,11 @@ export default function GenerateTestCase() {
                   !newSpecName.trim() || 
                   (createMode === 'upload' && !uploadedFile) ||
                   (createMode === 'url' && !importUrl.trim()) ||
-                  createMode === 'library' ||
-                  createMode === 'ai'
+                  (createMode === 'library' && !selectedLibrarySpec)
                 }
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
               >
-                Create Spec
+                Create Test Case
               </button>
             </div>
           </div>

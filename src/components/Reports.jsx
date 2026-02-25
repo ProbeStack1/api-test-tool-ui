@@ -74,7 +74,7 @@ export default function Reports({ history }) {
     }));
 
     return (
-        <div className="flex-1 overflow-auto bg-dark-900 p-8">
+        <div className="flex-1 overflow-auto bg-probestack-bg p-8">
             <header className="mb-8">
                 <h1 className="text-2xl font-bold text-white mb-2">Workspace Reports</h1>
                 <p className="text-gray-400">Analytics overview for your API activities</p>

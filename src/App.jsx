@@ -1032,24 +1032,24 @@ function App() {
     <div className="flex h-screen bg-probestack-bg text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
       <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-probestack-bg relative z-0 overflow-hidden">
         {/* Header - same logo block as Migration/DashboardNavbar (porbestack-new-repo) */}
-        <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-probestack-bg">
-          <div className="flex items-center gap-6 flex-1">
-            <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => navigate('/')}>
+        <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-header-bg">
+          <div className="flex items-center gap-8 flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
               <img
                 src="/assets/justlogo.png"
                 alt="ProbeStack logo"
-                className="h-12 w-auto"
+                className="h-11 w-auto"
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ForgeQ</span>
+                <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ProbeStack</span>
                 <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5 whitespace-nowrap">A ForgeCrux Company</span>
               </div>
             </div>
             
             {/* Navigation Links - only show on workspace pages */}
             {isWorkspace && (
-              <nav className="flex items-center gap-1 ml-12">
+              <nav className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
                 {topMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeMenu === item.id;
@@ -1059,13 +1059,13 @@ function App() {
                       type="button"
                       onClick={() => navigate(item.path)}
                       className={clsx(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap',
+                        'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap shrink-0',
                         isActive
-                          ? 'bg-primary/15 border border-primary/40 text-primary shadow-sm'
-                          : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                          ? 'bg-primary/20 border border-primary/30 text-primary'
+                          : 'text-gray-300 hover:text-white hover:bg-white/5 border border-transparent'
                       )}
                     >
-                      <Icon className="w-3.5 h-3.5" />
+                      <Icon className="w-4 h-4" />
                       {item.label}
                     </button>
                   );

@@ -29,7 +29,7 @@ export default function Explore({ onImport }) {
     const filteredAPIs = publicAPIs.filter(api => api.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
-        <div className="flex-1 overflow-auto bg-dark-900 p-8 flex flex-col items-center">
+        <div className="flex-1 overflow-auto bg-probestack-bg p-8 flex flex-col items-center">
             <header className="w-full max-w-5xl mb-12 text-center">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dark-800 border border-dark-700 text-gray-300 text-xs font-medium mb-6">
                     <Globe className="w-3 h-3 text-primary" />

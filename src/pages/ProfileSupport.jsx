@@ -218,7 +218,7 @@ export const ProfileSupport = () => {
                 className="h-6 w-auto"
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
-              <span className="font-semibold gradient-text font-heading">ForgeQ</span>
+              <span className="font-semibold gradient-text font-heading">ProbeStack</span>
               <span className="text-gray-400">
                 © {new Date().getFullYear()} All rights reserved
               </span>

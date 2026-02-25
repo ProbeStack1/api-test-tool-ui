@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark-900: #0b0d1a;
+  /* Header background - kept same as original (HSL(240, 65%, 11%) = #0a0a2e) */
+  --color-header-bg: #0a0a2e;
+  /* Main background - tool/page background */
+  --color-dark-900: #0a0a2e;
   /* Deep Navy Background */
   --color-dark-800: #15192b;
   /* Card Background */
@@ -12,12 +15,13 @@
   --color-dark-400: #8890aa;
   --color-primary: #ff5b1f;
   /* ProbeStack Primary Orange - matches parent site */
-  /* Exact match: porbestack Dashboard/Migration background HSL(240, 65%, 11%) = #0a0a2e */
-  --color-probestack-bg: #0a0a2e;
+  /* Tool background */
+  --color-probestack-bg: #0e172a;
 }
 
 /* Light theme: override Tailwind theme variables so all components update */
 [data-theme="light"] {
+  --color-header-bg: #f6f7fb;
   --color-probestack-bg: #f6f7fb;
   --color-dark-900: #f0f2f5;
   --color-dark-800: #eef1f8;

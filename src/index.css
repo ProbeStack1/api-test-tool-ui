@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark-900: #0b0d1a;
+  /* Main background - matches reference project HSL(240, 65%, 11%) = #0a0a2e */
+  --color-dark-900: #0a0a2e;
   /* Deep Navy Background */
   --color-dark-800: #15192b;
   /* Card Background */

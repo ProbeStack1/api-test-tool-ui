@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Shield, ChevronDown, ChevronUp, User, Bell, Globe, Database, Lock, FileText, Save, Check } from 'lucide-react';
+import { Settings, Shield, ChevronDown, ChevronUp, User, Bell, Globe, Database, Lock, FileText, Save, Check, ArrowLeft } from 'lucide-react';
 import clsx from 'clsx';
 
 /**
@@ -52,6 +52,16 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
+      {/* Back Button */}
+      <div className="px-6 pt-4">
+        <button
+          onClick={() => navigate("/workspace/collections")}
+          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <span className="text-sm">Back</span>
+        </button>
+      </div>
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
         <div className="max-w-3xl mx-auto space-y-4">

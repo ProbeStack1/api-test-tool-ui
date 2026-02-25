@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable, Columns, ChevronDown } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable, Columns, ChevronDown, ChevronUp, Folder, FileCode, TestTube } from 'lucide-react';
 import clsx from 'clsx';
 
 // Storage keys for reading persisted data
@@ -38,15 +38,15 @@ const calculateTotalVariables = (envVars, globalVars) => {
   return envCount + globalCount;
 };
 
-// Dummy data for the spec table - all organizations are ProbeStack
-// Data is minimal: 5 specs total, 2-3 test cases per spec
-const dummySpecData = [
+// Dummy data for the specification table - all organizations are ProbeStack
+// Data is minimal: 5 specifications total, 2-3 test cases per specification
+const dummySpecificationData = [
   {
     id: 1,
     organization: 'ProbeStack',
     projectName: 'API Testing Platform',
     appId: 'APP-PROBE-001',
-    specName: 'User Management API',
+    specificationName: 'User Management API',
     version: '2.1.0',
     testCases: 3,
     collectionDetails: 'User Collection v3',
@@ -57,7 +57,7 @@ const dummySpecData = [
     organization: 'ProbeStack',
     projectName: 'E-commerce Backend',
     appId: 'APP-ACME-102',
-    specName: 'Order Processing API',
+    specificationName: 'Order Processing API',
     version: '1.5.2',
     testCases: 2,
     collectionDetails: 'Orders Collection v2',
@@ -68,7 +68,7 @@ const dummySpecData = [
     organization: 'ProbeStack',
     projectName: 'Cloud Services',
     appId: 'APP-TG-893',
-    specName: 'Storage Management API',
+    specificationName: 'Storage Management API',
     version: '3.0.1',
     testCases: 3,
     collectionDetails: 'Storage Collection v1',
@@ -79,7 +79,7 @@ const dummySpecData = [
     organization: 'ProbeStack',
     projectName: 'Payment Gateway',
     appId: 'APP-SU-445',
-    specName: 'Payment Processing API',
+    specificationName: 'Payment Processing API',
     version: '1.0.0',
     testCases: 2,
     collectionDetails: 'Payments Collection v1',
@@ -90,7 +90,7 @@ const dummySpecData = [
     organization: 'ProbeStack',
     projectName: 'Banking Integration',
     appId: 'APP-FH-221',
-    specName: 'Account Management API',
+    specificationName: 'Account Management API',
     version: '2.3.4',
     testCases: 3,
     collectionDetails: 'Banking Collection v4',
@@ -115,7 +115,7 @@ export default function DashboardSpecTable() {
     organization: true,
     projectName: true,
     appId: true,
-    specName: true,
+    specificationName: true,
     version: true,
     testCases: true,
     collectionDetails: true,
@@ -127,7 +127,7 @@ export default function DashboardSpecTable() {
     { key: 'organization', label: 'Organization' },
     { key: 'projectName', label: 'Project Name' },
     { key: 'appId', label: 'App ID' },
-    { key: 'specName', label: 'Spec Name' },
+    { key: 'specificationName', label: 'Specification Name' },
     { key: 'version', label: 'Version' },
     { key: 'testCases', label: 'Test Cases' },
     { key: 'collectionDetails', label: 'Collection Details' },
@@ -181,17 +181,47 @@ export default function DashboardSpecTable() {
   const totalVariables = calculateTotalVariables(envVars, globalVars);
   const loadTestsCount = testFiles.length;
   const functionalTestsCount = collections.filter(c => c.items?.some(i => i.type === 'request')).length;
+  
+  // Calculate total test cases from dummySpecificationData
+  const totalTestCases = dummySpecificationData.reduce((sum, spec) => sum + spec.testCases, 0);
 
-  // Metrics data with real values
+  // Metrics data with real values - 8 cards in 2 rows of 4
   const metricsData = [
     {
-      label: 'Specs',
-      value: dummySpecData.length.toString(),
-      change: `total specs`,
+      label: 'Specifications',
+      value: dummySpecificationData.length.toString(),
+      change: `total specifications`,
       trend: 'up',
       icon: Activity,
       color: 'text-blue-400',
       bgColor: 'bg-blue-400/10',
+    },
+    {
+      label: 'Collections',
+      value: collections.length.toString(),
+      change: 'total collections',
+      trend: 'up',
+      icon: Folder,
+      color: 'text-indigo-400',
+      bgColor: 'bg-indigo-400/10',
+    },
+    {
+      label: 'Requests',
+      value: totalRequests.toString(),
+      change: 'total requests',
+      trend: 'up',
+      icon: FileCode,
+      color: 'text-cyan-400',
+      bgColor: 'bg-cyan-400/10',
+    },
+    {
+      label: 'Test Cases',
+      value: totalTestCases.toString(),
+      change: 'total test cases',
+      trend: 'up',
+      icon: TestTube,
+      color: 'text-pink-400',
+      bgColor: 'bg-pink-400/10',
     },
     {
       label: 'Load Testing',
@@ -226,17 +256,48 @@ export default function DashboardSpecTable() {
       change: 'configured',
       trend: 'up',
       icon: Variable,
-      color: 'text-cyan-400',
-      bgColor: 'bg-cyan-400/10',
+      color: 'text-teal-400',
+      bgColor: 'bg-teal-400/10',
     },
   ];
 
+  const [expandedRow, setExpandedRow] = useState(null);
+
+  // Toggle row expansion
+  const handleRowClick = (itemId) => {
+    setExpandedRow(expandedRow === itemId ? null : itemId);
+  };
+
+  // Generate dummy test cases based on row status
+  const generateTestCases = (rowData) => {
+    const { testCases, requestStatus, specificationName } = rowData;
+    const testCasesList = [];
+    
+    for (let i = 1; i <= testCases; i++) {
+      let status;
+      if (requestStatus === 'success') {
+        status = 'success';
+      } else {
+        // Randomly mix success and failure for failed rows
+        status = Math.random() > 0.5 ? 'success' : 'failure';
+      }
+      
+      testCasesList.push({
+        id: `tc-${i}`,
+        name: `${specificationName} - Test Case ${i}`,
+        status: status,
+      });
+    }
+    
+    return testCasesList;
+  };
+
   // Filter data based on search
   const filteredData = useMemo(() => {
-    return dummySpecData.filter((item) =>
+    return dummySpecificationData.filter((item) =>
       item.organization.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.specName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.specificationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.appId.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [searchQuery]);
@@ -261,7 +322,7 @@ export default function DashboardSpecTable() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
-              placeholder="Search specs..."
+              placeholder="Search specifications..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -277,7 +338,7 @@ export default function DashboardSpecTable() {
       <div className="flex-1 overflow-auto p-6">
         {/* Metrics Section */}
         <div className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {metricsData.map((metric, index) => (
               <div
                 key={index}
@@ -373,9 +434,9 @@ export default function DashboardSpecTable() {
                         App ID
                       </th>
                     )}
-                    {visibleColumns.specName && (
+                    {visibleColumns.specificationName && (
                       <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                        Spec Name
+                        Specification Name
                       </th>
                     )}
                     {visibleColumns.version && (
@@ -402,70 +463,142 @@ export default function DashboardSpecTable() {
                 </thead>
                 <tbody className="divide-y divide-slate-800">
                   {paginatedData.length > 0 ? (
-                    paginatedData.map((item) => (
-                      <tr key={item.id} className="group hover:bg-slate-800/30 transition-colors">
-                        {visibleColumns.organization && (
-                          <td className="px-8 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
-                                <Building2 className="h-3 w-3" />
-                              </div>
-                              <span className="font-medium text-white">{item.organization}</span>
-                            </div>
-                          </td>
-                        )}
-                        {visibleColumns.projectName && (
-                          <td className="px-8 py-4 font-medium text-slate-200 whitespace-nowrap">
-                            {item.projectName}
-                          </td>
-                        )}
-                        {visibleColumns.appId && (
-                          <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase tracking-tighter whitespace-nowrap">
-                            {item.appId}
-                          </td>
-                        )}
-                        {visibleColumns.specName && (
-                          <td className="px-8 py-4 whitespace-nowrap">
-                            <span className="font-medium text-slate-200">{item.specName}</span>
-                          </td>
-                        )}
-                        {visibleColumns.version && (
-                          <td className="px-8 py-4 whitespace-nowrap">
-                            <span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">
-                              {item.version}
-                            </span>
-                          </td>
-                        )}
-                        {visibleColumns.testCases && (
-                          <td className="px-8 py-4 whitespace-nowrap">
-                            <span className="text-sm text-slate-300">{item.testCases}</span>
-                          </td>
-                        )}
-                        {visibleColumns.collectionDetails && (
-                          <td className="px-8 py-4 whitespace-nowrap">
-                            <span className="text-sm text-slate-300">{item.collectionDetails}</span>
-                          </td>
-                        )}
-                        {visibleColumns.requestStatus && (
-                          <td className="px-8 py-4 whitespace-nowrap">
-                            <span
-                              className={clsx(
-                                'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border',
-                                item.requestStatus === 'success'
-                                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                                  : 'bg-red-500/20 text-red-400 border-red-500/30'
-                              )}
-                            >
-                              {item.requestStatus === 'success' ? 'Success' : 'Failure'}
-                            </span>
-                          </td>
-                        )}
-                      </tr>
-                    ))
+                    paginatedData.map((item) => {
+                      const isExpanded = expandedRow === item.id;
+                      const testCasesList = generateTestCases(item);
+                      
+                      return (
+                        <React.Fragment key={item.id}>
+                          <tr 
+                            onClick={() => handleRowClick(item.id)}
+                            className={clsx(
+                              "group transition-colors cursor-pointer",
+                              isExpanded ? "bg-slate-800/50" : "hover:bg-slate-800/30"
+                            )}
+                          >
+                            {visibleColumns.organization && (
+                              <td className="px-8 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
+                                    <Building2 className="h-3 w-3" />
+                                  </div>
+                                  <span className="font-medium text-white">{item.organization}</span>
+                                </div>
+                              </td>
+                            )}
+                            {visibleColumns.projectName && (
+                              <td className="px-8 py-4 font-medium text-slate-200 whitespace-nowrap">
+                                {item.projectName}
+                              </td>
+                            )}
+                            {visibleColumns.appId && (
+                              <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase tracking-tighter whitespace-nowrap">
+                                {item.appId}
+                              </td>
+                            )}
+                            {visibleColumns.specificationName && (
+                              <td className="px-8 py-4 whitespace-nowrap">
+                                <span className="font-medium text-slate-200">{item.specificationName}</span>
+                              </td>
+                            )}
+                            {visibleColumns.version && (
+                              <td className="px-8 py-4 whitespace-nowrap">
+                                <span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">
+                                  {item.version}
+                                </span>
+                              </td>
+                            )}
+                            {visibleColumns.testCases && (
+                              <td className="px-8 py-4 whitespace-nowrap">
+                                <span className="text-sm text-slate-300">{item.testCases}</span>
+                              </td>
+                            )}
+                            {visibleColumns.collectionDetails && (
+                              <td className="px-8 py-4 whitespace-nowrap">
+                                <span className="text-sm text-slate-300">{item.collectionDetails}</span>
+                              </td>
+                            )}
+                            {visibleColumns.requestStatus && (
+                              <td className="px-8 py-4 whitespace-nowrap">
+                                <span
+                                  className={clsx(
+                                    'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border',
+                                    item.requestStatus === 'success'
+                                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                      : 'bg-red-500/20 text-red-400 border-red-500/30'
+                                  )}
+                                >
+                                  {item.requestStatus === 'success' ? 'Success' : 'Failure'}
+                                </span>
+                              </td>
+                            )}
+                          </tr>
+                          
+                          {/* Expanded Row with Test Cases */}
+                          {isExpanded && (
+                            <tr className="bg-slate-800/30">
+                              <td 
+                                colSpan={Object.values(visibleColumns).filter(v => v).length} 
+                                className="px-8 py-4"
+                              >
+                                <div className="space-y-3">
+                                  {/* Header with Collapse Button */}
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold text-slate-200">
+                                      Test Cases ({item.testCases})
+                                    </h4>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedRow(null);
+                                      }}
+                                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded-lg transition-colors"
+                                    >
+                                      <ChevronUp className="w-4 h-4" />
+                                      Collapse
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Test Cases List */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {testCasesList.map((tc) => (
+                                      <div
+                                        key={tc.id}
+                                        className="flex items-center gap-2 p-2 rounded-lg bg-slate-800/50 border border-slate-700/50"
+                                      >
+                                        <span
+                                          className={clsx(
+                                            'w-2 h-2 rounded-full',
+                                            tc.status === 'success' ? 'bg-green-400' : 'bg-red-400'
+                                          )}
+                                        />
+                                        <span className="text-xs text-slate-300 truncate flex-1">
+                                          {tc.name}
+                                        </span>
+                                        <span
+                                          className={clsx(
+                                            'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                                            tc.status === 'success'
+                                              ? 'bg-green-500/20 text-green-400'
+                                              : 'bg-red-500/20 text-red-400'
+                                          )}
+                                        >
+                                          {tc.status === 'success' ? 'Pass' : 'Fail'}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">
-                        {searchQuery ? 'No specs found matching your search' : 'No spec records found'}
+                        {searchQuery ? 'No specifications found matching your search' : 'No specification records found'}
                       </td>
                     </tr>
                   )}

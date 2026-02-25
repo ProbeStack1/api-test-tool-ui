@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode } from 'lucide-react';
+import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
@@ -9,6 +9,7 @@ import SaveRequestModal from './SaveRequestModal';
 import VariablesEditor from './VariablesEditor';
 import DashboardSpecTable from './DashboardSpecTable';
 import GenerateTestCase from './GenerateTestCase';
+import AIAssisted from '../pages/AIAssisted';
 import clsx from 'clsx';
 
 export default function IDEWorkspaceLayout({
@@ -67,6 +68,7 @@ export default function IDEWorkspaceLayout({
   dummyMockRequests,
   onCreateMock,
   onDeleteMock,
+  onRenameMock,
   onSelectMockRequest,
 }) {
   const navigate = useNavigate();
@@ -76,6 +78,7 @@ export default function IDEWorkspaceLayout({
     if (pathname.includes('/workspace/variables')) return 'environments';
     if (pathname.includes('/workspace/testing')) return 'testing';
     if (pathname.includes('/workspace/mock-service')) return 'mock-service';
+    if (pathname.includes('/workspace/ai-assisted')) return 'ai-assisted';
     if (pathname.includes('/workspace/dashboard')) return 'dashboard';
     if (pathname.includes('/workspace/settings/general')) return 'settings-general';
     if (pathname.includes('/workspace/settings/certificates')) return 'settings-certificates';
@@ -86,22 +89,23 @@ export default function IDEWorkspaceLayout({
     if (menuId === 'environments') return '/workspace/variables';
     if (menuId === 'testing') return '/workspace/testing';
     if (menuId === 'mock-service') return '/workspace/mock-service';
+    if (menuId === 'ai-assisted') return '/workspace/ai-assisted';
     if (menuId === 'dashboard') return '/workspace/dashboard';
     return '/workspace/collections';
   };
   const [topMenuActive, setTopMenuActive] = useState(() => getTopMenuFromPath(location.pathname));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    // Sidebar should be collapsed by default only on dashboard page
+    // Sidebar should be collapsed by default on dashboard and ai-assisted pages
     const initialMenu = getTopMenuFromPath(location.pathname);
-    return initialMenu === 'dashboard';
+    return initialMenu === 'dashboard' || initialMenu === 'ai-assisted';
   });
   const [workspaceSearch, setWorkspaceSearch] = useState('');
   const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
   const [variablesScope, setVariablesScope] = useState('environment-scope');
   
-  // Collapse sidebar when navigating to dashboard, expand when leaving
+  // Collapse sidebar when navigating to dashboard or ai-assisted, expand when leaving
   useEffect(() => {
-    if (topMenuActive === 'dashboard') {
+    if (topMenuActive === 'dashboard' || topMenuActive === 'ai-assisted') {
       setSidebarCollapsed(true);
     }
   }, [topMenuActive]);
@@ -136,6 +140,7 @@ export default function IDEWorkspaceLayout({
     { id: 'environments', label: 'Variables', icon: Layers },
     { id: 'testing', label: 'Testing', icon: BarChart3 },
     { id: 'mock-service', label: 'Mock Service', icon: Layers },
+    { id: 'ai-assisted', label: 'AI-Assisted', icon: Bot },
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   ];
 
@@ -206,6 +211,8 @@ export default function IDEWorkspaceLayout({
   const [mockSearch, setMockSearch] = useState('');
   const [mockMenu, setMockMenu] = useState(null);
   const [showCreateMockServiceModal, setShowCreateMockServiceModal] = useState(false);
+  const [editingMockId, setEditingMockId] = useState(null);
+  const [editingMockName, setEditingMockName] = useState('');
 
   // Handler for Functional Testing Run Collection
   const handleRunFunctionalTest = () => {
@@ -797,21 +804,53 @@ export default function IDEWorkspaceLayout({
                           <div className="flex items-start gap-2">
                             <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-white truncate">{mock.name}</p>
-                              <p className="text-[10px] text-gray-500 truncate">
-                                {mock.requests?.length || 0} {mock.requests?.length === 1 ? 'request' : 'requests'} • {mock.type}
-                              </p>
+                              {editingMockId === mock.id ? (
+                                <input
+                                  type="text"
+                                  value={editingMockName}
+                                  onChange={(e) => setEditingMockName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      if (editingMockName.trim()) {
+                                        onRenameMock(mock.id, editingMockName.trim());
+                                      }
+                                      setEditingMockId(null);
+                                      setEditingMockName('');
+                                    } else if (e.key === 'Escape') {
+                                      setEditingMockId(null);
+                                      setEditingMockName('');
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    if (editingMockName.trim()) {
+                                      onRenameMock(mock.id, editingMockName.trim());
+                                    }
+                                    setEditingMockId(null);
+                                    setEditingMockName('');
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  autoFocus
+                                  className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              ) : (
+                                <>
+                                  <p className="text-xs font-medium text-white truncate">{mock.name}</p>
+                                  <p className="text-[10px] text-gray-500 truncate">
+                                    {mock.requests?.length || 0} {mock.requests?.length === 1 ? 'request' : 'requests'} • {mock.type}
+                                  </p>
+                                </>
+                              )}
                             </div>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setMockMenu({ x: e.clientX, y: e.clientY, mockId: mock.id });
+                                setMockMenu({ x: e.clientX, y: e.clientY, mockId: mock.id, mockName: mock.name });
                               }}
-                              className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-400 hover:bg-red-500/10"
-                              title="Delete mock"
+                              className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
+                              title="Actions"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <MoreHorizontal className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -842,12 +881,24 @@ export default function IDEWorkspaceLayout({
                   </div>
                 </div>
 
-                {/* Mock Menu (Delete action) */}
+                {/* Mock Menu (Delete and Rename actions) */}
                 {mockMenu && (
                   <div
-                    className="fixed z-50 min-w-[120px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+                    className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
                     style={{ left: mockMenu.x, top: mockMenu.y }}
                   >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingMockId(mockMenu.mockId);
+                        setEditingMockName(mockMenu.mockName);
+                        setMockMenu(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      Rename
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -1324,6 +1375,8 @@ export default function IDEWorkspaceLayout({
                   </div>
                 )}
               </div>
+            ) : topMenuActive === 'ai-assisted' ? (
+              <AIAssisted />
             ) : topMenuActive === 'dashboard' ? (
               <DashboardSpecTable />
             ) : (
@@ -1733,6 +1786,7 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
 // Create Mock Service Modal Component with spec selection
 function CreateMockServiceModal({ onClose, onCreateMock }) {
   const [selectedSpec, setSelectedSpec] = useState('');
+  const [mockServiceName, setMockServiceName] = useState('');
   const [status, setStatus] = useState('form'); // 'form' | 'creating' | 'success'
 
   // Dummy spec data
@@ -1747,7 +1801,7 @@ function CreateMockServiceModal({ onClose, onCreateMock }) {
   const selectedSpecData = dummySpecs.find(s => s.id === selectedSpec);
 
   const handleCreate = () => {
-    if (!selectedSpec) return;
+    if (!selectedSpec || !mockServiceName.trim()) return;
 
     setStatus('creating');
 
@@ -1758,8 +1812,10 @@ function CreateMockServiceModal({ onClose, onCreateMock }) {
       // Create dummy mock with spec data
       const specMock = {
         id: `spec-mock-${Date.now()}`,
-        name: selectedSpecData.name,
+        name: mockServiceName.trim(),
         type: 'collection',
+        specId: selectedSpec,
+        specName: selectedSpecData.name,
         requests: Array.from({ length: selectedSpecData.endpoints }, (_, i) => ({
           id: `spec-req-${i}`,
           name: `Endpoint ${i + 1}`,
@@ -1808,23 +1864,54 @@ function CreateMockServiceModal({ onClose, onCreateMock }) {
         <div className="p-5">
           {status === 'form' ? (
             <div className="space-y-4">
+              {/* Mock Service Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Mock Service Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={mockServiceName}
+                  onChange={(e) => setMockServiceName(e.target.value)}
+                  placeholder="Enter mock service name"
+                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+
               {/* Spec Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Select Spec
+                  Select Specification <span className="text-red-400">*</span>
                 </label>
-                <select
-                  value={selectedSpec}
-                  onChange={(e) => setSelectedSpec(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
-                >
-                  <option value="">Choose a spec...</option>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
                   {dummySpecs.map((spec) => (
-                    <option key={spec.id} value={spec.id} className="bg-dark-800 text-white">
-                      {spec.name}
-                    </option>
+                    <div
+                      key={spec.id}
+                      onClick={() => setSelectedSpec(spec.id)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedSpec === spec.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-dark-600 hover:border-primary/50 hover:bg-dark-700/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
+                          selectedSpec === spec.id
+                            ? 'border-primary bg-primary'
+                            : 'border-dark-500'
+                        }`}>
+                          {selectedSpec === spec.id && (
+                            <Check className="w-3 h-3 text-white" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-white text-sm">{spec.name}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">Version: {spec.version} • {spec.endpoints} endpoints</div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </select>
+                </div>
               </div>
 
               {/* Spec Information */}
@@ -1849,7 +1936,7 @@ function CreateMockServiceModal({ onClose, onCreateMock }) {
               <button
                 type="button"
                 onClick={handleCreate}
-                disabled={!selectedSpec}
+                disabled={!selectedSpec || !mockServiceName.trim()}
                 className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Mock Service

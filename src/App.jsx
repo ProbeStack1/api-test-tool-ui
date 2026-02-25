@@ -1032,7 +1032,7 @@ function App() {
     <div className="flex h-screen bg-probestack-bg text-white font-sans antialiased overflow-hidden selection:bg-primary/30">
       <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-probestack-bg relative z-0 overflow-hidden">
         {/* Header - same logo block as Migration/DashboardNavbar (porbestack-new-repo) */}
-        <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-probestack-bg">
+        <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-header-bg">
           <div className="flex items-center gap-8 flex-1 min-w-0">
             <div className="flex items-center gap-2.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
               <img

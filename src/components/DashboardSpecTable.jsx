@@ -316,7 +316,7 @@ export default function DashboardSpecTable() {
       <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">ProbeStack Dashboard</h2>
+            <h2 className="text-lg font-semibold text-white">ForgeQ Dashboard</h2>
           </div>
           <div className="relative w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />

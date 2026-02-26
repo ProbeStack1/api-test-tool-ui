@@ -1042,7 +1042,7 @@ function App() {
                 onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
               />
               <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ProbeStack</span>
+                <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ForgeQ</span>
                 <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5 whitespace-nowrap">A ForgeCrux Company</span>
               </div>
             </div>

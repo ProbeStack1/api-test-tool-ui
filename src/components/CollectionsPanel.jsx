@@ -27,6 +27,15 @@ import {
   Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { toast } from 'sonner';
+import {
+  createCollection,
+  updateCollection,
+  deleteCollection,
+  createFolder,
+  updateFolder,
+  deleteFolder,
+} from '../services/collectionService';
 
 const NEW_OPTIONS = [
   { id: 'http', label: 'HTTP', icon: Globe, description: 'Create a new HTTP request to test REST APIs.' },
@@ -1106,21 +1115,36 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         setCollections([...collections, clonedCollection]);
       }
     } else if (actionId === 'delete') {
-      const deleteItem = (items, id) => {
+      const removeItemById = (items, id) => {
         for (let i = 0; i < items.length; i++) {
           if (items[i].id === id) {
             items.splice(i, 1);
             return true;
           }
-          if (items[i].items && deleteItem(items[i].items, id)) {
+          if (items[i].items && removeItemById(items[i].items, id)) {
             return true;
           }
         }
         return false;
       };
       const newCollections = [...collections];
-      deleteItem(newCollections, item.id);
+      removeItemById(newCollections, item.id);
       setCollections(newCollections);
+
+      // Persist delete to backend
+      const userId = localStorage.getItem('probestack_user_id');
+      if (userId) {
+        const apiCall =
+          item.type === 'collection'
+            ? deleteCollection(item.id)
+            : deleteFolder(item.id);
+
+        apiCall.catch((err) => {
+          toast.error(
+            err.response?.data?.message || err.message || 'Failed to delete item'
+          );
+        });
+      }
     }
   };
 
@@ -1156,25 +1180,57 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
   };
 
   const handleCreateCollection = (name, workspaceId, workspaceName) => {
+    const tempId = `col-${Date.now()}`;
     const newCollection = {
-      id: `col-${Date.now()}`,
-      name: name,
+      id: tempId,
+      name,
       type: 'collection',
       project: workspaceId,
       projectName: workspaceName,
-      items: []
+      items: [],
     };
+    // Update local state immediately so the UI responds without waiting for the API
     setCollections([...collections, newCollection]);
+
+    // Persist to backend; swap temp ID for the real UUID on success
+    const userId = localStorage.getItem('probestack_user_id');
+    if (userId) {
+      createCollection(workspaceId, { name })
+        .then((res) => {
+          const realId = res.data?.collectionId;
+          if (realId && realId !== tempId) {
+            setCollections((prev) =>
+              prev.map((col) =>
+                col.id === tempId ? { ...col, id: realId } : col
+              )
+            );
+          }
+        })
+        .catch((err) => {
+          toast.error(
+            err.response?.data?.message || err.message || 'Failed to save collection'
+          );
+        });
+    }
   };
 
   const handleCreateFolder = (name) => {
     if (!selectedCollectionId) return;
+
+    // Determine the root collection ID and optional parent folder ID
+    const rootCollection = findRootCollection(selectedCollectionId);
+    const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
+    const isFolder = selectedCollectionId !== collectionId;
+    const parentFolderId = isFolder ? selectedCollectionId : null;
+
+    const tempId = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const newFolder = {
-      id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name: name,
+      id: tempId,
+      name,
       type: 'folder',
-      items: []
+      items: [],
     };
+
     const newCollections = [...collections];
     const parent = findItemById(newCollections, selectedCollectionId);
     if (parent && parent.items) {
@@ -1182,15 +1238,53 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       setCollections(newCollections);
       setExpanded((prev) => ({ ...prev, [selectedCollectionId]: true }));
     }
+
+    // Persist to backend; swap temp ID for real UUID on success
+    const userId = localStorage.getItem('probestack_user_id');
+    if (userId) {
+      const folderPayload = { name, ...(parentFolderId && { parentFolderId }) };
+      createFolder(collectionId, folderPayload)
+        .then((res) => {
+          const realId = res.data?.FolderId || res.data?.folderId || res.data?.id;
+          if (realId && realId !== tempId) {
+            setCollections((prev) => {
+              const updated = [...prev];
+              const folderInTree = findItemById(updated, tempId);
+              if (folderInTree) folderInTree.id = realId;
+              return updated;
+            });
+          }
+        })
+        .catch((err) => {
+          toast.error(
+            err.response?.data?.message || err.message || 'Failed to save folder'
+          );
+        });
+    }
   };
 
   const handleRenameItem = (newName) => {
     if (!selectedItemForRename) return;
     const newCollections = [...collections];
     const item = findItemById(newCollections, selectedItemForRename.id);
-    if (item) {
-      item.name = newName;
-      setCollections(newCollections);
+    if (!item) return;
+
+    item.name = newName;
+    setCollections(newCollections);
+
+    // Persist rename to backend
+    const userId = localStorage.getItem('probestack_user_id');
+    if (userId) {
+      const apiCall =
+        item.type === 'collection'
+          ? updateCollection(item.id, { name: newName })
+          : updateFolder(item.id, { name: newName });
+
+      apiCall.catch((err) => {
+        toast.error(
+          err.response?.data?.message || err.message || 'Failed to rename item'
+        );
+      });
     }
   };
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Activity, Shield, Target, Box, Rocket } from 'lucide-react';
 
-export default function Home() {
+export default function Home({ workspaces = [] }) {
   const navigate = useNavigate();
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col bg-probestack-bg">
@@ -55,7 +55,7 @@ export default function Home() {
           />
         </div>
 
-        {/* Recent Workspaces - same card style as Migration (border, hover) */}
+        {/* Recent Workspaces - populated from backend when authenticated */}
         <div className="mt-12">
           <h3 className="text-xl font-semibold mb-2 text-white">
             Recent Workspaces
@@ -63,27 +63,53 @@ export default function Home() {
           <p className="text-sm text-gray-400 mb-6">
             Your latest workspaces and their status
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="p-6 border border-dark-700 rounded-lg hover:border-primary/30 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+
+          {workspaces.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 border border-dashed border-dark-700 rounded-lg text-center">
+              <Box className="w-12 h-12 text-dark-700 mb-4" />
+              <p className="text-sm font-medium text-gray-400 mb-1">No workspaces yet</p>
+              <p className="text-xs text-gray-600">
+                Head to the workspace to create your first one.
+              </p>
+              <button
+                onClick={() => navigate('/workspace')}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
               >
-                <div className="absolute top-0 right-0 p-2 opacity-50">
-                  <Box className="w-24 h-24 text-dark-700/50 -mr-8 -mt-8" />
-                </div>
-                <div className="relative z-10">
-                  <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center mb-4 text-primary">
-                    <Activity className="w-6 h-6" />
+                <Rocket className="w-4 h-4" />
+                Open Workspace
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {workspaces.map((ws) => (
+                <div
+                  key={ws.id}
+                  onClick={() => navigate('/workspace')}
+                  className="p-6 border border-dark-700 rounded-lg hover:border-primary/30 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+                >
+                  <div className="absolute top-0 right-0 p-2 opacity-50">
+                    <Box className="w-24 h-24 text-dark-700/50 -mr-8 -mt-8" />
                   </div>
-                  <h4 className="text-sm font-semibold text-white mb-1">
-                    My API Project {i}
-                  </h4>
-                  <p className="text-xs text-gray-500">Updated 2h ago</p>
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center mb-4 text-primary">
+                      <Activity className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-white mb-1 truncate" title={ws.name}>
+                      {ws.name}
+                    </h4>
+                    {ws.description && (
+                      <p className="text-xs text-gray-500 truncate mb-1" title={ws.description}>
+                        {ws.description}
+                      </p>
+                    )}
+                    <span className="inline-block text-xs text-gray-600 capitalize">
+                      {ws.visibility || 'private'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

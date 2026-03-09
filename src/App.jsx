@@ -3,6 +3,8 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { sendRequest } from './utils/api';
+import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
+import { fetchCollections, normalizeCollection } from './services/collectionService';
 import Home from './components/Home';
 import Reports from './components/Reports';
 import Explore from './components/Explore';
@@ -288,6 +290,38 @@ function App() {
       console.error('Failed to save workspaces to localStorage:', error);
     }
   }, [projects]);
+
+  // Guard so the API bootstrap only runs once per page load
+  const hasFetchedRef = useRef(false);
+
+  // On mount: load workspaces and their collections from the backend.
+  // Skipped entirely when no probestack_user_id is in localStorage so
+  // unauthenticated / offline sessions continue working unchanged.
+  useEffect(() => {
+    const userId = localStorage.getItem('probestack_user_id');
+    if (!userId || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
+    fetchWorkspaces()
+      .then((res) => {
+        const workspaces = res.data.map(normalizeWorkspace);
+        setProjects(workspaces);
+        return Promise.all(
+          workspaces.map((ws) =>
+            fetchCollections(ws.id).then((r) => ({ ws, data: r.data }))
+          )
+        );
+      })
+      .then((results) => {
+        const allCollections = results.flatMap(({ ws, data }) =>
+          data.map((col) => normalizeCollection(col, ws))
+        );
+        setCollections(allCollections);
+      })
+      .catch((err) =>
+        console.error('[API] Initial workspace/collection load failed:', err)
+      );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveEnvironmentVariables = () => {
     try {
@@ -628,21 +662,46 @@ function App() {
     const name = isLegacyFormat ? workspaceData : workspaceData.name;
     const visibility = isLegacyFormat ? 'private' : (workspaceData.visibility || 'private');
     const importedCollection = isLegacyFormat ? null : workspaceData.importedCollection;
-    
-    const newProjectId = `project-${Date.now()}`;
-    const newProject = { 
-      id: newProjectId, 
+
+    // Create workspace locally first (synchronous — CollectionsPanel relies on
+    // the return value immediately to set the selected workspace).
+    const tempId = `project-${Date.now()}`;
+    const newProject = {
+      id: tempId,
       name: name.trim(),
-      visibility
+      visibility,
     };
     setProjects((prev) => [...prev, newProject]);
-    
+
     // If there's an imported collection, create it under this workspace
     if (importedCollection && importedCollection.content) {
-      const parsedCollection = parsePostmanCollection(importedCollection.content, newProjectId, name.trim());
+      const parsedCollection = parsePostmanCollection(importedCollection.content, tempId, name.trim());
       setCollections((prev) => [...prev, parsedCollection]);
     }
-    
+
+    // Persist to backend in the background; swap temp ID for the real UUID on success.
+    const userId = localStorage.getItem('probestack_user_id');
+    if (userId) {
+      createWorkspace({ name: name.trim(), visibility })
+        .then((res) => {
+          const realId = res.data?.id;
+          if (realId && realId !== tempId) {
+            setProjects((prev) =>
+              prev.map((p) => (p.id === tempId ? { ...p, id: realId } : p))
+            );
+            // Also update any collections/folders that reference the temp ID
+            setCollections((prev) =>
+              prev.map((col) =>
+                col.project === tempId ? { ...col, project: realId } : col
+              )
+            );
+          }
+        })
+        .catch((err) =>
+          console.error('[API] Failed to persist workspace to backend:', err)
+        );
+    }
+
     return newProject;
   };
 
@@ -1149,7 +1208,7 @@ function App() {
         </header>
 
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home workspaces={projects} />} />
           <Route path="/reports" element={<Reports history={history} />} />
           <Route path="/explore" element={<Explore onImport={handleImport} />} />
           <Route path="/settings" element={<SettingsPage />} />

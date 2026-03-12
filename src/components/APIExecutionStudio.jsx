@@ -7,8 +7,25 @@ import SaveRequestModal from './SaveRequestModal';
 import clsx from 'clsx';
 
 function getTabLabel(request) {
+  console.log('getTabLabel called with:', { 
+    requestId: request?.id, 
+    name: request?.name, 
+    url: request?.url,
+    fullRequest: request 
+  });
+  
+  // Prioritize the request name if it exists
+  if (request?.name && request.name.trim()) {
+    console.log('Returning name:', request.name);
+    return request.name;
+  }
+  
+  // Fall back to URL-based label
   const u = request?.url?.trim();
-  if (!u) return 'Untitled';
+  if (!u) {
+    console.log('No URL, returning Untitled');
+    return 'Untitled';
+  }
   if (u.startsWith('http://') || u.startsWith('https://')) {
     try {
       const parsed = new URL(u);
@@ -122,7 +139,7 @@ export default function APIExecutionStudio({
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Tab bar: + first, then request tabs (Postman-style) */}
-        <div className="flex items-center border-b border-dark-700 bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
+        <div className="flex items-center border-b border-dark-700 bg-[#161B30] flex-shrink-0 min-h-0 overflow-hidden">
           <button
             type="button"
             onClick={onNewTab}
@@ -252,7 +269,7 @@ export default function APIExecutionStudio({
               value={url}
               onChange={(e) => onUrlChange(e.target.value)}
               placeholder="https://api.example.com/v1/endpoint"
-              className="flex-1 min-w-[220px] bg-dark-800 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
+              className="flex-1 min-w-[220px] bg-[#0f172a]/50 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
             />
             <button
               type="button"
@@ -284,7 +301,7 @@ export default function APIExecutionStudio({
         </div>
 
         {/* Postman-style: Tabs below request line — Params, Headers, Body, Auth, Pre-request Script, Tests */}
-        <div className="border-b border-dark-700 px-5 flex items-center justify-between flex-shrink-0 bg-dark-900/30 gap-2 min-h-0">
+        <div className="border-b border-dark-700 px-5 flex items-center justify-between flex-shrink-0 bg-[#161B30] gap-2 min-h-0">
           <div className="flex items-center gap-0 overflow-x-auto min-w-0 flex-1 scrollbar-thin">
             {sections.map((section) => (
               <button
@@ -312,8 +329,8 @@ export default function APIExecutionStudio({
           {/* Tab-specific content */}
           {activeSection === 'params' && (
             <div className="p-5">
-              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+              <div className="rounded-lg border border-dark-700 bg-[#0f172a]/50 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-[#161B30] text-xs text-gray-400 font-medium">
                   Query parameters for the request URL
                 </div>
                 <div className="p-4">
@@ -325,8 +342,8 @@ export default function APIExecutionStudio({
 
           {activeSection === 'headers' && (
             <div className="p-5">
-              <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+              <div className="rounded-lg border border-dark-700 bg-[#0f172a]/50 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-dark-700 bg-[#161B30] text-xs text-gray-400 font-medium">
                   Request headers (e.g. Content-Type, Authorization)
                 </div>
                 <div className="p-4">

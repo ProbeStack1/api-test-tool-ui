@@ -328,7 +328,7 @@ export default function DashboardSpecTable() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             />
           </div>
         </div>
@@ -342,7 +342,7 @@ export default function DashboardSpecTable() {
             {metricsData.map((metric, index) => (
               <div
                 key={index}
-                className="bg-dark-800/50 border border-dark-700 rounded-xl p-4 hover:border-primary/30 transition-all duration-300"
+                className="bg-[#1e2330] border border-dark-700 rounded-xl p-4 hover:border-primary/30 transition-all duration-300"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">

@@ -1149,9 +1149,10 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
           setExpanded((prev) => ({ ...prev, [selectedCollectionId]: true }));
         }
       }
-      if (onSelectEndpoint) {
-        onSelectEndpoint({ method: 'GET', path: '' });
-      }
+      // DISABLED: Auto-population to execution area to avoid naming confusion
+      // if (onSelectEndpoint) {
+      //   onSelectEndpoint({ method: 'GET', path: '' });
+      // }
     }
   };
 
@@ -1461,21 +1462,21 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
           <button
             type="button"
             onClick={() => setShowNewWorkspaceModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
             Create Workspace
           </button>
           <button
             type="button"
             onClick={() => setShowNewCollectionModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
             Create Collection
           </button>
           <button
             type="button"
             onClick={handleImportClick}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
             title="Import Collections"
           >
             Import
@@ -1499,7 +1500,7 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
             placeholder="Search collections"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           />
         </div>
       </div>
@@ -1655,7 +1656,8 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
 
   const handleRowClick = () => {
     if (isRequest && onSelectEndpoint) {
-      onSelectEndpoint({ method: item.method, path: item.path || '/', name: item.name });
+      // DISABLED: Auto-population to execution area to avoid naming confusion
+      // onSelectEndpoint({ method: item.method, path: item.path || '/', name: item.name });
     } else if (!isRequest) {
       onToggle(item.id);
     }

@@ -391,6 +391,8 @@ function App() {
   };
 
   const handleSelectEndpoint = (endpoint) => {
+    console.log('handleSelectEndpoint called with endpoint:', endpoint);
+    
     // Check if a tab with this exact endpoint already exists
     // Match by name to handle empty requests correctly
     const existingTabIndex = requests.findIndex(
@@ -399,6 +401,7 @@ function App() {
 
     if (existingTabIndex !== -1) {
       // If tab exists, just switch to it
+      console.log('Existing tab found at index:', existingTabIndex);
       setActiveRequestIndex(existingTabIndex);
     } else {
       // Create new tab with the endpoint data
@@ -408,6 +411,7 @@ function App() {
         method: endpoint.method,
         name: endpoint.name || 'Untitled Request',
       };
+      console.log('Creating new request with name:', newRequest.name, 'Full request:', newRequest);
       setRequests((prev) => {
         const next = [...prev, newRequest];
         setActiveRequestIndex(next.length - 1);

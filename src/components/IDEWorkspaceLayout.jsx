@@ -520,7 +520,7 @@ export default function IDEWorkspaceLayout({
               placeholder="Search workspace..."
               value={workspaceSearch}
               onChange={(e) => setWorkspaceSearch(e.target.value)}
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
             />
           </div>
           <div className="flex-1 flex justify-end">
@@ -660,8 +660,8 @@ export default function IDEWorkspaceLayout({
               <div className="flex-1 flex flex-col p-4">
                 {/* Scope Selection Cards */}
                 <div className="space-y-3">
-                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                  <div className="rounded-xl border border-dark-600 bg-[#161B30] p-3">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-300 mb-2">
                       Environment Scope
                     </div>
                     <div className="space-y-1">
@@ -672,7 +672,7 @@ export default function IDEWorkspaceLayout({
                           'w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
                           variablesScope === 'environment-scope'
                             ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                            : 'bg-[#0f172a]/50 hover:bg-[#0f172a]/70 text-gray-300 hover:text-white border border-dark-700'
                         )}
                       >
                         <span>Environment Scope</span>
@@ -696,8 +696,8 @@ export default function IDEWorkspaceLayout({
                       </button>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                  <div className="rounded-xl border border-dark-600 bg-[#161B30] p-3">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-300 mb-2">
                       Global Scope
                     </div>
                     <div className="space-y-1">
@@ -708,7 +708,7 @@ export default function IDEWorkspaceLayout({
                           'w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
                           variablesScope === 'global-scope'
                             ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                            : 'bg-[#0f172a]/50 hover:bg-[#0f172a]/70 text-gray-300 hover:text-white border border-dark-700'
                         )}
                       >
                         <span>Global Scope</span>
@@ -741,8 +741,8 @@ export default function IDEWorkspaceLayout({
                   {testingSubTabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
-                      <div key={tab.id} className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
-                        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                      <div key={tab.id} className="rounded-xl border border-dark-600 bg-[#161B30] p-3">
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-300 mb-2">
                           {tab.label}
                         </div>
                         <div className="space-y-1">
@@ -753,7 +753,7 @@ export default function IDEWorkspaceLayout({
                               'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
                               testingSubTab === tab.id
                                 ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                                : 'bg-[#0f172a]/50 hover:bg-[#0f172a]/70 text-gray-300 hover:text-white border border-dark-700'
                             )}
                           >
                             <Icon className="w-4 h-4 shrink-0" />
@@ -777,7 +777,7 @@ export default function IDEWorkspaceLayout({
                       placeholder="Search services..."
                       value={mockSearch}
                       onChange={(e) => setMockSearch(e.target.value)}
-                      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     />
                   </div>
                   <button
@@ -963,7 +963,7 @@ export default function IDEWorkspaceLayout({
                     <div className="flex-1 max-w-2xl space-y-6">
                       <h2 className="text-lg font-semibold text-white">Functional Test</h2>
                       <p className="text-sm text-gray-400">Choose how to run your collection and configure run options.</p>
-                      <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+                      <div className="rounded-xl border border-dark-700 bg-[#161B30] p-5 space-y-5">
                         <div>
                           <h3 className="text-sm font-medium text-white mb-3">Choose how to run your collection</h3>
                           <div className="space-y-2">
@@ -987,11 +987,11 @@ export default function IDEWorkspaceLayout({
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="block text-xs text-gray-500 mb-1">Iterations</label>
-                              <input type="number" min={1} value={functionalIterations} onChange={(e) => setFunctionalIterations(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              <input type="number" min={1} value={functionalIterations} onChange={(e) => setFunctionalIterations(Number(e.target.value) || 1)} className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
                             </div>
                             <div>
                               <label className="block text-xs text-gray-500 mb-1">Delay (ms)</label>
-                              <input type="number" min={0} value={functionalDelay} onChange={(e) => setFunctionalDelay(Number(e.target.value) || 0)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              <input type="number" min={0} value={functionalDelay} onChange={(e) => setFunctionalDelay(Number(e.target.value) || 0)} className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
                             </div>
                           </div>
                           <p className="text-xs text-gray-500 mt-2">Test data file: Only JSON and CSV files are accepted.</p>
@@ -1026,7 +1026,7 @@ export default function IDEWorkspaceLayout({
                     {/* Right side - Results */}
                     {functionalRunResults && (
                       <div className="flex-1 max-w-2xl mt-[72px]">
-                        <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 max-h-[600px] flex flex-col">
+                        <div className="rounded-xl border border-dark-700 bg-[#161B30] p-5 max-h-[600px] flex flex-col">
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-semibold text-white">Collection Run Results</h3>
                             <button
@@ -1094,7 +1094,7 @@ export default function IDEWorkspaceLayout({
                                   }, {});
 
                                   return Object.entries(grouped).map(([folderPath, results]) => (
-                                    <div key={folderPath} className="border border-dark-700 rounded-lg overflow-hidden">
+                                    <div key={folderPath} className="border border-dark-700 rounded-lg overflow-hidden bg-[#0f172a]/50">
                                       <div className="flex items-center gap-2 px-3 py-2 bg-dark-800/50">
                                         <Folder className="w-4 h-4 text-amber-500/90" />
                                         <span className="text-xs font-medium text-gray-300">{folderPath}</span>
@@ -1162,13 +1162,13 @@ export default function IDEWorkspaceLayout({
                     <div className="flex-1 max-w-2xl space-y-6">
                       <h2 className="text-lg font-semibold text-white">Load Test</h2>
                       <p className="text-sm text-gray-400">Set up your performance test with virtual users and duration.</p>
-                      <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+                      <div className="rounded-xl border border-dark-700 bg-[#161B30] p-5 space-y-5">
                         <div>
                           <h3 className="text-sm font-medium text-white mb-3">Set up your performance test</h3>
                           <div className="space-y-4">
                             <div>
                               <label className="block text-xs text-gray-500 mb-1">Load profile</label>
-                              <select value={loadProfile} onChange={(e) => setLoadProfile(e.target.value)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30">
+                              <select value={loadProfile} onChange={(e) => setLoadProfile(e.target.value)} className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30">
                                 <option value="fixed" className="bg-dark-800">Fixed</option>
                                 <option value="ramp" className="bg-dark-800">Ramp up</option>
                               </select>
@@ -1176,14 +1176,14 @@ export default function IDEWorkspaceLayout({
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="block text-xs text-gray-500 mb-1">Virtual users</label>
-                                <input type="number" min={1} value={loadVirtualUsers} onChange={(e) => setLoadVirtualUsers(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                <input type="number" min={1} value={loadVirtualUsers} onChange={(e) => setLoadVirtualUsers(Number(e.target.value) || 1)} className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
                               </div>
                               <div className="flex gap-2 items-end">
                                 <div className="flex-1">
                                   <label className="block text-xs text-gray-500 mb-1">Test duration</label>
-                                  <input type="number" min={1} value={loadDuration} onChange={(e) => setLoadDuration(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                                  <input type="number" min={1} value={loadDuration} onChange={(e) => setLoadDuration(Number(e.target.value) || 1)} className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
                                 </div>
-                                <select value={loadDurationUnit} onChange={(e) => setLoadDurationUnit(e.target.value)} className="bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                                <select value={loadDurationUnit} onChange={(e) => setLoadDurationUnit(e.target.value)} className="bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
                                   <option value="mins" className="bg-dark-800">mins</option>
                                   <option value="secs" className="bg-dark-800">secs</option>
                                 </select>
@@ -1227,7 +1227,7 @@ export default function IDEWorkspaceLayout({
                     {/* Right side - Results */}
                     {(loadTestResults || isRunningLoadTest) && (
                       <div className="flex-1 max-w-2xl mt-[72px]">
-                        <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 max-h-[600px] flex flex-col">
+                        <div className="rounded-xl border border-dark-700 bg-[#161B30] p-5 max-h-[600px] flex flex-col">
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-semibold text-white">Load Test Results</h3>
                             <button
@@ -1279,19 +1279,19 @@ export default function IDEWorkspaceLayout({
                             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4">
                               {/* Summary Stats */}
                               <div className="grid grid-cols-2 gap-4">
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
+                                <div className="p-3 rounded-lg bg-[#0f172a]/50 border border-dark-700">
                                   <p className="text-xs text-gray-500 mb-1">Total Requests</p>
                                   <p className="text-lg font-semibold text-white">{loadTestResults.totalRequests.toLocaleString()}</p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
+                                <div className="p-3 rounded-lg bg-[#0f172a]/50 border border-dark-700">
                                   <p className="text-xs text-gray-500 mb-1">Requests/sec</p>
                                   <p className="text-lg font-semibold text-white">{loadTestResults.requestsPerSecond}</p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
+                                <div className="p-3 rounded-lg bg-[#0f172a]/50 border border-dark-700">
                                   <p className="text-xs text-gray-500 mb-1">Avg Response Time</p>
                                   <p className="text-lg font-semibold text-white">{loadTestResults.avgResponseTime}ms</p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
+                                <div className="p-3 rounded-lg bg-[#0f172a]/50 border border-dark-700">
                                   <p className="text-xs text-gray-500 mb-1">Success Rate</p>
                                   <p className="text-lg font-semibold text-green-400">
                                     {((loadTestResults.passedRequests / loadTestResults.totalRequests) * 100).toFixed(1)}%
@@ -1874,7 +1874,7 @@ function CreateMockServiceModal({ onClose, onCreateMock }) {
                   value={mockServiceName}
                   onChange={(e) => setMockServiceName(e.target.value)}
                   placeholder="Enter mock service name"
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
 
@@ -1916,7 +1916,7 @@ function CreateMockServiceModal({ onClose, onCreateMock }) {
 
               {/* Spec Information */}
               {selectedSpecData && (
-                <div className="p-4 rounded-lg bg-dark-900/60 border border-dark-700 space-y-2">
+                <div className="p-4 rounded-lg bg-[#0f172a]/50 border border-dark-700 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">Spec Name</span>
                     <span className="text-xs text-white font-medium">{selectedSpecData.name}</span>

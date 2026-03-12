@@ -401,9 +401,9 @@ export default function GenerateTestCase() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0B1120]">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#161B30]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-dark-600 bg-[#161B30] flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Generate Test Cases</h2>
           <p className="text-sm text-gray-400">Create and manage JSON test case specifications</p>
@@ -420,9 +420,9 @@ export default function GenerateTestCase() {
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
-        <aside className="w-72 border-r border-dark-700 bg-dark-800/30 flex flex-col">
+        <aside className="w-72 border-r border-dark-600 bg-[#161B30] flex flex-col">
           {/* Search */}
-          <div className="p-4 border-b border-dark-700">
+          <div className="p-4 border-b border-dark-600">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <input
@@ -430,7 +430,7 @@ export default function GenerateTestCase() {
                 placeholder="Search specs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                className="w-full bg-[#0f172a]/50 border border-dark-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
               />
             </div>
           </div>
@@ -448,7 +448,7 @@ export default function GenerateTestCase() {
                   className={`group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-all ${
                     activeSpecId === spec.id
                       ? 'bg-primary/10 border border-primary/30'
-                      : 'hover:bg-dark-700/50 border border-transparent'
+                      : 'hover:bg-dark-600/50 border border-transparent'
                   }`}
                   onClick={() => handleSelectSpec(spec)}
                 >
@@ -503,9 +503,9 @@ export default function GenerateTestCase() {
         </aside>
 
         {/* Editor Area */}
-        <main className="flex-1 flex flex-col min-h-0 bg-[#0B1120]">
+        <main className="flex-1 flex flex-col min-h-0 bg-[#161B30]">
           {/* Editor Header */}
-          <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between bg-dark-800/20">
+          <div className="px-4 py-3 border-b border-dark-600 flex items-center justify-between bg-[#161B30]">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-white">
                 {activeSpec ? activeSpec.name : 'New Test Case'}

@@ -40,14 +40,14 @@ export default function VariablesEditor({ pairs, onChange, title }) {
             <div className="flex-1 overflow-auto p-4">
                 <div className="border border-dark-700 rounded-lg overflow-hidden bg-dark-900/30">
                     {/* Header */}
-                    <div className="flex bg-dark-800/50 border-b border-dark-700 text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
-                        <div className="flex-1 px-3 py-2 border-r border-dark-700">Key</div>
-                        <div className="flex-1 px-3 py-2 border-r border-dark-700">Value</div>
+                    <div className="flex bg-[#161B30] border-b border-dark-600 text-[10px] text-gray-300 font-semibold uppercase tracking-wide">
+                        <div className="flex-1 px-3 py-2 border-r border-dark-600">Key</div>
+                        <div className="flex-1 px-3 py-2">Value</div>
                         <div className="w-10"></div>
                     </div>
                     
                     {/* Add Button */}
-                    <div className="px-3 py-2 border-b border-dark-700/50 bg-dark-800/30">
+                    <div className="px-3 py-2 border-b border-dark-700/50 bg-[#161B30]">
                         <button
                             onClick={handleAdd}
                             className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded hover:bg-dark-700/50"
@@ -61,28 +61,28 @@ export default function VariablesEditor({ pairs, onChange, title }) {
                     <div className="bg-dark-900/20">
                         {pairs.map((pair, index) => (
                             <div key={index} className="flex border-b border-dark-700/30 last:border-0 group hover:bg-dark-800/40 transition-colors">
-                                <div className="flex-1 border-r border-dark-700/30">
+                                <div className="flex-1 border-r border-dark-700">
                                     <input
                                         type="text"
                                         placeholder="Key"
                                         value={pair.key}
                                         onChange={(e) => handleChange(index, 'key', e.target.value)}
-                                        className="w-full bg-transparent px-3 py-2 text-xs text-gray-200 focus:outline-none focus:bg-dark-900/30 placeholder:text-dark-500 font-mono transition-colors"
+                                        className="w-full bg-[#0f172a]/50 hover:bg-[#0f172a]/70 focus:bg-[#0f172a]/70 px-3 py-2 text-sm text-white focus:outline-none placeholder:text-gray-500 font-mono transition-colors"
                                     />
                                 </div>
-                                <div className="flex-1 border-r border-dark-700/30">
+                                <div className="flex-1">
                                     <input
                                         type="text"
                                         placeholder="Value"
                                         value={pair.value}
                                         onChange={(e) => handleChange(index, 'value', e.target.value)}
-                                        className="w-full bg-transparent px-3 py-2 text-xs text-gray-200 focus:outline-none focus:bg-dark-900/30 placeholder:text-dark-500 font-mono transition-colors"
+                                        className="w-full bg-[#0f172a]/50 hover:bg-[#0f172a]/70 focus:bg-[#0f172a]/70 px-3 py-2 text-sm text-white focus:outline-none placeholder:text-gray-500 font-mono transition-colors"
                                     />
                                 </div>
-                                <div className="w-10 flex items-center justify-center">
+                                <div className="w-10 flex items-center justify-center bg-[#0f172a]/50">
                                     <button
                                         onClick={() => handleRemove(index)}
-                                        className="text-dark-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-1 rounded hover:bg-red-500/10"
+                                        className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-1 rounded hover:bg-red-500/10"
                                         title="Delete"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />

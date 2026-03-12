@@ -28,16 +28,16 @@ export default function KeyValueEditor({ pairs, onChange }) {
     };
 
     return (
-        <div className="border border-dark-700 rounded overflow-hidden bg-dark-900/30">
+        <div className="border border-dark-700 rounded overflow-hidden bg-[#0f172a]/50">
             {/* Header */}
-            <div className="flex bg-dark-800/50 border-b border-dark-700 text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
+            <div className="flex bg-[#161B30] border-b border-dark-700 text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
                 <div className="flex-1 px-3 py-1.5 border-r border-dark-700">Key</div>
                 <div className="flex-1 px-3 py-1.5 border-r border-dark-700">Value</div>
                 <div className="w-10"></div>
             </div>
             
             {/* Add Button */}
-            <div className="px-3 py-2 border-b border-dark-700/50 bg-dark-800/30">
+            <div className="px-3 py-2 border-b border-dark-700/50 bg-[#0f172a]/50">
                 <button
                     onClick={handleAdd}
                     className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded hover:bg-dark-700/50"
@@ -48,7 +48,7 @@ export default function KeyValueEditor({ pairs, onChange }) {
             </div>
 
             {/* Rows */}
-            <div className="bg-dark-900/20">
+            <div className="bg-[#0f172a]/50">
                 {pairs.map((pair, index) => (
                     <div key={index} className="flex border-b border-dark-700/30 last:border-0 group hover:bg-dark-800/40 transition-colors">
                         <div className="flex-1 border-r border-dark-700/30">

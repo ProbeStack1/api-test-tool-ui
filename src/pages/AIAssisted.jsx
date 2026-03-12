@@ -114,7 +114,7 @@ const AIAssisted = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-6 border-t border-dark-700 bg-dark-800/30">
+            <div className="p-6 border-t border-dark-700 bg-[#161B30]">
               {/* Quick Action Buttons */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {quickActions.map((action, index) => (
@@ -138,7 +138,7 @@ const AIAssisted = () => {
                       handleSend(e);
                     }
                   }}
-                  className="w-full bg-dark-900/50 border border-dark-600 rounded-2xl p-4 pr-16 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all placeholder-gray-500 resize-none"
+                  className="w-full bg-[#0f172a]/50 border border-dark-600 rounded-2xl p-4 pr-16 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all placeholder-gray-500 resize-none"
                   placeholder="Describe your API test requirements (e.g., 'Create tests for user authentication endpoints' or 'Generate assertions for JSON response validation')..."
                   rows="2"
                 />

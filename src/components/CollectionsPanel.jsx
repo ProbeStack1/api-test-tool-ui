@@ -804,6 +804,7 @@ const DEFAULT_COLLECTIONS = [
 
 function ContextMenu({ x, y, type, onClose, onAction }) {
   const menuRef = useRef(null);
+  const [position, setPosition] = useState({ left: x, top: y });
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -819,6 +820,42 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
+
+  // Adjust position to keep menu within viewport
+  useEffect(() => {
+    if (menuRef.current) {
+      const menu = menuRef.current;
+      const menuRect = menu.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+
+      let adjustedLeft = x;
+      let adjustedTop = y;
+
+      // Check if menu exceeds bottom of viewport
+      if (y + menuRect.height > viewportHeight) {
+        // Position above cursor if there's space, otherwise align to bottom with some padding
+        adjustedTop = Math.max(10, viewportHeight - menuRect.height - 10);
+      }
+
+      // Check if menu exceeds right edge of viewport
+      if (x + menuRect.width > viewportWidth) {
+        adjustedLeft = Math.max(10, viewportWidth - menuRect.width - 10);
+      }
+
+      // Check if menu exceeds left edge
+      if (adjustedLeft < 10) {
+        adjustedLeft = 10;
+      }
+
+      // Check if menu exceeds top edge
+      if (adjustedTop < 10) {
+        adjustedTop = 10;
+      }
+
+      setPosition({ left: adjustedLeft, top: adjustedTop });
+    }
+  }, [x, y]);
 
   const collectionOptions = [
     { id: 'run-collection', label: 'Run Collection', icon: Play },
@@ -852,8 +889,8 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
-      style={{ left: x, top: y }}
+      className="fixed z-50 min-w-[180px] max-h-[calc(100vh-20px)] overflow-y-auto py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+      style={{ left: position.left, top: position.top }}
     >
       {options.map((opt) => {
         const Icon = opt.icon;
@@ -1576,6 +1613,7 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
                       onDrop={handleDrop}
                       onDragEnd={handleDragEnd}
                       dragOverItem={dragOverItem}
+                      contextMenuItemId={contextMenu?.itemId}
                     />
                   ))}
                 </div>
@@ -1644,13 +1682,14 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
   );
 }
 
-function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem }) {
+function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem, contextMenuItemId }) {
   const isExpanded = expanded[item.id];
   const hasChildren = item.items && item.items.length > 0;
   const isRequest = item.type === 'request';
   const isFolder = item.type === 'folder';
   const isCollection = level === 0;
   const isDragOver = dragOverItem === item.id;
+  const isContextMenuOpen = contextMenuItemId === item.id;
   const canDrag = isRequest || isFolder;
   const canDrop = isCollection || isFolder;
 
@@ -1696,6 +1735,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
         className={clsx(
           'flex items-center gap-1.5 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50',
           isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50',
+          isContextMenuOpen && 'bg-dark-700/50',
           canDrag && 'cursor-move'
         )}
         onClick={handleRowClick}
@@ -1772,6 +1812,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
               onDrop={onDrop}
               onDragEnd={onDragEnd}
               dragOverItem={dragOverItem}
+              contextMenuItemId={contextMenuItemId}
             />
           ))}
         </div>

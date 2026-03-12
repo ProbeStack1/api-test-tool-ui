@@ -1656,8 +1656,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
 
   const handleRowClick = () => {
     if (isRequest && onSelectEndpoint) {
-      // DISABLED: Auto-population to execution area to avoid naming confusion
-      // onSelectEndpoint({ method: item.method, path: item.path || '/', name: item.name });
+      onSelectEndpoint({ method: item.method, path: item.path || '/', name: item.name });
     } else if (!isRequest) {
       onToggle(item.id);
     }

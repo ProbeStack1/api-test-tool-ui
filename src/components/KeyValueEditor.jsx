@@ -57,7 +57,7 @@ export default function KeyValueEditor({ pairs, onChange }) {
                                 placeholder="Key"
                                 value={pair.key}
                                 onChange={(e) => handleChange(index, 'key', e.target.value)}
-                                className="w-full bg-transparent px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:bg-dark-900/30 placeholder:text-dark-500 font-mono transition-colors"
+                                className="w-full bg-[#0f172a]/50 px-3 py-1.5 text-xs text-gray-200 focus:outline-none hover:border-orange-500 focus:border-orange-500 placeholder:text-dark-500 font-mono transition-colors border border-transparent"
                             />
                         </div>
                         <div className="flex-1 border-r border-dark-700/30">
@@ -66,13 +66,13 @@ export default function KeyValueEditor({ pairs, onChange }) {
                                 placeholder="Value"
                                 value={pair.value}
                                 onChange={(e) => handleChange(index, 'value', e.target.value)}
-                                className="w-full bg-transparent px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:bg-dark-900/30 placeholder:text-dark-500 font-mono transition-colors"
+                                className="w-full bg-[#0f172a]/50 px-3 py-1.5 text-xs text-gray-200 focus:outline-none hover:border-orange-500 focus:border-orange-500 placeholder:text-dark-500 font-mono transition-colors border border-transparent"
                             />
                         </div>
                         <div className="w-10 flex items-center justify-center">
                             <button
                                 onClick={() => handleRemove(index)}
-                                className="text-dark-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-1 rounded hover:bg-red-500/10"
+                                className="text-gray-600 hover:text-red-400 transition-all p-1 rounded hover:bg-red-500/10"
                                 title="Delete"
                             >
                                 <Trash2 className="w-3.5 h-3.5" />

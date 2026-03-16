@@ -1,37 +1,63 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { ChevronRight, ChevronDown, Folder, MoreHorizontal, FileCode } from 'lucide-react';
 import clsx from 'clsx';
+import { fetchCollections, normalizeCollection } from '../../services/collectionService';
 
 export default function CollectionsList() {
     const [expanded, setExpanded] = useState({});
+    const [collections, setCollections] = useState([]);
 
     const toggle = (id) => {
         setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    const collections = [
-        {
-            id: '1', name: 'API Echo', items: [
-                {
-                    id: '1-1', name: 'Request Methods', type: 'folder', items: [
-                        { id: '1-1-1', name: 'GET Request', method: 'GET', type: 'request' },
-                        { id: '1-1-2', name: 'POST Raw Body', method: 'POST', type: 'request' },
-                    ]
-                },
-                { id: '1-2', name: 'Authentication', type: 'folder', items: [] }
-            ]
-        },
-        {
-            id: '2', name: 'My API V1', items: [
-                {
-                    id: '2-1', name: 'Users', type: 'folder', items: [
-                        { id: '2-1-1', name: 'List Users', method: 'GET', type: 'request' },
-                        { id: '2-1-2', name: 'Create User', method: 'POST', type: 'request' },
-                    ]
-                }
-            ]
-        }
-    ];
+    useEffect(() => {
+    const workspaceId = "cfc01b9c-4539-40bd-87ff-6ee4118563a2"; // temporary
+
+    fetchCollections(workspaceId)
+        .then(res => {
+            const data = res.data;
+
+            const normalized = data.map(col =>
+                normalizeCollection(col, {
+                    id: workspaceId,
+                    name: "Workspace"
+                })
+            );
+
+
+            setCollections(normalized);
+        })
+        .catch(err => {
+            console.error("Failed to fetch collections", err);
+        });
+
+}, []);
+
+    // const collections = [
+    //     {
+    //         id: '1', name: 'API Echo', items: [
+    //             {
+    //                 id: '1-1', name: 'Request Methods', type: 'folder', items: [
+    //                     { id: '1-1-1', name: 'GET Request', method: 'GET', type: 'request' },
+    //                     { id: '1-1-2', name: 'POST Raw Body', method: 'POST', type: 'request' },
+    //                 ]
+    //             },
+    //             { id: '1-2', name: 'Authentication', type: 'folder', items: [] }
+    //         ]
+    //     },
+    //     {
+    //         id: '2', name: 'My API V1', items: [
+    //             {
+    //                 id: '2-1', name: 'Users', type: 'folder', items: [
+    //                     { id: '2-1-1', name: 'List Users', method: 'GET', type: 'request' },
+    //                     { id: '2-1-2', name: 'Create User', method: 'POST', type: 'request' },
+    //                 ]
+    //             }
+    //         ]
+    //     }
+    // ];
 
     return (
         <div className="flex flex-col h-full">

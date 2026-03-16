@@ -25,6 +25,7 @@ import {
   Play,
   Lock,
   Upload,
+  FileText,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
@@ -33,9 +34,31 @@ import {
   updateCollection,
   deleteCollection,
   createFolder,
+  fetchFolders,
   updateFolder,
   deleteFolder,
+  forkCollection,
+  cloneFolder,
+  normalizeFolder,
+  normalizeCollection
 } from '../services/collectionService';
+import {
+  createRequest,
+  fetchRequests,
+  updateRequest,
+  normalizeRequest,
+  cloneRequest,
+  moveRequest,
+  deleteRequest,
+} from '../services/requestService';
+import {
+  updateWorkspace,
+  deleteWorkspace,
+} from '../services/workspaceService';
+
+// ----------------------------------------------------------------------
+// MODAL COMPONENTS
+// ----------------------------------------------------------------------
 
 const NEW_OPTIONS = [
   { id: 'http', label: 'HTTP', icon: Globe, description: 'Create a new HTTP request to test REST APIs.' },
@@ -87,7 +110,6 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-
         <div className="p-5">
           <div className="grid grid-cols-4 gap-3">
             {NEW_OPTIONS.map((opt) => {
@@ -123,7 +145,6 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
               );
             })}
           </div>
-
           <p className="mt-4 text-sm text-gray-400 text-center min-h-[1.25rem]">
             {description}
           </p>
@@ -358,9 +379,24 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
     }
   };
 
-  const title = itemType === 'folder' ? 'Rename Folder' : 'Rename Request';
-  const label = itemType === 'folder' ? 'Folder Name' : 'Request Name';
-  const placeholder = itemType === 'folder' ? 'Enter folder name' : 'Enter request name';
+let title, label, placeholder;
+if (itemType === 'folder') {
+  title = 'Rename Folder';
+  label = 'Folder Name';
+  placeholder = 'Enter folder name';
+} else if (itemType === 'workspace') {
+  title = 'Rename Workspace';
+  label = 'Workspace Name';
+  placeholder = 'Enter workspace name';
+} else if (itemType === 'collection') {
+  title = 'Rename Collection';
+  label = 'Collection Name';
+  placeholder = 'Enter collection name';
+} else {
+  title = 'Rename Request';
+  label = 'Request Name';
+  placeholder = 'Enter request name';
+}
 
   return (
     <div
@@ -383,7 +419,6 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
             <X className="w-5 h-5" />
           </button>
         </div>
-
         <div className="p-5">
           <label className="block text-sm font-medium text-gray-300 mb-2">
             {label}
@@ -400,7 +435,6 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
             autoFocus
           />
         </div>
-
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
           <button
             type="button"
@@ -765,51 +799,157 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
   );
 }
 
-const DEFAULT_COLLECTIONS = [
-  {
-    id: '1',
-    name: 'API Echo',
-    type: 'collection',
-    items: [
-      {
-        id: '1-1',
-        name: 'Request Methods',
-        type: 'folder',
-        items: [
-          { id: '1-1-1', name: 'GET Request', method: 'GET', type: 'request', path: '/api/echo' },
-          { id: '1-1-2', name: 'POST Raw Body', method: 'POST', type: 'request', path: '/api/echo' },
-        ],
-      },
-      { id: '1-2', name: 'Authentication', type: 'folder', items: [] },
-    ],
-  },
-  {
-    id: '2',
-    name: 'My API V1',
-    type: 'collection',
-    items: [
-      {
-        id: '2-1',
-        name: 'Users',
-        type: 'folder',
-        items: [
-          { id: '2-1-1', name: 'List Users', method: 'GET', type: 'request', path: '/api/users' },
-          { id: '2-1-2', name: 'Create User', method: 'POST', type: 'request', path: '/api/users' },
-        ],
-      },
-    ],
-  },
-  {
-    id: '3',
-    name: 'External APIs',
-    type: 'collection',
-    icon: 'globe',
-    items: [
-      { id: '3-1', name: 'GitHub Users API', method: 'GET', type: 'request', path: 'https://api.github.com/users' },
-      { id: '3-2', name: 'JSONPlaceholder Posts', method: 'GET', type: 'request', path: 'https://jsonplaceholder.typicode.com/posts' },
-    ],
-  },
-];
+function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProject, fileName }) {
+  const [selectedWorkspace, setSelectedWorkspace] = useState('');
+  const [isAddingNewWorkspace, setIsAddingNewWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedWorkspace(projects[0]?.id || '');
+      setIsAddingNewWorkspace(false);
+      setNewWorkspaceName('');
+    }
+  }, [isOpen, projects]);
+
+  if (!isOpen) return null;
+
+  const handleImport = () => {
+    const workspace = projects.find(p => p.id === selectedWorkspace);
+    if (!workspace) return;
+    onImport(workspace.id, workspace.name);
+    onClose();
+  };
+
+  const handleAddNewWorkspace = () => {
+    if (newWorkspaceName.trim()) {
+      const newWorkspace = onAddProject(newWorkspaceName.trim());
+      setSelectedWorkspace(newWorkspace.id);
+      setIsAddingNewWorkspace(false);
+      setNewWorkspaceName('');
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-base font-semibold text-white">Import Collection</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-dark-700/50 border border-dark-600">
+            <Upload className="w-4 h-4 text-primary" />
+            <span className="text-sm text-gray-300 truncate">{fileName || 'No file selected'}</span>
+          </div>
+          <p className="text-sm text-gray-400">Select a workspace to import the collection into:</p>
+          {/* Workspace Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Workspace
+            </label>
+            {isAddingNewWorkspace ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => setNewWorkspaceName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddNewWorkspace();
+                    if (e.key === 'Escape') {
+                      setIsAddingNewWorkspace(false);
+                      setNewWorkspaceName('');
+                    }
+                  }}
+                  placeholder="Enter workspace name"
+                  className="flex-1 bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNewWorkspace}
+                  disabled={!newWorkspaceName.trim()}
+                  className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Add workspace"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <select
+                value={selectedWorkspace}
+                onChange={(e) => {
+                  if (e.target.value === 'add-new') {
+                    setIsAddingNewWorkspace(true);
+                  } else {
+                    setSelectedWorkspace(e.target.value);
+                  }
+                }}
+                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
+              >
+                <option value="add-new" className="bg-dark-800 text-primary flex items-center">
+                  + Add New Workspace
+                </option>
+                {projects.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id} className="bg-dark-800 text-white">
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={!selectedWorkspace}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Import
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// CONTEXT MENUS
+// ----------------------------------------------------------------------
 
 function ContextMenu({ x, y, type, onClose, onAction }) {
   const menuRef = useRef(null);
@@ -891,23 +1031,219 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   );
 }
 
-const STORAGE_KEY = 'probestack_collections';
+function WorkspaceContextMenu({ x, y, onClose, onAction }) {
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
+    };
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
+
+  const options = [
+    { id: 'rename', label: 'Rename', icon: Edit3 },
+    { id: 'view-details', label: 'View Details', icon: FileText },
+    { id: 'delete', label: 'Delete', icon: Trash2 },
+  ];
+
+  return (
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+      style={{ left: x, top: y }}
+    >
+      {options.map((opt) => {
+        const Icon = opt.icon;
+        const isDelete = opt.id === 'delete';
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => {
+              onAction(opt.id);
+              onClose();
+            }}
+            className={clsx(
+              'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
+              isDelete
+                ? 'text-red-400 hover:bg-red-500/10'
+                : 'text-gray-300 hover:bg-dark-700 hover:text-white'
+            )}
+          >
+            <Icon className="w-4 h-4 flex-shrink-0" />
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// DELETE CONFIRMATION MODAL (for workspace)
+// ----------------------------------------------------------------------
+
+function DeleteWorkspaceConfirmModal({ isOpen, onClose, workspaceName, onConfirm }) {
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-base font-semibold text-white">Delete Workspace</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5">
+          <p className="text-sm text-gray-300">
+            Are you sure you want to delete workspace <span className="font-semibold text-white">"{workspaceName}"</span>?
+            This action cannot be undone.
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// VIEW DETAILS MODAL (simple version)
+// ----------------------------------------------------------------------
+
+function WorkspaceDetailsModal({ isOpen, onClose, workspace, collectionsCount }) {
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !workspace) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-base font-semibold text-white">Workspace Details</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <p className="text-xs text-gray-500">Name</p>
+            <p className="text-sm text-white font-medium">{workspace.name}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">ID</p>
+            <p className="text-xs text-gray-400 font-mono">{workspace.id}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Visibility</p>
+            <p className="text-sm text-white capitalize">{workspace.visibility}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Collections</p>
+            <p className="text-sm text-white">{collectionsCount}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// SORT ITEMS HELPER
+// ----------------------------------------------------------------------
 
 const sortItems = (items) => {
   if (!items || !Array.isArray(items)) return items;
   return [...items].sort((a, b) => {
-    const aIsFolder = a.type === 'folder';
-    const bIsFolder = b.type === 'folder';
-    if (aIsFolder && !bIsFolder) return -1;
-    if (!aIsFolder && bIsFolder) return 1;
-    return 0;
+    if (a.type === 'folder' && b.type !== 'folder') return -1;
+    if (a.type !== 'folder' && b.type === 'folder') return 1;
+    return (a.orderIndex || 0) - (b.orderIndex || 0);
   });
 };
 
-export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests = [], collections: externalCollections, projects = [], onAddProject, onCollectionsChange, onRunCollection }) {
-  // Use externalCollections directly from App.jsx - no local state management
-  const collections = externalCollections || DEFAULT_COLLECTIONS;
-  const [expanded, setExpanded] = useState({ '3': true }); // External APIs expanded by default (original design)
+// ----------------------------------------------------------------------
+// MAIN COMPONENT
+// ----------------------------------------------------------------------
+
+export default function CollectionsPanel({
+  onSelectEndpoint,
+  existingTabRequests = [],
+  collections: externalCollections,
+  projects = [],
+  onAddProject,
+  onCollectionsChange,
+  onRunCollection,
+  onOpenWorkspaceDetails,
+})
+ {
+  const collections = externalCollections;
+  const [expanded, setExpanded] = useState({ '3': true });
   const [search, setSearch] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
@@ -919,19 +1255,30 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
   const [selectedItemForRename, setSelectedItemForRename] = useState(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
-  const [untitledRequestCounter, setUntitledRequestCounter] = useState(0);
   const fileInputRef = useRef(null);
+    const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
+  const [importFileData, setImportFileData] = useState(null);
 
-  // Helper to update collections - notifies parent via callback
+  // Workspace actions state
+  const [workspaceMenu, setWorkspaceMenu] = useState(null);
+  const [workspaceToRename, setWorkspaceToRename] = useState(null);
+  const [showRenameWorkspaceModal, setShowRenameWorkspaceModal] = useState(false);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState(null);
+  const [showDeleteWorkspaceConfirm, setShowDeleteWorkspaceConfirm] = useState(false);
+  const [workspaceToView, setWorkspaceToView] = useState(null);
+  const [showWorkspaceDetailsModal, setShowWorkspaceDetailsModal] = useState(false);
+
+  // Helper to update collections
   const setCollections = (newCollectionsOrUpdater) => {
     if (onCollectionsChange) {
-      const newCollections = typeof newCollectionsOrUpdater === 'function' 
-        ? newCollectionsOrUpdater(collections) 
+      const newCollections = typeof newCollectionsOrUpdater === 'function'
+        ? newCollectionsOrUpdater(collections)
         : newCollectionsOrUpdater;
       onCollectionsChange(newCollections);
     }
   };
 
+  // Tree helpers
   const toggle = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -988,11 +1335,10 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     return null;
   };
 
-  // Get all request names in a collection (recursively)
+  // Request name helpers
   const getAllRequestNamesInCollection = (collectionId) => {
     const collection = findItemById(collections, collectionId);
     if (!collection) return [];
-    
     const names = [];
     const traverse = (items) => {
       if (!items) return;
@@ -1004,29 +1350,15 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         }
       });
     };
-    
     traverse(collection.items || []);
     return names;
   };
 
-  // Generate unique request name with auto-increment
-  // Checks BOTH collection requests AND tab requests for unified validation
   const generateUniqueRequestName = (collectionId, baseName = 'Untitled Request') => {
-    // Get names from collection
     const collectionNames = getAllRequestNamesInCollection(collectionId);
-    
-    // Get names from existing tabs
     const tabNames = existingTabRequests.map(req => req.name?.toLowerCase() || '');
-    
-    // Combine all existing names
     const existingNames = [...collectionNames, ...tabNames];
-    
-    // If base name doesn't exist, return it
-    if (!existingNames.includes(baseName.toLowerCase())) {
-      return baseName;
-    }
-    
-    // Find the highest number suffix
+    if (!existingNames.includes(baseName.toLowerCase())) return baseName;
     let maxNumber = 0;
     const baseNameLower = baseName.toLowerCase();
     existingNames.forEach(name => {
@@ -1035,25 +1367,18 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       } else if (name.startsWith(baseNameLower + ' ')) {
         const suffix = name.substring(baseNameLower.length + 1);
         const num = parseInt(suffix, 10);
-        if (!isNaN(num)) {
-          maxNumber = Math.max(maxNumber, num);
-        }
+        if (!isNaN(num)) maxNumber = Math.max(maxNumber, num);
       }
     });
-    
-    // Return next number
     return `${baseName} ${maxNumber + 1}`;
   };
 
   const deepCloneItem = (item, collectionId = null) => {
     let clonedName = item.name;
-    
-    // For requests, ensure unique name in collection
     if (item.type === 'request' && collectionId) {
       const existingNames = getAllRequestNamesInCollection(collectionId);
       let suffix = 1;
       let testName = `${item.name} Copy`;
-      
       while (existingNames.includes(testName.toLowerCase())) {
         suffix++;
         testName = `${item.name} Copy ${suffix}`;
@@ -1064,7 +1389,6 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     } else {
       clonedName = `${item.name} Clone`;
     }
-    
     const cloned = {
       ...item,
       id: `${item.id}-clone-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -1076,195 +1400,391 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     return cloned;
   };
 
-  const handleContextAction = (actionId) => {
-    if (!contextMenu) return;
+  // Handlers for collection/folder/request actions
+const handleContextAction = (actionId) => {
+  if (!contextMenu) return;
+  const item = findItemById(collections, contextMenu.itemId);
+  if (!item) return;
 
-    const item = findItemById(collections, contextMenu.itemId);
-    if (!item) return;
-
-    if (actionId === 'run-collection') {
-      if (item && item.type === 'collection' && onRunCollection) {
-        onRunCollection(item);
-      }
-    } else if (actionId === 'add-request') {
-      setSelectedCollectionId(contextMenu.itemId);
-      setShowRequestTypeModal(true);
-    } else if (actionId === 'add-folder') {
-      setSelectedCollectionId(contextMenu.itemId);
-      setShowNewFolderModal(true);
-    } else if (actionId === 'rename') {
-      setSelectedItemForRename(item);
-      setShowRenameModal(true);
-    } else if (actionId === 'clone') {
-      const parent = findParentCollection(collections, item.id);
-      const rootCollection = findRootCollection(item.id);
-      const collectionId = rootCollection ? rootCollection.id : null;
-      
-      if (parent) {
-        // Cloning a folder or request (has a parent)
-        const clonedItem = deepCloneItem(item, collectionId);
-        const newCollections = [...collections];
-        const parentInNew = findItemById(newCollections, parent.id);
-        if (parentInNew && parentInNew.items) {
-          parentInNew.items.push(clonedItem);
-          setCollections(newCollections);
-        }
-      } else {
-        // Cloning a collection (no parent)
-        const clonedCollection = deepCloneItem(item, collectionId);
-        setCollections([...collections, clonedCollection]);
-      }
-    } else if (actionId === 'delete') {
-      const removeItemById = (items, id) => {
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].id === id) {
-            items.splice(i, 1);
-            return true;
-          }
-          if (items[i].items && removeItemById(items[i].items, id)) {
-            return true;
-          }
-        }
-        return false;
-      };
-      const newCollections = [...collections];
-      removeItemById(newCollections, item.id);
-      setCollections(newCollections);
-
-      // Persist delete to backend
-      const userId = localStorage.getItem('probestack_user_id');
-      if (userId) {
-        const apiCall =
-          item.type === 'collection'
-            ? deleteCollection(item.id)
-            : deleteFolder(item.id);
-
-        apiCall.catch((err) => {
-          toast.error(
-            err.response?.data?.message || err.message || 'Failed to delete item'
-          );
-        });
-      }
-    }
-  };
-
-  const handleRequestTypeSelect = (optionId) => {
-    if (optionId === 'http') {
-      if (selectedCollectionId) {
-        // Find the root collection for this item
-        const rootCollection = findRootCollection(selectedCollectionId);
-        const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
-        
-        // Generate unique name
-        const uniqueName = generateUniqueRequestName(collectionId);
-        
-        const newRequest = {
-          id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: uniqueName,
-          method: 'GET',
-          type: 'request',
-          path: ''
+if (actionId === 'run-collection') {
+  if (item && item.type === 'collection' && onRunCollection) {
+    onRunCollection(item);
+  }
+} else if (actionId === 'add-request') {
+    setSelectedCollectionId(contextMenu.itemId);
+    setShowRequestTypeModal(true);
+  } else if (actionId === 'add-folder') {
+    setSelectedCollectionId(contextMenu.itemId);
+    setShowNewFolderModal(true);
+  } else if (actionId === 'rename') {
+    setSelectedItemForRename(item);
+    setShowRenameModal(true);
+  } else if (actionId === 'clone') {
+    if (item.type === 'collection') {
+      const workspaceId = item.project || 'default';
+      const cloneCollectionAndFetch = async () => {
+        const res = await forkCollection(item.id, workspaceId);
+        const raw = res.data;
+        const workspaceArg = {
+          id: workspaceId,
+          name: item.projectName || "Default Workspace"
         };
-        const newCollections = [...collections];
-        const collection = findItemById(newCollections, selectedCollectionId);
-        if (collection && collection.items) {
-          collection.items.push(newRequest);
-          setCollections(newCollections);
-          setExpanded((prev) => ({ ...prev, [selectedCollectionId]: true }));
-        }
-      }
-      if (onSelectEndpoint) {
-        onSelectEndpoint({ method: 'GET', path: '' });
-      }
-    }
-  };
+        const newCol = normalizeCollection(raw, workspaceArg);
 
-  const handleCreateCollection = (name, workspaceId, workspaceName) => {
-    const tempId = `col-${Date.now()}`;
-    const newCollection = {
-      id: tempId,
-      name,
-      type: 'collection',
-      project: workspaceId,
-      projectName: workspaceName,
-      items: [],
-    };
-    // Update local state immediately so the UI responds without waiting for the API
-    setCollections([...collections, newCollection]);
+        // 1. Fetch folders and requests for the new collection
+        const foldersRes = await fetchFolders(newCol.id);
+        const folders = foldersRes.data.map(normalizeFolder);
+        const requestsRes = await fetchRequests({ collectionId: newCol.id });
+        const requests = requestsRes.data.map(normalizeRequest);
 
-    // Persist to backend; swap temp ID for the real UUID on success
-    const userId = localStorage.getItem('probestack_user_id');
-    if (userId) {
-      createCollection(workspaceId, { name })
-        .then((res) => {
-          const realId = res.data?.collectionId;
-          if (realId && realId !== tempId) {
-            setCollections((prev) =>
-              prev.map((col) =>
-                col.id === tempId ? { ...col, id: realId } : col
-              )
-            );
+        // 2. Build folder hierarchy
+        const folderMap = new Map();
+        folders.forEach(f => folderMap.set(f.id, f));
+
+        const rootFolders = [];
+        folders.forEach(f => {
+          if (f.parentFolderId) {
+            const parent = folderMap.get(f.parentFolderId);
+            if (parent) {
+              if (!parent.items) parent.items = [];
+              parent.items.push(f);
+            } else {
+              rootFolders.push(f);
+            }
+          } else {
+            rootFolders.push(f);
           }
-        })
-        .catch((err) => {
-          toast.error(
-            err.response?.data?.message || err.message || 'Failed to save collection'
-          );
         });
-    }
-  };
 
-  const handleCreateFolder = (name) => {
-    if (!selectedCollectionId) return;
+        const items = [...rootFolders];
 
-    // Determine the root collection ID and optional parent folder ID
-    const rootCollection = findRootCollection(selectedCollectionId);
-    const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
-    const isFolder = selectedCollectionId !== collectionId;
-    const parentFolderId = isFolder ? selectedCollectionId : null;
+        // 3. Place requests under their parent folders
+        requests.forEach(req => {
+          if (req.folderId) {
+            const parent = folderMap.get(req.folderId);
+            if (parent) {
+              if (!parent.items) parent.items = [];
+              parent.items.push(req);
+            } else {
+              items.push(req);
+            }
+          } else {
+            items.push(req);
+          }
+        });
 
-    const tempId = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const newFolder = {
-      id: tempId,
-      name,
-      type: 'folder',
-      items: [],
-    };
+        // 4. Recursive sorting
+        const sortItems = (items) => {
+          if (!items) return;
+          items.sort((a, b) => {
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+            return (a.orderIndex || 0) - (b.orderIndex || 0);
+          });
+          items.forEach(item => {
+            if (item.items) sortItems(item.items);
+          });
+        };
+        sortItems(items);
 
-    const newCollections = [...collections];
-    const parent = findItemById(newCollections, selectedCollectionId);
-    if (parent && parent.items) {
-      parent.items.push(newFolder);
-      setCollections(newCollections);
-      setExpanded((prev) => ({ ...prev, [selectedCollectionId]: true }));
-    }
+        newCol.items = items;
+        return newCol;
+      };
 
-    // Persist to backend; swap temp ID for real UUID on success
-    const userId = localStorage.getItem('probestack_user_id');
-    if (userId) {
-      const folderPayload = { name, ...(parentFolderId && { parentFolderId }) };
-      createFolder(collectionId, folderPayload)
-        .then((res) => {
-          const realId = res.data?.FolderId || res.data?.folderId || res.data?.id;
-          if (realId && realId !== tempId) {
-            setCollections((prev) => {
-              const updated = [...prev];
-              const folderInTree = findItemById(updated, tempId);
-              if (folderInTree) folderInTree.id = realId;
+      toast.promise(
+        cloneCollectionAndFetch(),
+        {
+          loading: `Cloning "${item.name}"...`,
+          success: (newCol) => {
+            setCollections(prev => [...prev, newCol]);
+            return `Cloned as "${newCol.name}"`;
+          },
+          error: (err) => err.response?.data?.message || 'Failed to clone collection'
+        }
+      );
+    } else if (item.type === 'folder') {
+      const cloneFolderAndFetch = async () => {
+        const res = await cloneFolder(item.id);
+        const newFolder = normalizeFolder(res.data);
+        const collectionId = item.collectionId;
+
+        // Fetch all folders and requests in the collection
+        const foldersRes = await fetchFolders(collectionId);
+        const allFolders = foldersRes.data.map(normalizeFolder);
+        const requestsRes = await fetchRequests({ collectionId });
+        const allRequests = requestsRes.data.map(normalizeRequest);
+
+        // Build map of all folders
+        const folderMap = new Map();
+        allFolders.forEach(f => folderMap.set(f.id, f));
+
+        // For the new folder, we need to extract its subtree.
+        // Since all folders are already in the map, we can walk down from newFolder.id.
+        const buildSubtree = (folderId) => {
+          const folder = folderMap.get(folderId);
+          if (!folder) return null;
+          const children = allFolders.filter(f => f.parentFolderId === folderId);
+          folder.items = children.map(child => buildSubtree(child.id)).filter(Boolean);
+          // Add requests belonging to this folder
+          const folderRequests = allRequests.filter(req => req.folderId === folderId);
+          folder.items.push(...folderRequests);
+          // Sort items
+          const sortItems = (items) => {
+            if (!items) return;
+            items.sort((a, b) => {
+              if (a.type === 'folder' && b.type !== 'folder') return -1;
+              if (a.type !== 'folder' && b.type === 'folder') return 1;
+              return (a.orderIndex || 0) - (b.orderIndex || 0);
+            });
+            items.forEach(item => {
+              if (item.items) sortItems(item.items);
+            });
+          };
+          sortItems(folder.items);
+          return folder;
+        };
+
+        const populatedFolder = buildSubtree(newFolder.id);
+        return { newFolder: populatedFolder, parentId: item.parentFolderId };
+      };
+
+      toast.promise(
+        cloneFolderAndFetch(),
+        {
+          loading: `Cloning folder "${item.name}"...`,
+          success: ({ newFolder, parentId }) => {
+            setCollections(prev => {
+              const updated = structuredClone(prev);
+              const parentNode = parentId ? findItemById(updated, parentId) : null;
+              if (parentNode && parentNode.items) {
+                parentNode.items.push(newFolder);
+                // Re-sort the parent's items
+                const sortItems = (items) => {
+                  if (!items) return;
+                  items.sort((a, b) => {
+                    if (a.type === 'folder' && b.type !== 'folder') return -1;
+                    if (a.type !== 'folder' && b.type === 'folder') return 1;
+                    return (a.orderIndex || 0) - (b.orderIndex || 0);
+                  });
+                };
+                sortItems(parentNode.items);
+              } else {
+                // If no parent (should not happen for a folder), fallback to pushing at collection root
+                const collection = findItemById(updated, item.collectionId);
+                if (collection && collection.items) {
+                  collection.items.push(newFolder);
+                  sortItems(collection.items);
+                }
+              }
               return updated;
             });
-          }
-        })
-        .catch((err) => {
-          toast.error(
-            err.response?.data?.message || err.message || 'Failed to save folder'
-          );
+            return `Cloned as "${newFolder.name}"`;
+          },
+          error: (err) => err.response?.data?.message || 'Failed to clone folder'
+        }
+      );
+    } else if (item.type === 'request') {
+      toast.promise(
+        cloneRequest(item.id),
+        {
+          loading: `Cloning request "${item.name}"...`,
+          success: (res) => {
+            const newRequest = normalizeRequest(res.data);
+            const parent = findParentCollection(collections, item.id);
+            if (parent) {
+              setCollections(prev => {
+                const updated = structuredClone(prev);
+                const parentNode = findItemById(updated, parent.id);
+                if (parentNode && parentNode.items) {
+                  parentNode.items.push(newRequest);
+                  parentNode.items = sortItems(parentNode.items);
+                }
+                return updated;
+              });
+            }
+            return `Cloned as "${newRequest.name}"`;
+          },
+          error: (err) => err.response?.data?.message || 'Failed to clone request'
+        }
+      );
+    }
+  } else if (actionId === 'delete') {
+    const removeItemById = (items, id) => {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].id === id) {
+          items.splice(i, 1);
+          return true;
+        }
+        if (items[i].items && removeItemById(items[i].items, id)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const newCollections = [...collections];
+    removeItemById(newCollections, item.id);
+    setCollections(newCollections);
+
+    const userId = localStorage.getItem('probestack_user_id');
+    if (!userId) return;
+
+    let apiCall;
+    if (item.type === 'collection') apiCall = deleteCollection(item.id);
+    else if (item.type === 'folder') apiCall = deleteFolder(item.id);
+    else if (item.type === 'request') apiCall = deleteRequest(item.id);
+    else return;
+
+    apiCall.catch((err) => {
+      toast.error(err.response?.data?.message || err.message || 'Failed to delete item');
+    });
+  }
+};
+
+  const handleRequestTypeSelect = async (optionId) => {
+    if (optionId !== 'http') return;
+    if (!selectedCollectionId) {
+      toast.warning('Please select a collection or folder first');
+      return;
+    }
+
+    const rootCollection = findRootCollection(selectedCollectionId);
+    const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
+    const folderId = selectedCollectionId !== collectionId ? selectedCollectionId : null;
+
+    const uniqueName = generateUniqueRequestName(collectionId);
+
+    const payload = {
+      name: uniqueName,
+      method: 'GET',
+      url: '',
+      collection_id: collectionId,
+      folder_id: folderId,
+      headers: [],
+      query_params: [],
+      body_type: 'none',
+      auth_type: 'none',
+    };
+
+    try {
+      const response = await createRequest(payload);
+      const savedRequest = normalizeRequest(response.data);
+
+      if (onSelectEndpoint) {
+        onSelectEndpoint({
+          method: savedRequest.method || 'GET',
+          path: savedRequest.url || savedRequest.path || '',
+          name: savedRequest.name || uniqueName,
         });
+      }
+
+      setCollections((prev) => {
+        const updated = structuredClone(prev);
+        const target = findItemById(updated, selectedCollectionId);
+        if (target?.items) {
+          target.items.push(savedRequest);
+          target.items = sortItems(target.items);
+        }
+        return updated;
+      });
+
+      toast.success('Request created & opened in new tab');
+    } catch (error) {
+      console.error('Failed to create request:', error);
+      toast.error('Failed to create request');
+    }
+  };
+
+const handleCreateCollection = async (name, workspaceId, workspaceName) => {
+  const tempId = `col-${Date.now()}`;
+  const newCollection = {
+    id: tempId,
+    _key: tempId,
+    name,
+    type: 'collection',
+    project: workspaceId,
+    projectName: workspaceName,
+    items: [],
+    _tempWorkspaceId: workspaceId,
+  };
+  setCollections([...collections, newCollection]);
+
+  try {
+    const res = await createCollection(workspaceId, { name });
+    const raw = res.data;
+    const realId = raw.collectionId || raw.id;
+    if (realId) {
+      // Normalize the real collection using the same helper
+      const workspaceArg = { id: workspaceId, name: workspaceName };
+      const realCol = normalizeCollection(raw, workspaceArg);
+      // Replace the temporary with the real one (remove temp if still present)
+      setCollections(prev => {
+        const filtered = prev.filter(col => col.id !== tempId);
+        return [...filtered, realCol];
+      });
+      toast.success('Collection created');
+    }
+  } catch (err) {
+    // If creation fails, remove the temporary collection
+    setCollections(prev => prev.filter(col => col.id !== tempId));
+    toast.error(err.response?.data?.message || 'Failed to create collection');
+  }
+};
+
+  const handleCreateFolder = async (name) => {
+    if (!selectedCollectionId) {
+      toast.error("Please select a collection or folder first");
+      return;
+    }
+
+    const rootCollection = findRootCollection(selectedCollectionId);
+    const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
+    let parentFolderId = null;
+
+    if (selectedCollectionId !== collectionId) {
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedCollectionId);
+      if (isValidUUID) {
+        parentFolderId = selectedCollectionId;
+      } else {
+        console.warn("Selected parent is not a valid UUID — creating as root");
+        toast.info("Creating as root folder (unexpected parent ID)");
+      }
+    }
+
+    const payload = { name };
+    if (parentFolderId) {
+      payload.parentFolderId = parentFolderId;
+    }
+
+    try {
+      const res = await createFolder(collectionId, payload);
+      const newFolderFromBackend = normalizeFolder(res.data);
+
+      setCollections((prev) => {
+        const updated = structuredClone(prev);
+        const targetParent = findItemById(updated, selectedCollectionId);
+        if (targetParent?.items) {
+          targetParent.items.push(newFolderFromBackend);
+          targetParent.items = sortItems(targetParent.items);
+        } else {
+          const collection = findItemById(updated, collectionId);
+          if (collection?.items) {
+            collection.items.push(newFolderFromBackend);
+            collection.items = sortItems(collection.items);
+          }
+        }
+        return updated;
+      });
+
+      toast.success("Folder created successfully");
+    } catch (err) {
+      console.error("Folder creation failed:", err);
+      toast.error(err.response?.data?.message || "Failed to create folder");
     }
   };
 
   const handleRenameItem = (newName) => {
     if (!selectedItemForRename) return;
+
     const newCollections = [...collections];
     const item = findItemById(newCollections, selectedItemForRename.id);
     if (!item) return;
@@ -1272,39 +1792,32 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     item.name = newName;
     setCollections(newCollections);
 
-    // Persist rename to backend
     const userId = localStorage.getItem('probestack_user_id');
-    if (userId) {
-      const apiCall =
-        item.type === 'collection'
-          ? updateCollection(item.id, { name: newName })
-          : updateFolder(item.id, { name: newName });
+    if (!userId) return;
 
-      apiCall.catch((err) => {
-        toast.error(
-          err.response?.data?.message || err.message || 'Failed to rename item'
-        );
-      });
-    }
+    let apiCall;
+    if (item.type === 'collection') apiCall = updateCollection(item.id, { name: newName });
+    else if (item.type === 'folder') apiCall = updateFolder(item.id, { name: newName });
+    else if (item.type === 'request') apiCall = updateRequest(item.id, { name: newName });
+    else return;
+
+    apiCall.catch((err) => {
+      toast.error(err.response?.data?.message || err.message || 'Failed to rename item');
+      item.name = selectedItemForRename.name;
+      setCollections([...newCollections]);
+    });
   };
 
+  // Drag and drop handlers
   const handleDragStart = (item) => {
-    // Only allow dragging folders and requests, not collections
-    if (item.type === 'folder' || item.type === 'request') {
-      setDraggedItem(item);
-    }
+    if (item.type === 'folder' || item.type === 'request') setDraggedItem(item);
   };
 
   const handleDragOver = (e, item) => {
     e.preventDefault();
     e.stopPropagation();
-    
     if (!draggedItem) return;
-    
-    // Only allow dropping on collections and folders
-    if (item.type === 'collection' || item.type === 'folder') {
-      setDragOverItem(item.id);
-    }
+    if (item.type === 'collection' || item.type === 'folder') setDragOverItem(item.id);
   };
 
   const handleDragLeave = (e) => {
@@ -1316,45 +1829,30 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
   const handleDrop = (e, targetItem) => {
     e.preventDefault();
     e.stopPropagation();
-    
     if (!draggedItem || !targetItem) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
-
-    // Prevent dropping on self
     if (draggedItem.id === targetItem.id) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
-
-    // Only allow dropping on collections and folders
     if (targetItem.type !== 'collection' && targetItem.type !== 'folder') {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
-    // Find root collections for both dragged and target items
     const draggedRootCollection = findRootCollection(draggedItem.id);
     const targetRootCollection = findRootCollection(targetItem.id);
-
-    // Prevent dropping within the same collection EXCEPT when:
-    // - Dragging a request into a folder (allowed for organization)
-    // - Dragging a folder into another folder (allowed for nested subfolders)
-    const isSameCollection = draggedRootCollection && targetRootCollection && draggedRootCollection.id === targetRootCollection.id;
-    const isRequestToFolderInSameCollection = draggedItem.type === 'request' && targetItem.type === 'folder' && isSameCollection;
-    const isFolderToFolderInSameCollection = draggedItem.type === 'folder' && targetItem.type === 'folder' && isSameCollection;
-    
-    if (isSameCollection && !isRequestToFolderInSameCollection && !isFolderToFolderInSameCollection) {
+    if (!targetRootCollection) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
-    // Check if target is a descendant of dragged item (prevent circular reference)
     const isDescendant = (parent, childId) => {
       if (!parent.items) return false;
       for (const item of parent.items) {
@@ -1363,26 +1861,68 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       }
       return false;
     };
-
     if (isDescendant(draggedItem, targetItem.id)) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
-    // Clone the dragged item with unique naming
-    const targetRootCollectionId = targetRootCollection ? targetRootCollection.id : targetItem.id;
-    const clonedItem = deepCloneItem(draggedItem, targetRootCollectionId);
-    
-    // Add to target
-    const newCollections = [...collections];
-    const target = findItemById(newCollections, targetItem.id);
-    
-    if (target && target.items) {
-      target.items.push(clonedItem);
-      setCollections(newCollections);
-      // Auto-expand the target to show the new item
+    let newCollectionId = targetRootCollection.id;
+    let newFolderId = null;
+    if (targetItem.type === 'folder') {
+      newFolderId = targetItem.id;
+    } else if (targetItem.type === 'collection') {
+      newFolderId = null;
+    }
+
+    if (draggedItem.type === 'request') {
+      const sourceParent = findParentCollection(collections, draggedItem.id);
+      if (!sourceParent) {
+        setDraggedItem(null);
+        setDragOverItem(null);
+        return;
+      }
+
+      const moveData = {
+        targetCollectionId: newCollectionId,
+        targetFolderId: newFolderId,
+      };
+
+      setCollections(prev => {
+        const updated = structuredClone(prev);
+        const sourceParentNode = findItemById(updated, sourceParent.id);
+        if (sourceParentNode && sourceParentNode.items) {
+          const index = sourceParentNode.items.findIndex(i => i.id === draggedItem.id);
+          if (index !== -1) sourceParentNode.items.splice(index, 1);
+        }
+        const targetParentNode = findItemById(updated, targetItem.id);
+        if (targetParentNode && targetParentNode.items) {
+          draggedItem.collectionId = newCollectionId;
+          draggedItem.folderId = newFolderId;
+          targetParentNode.items.push(draggedItem);
+          targetParentNode.items = sortItems(targetParentNode.items);
+        }
+        return updated;
+      });
+
       setExpanded((prev) => ({ ...prev, [targetItem.id]: true }));
+
+      moveRequest(draggedItem.id, moveData).catch(err => {
+        toast.error('Failed to move request: ' + (err.response?.data?.message || err.message));
+      });
+    } else if (draggedItem.type === 'folder') {
+      const clonedItem = deepCloneItem(draggedItem, targetRootCollection.id);
+      setCollections(prev => {
+        const updated = structuredClone(prev);
+        const target = findItemById(updated, targetItem.id);
+        if (target && target.items) {
+          target.items.push(clonedItem);
+          target.items = sortItems(target.items);
+        }
+        return updated;
+      });
+      setExpanded((prev) => ({ ...prev, [targetItem.id]: true }));
+      toast.info('Folder cloned (move not yet implemented for folders)');
     }
 
     setDraggedItem(null);
@@ -1394,162 +1934,434 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     setDragOverItem(null);
   };
 
-  // Parse Postman collection JSON to internal format
-  const parsePostmanCollection = (postmanJson) => {
-    const parseUrl = (urlObj) => {
-      if (typeof urlObj === 'string') return urlObj;
-      if (!urlObj) return '';
-      
-      const protocol = urlObj.protocol || 'http';
-      const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
-      const port = urlObj.port ? `:${urlObj.port}` : '';
-      const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
-      const query = urlObj.query && urlObj.query.length > 0 
-        ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` 
-        : '';
-      
-      return `${protocol}://${host}${port}${path}${query}`;
-    };
+  // Parse Postman collection
+const parsePostmanCollection = (postmanJson, workspaceId, workspaceName) => {
+  const parseUrl = (urlObj) => {
+    if (typeof urlObj === 'string') return urlObj;
+    if (!urlObj) return '';
 
-    const parseHeaders = (headers) => {
-      if (!headers || !Array.isArray(headers)) return [];
-      return headers.map(h => ({
-        key: h.key || '',
-        value: h.value || '',
-        enabled: h.disabled !== true
-      }));
-    };
+    const protocol = urlObj.protocol || 'http';
+    const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
+    const port = urlObj.port ? `:${urlObj.port}` : '';
+    const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
+    const query = urlObj.query && urlObj.query.length > 0
+      ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}`
+      : '';
 
-    const parseBody = (body) => {
-      if (!body) return { type: 'none', data: '' };
-      
-      if (body.mode === 'raw') {
-        return { type: 'raw', data: body.raw || '' };
-      } else if (body.mode === 'formdata') {
-        return { 
-          type: 'form-data', 
-          data: body.formdata || [] 
-        };
-      } else if (body.mode === 'urlencoded') {
-        return { 
-          type: 'x-www-form-urlencoded', 
-          data: body.urlencoded || [] 
-        };
-      }
-      return { type: 'none', data: '' };
-    };
-
-    const parseAuth = (auth) => {
-      if (!auth || !auth.type) return { type: 'none' };
-      
-      if (auth.type === 'bearer') {
-        const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
-        return { type: 'bearer', token };
-      } else if (auth.type === 'basic') {
-        const username = auth.basic?.find(b => b.key === 'username')?.value || '';
-        const password = auth.basic?.find(b => b.key === 'password')?.value || '';
-        return { type: 'basic', username, password };
-      } else if (auth.type === 'apikey') {
-        const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
-        const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
-        const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
-        return { type: 'apikey', key, value, in: addTo };
-      }
-      return { type: 'none' };
-    };
-
-    const parseItem = (item, depth = 0) => {
-      // If item has 'request' property, it's a request
-      if (item.request) {
-        const request = item.request;
-        return {
-          id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: item.name || 'Untitled Request',
-          type: 'request',
-          method: (request.method || 'GET').toUpperCase(),
-          path: parseUrl(request.url),
-          headers: parseHeaders(request.header),
-          body: parseBody(request.body),
-          auth: parseAuth(request.auth),
-          params: request.url?.query || [],
-        };
-      }
-      
-      // If item has 'item' array, it's a folder
-      if (item.item && Array.isArray(item.item)) {
-        return {
-          id: `imported-folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: item.name || 'Untitled Folder',
-          type: 'folder',
-          icon: 'folder',
-          items: item.item.map(subItem => parseItem(subItem, depth + 1))
-        };
-      }
-      
-      return null;
-    };
-
-    // Parse the collection
-    const collectionName = postmanJson.info?.name || 'Imported Collection';
-    const items = postmanJson.item ? postmanJson.item.map(item => parseItem(item)) : [];
-    
-    return {
-      id: `imported-collection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name: collectionName,
-      type: 'collection',
-      icon: 'folder',
-      project: 'auth-security',
-      projectName: 'Auth and Security',
-      items: items.filter(Boolean)
-    };
+    return `${protocol}://${host}${port}${path}${query}`;
   };
+
+  const parseHeaders = (headers) => {
+    if (!headers || !Array.isArray(headers)) return [];
+    return headers.map(h => ({
+      key: h.key || '',
+      value: h.value || '',
+      enabled: h.disabled !== true
+    }));
+  };
+
+  const parseBody = (body) => {
+    if (!body) return { type: 'none', data: '' };
+
+    if (body.mode === 'raw') {
+      return { type: 'raw', data: body.raw || '' };
+    } else if (body.mode === 'formdata') {
+      return {
+        type: 'form-data',
+        data: body.formdata || []
+      };
+    } else if (body.mode === 'urlencoded') {
+      return {
+        type: 'x-www-form-urlencoded',
+        data: body.urlencoded || []
+      };
+    }
+    return { type: 'none', data: '' };
+  };
+
+  const parseAuth = (auth) => {
+    if (!auth || !auth.type) return { type: 'none' };
+
+    if (auth.type === 'bearer') {
+      const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+      return { type: 'bearer', token };
+    } else if (auth.type === 'basic') {
+      const username = auth.basic?.find(b => b.key === 'username')?.value || '';
+      const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+      return { type: 'basic', username, password };
+    } else if (auth.type === 'apikey') {
+      const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
+      const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
+      const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
+      return { type: 'apikey', key, value, in: addTo };
+    }
+    return { type: 'none' };
+  };
+
+  const parseItem = (item, depth = 0) => {
+    if (item.request) {
+      const request = item.request;
+      return {
+        id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: item.name || 'Untitled Request',
+        type: 'request',
+        method: (request.method || 'GET').toUpperCase(),
+        path: parseUrl(request.url),
+        headers: parseHeaders(request.header),
+        body: parseBody(request.body),
+        auth: parseAuth(request.auth),
+        params: request.url?.query || [],
+      };
+    }
+
+    if (item.item && Array.isArray(item.item)) {
+      return {
+        id: `imported-folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: item.name || 'Untitled Folder',
+        type: 'folder',
+        icon: 'folder',
+        items: item.item.map(subItem => parseItem(subItem, depth + 1))
+      };
+    }
+
+    return null;
+  };
+
+  const collectionName = postmanJson.info?.name || 'Imported Collection';
+  const items = postmanJson.item ? postmanJson.item.map(item => parseItem(item)) : [];
+
+  return {
+    id: `imported-collection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    name: collectionName,
+    type: 'collection',
+    icon: 'folder',
+    project: workspaceId,
+    projectName: workspaceName,
+    items: items.filter(Boolean)
+  };
+};
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileImport = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+const handleFileImport = (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
 
-    // Validate file type
-    if (!file.name.endsWith('.json')) {
-      alert('Please select a valid JSON file');
-      return;
-    }
+  if (!file.name.endsWith('.json')) {
+    alert('Please select a valid JSON file');
+    return;
+  }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const jsonContent = JSON.parse(e.target.result);
-        
-        // Validate it's a Postman collection
-        if (!jsonContent.info || !jsonContent.item) {
-          alert('Invalid Postman collection format');
-          return;
-        }
-
-        // Parse and add to collections
-        const importedCollection = parsePostmanCollection(jsonContent);
-        setCollections(prev => [...prev, importedCollection]);
-        
-        // Auto-expand the imported collection
-        setExpanded(prev => ({ ...prev, [importedCollection.id]: true }));
-        
-        // Reset file input
-        event.target.value = '';
-      } catch (error) {
-        console.error('Error parsing JSON:', error);
-        alert('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const jsonContent = JSON.parse(e.target.result);
+      if (!jsonContent.info || !jsonContent.item) {
+        alert('Invalid Postman collection format');
+        return;
       }
-    };
-    
-    reader.readAsText(file);
+      // Store both content and file name
+      setImportFileData({
+        content: jsonContent,
+        fileName: file.name
+      });
+      setShowImportWorkspaceModal(true);
+      event.target.value = ''; // reset input
+    } catch (error) {
+      console.error('Error parsing JSON:', error);
+      alert('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+    }
   };
+  reader.readAsText(file);
+};
+
+// Helper to extract request payload from Postman item
+const extractRequestPayload = (postmanItem, collectionId, folderId) => {
+  const request = postmanItem.request;
+  const parseUrl = (urlObj) => {
+    if (typeof urlObj === 'string') return urlObj;
+    if (!urlObj) return '';
+    const protocol = urlObj.protocol || 'http';
+    const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
+    const port = urlObj.port ? `:${urlObj.port}` : '';
+    const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
+    const query = urlObj.query?.length ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` : '';
+    return `${protocol}://${host}${port}${path}${query}`;
+  };
+  const parseHeaders = (headers) => {
+    if (!Array.isArray(headers)) return [];
+    return headers.map(h => ({ key: h.key, value: h.value, enabled: !h.disabled }));
+  };
+  const parseBody = (body) => {
+    if (!body) return { type: 'none', data: '' };
+    if (body.mode === 'raw') return { type: 'raw', data: body.raw || '' };
+    if (body.mode === 'formdata') return { type: 'form-data', data: body.formdata || [] };
+    if (body.mode === 'urlencoded') return { type: 'x-www-form-urlencoded', data: body.urlencoded || [] };
+    return { type: 'none', data: '' };
+  };
+  const parseAuth = (auth) => {
+    if (!auth || !auth.type) return { type: 'none', config: {} };
+    if (auth.type === 'bearer') {
+      const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+      return { type: 'bearer', config: { token } };
+    }
+    if (auth.type === 'basic') {
+      const username = auth.basic?.find(b => b.key === 'username')?.value || '';
+      const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+      return { type: 'basic', config: { username, password } };
+    }
+    if (auth.type === 'apikey') {
+      const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
+      const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
+      const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
+      return { type: 'apikey', config: { key, value, in: addTo } };
+    }
+    return { type: 'none', config: {} };
+  };
+
+  const body = parseBody(request.body);
+  const auth = parseAuth(request.auth);
+  const url = parseUrl(request.url);
+  const headers = parseHeaders(request.header);
+  const params = request.url?.query?.map(q => ({ key: q.key, value: q.value })) || [];
+
+  return {
+    name: postmanItem.name || 'Untitled Request',
+    method: (request.method || 'GET').toUpperCase(),
+    url,
+    headers,
+    query_params: params,
+    body_type: body.type,
+    body_content: typeof body.data === 'string' ? body.data : JSON.stringify(body.data),
+    auth_type: auth.type,
+    auth_config: auth.config,
+    pre_request_script: '',
+    test_script: '',
+    collection_id: collectionId,
+    folder_id: folderId,
+  };
+};
+
+// Recursive import function with counters
+const importItems = async (items, collectionId, parentFolderId, counts) => {
+  for (const item of items) {
+    if (item.request) {
+      // Request
+      const payload = extractRequestPayload(item, collectionId, parentFolderId);
+      try {
+        await createRequest(payload);
+        counts.success++;
+      } catch (error) {
+        counts.failure++;
+        console.error('❌ Failed to create request:', item.name, error.response?.data || error.message);
+        // Log full error details to console for debugging
+        if (error.response) {
+          console.error('Status:', error.response.status);
+          console.error('Data:', error.response.data);
+        }
+      }
+    } else if (item.item) {
+      // Folder
+      try {
+        const folderRes = await createFolder(collectionId, {
+          name: item.name || 'Untitled Folder',
+          parentFolderId,
+        });
+        const folderId = folderRes.data.FolderId || folderRes.data.folderId || folderRes.data.id;
+        if (!folderId) {
+          console.error('❌ Folder creation response missing ID:', folderRes.data);
+          counts.failure++;
+          continue;
+        }
+        counts.foldersCreated++;
+        await importItems(item.item, collectionId, folderId, counts);
+      } catch (error) {
+        counts.failure++;
+        console.error('❌ Failed to create folder:', item.name, error.response?.data || error.message);
+        if (error.response) {
+          console.error('Status:', error.response.status);
+          console.error('Data:', error.response.data);
+        }
+      }
+    }
+  }
+};
+
+const handleImportToWorkspace = async (workspaceId, workspaceName) => {
+  if (!importFileData) return;
+  const { content: postmanJson } = importFileData;
+
+  // Determine base name
+  let baseName = postmanJson.info?.name?.trim() || 'Imported Collection';
+
+  // Check for existing collections in this workspace
+  const existingNames = collections
+    .filter(c => c.project === workspaceId)
+    .map(c => c.name.toLowerCase());
+
+  let finalName = baseName;
+  let counter = 0;
+  while (existingNames.includes(finalName.toLowerCase())) {
+    counter++;
+    finalName = counter === 1 ? `${baseName} (imported)` : `${baseName} (imported ${counter})`;
+  }
+
+  const toastId = toast.loading(`Importing "${baseName}"...`);
+
+  const counts = { success: 0, failure: 0, foldersCreated: 0 };
+
+  try {
+    // Step 1: Create collection
+    const createColRes = await createCollection(workspaceId, { name: finalName });
+    const collectionId = createColRes.data.id || createColRes.data.collectionId;
+    if (!collectionId) throw new Error('Failed to create collection');
+
+    // Step 2: Recursively create folders and requests
+    await importItems(postmanJson.item || [], collectionId, null, counts);
+
+    // Step 3: Fetch the new collection's folders and requests to build tree
+    const foldersRes = await fetchFolders(collectionId);
+    const folders = foldersRes.data.map(normalizeFolder);
+    const requestsRes = await fetchRequests({ collectionId });
+    const requests = requestsRes.data.map(normalizeRequest);
+
+    // Build folder hierarchy
+    const folderMap = new Map();
+    folders.forEach(f => folderMap.set(f.id, f));
+
+    const rootFolders = [];
+    folders.forEach(f => {
+      if (f.parentFolderId) {
+        const parent = folderMap.get(f.parentFolderId);
+        if (parent) {
+          if (!parent.items) parent.items = [];
+          parent.items.push(f);
+        } else {
+          rootFolders.push(f);
+        }
+      } else {
+        rootFolders.push(f);
+      }
+    });
+
+    const items = [...rootFolders];
+
+    requests.forEach(req => {
+      if (req.folderId) {
+        const parent = folderMap.get(req.folderId);
+        if (parent) {
+          if (!parent.items) parent.items = [];
+          parent.items.push(req);
+        } else {
+          items.push(req);
+        }
+      } else {
+        items.push(req);
+      }
+    });
+
+    // Sort items
+    const sortItems = (items) => {
+      if (!items) return;
+      items.sort((a, b) => {
+        if (a.type === 'folder' && b.type !== 'folder') return -1;
+        if (a.type !== 'folder' && b.type === 'folder') return 1;
+        return (a.orderIndex || 0) - (b.orderIndex || 0);
+      });
+      items.forEach(item => {
+        if (item.items) sortItems(item.items);
+      });
+    };
+    sortItems(items);
+
+    const newCollection = {
+      id: collectionId,
+      name: finalName,
+      type: 'collection',
+      project: workspaceId,
+      projectName: workspaceName,
+      items,
+    };
+
+    setCollections(prev => [...prev, newCollection]);
+    setExpanded(prev => ({ ...prev, [newCollection.id]: true }));
+
+    // Show summary toast
+    const totalItems = counts.success + counts.failure;
+    if (counts.failure === 0) {
+      toast.success(`✅ Collection "${finalName}" imported successfully (${counts.success} requests)`, { id: toastId });
+    } else {
+      toast.warning(`⚠️ Imported with issues: ${counts.success} succeeded, ${counts.failure} failed. Check console for details.`, { id: toastId });
+    }
+  } catch (error) {
+    console.error('Import failed:', error);
+    toast.error(error.response?.data?.message || error.message || 'Import failed', { id: toastId });
+  } finally {
+    setImportFileData(null);
+  }
+};
+  // ----------------------------------------------------------------------
+  // WORKSPACE ACTIONS HANDLERS
+  // ----------------------------------------------------------------------
+
+  const handleWorkspaceAction = (actionId) => {
+    if (!workspaceMenu) return;
+
+    const { workspaceId, workspaceName, visibility } = workspaceMenu;
+
+    if (actionId === 'rename') {
+      setWorkspaceToRename({ id: workspaceId, name: workspaceName });
+      setShowRenameWorkspaceModal(true);
+    } else if (actionId === 'delete') {
+      setWorkspaceToDelete({ id: workspaceId, name: workspaceName });
+      setShowDeleteWorkspaceConfirm(true);
+    } else if (actionId === 'view-details') {
+      onOpenWorkspaceDetails?.(workspaceId);
+     }
+  };
+
+  const handleRenameWorkspace = async (newName) => {
+    if (!workspaceToRename) return;
+    try {
+      await updateWorkspace(workspaceToRename.id, { name: newName });
+      // Since projects are passed from parent, we need a way to update them.
+      // We'll assume the parent handles a refetch or we can call onAddProject again.
+      // For simplicity, we'll just show a success toast and close the modal.
+      toast.success('Workspace renamed');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Rename failed');
+    } finally {
+      setShowRenameWorkspaceModal(false);
+      setWorkspaceToRename(null);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!workspaceToDelete) return;
+    try {
+      await deleteWorkspace(workspaceToDelete.id);
+      toast.success('Workspace deleted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Delete failed');
+    } finally {
+      setShowDeleteWorkspaceConfirm(false);
+      setWorkspaceToDelete(null);
+    }
+  };
+
+  const getCollectionsCountForWorkspace = (workspaceId) => {
+    return collections.filter(c => c.project === workspaceId).length;
+  };
+
+  // ----------------------------------------------------------------------
+  // RENDER
+  // ----------------------------------------------------------------------
 
   return (
     <div className="flex flex-col h-full bg-dark-800/40">
-      {/* Postman-style: New + Import */}
+      {/* Top buttons */}
       <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
         <div className="flex gap-2">
           <button
@@ -1584,7 +2396,7 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         </div>
       </div>
 
-      {/* Search collections */}
+      {/* Search */}
       <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -1600,84 +2412,109 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
 
       {/* Tree - Grouped by Workspaces */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
-        {filteredCollections.length === 0 ? (
-          <div className="py-8 text-center text-gray-500 text-xs">No collections match your search</div>
-        ) : (
-          (() => {
-            // Group collections by workspace
-            const workspaceGroups = {};
-            filteredCollections.forEach((col) => {
-              const workspaceId = col.project || 'default';
-              const workspaceName = col.projectName || 'Default Workspace';
-              if (!workspaceGroups[workspaceId]) {
-                workspaceGroups[workspaceId] = {
-                  id: workspaceId,
-                  name: workspaceName,
-                  collections: []
-                };
+        {(() => {
+          const collectionsByWorkspace = {};
+          filteredCollections.forEach(col => {
+            const wsId = col.project || 'default';
+            if (!collectionsByWorkspace[wsId]) collectionsByWorkspace[wsId] = [];
+            collectionsByWorkspace[wsId].push(col);
+            if (col._tempWorkspaceId && col._tempWorkspaceId !== wsId) {
+              if (!collectionsByWorkspace[col._tempWorkspaceId]) {
+                collectionsByWorkspace[col._tempWorkspaceId] = [];
               }
-              workspaceGroups[workspaceId].collections.push(col);
-            });
+              if (!collectionsByWorkspace[col._tempWorkspaceId].some(c => c.id === col.id)) {
+                collectionsByWorkspace[col._tempWorkspaceId].push(col);
+              }
+            }
+          });
 
-            // Create a lookup for workspace visibility from projects
-            const workspaceVisibilityMap = {};
-            projects.forEach(p => {
-              workspaceVisibilityMap[p.id] = p.visibility || 'private';
-            });
+          if (projects.length === 0) {
+            return (
+              <div className="py-8 text-center text-gray-500 text-xs">
+                No workspaces available. Create a workspace first.
+              </div>
+            );
+          }
 
-            return Object.values(workspaceGroups).map((workspace) => (
+          return projects.map((workspace) => {
+            const workspaceCollections = collectionsByWorkspace[workspace.id] || [];
+            return (
               <div key={workspace.id} className="mb-4">
-                {/* Workspace Header */}
-                <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+                {/* Workspace Header with 3-dots button */}
+                <div className="flex items-center gap-2 px-2 py-1.5 mb-1 group">
                   <div className="flex items-center gap-1.5 flex-1">
                     <Folder className="w-4 h-4 text-primary" />
                     <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
                       {workspace.name}
                     </span>
-                    {(workspace.visibility === 'private' || workspaceVisibilityMap[workspace.id] === 'private') && (
+                    {workspace.visibility === 'private' && (
                       <Lock className="w-3 h-3 text-gray-500" title="Private Workspace" />
                     )}
                   </div>
                   <span className="text-[10px] text-gray-500 font-medium">
-                    {workspace.collections.length}
+                    {workspaceCollections.length}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setWorkspaceMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        workspaceId: workspace.id,
+                        workspaceName: workspace.name,
+                        visibility: workspace.visibility,
+                      });
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity"
+                    title="Workspace actions"
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                
+
                 {/* Collections under this workspace */}
                 <div className="ml-2">
-                  {workspace.collections.map((col) => (
-                    <CollectionNode
-                      key={col.id}
-                      item={col}
-                      expanded={expanded}
-                      onToggle={toggle}
-                      level={0}
-                      onSelectEndpoint={onSelectEndpoint}
-                      onOpenMenu={(e, item, itemType) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          itemId: item.id,
-                          type: itemType,
-                        });
-                      }}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                      dragOverItem={dragOverItem}
-                    />
-                  ))}
+                  {workspaceCollections.length === 0 ? (
+                    <div className="text-xs text-gray-500 italic px-2 py-1">
+                      No collections
+                    </div>
+                  ) : (
+                    workspaceCollections.map((col) => (
+                      <CollectionNode
+                        key={col._key || col.id}
+                        item={col}
+                        expanded={expanded}
+                        onToggle={toggle}
+                        level={0}
+                        onSelectEndpoint={onSelectEndpoint}
+                        onOpenMenu={(e, item, itemType) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            itemId: item.id,
+                            type: itemType,
+                          });
+                        }}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        dragOverItem={dragOverItem}
+                      />
+                    ))
+                  )}
                 </div>
               </div>
-            ));
-          })()
-        )}
+            );
+          });
+        })()}
       </div>
 
+      {/* Context Menus */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -1688,6 +2525,16 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         />
       )}
 
+      {workspaceMenu && (
+        <WorkspaceContextMenu
+          x={workspaceMenu.x}
+          y={workspaceMenu.y}
+          onClose={() => setWorkspaceMenu(null)}
+          onAction={handleWorkspaceAction}
+        />
+      )}
+
+      {/* Modals */}
       <NewWorkspaceModal
         isOpen={showNewWorkspaceModal}
         onClose={() => setShowNewWorkspaceModal(false)}
@@ -1733,9 +2580,59 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         itemType={selectedItemForRename?.type || 'request'}
         onRename={handleRenameItem}
       />
+
+      {/* Workspace Rename Modal */}
+      <RenameModal
+        isOpen={showRenameWorkspaceModal}
+        onClose={() => {
+          setShowRenameWorkspaceModal(false);
+          setWorkspaceToRename(null);
+        }}
+        currentName={workspaceToRename?.name || ''}
+        itemType="workspace"
+        onRename={handleRenameWorkspace}
+      />
+
+      {/* Workspace Delete Confirmation */}
+      <DeleteWorkspaceConfirmModal
+        isOpen={showDeleteWorkspaceConfirm}
+        onClose={() => {
+          setShowDeleteWorkspaceConfirm(false);
+          setWorkspaceToDelete(null);
+        }}
+        workspaceName={workspaceToDelete?.name || ''}
+        onConfirm={handleDeleteWorkspace}
+      />
+
+      {/* Workspace Details Modal */}
+      <WorkspaceDetailsModal
+        isOpen={showWorkspaceDetailsModal}
+        onClose={() => {
+          setShowWorkspaceDetailsModal(false);
+          setWorkspaceToView(null);
+        }}
+        workspace={workspaceToView}
+        collectionsCount={workspaceToView ? getCollectionsCountForWorkspace(workspaceToView.id) : 0}
+      />
+
+<ImportWorkspaceModal
+  isOpen={showImportWorkspaceModal}
+  onClose={() => {
+    setShowImportWorkspaceModal(false);
+    setImportFileData(null);
+  }}
+  onImport={handleImportToWorkspace}
+  projects={projects}
+  onAddProject={onAddProject}
+  fileName={importFileData?.fileName}
+/>
     </div>
   );
 }
+
+// ----------------------------------------------------------------------
+// COLLECTION NODE COMPONENT
+// ----------------------------------------------------------------------
 
 function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem }) {
   const isExpanded = expanded[item.id];
@@ -1749,14 +2646,12 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
 
   const handleRowClick = () => {
     if (isRequest && onSelectEndpoint) {
-      onSelectEndpoint({ method: item.method, path: item.path || '/', name: item.name });
+      onSelectEndpoint(item);
     } else if (!isRequest) {
       onToggle(item.id);
     }
   };
 
-  // Indentation: 16px per nesting level (industry standard like VS Code/Postman)
-  // Level 0 (collection): 0px, Level 1: 16px, Level 2: 32px, etc.
   const indentPx = level * 16;
 
   return (
@@ -1817,10 +2712,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
             {item.method}
           </span>
         ) : item.icon === 'globe' ? (
-          <Globe
-            className="w-4 h-4 shrink-0 text-sky-400/90"
-            aria-hidden
-          />
+          <Globe className="w-4 h-4 shrink-0 text-sky-400/90" aria-hidden />
         ) : (
           <Folder
             className={clsx(

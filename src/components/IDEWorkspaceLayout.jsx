@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState,useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
@@ -11,6 +11,10 @@ import DashboardSpecTable from './DashboardSpecTable';
 import GenerateTestCase from './GenerateTestCase';
 import AIAssisted from '../pages/AIAssisted';
 import clsx from 'clsx';
+import EnvironmentList from './sidebar/EnvironmentList';
+import EnvironmentDropdown from './sidebar/EnvironmentDropdown';
+import CreateMockServiceModal from '../components/modals/CreateMockServiceModal';
+import { runMockServer } from '../services/mockServerService';
 
 export default function IDEWorkspaceLayout({
   history,
@@ -54,9 +58,7 @@ export default function IDEWorkspaceLayout({
   onCollectionsChange,
   onDeleteHistoryItem,
   environmentVariables,
-  globalVariables,
   onEnvironmentVariablesChange,
-  onGlobalVariablesChange,
   onSaveEnvironmentVariables,
   onSaveGlobalVariables,
   substituteVariables,
@@ -70,9 +72,36 @@ export default function IDEWorkspaceLayout({
   onDeleteMock,
   onRenameMock,
   onSelectMockRequest,
+  isSavedRequest,
+  onUpdateRequest,
+  pristineRequests,
+  onCreateEnvironment,
+  onActivateEnvironment,
+  onRenameEnvironment,
+  onDeleteEnvironment,
+  environmentVariablesDirty,
+      globalEnvironment,
+    globalVariablesDirty,
+    onGlobalVariablesChange,
+      mockServers,
+  isLoadingMocks,
+  onCreateMockServer,
+  onRenameMockServer,
+  onDeleteMockServer,
+  onToggleVisibility,
+  onExecuteMockRequest,
+  onSelectMockEndpoint,
+  onUpdateMockServer,
+  onOpenWorkspaceDetails,
+  currentUserId,
+      onWorkspaceUpdate,
+  onWorkspaceDelete,
+  onMockServerRun,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const globalVariables = globalEnvironment?.variables || [];
+
   const getTopMenuFromPath = (pathname) => {
     if (pathname.includes('/workspace/history')) return 'history';
     if (pathname.includes('/workspace/variables')) return 'environments';
@@ -93,6 +122,7 @@ export default function IDEWorkspaceLayout({
     if (menuId === 'dashboard') return '/workspace/dashboard';
     return '/workspace/collections';
   };
+  const [expandedMockServers, setExpandedMockServers] = useState({});
   const [topMenuActive, setTopMenuActive] = useState(() => getTopMenuFromPath(location.pathname));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     // Sidebar should be collapsed by default on dashboard and ai-assisted pages
@@ -103,6 +133,14 @@ export default function IDEWorkspaceLayout({
   const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
   const [variablesScope, setVariablesScope] = useState('environment-scope');
   
+  // IDEWorkspaceLayout.jsx
+const activeEnvironment = environments.find(env => env.isActive);
+const activeEnvVars = new Set(activeEnvironment?.variables?.map(v => v.key) || []);
+const inactiveEnvVars = new Set(
+  environments
+    .filter(env => !env.isActive)
+    .flatMap(env => env.variables?.map(v => v.key) || [])
+);
   // Collapse sidebar when navigating to dashboard or ai-assisted, expand when leaving
   useEffect(() => {
     if (topMenuActive === 'dashboard' || topMenuActive === 'ai-assisted') {
@@ -110,11 +148,15 @@ export default function IDEWorkspaceLayout({
     }
   }, [topMenuActive]);
 
+  useEffect(() => {
+}, [environmentVariablesDirty, selectedEnvironment]);
+
   // History menu state
   const [historyMenu, setHistoryMenu] = useState(null);
   const [showHistorySaveModal, setShowHistorySaveModal] = useState(false);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
   const [selectedHistoryIndex, setSelectedHistoryIndex] = useState(null);
+  const [isRunningCollection, setIsRunningCollection] = useState(false);
 
   // Variables save feedback: 'environment' | 'global' | null, cleared after delay
   const [variablesSavedMessage, setVariablesSavedMessage] = useState(null);
@@ -186,6 +228,65 @@ export default function IDEWorkspaceLayout({
     onTestFilesChange?.((prev) => prev.filter(f => f.id !== fileId));
   };
 
+const handleRunMockServer = async (mockServer) => {
+  if (!mockServer.endpoints || mockServer.endpoints.length === 0) return;
+
+  setIsRunningCollection(true);
+  const startTime = new Date().toISOString();
+
+  // Update UI to show running state
+  onMockServerRun({
+    collectionName: mockServer.name,
+    startTime,
+    status: 'running',
+    results: []
+  });
+
+  try {
+    const response = await runMockServer(mockServer.id);
+    const backendResult = response.data;
+
+    // Map backend results to frontend format expected by Collection Run tab
+    const mappedResults = backendResult.results.map(r => ({
+      requestId: r.endpointId,
+      requestName: `${r.method} ${r.path}`,
+      method: r.method,
+      url: `/api/v1/mocks/${mockServer.mockUrl}${r.path}`,
+      folderPath: 'Mock Server',
+      status: r.statusCode,
+      statusText: r.statusText,
+      time: r.responseTimeMs,
+      size: 0, // not provided by backend
+      data: null,
+      success: r.success,
+      error: r.errorMessage
+    }));
+
+    onMockServerRun({
+      collectionName: mockServer.name,
+      startTime,
+      endTime: new Date().toISOString(),
+      status: 'completed',
+      totalRequests: backendResult.totalEndpoints,
+      passedRequests: backendResult.successCount,
+      failedRequests: backendResult.failureCount,
+      results: mappedResults
+    });
+  } catch (error) {
+    console.error('Mock server run failed:', error);
+    onMockServerRun({
+      collectionName: mockServer.name,
+      startTime,
+      endTime: new Date().toISOString(),
+      status: 'failed',
+      error: error.response?.data?.message || error.message,
+      results: []
+    });
+  } finally {
+    setIsRunningCollection(false);
+  }
+};
+
   // Functional Testing states
   const [functionalRunMode, setFunctionalRunMode] = useState('manual');
   const [functionalIterations, setFunctionalIterations] = useState(1);
@@ -213,6 +314,31 @@ export default function IDEWorkspaceLayout({
   const [showCreateMockServiceModal, setShowCreateMockServiceModal] = useState(false);
   const [editingMockId, setEditingMockId] = useState(null);
   const [editingMockName, setEditingMockName] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const confirmRef = useRef(null);
+
+  useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (mockMenu) {
+      const menuElement = document.querySelector('.mock-menu');
+      if (menuElement && !menuElement.contains(e.target)) {
+        setMockMenu(null);
+      }
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, [mockMenu]);
+
+useEffect(() => {
+  const handleClickOutsideConfirm = (e) => {
+    if (deleteConfirm && !confirmRef.current?.contains(e.target)) {
+      setDeleteConfirm(null);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutsideConfirm);
+  return () => document.removeEventListener('mousedown', handleClickOutsideConfirm);
+}, [deleteConfirm]);
 
   // Handler for Functional Testing Run Collection
   const handleRunFunctionalTest = () => {
@@ -524,20 +650,17 @@ export default function IDEWorkspaceLayout({
             />
           </div>
           <div className="flex-1 flex justify-end">
-            <div className="relative min-w-[140px]">
-              <select
-                value={selectedEnvironment}
-                onChange={(e) => onEnvironmentChange && onEnvironmentChange(e.target.value)}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-medium text-white py-2 pl-3 pr-8 appearance-none focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer"
-              >
-                {environments.map((env) => (
-                  <option key={env.id} value={env.id} className="bg-dark-800 text-white">
-                    {env.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
-            </div>
+{/* Environment selector */}
+<div className="relative min-w-[180px]">
+  <EnvironmentDropdown
+    environments={environments}
+    activeEnvironmentId={environments.find(e => e.isActive)?.id || 'no-env'}
+    onSelect={(envId) => {
+      // Activate the selected environment (which also sets it as the editing target)
+      onActivateEnvironment?.(envId);
+    }}
+  />
+</div>
           </div>
         </div>
       </header>
@@ -575,6 +698,8 @@ export default function IDEWorkspaceLayout({
                   onAddProject={onAddProject}
                   onCollectionsChange={onCollectionsChange}
                   onRunCollection={onRunCollection}
+                  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+                  currentUserId={currentUserId}
                 />
               </div>
             )}
@@ -657,84 +782,26 @@ export default function IDEWorkspaceLayout({
               </div>
             )}
             {topMenuActive === 'environments' && (
-              <div className="flex-1 flex flex-col p-4">
-                {/* Scope Selection Cards */}
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                      Environment Scope
-                    </div>
-                    <div className="space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => setVariablesScope('environment-scope')}
-                        className={clsx(
-                          'w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-                          variablesScope === 'environment-scope'
-                            ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
-                        )}
-                      >
-                        <span>Environment Scope</span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          {variablesSavedMessage === 'environment' && (
-                            <span className="text-xs font-medium text-primary">Saved</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSaveEnvironmentVariables?.();
-                              showVariablesSaved('environment');
-                            }}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors"
-                            title="Save environment variables"
-                          >
-                            <Save className="w-4 h-4" />
-                          </button>
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
-                    <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                      Global Scope
-                    </div>
-                    <div className="space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => setVariablesScope('global-scope')}
-                        className={clsx(
-                          'w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-                          variablesScope === 'global-scope'
-                            ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                            : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
-                        )}
-                      >
-                        <span>Global Scope</span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          {variablesSavedMessage === 'global' && (
-                            <span className="text-xs font-medium text-primary">Saved</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSaveGlobalVariables?.();
-                              showVariablesSaved('global');
-                            }}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors"
-                            title="Save global variables"
-                          >
-                            <Save className="w-4 h-4" />
-                          </button>
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+  <EnvironmentList
+    environments={environments}
+    selectedEnvironment={selectedEnvironment}
+    onEnvironmentChange={onEnvironmentChange}
+    variablesScope={variablesScope}
+    setVariablesScope={setVariablesScope}
+    variablesSavedMessage={variablesSavedMessage}
+    showVariablesSaved={showVariablesSaved}
+    onSaveEnvironmentVariables={onSaveEnvironmentVariables}
+    onSaveGlobalVariables={onSaveGlobalVariables}
+    onCreateEnvironment={onCreateEnvironment}
+    onActivateEnvironment={onActivateEnvironment}
+    onRenameEnvironment={onRenameEnvironment}
+    onDeleteEnvironment={onDeleteEnvironment}
+    environmentVariablesDirty={environmentVariablesDirty}
+        globalEnvironment={globalEnvironment} 
+    globalVariablesDirty={globalVariablesDirty}
+    onGlobalVariablesChange={onGlobalVariablesChange} 
+  />
+)}
             {topMenuActive === 'testing' && (
               <div className="flex-1 flex flex-col p-4">
                 <div className="space-y-3">
@@ -766,154 +833,238 @@ export default function IDEWorkspaceLayout({
                 </div>
               </div>
             )}
-            {topMenuActive === 'mock-service' && (
-              <div className="flex-1 flex flex-col p-4 min-h-0">
-                {/* Search and Create Mock Service Button */}
-                <div className="mb-4 shrink-0 space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+{topMenuActive === 'mock-service' && (
+  <div className="flex-1 flex flex-col min-h-0">
+    {/* Create Mock Service Button */}
+    <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
+<button
+  type="button"
+  onClick={() => setShowCreateMockServiceModal(true)}
+  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-4 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+>
+  <Plus className="w-4 h-4" />
+  Create Mock Service
+</button>
+    </div>
+
+    {/* Search */}
+    <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Search mock servers..."
+          value={mockSearch}
+          onChange={(e) => setMockSearch(e.target.value)}
+          className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        />
+      </div>
+    </div>
+
+    {/* Mock Servers Tree */}
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
+      {mockServers && mockServers.length > 0 ? (
+        <div className="space-y-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Mocks</h3>
+          {mockServers.map((mock) => {
+            const isExpanded = expandedMockServers[mock.id];
+            const filteredEndpoints = mock.endpoints?.filter(ep =>
+              ep.path.toLowerCase().includes(mockSearch.toLowerCase()) ||
+              ep.method.toLowerCase().includes(mockSearch.toLowerCase())
+            ) || [];
+            const hasVisibleEndpoints = filteredEndpoints.length > 0;
+
+            return (
+              <div key={mock.id} className="select-none">
+                {/* Mock Server Row */}
+<div
+  className="flex items-center gap-1 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50"
+  onClick={() => setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }))}
+>
+                  {/* Expand/collapse chevron */}
+                  <div
+                    className="w-4 h-4 flex items-center justify-center shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }));
+                    }}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+                    )}
+                  </div>
+
+                  <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
+                  {editingMockId === mock.id ? (
                     <input
                       type="text"
-                      placeholder="Search services..."
-                      value={mockSearch}
-                      onChange={(e) => setMockSearch(e.target.value)}
-                      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      value={editingMockName}
+                      onChange={(e) => setEditingMockName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          onRenameMockServer(mock.id, editingMockName.trim());
+                          setEditingMockId(null);
+                          setEditingMockName('');
+                        } else if (e.key === 'Escape') {
+                          setEditingMockId(null);
+                          setEditingMockName('');
+                        }
+                      }}
+                      onBlur={() => {
+                        if (editingMockName.trim() && editingMockName !== mock.name) {
+                          onRenameMockServer(mock.id, editingMockName.trim());
+                        }
+                        setEditingMockId(null);
+                        setEditingMockName('');
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
                     />
-                  </div>
+                  ) : (
+                    <span className="text-xs font-medium text-gray-200 flex-1 truncate">{mock.name}</span>
+                  )}
+                  <span className="text-[10px] text-gray-500">
+                    {mock.endpoints?.length || 0} endpoint{(mock.endpoints?.length || 0) !== 1 ? 's' : ''}
+                  </span>
+
                   <button
                     type="button"
-                    onClick={() => setShowCreateMockServiceModal(true)}
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-primary hover:bg-primary/90 text-white transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMockMenu({ x: e.clientX, y: e.clientY, mock });
+                    }}
+                    className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
+                    title="Actions"
                   >
-                    <Plus className="w-4 h-4" />
-                    Create Mock Service
+                    <MoreHorizontal className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 space-y-4">
-                  {/* Created Mocks Section */}
-                  {mockApis && mockApis.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">Available Mocks</h3>
-                      {mockApis.map((mock) => (
-                        <div 
-                          key={mock.id} 
-                          onClick={() => onSelectMockRequest(mock)}
-                          className="group rounded-xl border border-dark-700 bg-dark-800/60 p-3 hover:border-primary/30 transition-all cursor-pointer"
+                {/* Endpoints List */}
+                {isExpanded && hasVisibleEndpoints && (
+                  <div className="ml-6 space-y-0.5 mt-0.5">
+                    {filteredEndpoints.map((ep) => (
+                      <div
+                        key={ep.id}
+                        className="flex items-center gap-1 py-1 px-2 rounded-md group cursor-pointer hover:bg-dark-700/30"
+                        onClick={() => onSelectMockEndpoint(mock, ep)}
+                      >
+                        <span
+                          className={clsx(
+                            'text-[10px] font-bold w-9 text-right shrink-0',
+                            ep.method === 'GET' && 'text-green-400',
+                            ep.method === 'POST' && 'text-yellow-400',
+                            ep.method === 'PUT' && 'text-blue-400',
+                            ep.method === 'DELETE' && 'text-red-400',
+                            !['GET','POST','PUT','DELETE'].includes(ep.method) && 'text-purple-400'
+                          )}
                         >
-                          <div className="flex items-start gap-2">
-                            <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
-                            <div className="flex-1 min-w-0">
-                              {editingMockId === mock.id ? (
-                                <input
-                                  type="text"
-                                  value={editingMockName}
-                                  onChange={(e) => setEditingMockName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      if (editingMockName.trim()) {
-                                        onRenameMock(mock.id, editingMockName.trim());
-                                      }
-                                      setEditingMockId(null);
-                                      setEditingMockName('');
-                                    } else if (e.key === 'Escape') {
-                                      setEditingMockId(null);
-                                      setEditingMockName('');
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    if (editingMockName.trim()) {
-                                      onRenameMock(mock.id, editingMockName.trim());
-                                    }
-                                    setEditingMockId(null);
-                                    setEditingMockName('');
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  autoFocus
-                                  className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                              ) : (
-                                <>
-                                  <p className="text-xs font-medium text-white truncate">{mock.name}</p>
-                                  <p className="text-[10px] text-gray-500 truncate">
-                                    {mock.requests?.length || 0} {mock.requests?.length === 1 ? 'request' : 'requests'} • {mock.type}
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMockMenu({ x: e.clientX, y: e.clientY, mockId: mock.id, mockName: mock.name });
-                              }}
-                              className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
-                              title="Actions"
-                            >
-                              <MoreHorizontal className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Collection Requests Section */}
-                  <div className="space-y-2">
-                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Collection Requests</h3>
-                    {collections && collections.length > 0 ? (
-                      <MockServiceCollectionTree
-                        collections={collections}
-                        mockApis={mockApis}
-                        searchQuery={mockSearch}
-                        onSelectRequest={(request) => {
-                          setSelectedMockRequest(request);
-                          setShowMockModal(true);
-                        }}
-                        onSelectMockRequest={onSelectMockRequest}
-                      />
-                    ) : (
-                      <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-4 text-center">
-                        <p className="text-xs text-gray-500">No collections available</p>
-                        <p className="text-[10px] text-gray-600 mt-1">Create collections in the Collections tab</p>
+                          {ep.method}
+                        </span>
+                        <span className="text-xs text-gray-300 truncate flex-1">{ep.path}</span>
+                        <span className="text-[10px] text-gray-500">{ep.responseStatus || 200}</span>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Mock Menu (Delete and Rename actions) */}
-                {mockMenu && (
-                  <div
-                    className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
-                    style={{ left: mockMenu.x, top: mockMenu.y }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingMockId(mockMenu.mockId);
-                        setEditingMockName(mockMenu.mockName);
-                        setMockMenu(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onDeleteMock(mockMenu.mockId);
-                        setMockMenu(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </button>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500 text-xs">
+          No mock servers yet. Create one to get started.
+        </div>
+      )}
+    </div>
+
+    {/* Mock Menu (Delete, Rename, Toggle) */}
+    {mockMenu && (
+      <div
+        className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl mock-menu"
+        style={{ left: mockMenu.x, top: mockMenu.y }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            handleRunMockServer(mockMenu.mock);
+            setMockMenu(null);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+        >
+          <Play className="w-4 h-4" />
+          Run
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingMockId(mockMenu.mock.id);
+            setEditingMockName(mockMenu.mock.name);
+            setMockMenu(null);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+        >
+          <Edit3 className="w-4 h-4" />
+          Rename
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedMockRequest(mockMenu.mock);
+            setShowCreateMockServiceModal(true);
+            setMockMenu(null);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Edit / Add endpoints
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setDeleteConfirm({ mockId: mockMenu.mock.id, x: mockMenu.x, y: mockMenu.y });
+            setMockMenu(null);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete
+        </button>
+      </div>
+    )}
+
+    {/* Delete Confirmation */}
+    {deleteConfirm && (
+      <div
+        ref={confirmRef}
+        className="fixed z-50 min-w-[180px] p-3 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+        style={{ left: deleteConfirm.x, top: deleteConfirm.y }}
+      >
+        <p className="text-xs text-gray-300 mb-3">Delete this mock server?</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setDeleteConfirm(null)}
+            className="px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              onDeleteMockServer(deleteConfirm.mockId);
+              setDeleteConfirm(null);
+            }}
+            className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
             {topMenuActive === 'settings-general' && (
               <div className="flex-1 flex flex-col p-4">
                 <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
@@ -1417,6 +1568,16 @@ export default function IDEWorkspaceLayout({
                 onAddProject={onAddProject}
                 substituteVariables={substituteVariables}
                 collectionRunResults={collectionRunResults}
+                isSavedRequest={isSavedRequest}
+                onUpdateRequest={onUpdateRequest}
+                pristineRequests={pristineRequests}
+                activeEnvVars={activeEnvVars}
+                inactiveEnvVars={inactiveEnvVars}
+                hideNewButton={topMenuActive === 'mock-service'}
+                hideSaveButton={topMenuActive === 'mock-service'}
+                currentUserId={currentUserId}
+                    onWorkspaceUpdate={onWorkspaceUpdate}
+  onWorkspaceDelete={onWorkspaceDelete}
               />
             )}
           </div>
@@ -1698,15 +1859,19 @@ export default function IDEWorkspaceLayout({
       )}
 
       {/* Create Mock Service Modal */}
-      {showCreateMockServiceModal && (
-        <CreateMockServiceModal
-          onClose={() => setShowCreateMockServiceModal(false)}
-          onCreateMock={(specMock) => {
-            onCreateMock(specMock);
-            setShowCreateMockServiceModal(false);
-          }}
-        />
-      )}
+{showCreateMockServiceModal && (
+<CreateMockServiceModal
+  onClose={() => {
+    setShowCreateMockServiceModal(false);
+    setSelectedMockRequest(null); // ← Add this line
+  }}
+  onCreateMockServer={onCreateMockServer} 
+  onUpdateMockServer={onUpdateMockServer} 
+  mockServer={selectedMockRequest} 
+  collections={collections} 
+  initialRequest={selectedMockRequest} 
+/>
+)}
     </div>
   );
 }
@@ -1783,196 +1948,10 @@ function MockCreationModal({ request, onClose, onCreateMock }) {
   );
 }
 
-// Create Mock Service Modal Component with spec selection
-function CreateMockServiceModal({ onClose, onCreateMock }) {
-  const [selectedSpec, setSelectedSpec] = useState('');
-  const [mockServiceName, setMockServiceName] = useState('');
-  const [status, setStatus] = useState('form'); // 'form' | 'creating' | 'success'
 
-  // Dummy spec data
-  const dummySpecs = [
-    { id: 'payment-api-v1', name: 'Payment API v1.0', version: '1.0.0', endpoints: 8 },
-    { id: 'user-mgmt-v2', name: 'User Management API v2.0', version: '2.0.1', endpoints: 12 },
-    { id: 'order-service-v1', name: 'Order Service API v1.5', version: '1.5.2', endpoints: 15 },
-    { id: 'inventory-api-v3', name: 'Inventory API v3.0', version: '3.0.0', endpoints: 10 },
-    { id: 'notification-v1', name: 'Notification Service v1.0', version: '1.0.3', endpoints: 6 }
-  ];
-
-  const selectedSpecData = dummySpecs.find(s => s.id === selectedSpec);
-
-  const handleCreate = () => {
-    if (!selectedSpec || !mockServiceName.trim()) return;
-
-    setStatus('creating');
-
-    // Simulate creation process
-    setTimeout(() => {
-      setStatus('success');
-      
-      // Create dummy mock with spec data
-      const specMock = {
-        id: `spec-mock-${Date.now()}`,
-        name: mockServiceName.trim(),
-        type: 'collection',
-        specId: selectedSpec,
-        specName: selectedSpecData.name,
-        requests: Array.from({ length: selectedSpecData.endpoints }, (_, i) => ({
-          id: `spec-req-${i}`,
-          name: `Endpoint ${i + 1}`,
-          method: ['GET', 'POST', 'PUT', 'DELETE'][i % 4],
-          path: `/api/v1/endpoint-${i + 1}`,
-          mockUrl: `api.probestack.io/api/v1/endpoint-${i + 1}`,
-          folderPath: 'Root',
-          mockResponse: { message: `Mock response for endpoint ${i + 1}`, data: { id: i + 1 } }
-        })),
-        createdAt: new Date().toISOString()
-      };
-
-      onCreateMock(specMock);
-
-      // Auto close after showing success
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-    }, 2000);
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h3 className="text-base font-semibold text-white">
-            {status === 'form' ? 'Create Mock Service' : status === 'creating' ? 'Creating Mock Service...' : 'Mock Service Created!'}
-          </h3>
-          {status !== 'creating' && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        <div className="p-5">
-          {status === 'form' ? (
-            <div className="space-y-4">
-              {/* Mock Service Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Mock Service Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={mockServiceName}
-                  onChange={(e) => setMockServiceName(e.target.value)}
-                  placeholder="Enter mock service name"
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
-              </div>
-
-              {/* Spec Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Select Specification <span className="text-red-400">*</span>
-                </label>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-                  {dummySpecs.map((spec) => (
-                    <div
-                      key={spec.id}
-                      onClick={() => setSelectedSpec(spec.id)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                        selectedSpec === spec.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-dark-600 hover:border-primary/50 hover:bg-dark-700/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
-                          selectedSpec === spec.id
-                            ? 'border-primary bg-primary'
-                            : 'border-dark-500'
-                        }`}>
-                          {selectedSpec === spec.id && (
-                            <Check className="w-3 h-3 text-white" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-white text-sm">{spec.name}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">Version: {spec.version} • {spec.endpoints} endpoints</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Spec Information */}
-              {selectedSpecData && (
-                <div className="p-4 rounded-lg bg-dark-900/60 border border-dark-700 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Spec Name</span>
-                    <span className="text-xs text-white font-medium">{selectedSpecData.name}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Version</span>
-                    <span className="text-xs text-white font-medium">{selectedSpecData.version}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Endpoints</span>
-                    <span className="text-xs text-white font-medium">{selectedSpecData.endpoints}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Create Button */}
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={!selectedSpec || !mockServiceName.trim()}
-                className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Create Mock Service
-              </button>
-            </div>
-          ) : status === 'creating' ? (
-            <div className="flex flex-col items-center py-8">
-              {/* Animated loader */}
-              <div className="relative w-16 h-16 mb-4">
-                <div className="absolute inset-0 border-4 border-dark-700 rounded-full" />
-                <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-              <p className="text-sm text-gray-400">Setting up mock service...</p>
-              <p className="text-xs text-gray-500 mt-1 font-mono">{selectedSpecData?.name}</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center py-4">
-              {/* Success checkmark */}
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-                <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <p className="text-sm text-green-400 font-medium mb-1">Mock service created successfully!</p>
-              <p className="text-xs text-gray-400 mt-1">{selectedSpecData?.endpoints} endpoints mocked</p>
-              <p className="text-xs text-gray-500 mt-3">Closing automatically...</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Mock Service Collection Tree Component - Read-only view of collections with Mock API action
-function MockServiceCollectionTree({ collections, mockApis, searchQuery, onSelectRequest, onSelectMockRequest }) {
+function MockServiceCollectionTree({ collections, mockServers, searchQuery, onSelectRequest}) {
   // Auto-expand all collections that have children on initial load
   const getInitialExpandedState = () => {
     const initial = {};
@@ -2009,12 +1988,19 @@ function MockServiceCollectionTree({ collections, mockApis, searchQuery, onSelec
     setContextMenu(null);
   };
 
-  const handleMockAction = () => {
-    if (contextMenu?.item) {
-      onSelectRequest(contextMenu.item);
-    }
-    setContextMenu(null);
-  };
+const handleMockAction = (actionId) => {
+  if (!mockMenu) return;
+  const { mockId, mockName } = mockMenu;
+  if (actionId === 'rename') {
+    setEditingMockId(mockId);
+    setEditingMockName(mockName);
+  } else if (actionId === 'delete') {
+    onDeleteMockServer(mockId);
+  } else if (actionId === 'toggle') {
+    onToggleVisibility(mockId);
+  }
+  setMockMenu(null);
+};
 
   // Filter tree based on search query
   const filterTree = (items, q) => {
@@ -2065,14 +2051,19 @@ function MockServiceCollectionTree({ collections, mockApis, searchQuery, onSelec
     });
   };
 
+  
+
   // Check if a request is already mocked
   const isRequestMocked = (requestId) => {
-    return mockApis.some(m => m.originalRequestId === requestId);
+    return mockServers.some(mock => 
+      mock.endpoints?.some(ep => ep.originalRequestId === requestId)
+    );
   };
 
-  // Get mock for a request if it exists
   const getMockForRequest = (requestId) => {
-    return mockApis.find(m => m.originalRequestId === requestId);
+    return mockServers.find(mock => 
+      mock.endpoints?.some(ep => ep.originalRequestId === requestId)
+    );
   };
 
   return (
@@ -2103,7 +2094,7 @@ function MockServiceCollectionTree({ collections, mockApis, searchQuery, onSelec
                 isRequestMocked={isRequestMocked}
                 getMockForRequest={getMockForRequest}
                 onSelectRequest={onSelectRequest}
-                onSelectMockRequest={onSelectMockRequest}
+                onSelectMockRequest={onSelectRequest}
                 onOpenMenu={handleOpenMenu}
               />
             ))}
@@ -2135,6 +2126,8 @@ function MockServiceCollectionTree({ collections, mockApis, searchQuery, onSelec
       )}
     </div>
   );
+
+  
 }
 
 // Individual node component for the mock service collection tree
@@ -2151,7 +2144,7 @@ function MockCollectionNode({ item, expanded, onToggle, level, sortItems, isRequ
       const mock = getMockForRequest(item.id);
       if (mock) {
         // If mocked, use the mock URL
-        onSelectMockRequest(mock);
+        onSelectRequest(item); 
       } else {
         // If not mocked, populate with the original request for testing
         onSelectMockRequest({

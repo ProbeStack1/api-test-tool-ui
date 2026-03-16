@@ -1,4 +1,4 @@
-import apiClient from '../lib/apiClient';
+import {collectionApi} from '../lib/apiClient';
 
 const COLLECTIONS_BASE = '/api/v1/collections';
 
@@ -52,7 +52,7 @@ export const normalizeFolder = (folder) => ({
  * @param {string} workspaceId
  */
 export const fetchCollections = (workspaceId) =>
-  apiClient.get(COLLECTIONS_BASE, { params: { workspaceId } });
+  collectionApi.get(COLLECTIONS_BASE, { params: { workspaceId } });
 
 /**
  * POST /api/v1/collections?workspaceId=
@@ -61,7 +61,7 @@ export const fetchCollections = (workspaceId) =>
  * @param {{ name: string, description?: string, version?: string, visibility?: string }} data
  */
 export const createCollection = (workspaceId, data) =>
-  apiClient.post(COLLECTIONS_BASE, data, { params: { workspaceId } });
+  collectionApi.post(COLLECTIONS_BASE, data, { params: { workspaceId } });
 
 /**
  * PUT /api/v1/collections/{collectionId}
@@ -70,7 +70,7 @@ export const createCollection = (workspaceId, data) =>
  * @param {{ name?: string, description?: string, version?: string, visibility?: string }} data
  */
 export const updateCollection = (id, data) =>
-  apiClient.put(`${COLLECTIONS_BASE}/${id}`, data);
+  collectionApi.put(`${COLLECTIONS_BASE}/${id}`, data);
 
 /**
  * DELETE /api/v1/collections/{collectionId}
@@ -78,7 +78,24 @@ export const updateCollection = (id, data) =>
  * @param {string} id
  */
 export const deleteCollection = (id) =>
-  apiClient.delete(`${COLLECTIONS_BASE}/${id}`);
+  collectionApi.delete(`${COLLECTIONS_BASE}/${id}`);
+
+/**
+ * POST /api/v1/collections/{collectionId}/fork?targetWorkspaceId=
+ * Creates a copy of the collection in the target workspace.
+ * Works for both clone (same workspaceId) and fork (different workspaceId).
+ * Backend handles " Copy" suffix for clone and " (Fork)" for fork.
+ * Folders are also copied recursively by backend.
+ *
+ * @param {string} collectionId
+ * @param {string} targetWorkspaceId
+ */
+export const forkCollection = (collectionId, targetWorkspaceId) =>
+  collectionApi.post(
+    `${COLLECTIONS_BASE}/${collectionId}/fork`,
+    null,
+    { params: { targetWorkspaceId } }
+  );
 
 // ─── Folders ─────────────────────────────────────────────────────────────────
 
@@ -88,7 +105,7 @@ export const deleteCollection = (id) =>
  * @param {string} collectionId
  */
 export const fetchFolders = (collectionId) =>
-  apiClient.get(`${COLLECTIONS_BASE}/${collectionId}/folders`);
+  collectionApi.get(`${COLLECTIONS_BASE}/${collectionId}/folders`);
 
 /**
  * POST /api/v1/collections/{collectionId}/folders
@@ -97,7 +114,7 @@ export const fetchFolders = (collectionId) =>
  * @param {{ name: string, description?: string, parentFolderId?: string, orderIndex?: number }} data
  */
 export const createFolder = (collectionId, data) =>
-  apiClient.post(`${COLLECTIONS_BASE}/${collectionId}/folders`, data);
+  collectionApi.post(`${COLLECTIONS_BASE}/${collectionId}/folders`, data);
 
 /**
  * PUT /api/v1/collections/folders/{folderId}
@@ -106,7 +123,7 @@ export const createFolder = (collectionId, data) =>
  * @param {{ name?: string, description?: string, parentFolderId?: string, orderIndex?: number }} data
  */
 export const updateFolder = (id, data) =>
-  apiClient.put(`${COLLECTIONS_BASE}/folders/${id}`, data);
+  collectionApi.put(`${COLLECTIONS_BASE}/folders/${id}`, data);
 
 /**
  * DELETE /api/v1/collections/folders/{folderId}
@@ -114,4 +131,14 @@ export const updateFolder = (id, data) =>
  * @param {string} id
  */
 export const deleteFolder = (id) =>
-  apiClient.delete(`${COLLECTIONS_BASE}/folders/${id}`);
+  collectionApi.delete(`${COLLECTIONS_BASE}/folders/${id}`);
+
+/**
+ * POST /api/v1/collections/folders/{folderId}/clone
+ * Clones a folder and its contents in the same parent folder.
+ * Name gets " Copy" suffix (or " Copy 2" etc. if duplicate).
+ *
+ * @param {string} folderId
+ */
+export const cloneFolder = (folderId) =>
+  collectionApi.post(`${COLLECTIONS_BASE}/folders/${folderId}/clone`);

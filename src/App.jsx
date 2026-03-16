@@ -2,9 +2,33 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3, Bot } from 'lucide-react';
 import clsx from 'clsx';
-import { sendRequest } from './utils/api';
+// import { sendRequest } from './utils/api';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-import { fetchCollections, normalizeCollection } from './services/collectionService';
+import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection } from './services/collectionService';
+import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory  } from './services/requestService';
+import {
+  listEnvironments,
+  createEnvironment,
+  updateEnvironment,
+  deleteEnvironment,
+  activateEnvironment,
+  deactivateEnvironment,
+  normalizeEnvironment
+} from './services/environmentService'
+import {
+  createMockServer,
+  getAllMockServers,
+  updateMockServer,
+  toggleMockServer,
+  deleteMockServer,
+  executeGetOnMock,
+  executePostOnMock,
+  executePutOnMock,
+  executeDeleteOnMock,
+  executePatchOnMock,
+  createEndpoint,
+  getEndpoints,
+} from './services/mockServerService'; ;
 import Home from './components/Home';
 import Reports from './components/Reports';
 import Explore from './components/Explore';
@@ -13,31 +37,313 @@ import SettingsPage from './pages/SettingsPage';
 import { Profile } from './pages/Profile';
 import { ProfileSupport } from './pages/ProfileSupport';
 import { ProfileSupportTicket } from './pages/ProfileSupportTicket';
+import {toast} from 'sonner';
 import AIAssisted from './pages/AIAssisted';
 
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
+const currentUserId = localStorage.getItem('probestack_user_id');
+  const [environmentVariablesDirty, setEnvironmentVariablesDirty] = useState(false);
+  const [globalEnvironment, setGlobalEnvironment] = useState(null);
+const [globalVariablesDirty, setGlobalVariablesDirty] = useState(false);
+const [mockServers, setMockServers] = useState([]);
+const [isLoadingMocks, setIsLoadingMocks] = useState(false);
+const [projects, setProjects] = useState([]);
 
+const fetchMockServers = async () => {
+  setIsLoadingMocks(true);
+  try {
+    const response = await getAllMockServers();
+    const mocks = response.data || [];
+    // For each mock, fetch its endpoints
+    const mocksWithEndpoints = await Promise.all(
+      mocks.map(async (mock) => {
+        try {
+          const endpointsRes = await getEndpoints(mock.id, { limit: 100 }); // we need to import getEndpoints
+          
+          return { ...mock, endpoints: endpointsRes.data || [] };
+        } catch (err) {
+          return { ...mock, endpoints: [] };
+        }
+      })
+    );
+    setMockServers(mocksWithEndpoints);
+  } catch (error) {
+    toast.error('Could not load mock servers');
+  } finally {
+    setIsLoadingMocks(false);
+  }
+};
+
+const handleCreateMockServer = async (mockData) => {
+  try {
+    const workspaceId = projects[0]?.id;
+    if (!workspaceId) {
+      toast.error('No workspace available');
+      return null;
+    }
+
+    // Step 1: Create the mock server
+    const { name, visibility, delay, collectionId, endpoints } = mockData;
+    const createPayload = {
+      name,
+      isPrivate: visibility === 'private', // convert string to boolean
+      delayMs: delay,
+    };
+    if (collectionId) {
+      createPayload.collectionId = collectionId;
+    }
+
+    const createResponse = await createMockServer(workspaceId, createPayload);
+    const newMock = createResponse.data; // contains id, mockUrl, etc.
+
+    // Step 2: Create endpoints
+    const createdEndpoints = [];
+    for (const ep of endpoints) {
+      const endpointPayload = {
+        method: ep.method,
+        path: ep.path,
+        responseStatus: ep.statusCode,
+        responseBody: ep.responseBody,
+        responseHeaders: {}, // optional, can be added later
+        delayMs: delay,       // use the same global delay, or you could allow per‑endpoint later
+      };
+      try {
+        const epResponse = await createEndpoint(newMock.id, endpointPayload);
+        createdEndpoints.push(epResponse.data);
+      } catch (epErr) {
+        toast.error(`Failed to create endpoint ${ep.path}`);
+        // Continue with other endpoints? Decide based on requirements.
+      }
+    }
+
+    // Build the complete mock server object (including endpoints)
+    const newMockWithEndpoints = { ...newMock, endpoints: createdEndpoints };
+    setMockServers(prev => [...prev, newMockWithEndpoints]);
+    toast.success('Mock server created');
+    return newMockWithEndpoints;
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Creation failed');
+    throw error;
+  }
+};
+
+const handleRenameMockServer = async (mockId, newName) => {
+  try {
+    const response = await updateMockServer(mockId, { name: newName });
+    const updated = response.data;
+    setMockServers(prev => prev.map(m => m.id === mockId ? updated : m));
+    toast.success('Mock server renamed');
+  } catch (error) {
+    toast.error('Rename failed');
+  }
+};
+
+const handleDeleteMockServer = async (mockId) => {
+  try {
+    await deleteMockServer(mockId);
+    setMockServers(prev => prev.filter(m => m.id !== mockId));
+    toast.success('Mock server deleted');
+  } catch (error) {
+    toast.error('Delete failed');
+  }
+};
+
+const handleToggleVisibility = async (mockId) => {
+  try {
+    const response = await toggleMockServer(mockId);
+    const updated = response.data;
+    setMockServers(prev => prev.map(m => m.id === mockId ? updated : m));
+    toast.success(`Visibility changed to ${updated.visibility}`);
+  } catch (error) {
+    toast.error('Toggle failed');
+  }
+};
+
+const handleExecuteMockRequest = async (mockServer, endpoint, requestOverrides = {}) => {
+  try {
+    const { mockUrl } = mockServer;   // instead of urlSlug
+    const { method, path } = endpoint;
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const headers = requestOverrides.headers || {};
+    const body = requestOverrides.body || null;
+
+    let response;
+    switch (method.toUpperCase()) {
+      case 'GET':
+        response = await executeGetOnMock(mockUrl, cleanPath, headers);
+        break;
+      case 'POST':
+        response = await executePostOnMock(mockUrl, cleanPath, body, headers);
+        break;
+      case 'PUT':
+        response = await executePutOnMock(mockUrl, cleanPath, body, headers);
+        break;
+      case 'DELETE':
+        response = await executeDeleteOnMock(mockUrl, cleanPath, headers);
+        break;
+      case 'PATCH':
+        response = await executePatchOnMock(mockUrl, cleanPath, body, headers);
+        break;
+      default:
+        throw new Error(`Unsupported method: ${method}`);
+    }
+    // Transform...
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      data: response.data,
+      headers: response.headers,
+      time: response.duration || 0,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+const handleUpdateMockServer = async (mockId, updatedData, newEndpoints) => {
+  try {
+    // Update mock server metadata
+    const { name, visibility, delay } = updatedData;
+    await updateMockServer(mockId, {
+      name,
+      isPrivate: visibility === 'private',
+      delayMs: delay,
+    });
+
+    // Create new endpoints
+    const createdEndpoints = [];
+    for (const ep of newEndpoints) {
+      const endpointPayload = {
+        method: ep.method,
+        path: ep.path,
+        responseStatus: ep.statusCode,
+        responseBody: ep.responseBody,
+        responseHeaders: {},
+        delayMs: delay,
+      };
+      const epResponse = await createEndpoint(mockId, endpointPayload);
+      createdEndpoints.push(epResponse.data);
+    }
+
+    // Update local state
+    setMockServers(prev => prev.map(mock =>
+      mock.id === mockId
+        ? { ...mock, name, isPrivate: visibility === 'private', delayMs: delay, endpoints: [...mock.endpoints, ...createdEndpoints] }
+        : mock
+    ));
+    toast.success('Mock server updated');
+  } catch (error) {
+    toast.error('Update failed');
+  }
+};
+
+
+const globalVariables = globalEnvironment?.variables || [];
+
+const handleEnvironmentVariablesChange = (newVars) => {
+  setEnvironmentVariables(newVars);
+  const currentEnv = environments.find(e => e.id === selectedEnvironmentId);
+  if (currentEnv) {
+    const savedVars = currentEnv.variables || [];
+    if (JSON.stringify(newVars) !== JSON.stringify(savedVars)) {
+      setEnvironmentVariablesDirty(true);
+    } else {
+      setEnvironmentVariablesDirty(false);
+    }
+  } else {
+    setEnvironmentVariablesDirty(true);
+  }
+};
+
+  const isSavedRequest = (req) => {
+  if (!req || !req.id) return false;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(req.id) && !!req.collectionId;
+};
+const [pristineRequests, setPristineRequests] = useState(() => {
+  const initial = {};
+  try {
+    const stored = localStorage.getItem('probestack_requests');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      parsed.forEach(req => {
+        if (isSavedRequest(req)) {
+          initial[req.id] = JSON.parse(JSON.stringify(req));
+        }
+      });
+    }
+  } catch (error) {
+  }
+  return initial;
+});
   const [history, setHistory] = useState(() => {
     const saved = localStorage.getItem('probestack_history');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const createEmptyRequest = () => ({
-    id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    name: 'Untitled Request',
-    method: 'GET',
-    url: '',
-    queryParams: [{ key: '', value: '' }],
-    headers: [{ key: '', value: '' }],
-    body: '{\n  \n}',
-    authType: 'none',
-    authData: {},
-    preRequestScript: '',
-    tests: '',
-  });
+
+const handleGlobalVariablesChange = (newVars) => {
+  setGlobalEnvironment(prev => prev
+    ? { ...prev, variables: newVars }
+    : { id: null, name: 'Global', variables: newVars, environment_type: 'global' }
+  );
+  setGlobalVariablesDirty(true);
+};
+
+const handleSaveGlobalVariables = async () => {
+  // Need a workspaceId for creation
+  const firstWorkspaceId = projects.length > 0 ? projects[0].id : null;
+  if (!firstWorkspaceId) {
+    toast.error('No workspace available to create global environment');
+    return;
+  }
+
+  if (!globalEnvironment || !globalEnvironment.id) {
+    // Create
+    try {
+      const response = await createEnvironment(firstWorkspaceId, {
+        name: 'Global',
+        environment_type: 'global',
+        variables: globalVariables,
+        is_active:true
+      });
+      const newEnv = normalizeEnvironment(response.data);
+      setGlobalEnvironment(newEnv);
+      setEnvironments(prev => [...prev.filter(e => e.id !== 'no-env'), newEnv, { id: 'no-env', name: 'No Environment' }]);
+      setGlobalVariablesDirty(false);
+      toast.success('Global variables saved');
+    } catch (err) {
+      toast.error('Failed to create global variables');
+    }
+  } else {
+    // Update
+    try {
+      await updateEnvironment(globalEnvironment.id, { variables: globalVariables });
+      setGlobalVariablesDirty(false);
+      toast.success('Global variables saved');
+    } catch (err) {
+      toast.error('Failed to save global variables');
+    }
+  }
+};
+
+
+const createEmptyRequest = () => ({
+  id: `adarshab-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+  name: 'Untitled Request',
+  method: 'GET',
+  url: '',
+  queryParams: [],         
+  headers: [],                
+  body: '{\n  \n}',
+  authType: 'none',
+  authData: {},
+  preRequestScript: '',
+  tests: '',
+});
 
   const [requests, setRequests] = useState(() => {
     try {
@@ -47,7 +353,6 @@ function App() {
         return parsed.length > 0 ? parsed : [createEmptyRequest()];
       }
     } catch (error) {
-      console.error('Failed to load requests from localStorage:', error);
     }
     return [createEmptyRequest()];
   });
@@ -59,26 +364,11 @@ function App() {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Failed to load collections from localStorage:', error);
     }
     return [];
   });
 
-  const [projects, setProjects] = useState(() => {
-    try {
-      // Check for new workspaces key first, then fall back to old projects key for migration
-      const stored = localStorage.getItem('probestack_workspaces') || localStorage.getItem('probestack_projects');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load workspaces from localStorage:', error);
-    }
-    return [
-      { id: 'auth-security', name: 'Auth and Security' },
-      { id: 'payment-gateway', name: 'Payment Gateway' }
-    ];
-  });
+ 
   const [activeRequestIndex, setActiveRequestIndex] = useState(() => {
     try {
       const stored = localStorage.getItem('probestack_active_request_index');
@@ -86,7 +376,6 @@ function App() {
         return parseInt(stored, 10);
       }
     } catch (error) {
-      console.error('Failed to load active request index from localStorage:', error);
     }
     return 0;
   });
@@ -111,13 +400,9 @@ function App() {
     });
   };
 
-  const [environments] = useState([
-    { id: 'no-env', name: 'No Environment' },
-    { id: 'dev', name: 'Development' },
-    { id: 'staging', name: 'Staging' },
-    { id: 'prod', name: 'Production' },
-  ]);
-  const [selectedEnvironment, setSelectedEnvironment] = useState('no-env');
+const [environments, setEnvironments] = useState(() => [{ id: 'no-env', name: 'No Environment' }]);
+const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('no-env');
+
 
   // Variables state with localStorage persistence
   const [environmentVariables, setEnvironmentVariables] = useState(() => {
@@ -127,22 +412,12 @@ function App() {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Failed to load environment variables from localStorage:', error);
     }
     return [{ key: '', value: '' }];
   });
 
-  const [globalVariables, setGlobalVariables] = useState(() => {
-    try {
-      const stored = localStorage.getItem('probestack_global_variables');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load global variables from localStorage:', error);
-    }
-    return [{ key: '', value: '' }];
-  });
+
+
 
   // UI State
   const [isLoading, setIsLoading] = useState(false);
@@ -160,7 +435,6 @@ function App() {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Failed to load test files from localStorage:', error);
     }
     return [];
   });
@@ -173,7 +447,6 @@ function App() {
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('Failed to load mock APIs from localStorage:', error);
     }
     return [];
   });
@@ -234,7 +507,6 @@ function App() {
     try {
       localStorage.setItem('probestack_mock_apis', JSON.stringify(mockApis));
     } catch (error) {
-      console.error('Failed to save mock APIs to localStorage:', error);
     }
   }, [mockApis]);
 
@@ -242,7 +514,6 @@ function App() {
     try {
       localStorage.setItem('probestack_test_files', JSON.stringify(testFiles));
     } catch (error) {
-      console.error('Failed to save test files to localStorage:', error);
     }
   }, [testFiles]);
 
@@ -254,7 +525,6 @@ function App() {
     try {
       localStorage.setItem('probestack_requests', JSON.stringify(requests));
     } catch (error) {
-      console.error('Failed to save requests to localStorage:', error);
     }
   }, [requests]);
 
@@ -262,7 +532,6 @@ function App() {
     try {
       localStorage.setItem('probestack_active_request_index', activeRequestIndex.toString());
     } catch (error) {
-      console.error('Failed to save active request index to localStorage:', error);
     }
   }, [activeRequestIndex]);
 
@@ -270,26 +539,11 @@ function App() {
     try {
       localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
     } catch (error) {
-      console.error('Failed to save environment variables to localStorage:', error);
     }
   }, [environmentVariables]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('probestack_global_variables', JSON.stringify(globalVariables));
-    } catch (error) {
-      console.error('Failed to save global variables to localStorage:', error);
-    }
-  }, [globalVariables]);
 
-  // Persist workspaces to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('probestack_workspaces', JSON.stringify(projects));
-    } catch (error) {
-      console.error('Failed to save workspaces to localStorage:', error);
-    }
-  }, [projects]);
+
 
   // Guard so the API bootstrap only runs once per page load
   const hasFetchedRef = useRef(false);
@@ -297,98 +551,259 @@ function App() {
   // On mount: load workspaces and their collections from the backend.
   // Skipped entirely when no probestack_user_id is in localStorage so
   // unauthenticated / offline sessions continue working unchanged.
-  useEffect(() => {
-    const userId = localStorage.getItem('probestack_user_id');
-    if (!userId || hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
+// Guard to ensure initial fetch runs only once
 
-    fetchWorkspaces()
-      .then((res) => {
-        const workspaces = res.data.map(normalizeWorkspace);
-        setProjects(workspaces);
-        return Promise.all(
-          workspaces.map((ws) =>
-            fetchCollections(ws.id).then((r) => ({ ws, data: r.data }))
-          )
-        );
-      })
-      .then((results) => {
-        const allCollections = results.flatMap(({ ws, data }) =>
-          data.map((col) => normalizeCollection(col, ws))
-        );
-        setCollections(allCollections);
-      })
-      .catch((err) =>
-        console.error('[API] Initial workspace/collection load failed:', err)
-      );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+// ─── Load Workspaces + Collections + Folders from Backend on Mount ─────────────
+// Guard to ensure initial fetch runs only once
+// Load Workspaces + Collections + Folders + Requests from Backend on Mount
+useEffect(() => {
+  const userId = localStorage.getItem('probestack_user_id');
+  if (!userId || hasFetchedRef.current) return;
 
-  const handleSaveEnvironmentVariables = () => {
-    try {
-      localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
-    } catch (error) {
-      console.error('Failed to save environment variables to localStorage:', error);
-    }
-  };
+  hasFetchedRef.current = true;
 
-  const handleSaveGlobalVariables = () => {
-    try {
-      localStorage.setItem('probestack_global_variables', JSON.stringify(globalVariables));
-    } catch (error) {
-      console.error('Failed to save global variables to localStorage:', error);
-    }
-  };
+const loadData = async () => {
+  try {
 
-  const handleExecute = async () => {
-    if (!url) return;
+    // 1. Fetch workspaces / projects
+    const wsRes = await fetchWorkspaces();
+    const workspaces = wsRes.data.map(normalizeWorkspace);
+    setProjects(workspaces);
 
-    setIsLoading(true);
-    setResponse(null);
-    setError(null);
+    const allCollections = [];
 
-    try {
-      const res = await sendRequest({
-        url,
-        method,
-        queryParams,
-        headers,
-        body: (method === 'GET') ? null : body,
-        authType,
-        authData,
-        preRequestScript
-      });
-      
-      // Execute test script if provided (after response)
-      let testResults = [];
-      if (tests && res) {
+    for (const ws of workspaces) {
+      // 2. Fetch collections for this workspace
+      const colRes = await fetchCollections(ws.id);
+      const cols = colRes.data.map(col => normalizeCollection(col, ws));
+
+      for (const col of cols) {
+        // 3. Fetch folders for this collection
+        let folders = [];
         try {
-          const { executeScript } = await import('./utils/scriptExecutor');
-          const testExecution = executeScript(tests, {
-            url,
-            method,
-            response: {
-              status: res.status,
-              statusText: res.statusText,
-              headers: res.headers,
-              data: res.data
-            }
-          });
-          testResults = testExecution.testResults || [];
-          
-          // Store test results in response
-          res.testResults = testResults;
-          res.testScriptError = testExecution.error;
-          
-          console.log('Test Results:', testResults);
-          if (testExecution.error) {
-            console.error('Test Script Error:', testExecution.error);
-          }
-        } catch (e) {
-          console.warn('Test script execution error:', e);
-          res.testScriptError = e.message;
+          const folderRes = await fetchFolders(col.id);
+          folders = folderRes.data.map(normalizeFolder);
+        } catch (err) {
         }
+
+        // --- Build folder hierarchy ---
+        // Map folder id to folder object for quick lookup
+        const folderMap = new Map();
+        folders.forEach(f => folderMap.set(f.id, f));
+
+        // Identify root folders (no parent) and build nested structure
+        const rootFolders = [];
+        folders.forEach(f => {
+          if (f.parentFolderId) {
+            const parent = folderMap.get(f.parentFolderId);
+            if (parent) {
+              // Ensure parent has an items array
+              if (!parent.items) parent.items = [];
+              parent.items.push(f);
+            } else {
+              // Parent not found – treat as root
+              rootFolders.push(f);
+            }
+          } else {
+            rootFolders.push(f);
+          }
+        });
+
+        // Recursive sort helper
+        const sortItems = (items) => {
+          if (!items) return;
+          items.sort((a, b) => {
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+            return (a.orderIndex || 0) - (b.orderIndex || 0);
+          });
+          items.forEach(item => {
+            if (item.items) sortItems(item.items);
+          });
+        };
+        sortItems(rootFolders);
+
+        // Start building the collection items with the root folders
+        const items = [...rootFolders];
+
+        // 4. Fetch all requests for this collection
+        let requestsInCol = [];
+        try {
+          const reqRes = await fetchRequests({ collectionId: col.id });
+          requestsInCol = reqRes.data.map(normalizeRequest);
+        } catch (err) {
+        }
+
+        // Place each request under its parent folder (or at root)
+        requestsInCol.forEach(req => {
+          const parentFolderId = req.folderId;
+          if (parentFolderId) {
+            const parentFolder = folderMap.get(parentFolderId);
+            if (parentFolder) {
+              if (!parentFolder.items) parentFolder.items = [];
+              parentFolder.items.push(req);
+            } else {
+              // Parent folder not found – fallback to root
+              items.push(req);
+            }
+          } else {
+            // Root-level request
+            items.push(req);
+          }
+        });
+
+        // Sort items again (folders already sorted, requests appended)
+        sortItems(items);
+
+        allCollections.push({
+          ...col,
+          items,
+        });
       }
-      
+    }
+
+    setCollections(allCollections);
+    // 5. Fetch global execution history
+    try {
+      const historyRes = await fetchGlobalHistory({ limit: 50 });
+
+      // Normalize backend items to frontend shape
+      const normalizedHistory = (historyRes.data.data || []).map(item => ({
+        url: item.url,
+        method: item.method,
+        status: item.status_code,
+        size: item.response_size_bytes,
+        time: item.response_time_ms,
+        error: item.error_message ? true : false,
+        date: item.executed_at, // ISO string; can be used directly with new Date(item.date)
+      }));
+
+      setHistory(normalizedHistory);
+    } catch (err) {
+      // Optionally fall back to localStorage if you want
+    }
+
+  
+// 6. Fetch environments
+try {
+  // Fetch global environments (no workspaceId)
+  const globalRes = await listEnvironments({ limit: 100 });
+  const globalEnvs = globalRes.data.map(normalizeEnvironment);
+
+  // Fetch workspace environments for each workspace
+  let allEnvs = [...globalEnvs];
+  for (const ws of workspaces) {
+    try {
+      const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
+      const wsEnvs = wsRes.data.map(normalizeEnvironment);
+      allEnvs = [...allEnvs, ...wsEnvs];
+    } catch (err) {
+    }
+  }
+
+  // Remove duplicates by id (just in case)
+  const uniqueEnvs = Array.from(new Map(allEnvs.map(env => [env.id, env])).values());
+
+  // ✅ Extract and store the global environment
+  const globalEnv = uniqueEnvs.find(env => env.environmentType === 'global');
+  setGlobalEnvironment(globalEnv || null);
+
+  setEnvironments([{ id: 'no-env', name: 'No Environment' }, ...uniqueEnvs]);
+
+  if (uniqueEnvs.length > 0) {
+    const activeEnv = uniqueEnvs.find(e => e.isActive) || uniqueEnvs[0];
+    setSelectedEnvironmentId(activeEnv.id);
+    setEnvironmentVariables(activeEnv.variables || []);
+  } else {
+    setEnvironmentVariables([]);
+  }
+} catch (err) {
+  console.error('[App] Failed to load environments:', err);
+  setEnvironments([{ id: 'no-env', name: 'No Environment' }]);
+}
+
+await fetchMockServers();
+
+  } catch (err) {
+  }
+};
+
+  loadData();
+}, []);
+
+useEffect(() => {
+}, [collections]);
+
+const handleSaveEnvironmentVariables = async () => {
+  if (selectedEnvironmentId === 'no-env') {
+    toast.info('Cannot save variables for "No Environment". Please select a real environment.');
+    return;
+  }
+  try {
+    await updateEnvironment(selectedEnvironmentId, {
+      variables: environmentVariables,
+    });
+    setEnvironments(prev =>
+      prev.map(env =>
+        env.id === selectedEnvironmentId
+          ? { ...env, variables: environmentVariables }
+          : env
+      )
+    );
+    setEnvironmentVariablesDirty(false);
+    toast.success('Environment variables saved');
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Failed to save variables');
+  }
+};
+
+const handleEnvironmentChange = (envId) => {
+  setSelectedEnvironmentId(envId);
+  setEnvironmentVariablesDirty(false);
+  if (envId === 'no-env') {
+    setEnvironmentVariables([]);
+  } else {
+    const env = environments.find(e => e.id === envId);
+    if (env) {
+      setEnvironmentVariables(env.variables || []);
+    }
+  }
+};
+
+const handleSelectMockEndpoint = (mockServer, endpoint) => {
+  const endpointRequest = {
+    id: `mock-endpoint-${endpoint.id}`,
+    name: `${mockServer.name} - ${endpoint.method} ${endpoint.path}`,
+    method: endpoint.method,
+    url: `/api/v1/mocks/${mockServer.mockUrl}${endpoint.path}`,
+    mockServer: mockServer,
+    mockEndpoint: endpoint,
+    isMockEndpoint: true,
+    queryParams: [],
+    headers: [],
+    body: '',
+    authType: 'none',
+    authData: {},
+    preRequestScript: '',
+    tests: '',
+  };
+  handleSelectEndpoint(endpointRequest, true);  // ← skip navigation
+};
+
+
+const handleExecute = async () => {
+  if (!url) return;
+
+  setIsLoading(true);
+  setResponse(null);
+  setError(null);
+
+  const currentReq = requests[activeRequestIndex];
+
+  // ✅ Check for mock endpoint FIRST and execute via mock handler
+  if (currentReq.isMockEndpoint) {
+    try {
+      const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
       setResponse(res);
       addToHistory(url, method, res.status, res.size, res.time);
     } catch (err) {
@@ -397,7 +812,83 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  };
+    return;
+  }
+
+  // Normal request flow (saved or unsaved)
+  const saved = isSavedRequest(currentReq);
+  try {
+    let targetRequestId = currentReq.id;
+
+    // If not saved, create it first
+    if (!saved) {
+      const payload = {
+        name: currentReq.name || 'Untitled Request',
+        method,
+        url,
+        headers,
+        query_params: queryParams,
+        body_type: 'raw',
+        body_content: body,
+        auth_type: authType,
+        auth_config: authData,
+        pre_request_script: preRequestScript,
+        test_script: tests,
+        collection_id: null,
+        folder_id: null,
+      };
+
+      const createRes = await createRequest(payload);
+      const savedRequest = normalizeRequest(createRes.data);
+      setRequests(prev => prev.map(req => req.id === currentReq.id ? savedRequest : req));
+      setPristineRequests(prev => ({ ...prev, [savedRequest.id]: JSON.parse(JSON.stringify(savedRequest)) }));
+      targetRequestId = savedRequest.id;
+    }
+
+    // Build overrides
+    const overrides = {};
+    overrides.url = url;
+    overrides.headers = headers.map(h => ({ key: h.key, value: h.value, enabled: h.enabled ?? true }));
+    overrides.query_params = queryParams.map(q => ({ key: q.key, value: q.value, enabled: q.enabled ?? true }));
+
+    if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
+      overrides.body_content = body;
+    }
+    overrides.path_variables = [];
+
+    const axiosResponse = await executeRequest(targetRequestId, { overrides });
+    const executionResult = axiosResponse.data;
+
+    let parsedBody = executionResult.response_body;
+    if (typeof parsedBody === 'string') {
+      const trimmed = parsedBody.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          parsedBody = JSON.parse(parsedBody);
+        } catch (e) {}
+      }
+    }
+
+    const res = {
+      status: executionResult.status_code,
+      statusText: executionResult.status_text || '',
+      time: executionResult.response_time_ms || 0,
+      size: executionResult.response_size_bytes || 0,
+      data: parsedBody,
+      headers: executionResult.response_headers || [],
+      testResults: executionResult.test_results || [],
+      testScriptError: executionResult.error_message || null,
+    };
+
+    setResponse(res);
+    addToHistory(url, method, res.status, res.size, res.time);
+  } catch (err) {
+    setError(err);
+    addToHistory(url, method, 0, 0, 0, true);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const addToHistory = (url, method, status, size, time, isError = false) => {
     const newEntry = {
@@ -424,18 +915,41 @@ function App() {
     navigate('/workspace');
   };
 
-  const handleSelectEndpoint = (endpoint) => {
-    // Check if a tab with this exact endpoint already exists
-    // Match by name to handle empty requests correctly
+const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
+  if (endpoint.id) {
+    const existingTabIndex = requests.findIndex((req) => req.id === endpoint.id);
+    if (existingTabIndex !== -1) {
+      // Update existing tab
+      setRequests((prev) => {
+        const next = [...prev];
+        next[existingTabIndex] = endpoint;
+        return next;
+      });
+      setActiveRequestIndex(existingTabIndex);
+      setPristineRequests((prev) => ({
+        ...prev,
+        [endpoint.id]: JSON.parse(JSON.stringify(endpoint)),
+      }));
+    } else {
+      // Add as new tab
+      setRequests((prev) => {
+        const newRequests = [...prev, endpoint];
+        setTimeout(() => setActiveRequestIndex(newRequests.length - 1), 0);
+        return newRequests;
+      });
+      setPristineRequests((prev) => ({
+        ...prev,
+        [endpoint.id]: JSON.parse(JSON.stringify(endpoint)),
+      }));
+    }
+  } else {
+    // Legacy handling (dummy endpoints)
     const existingTabIndex = requests.findIndex(
       (req) => req.name === endpoint.name && req.url === endpoint.path && req.method === endpoint.method
     );
-
     if (existingTabIndex !== -1) {
-      // If tab exists, just switch to it
       setActiveRequestIndex(existingTabIndex);
     } else {
-      // Create new tab with the endpoint data
       const newRequest = {
         ...createEmptyRequest(),
         url: endpoint.path,
@@ -444,14 +958,151 @@ function App() {
       };
       setRequests((prev) => {
         const next = [...prev, newRequest];
-        setActiveRequestIndex(next.length - 1);
+        setTimeout(() => setActiveRequestIndex(next.length - 1), 0);
         return next;
       });
     }
-    setResponse(null);
-    setError(null);
+  }
+  setResponse(null);
+  setError(null);
+  if (!skipNavigate) {
     navigate('/workspace');
+  }
+};
+
+ const handleUpdateRequest = async (updatedRequest) => {
+    try {
+      // Build payload with all fields that can change
+      const payload = {
+        name: updatedRequest.name,
+        method: updatedRequest.method,
+        url: updatedRequest.url,
+        headers: updatedRequest.headers,
+        query_params: updatedRequest.queryParams,
+        body_type: updatedRequest.bodyType || 'none',
+        body_content: updatedRequest.body,
+        auth_type: updatedRequest.authType,
+        auth_config: updatedRequest.authData,
+        pre_request_script: updatedRequest.preRequestScript,
+        test_script: updatedRequest.tests,
+        // Optionally include folder_id if you allow moving via save (not yet implemented)
+      };
+
+      const response = await updateRequest(updatedRequest.id, payload);
+      const savedRequest = normalizeRequest(response.data);
+
+      // Update the request in the tabs
+      setRequests((prev) =>
+        prev.map((req) => (req.id === savedRequest.id ? savedRequest : req))
+      );
+
+      // Update pristine copy
+      setPristineRequests((prev) => ({
+        ...prev,
+        [savedRequest.id]: JSON.parse(JSON.stringify(savedRequest)),
+      }));
+
+      // Also update the request in the collections tree
+      setCollections((prev) => {
+        const updateInTree = (items) => {
+          if (!items) return items;
+          return items.map((item) => {
+            if (item.id === savedRequest.id) return savedRequest;
+            if (item.items) return { ...item, items: updateInTree(item.items) };
+            return item;
+          });
+        };
+        return updateInTree(prev);
+      });
+
+      toast.success('Request updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed');
+    }
   };
+
+  const handleSaveRequest = async (saveData) => {
+    const { projectId, projectName, collectionId, collectionName, isNewCollection, request, folderId } = saveData;
+
+    // Prevent duplicate saves
+    if (savedRequestIdsRef.current.has(request.id)) return;
+    savedRequestIdsRef.current.add(request.id);
+
+    let targetCollectionId = collectionId;
+    let targetCollectionName = collectionName;
+
+    try {
+      // If creating a new collection, create it first
+      if (isNewCollection) {
+        const newColRes = await createCollection(projectId, { name: collectionName });
+        targetCollectionId = newColRes.data.id;
+        targetCollectionName = newColRes.data.name;
+      }
+
+      // Prepare payload for createRequest
+      const payload = {
+        name: request.name,
+        method: request.method,
+        url: request.url,
+        headers: request.headers,
+        query_params: request.queryParams,
+        body_type: request.bodyType || 'none',
+        body_content: request.body,
+        auth_type: request.authType,
+        auth_config: request.authData,
+        pre_request_script: request.preRequestScript,
+        test_script: request.tests,
+        collection_id: targetCollectionId,
+        folder_id: folderId || null,
+      };
+
+      const createRes = await createRequest(payload);
+      const savedRequest = normalizeRequest(createRes.data);
+
+      // Replace the temporary tab request with the saved one
+      setRequests((prev) =>
+        prev.map((req) => (req.id === request.id ? savedRequest : req))
+      );
+
+      // Store pristine copy for the newly saved request
+      setPristineRequests((prev) => ({
+        ...prev,
+        [savedRequest.id]: JSON.parse(JSON.stringify(savedRequest)),
+      }));
+
+      // Add the request to the collections tree
+      setCollections((prev) => {
+        const newCollections = [...prev];
+        if (isNewCollection) {
+          const newCollection = {
+            id: targetCollectionId,
+            name: targetCollectionName,
+            type: 'collection',
+            project: projectId,
+            projectName,
+            items: [savedRequest],
+          };
+          newCollections.push(newCollection);
+        } else {
+          const collectionIndex = newCollections.findIndex((col) => col.id === targetCollectionId);
+          if (collectionIndex !== -1) {
+            if (!newCollections[collectionIndex].items) newCollections[collectionIndex].items = [];
+            if (!newCollections[collectionIndex].items.some((item) => item.id === savedRequest.id)) {
+              newCollections[collectionIndex].items.push(savedRequest);
+            }
+          }
+        }
+        return newCollections;
+      });
+
+      toast.success('Request saved');
+    } catch (err) {
+      console.error('[handleSaveRequest] error:', err);
+      toast.error(err.response?.data?.message || 'Save failed');
+      savedRequestIdsRef.current.delete(request.id); // allow retry
+    }
+  };
+
 
   // Get all request names from collections (recursively)
   const getAllRequestNamesFromCollections = () => {
@@ -710,50 +1361,39 @@ function App() {
   };
 
   const savedRequestIdsRef = useRef(new Set());
+const handleOpenWorkspaceDetails = (workspaceId) => {
+  const workspace = projects.find(p => p.id === workspaceId);
+  if (!workspace) return;
 
-  const handleSaveRequest = (saveData) => {
-    const { projectId, projectName, collectionId, collectionName, isNewCollection, request } = saveData;
-    
-    // Prevent duplicate saves of the same request ID
-    if (savedRequestIdsRef.current.has(request.id)) {
-      return;
-    }
-    savedRequestIdsRef.current.add(request.id);
-    
-    setCollections((prev) => {
-      const newCollections = [...prev];
-      
-      if (isNewCollection) {
-        // Create new collection in the project
-        const newCollection = {
-          id: `col-${Date.now()}`,
-          name: collectionName,
-          type: 'collection',
-          project: projectId,
-          projectName: projectName,
-          items: [request]
-        };
-        newCollections.push(newCollection);
-      } else {
-        // Add to existing collection
-        const collectionIndex = newCollections.findIndex(col => col.id === collectionId);
-        if (collectionIndex !== -1) {
-          if (!newCollections[collectionIndex].items) {
-            newCollections[collectionIndex].items = [];
-          }
-          // Guard: Prevent duplicate request IDs
-          const existingRequestIndex = newCollections[collectionIndex].items.findIndex(
-            item => item.id === request.id
-          );
-          if (existingRequestIndex === -1) {
-            newCollections[collectionIndex].items.push(request);
-          }
-        }
-      }
-      
-      return newCollections;
-    });
+  // Check if already open
+  const existingIndex = requests.findIndex(r => r.type === 'workspace-details' && r.workspaceId === workspaceId);
+  if (existingIndex !== -1) {
+    setActiveRequestIndex(existingIndex);
+    return;
+  }
+
+  const newTab = {
+    id: `workspace-details-${workspaceId}-${Date.now()}`,
+    type: 'workspace-details',
+    workspaceId: workspace.id,
+    name: `Workspace: ${workspace.name}`,
+    // can store workspace object or just id
   };
+  setRequests(prev => [...prev, newTab]);
+  setActiveRequestIndex(requests.length); // will be the new last index
+};
+
+const handleWorkspaceUpdate = (updatedWorkspace) => {
+  setProjects(prev => prev.map(p => p.id === updatedWorkspace.id ? updatedWorkspace : p));
+  // Also update the open tab if needed (e.g., rename the tab)
+};
+
+const handleWorkspaceDelete = (workspaceId) => {
+  setProjects(prev => prev.filter(p => p.id !== workspaceId));
+  // Close any open workspace details tabs
+  setRequests(prev => prev.filter(req => !(req.type === 'workspace-details' && req.workspaceId === workspaceId)));
+};
+
 
   const handleDeleteHistoryItem = (index) => {
     setHistory((prev) => prev.filter((_, i) => i !== index));
@@ -802,6 +1442,122 @@ function App() {
     setMockApis((prev) => [...prev, newMock]);
     return newMock;
   };
+  const handleCreateEnvironment = async (desiredName) => {
+    const workspaceId = projects.length > 0 ? projects[0].id : null;
+    if (!workspaceId) {
+      toast.error('No workspace available');
+      return;
+    }
+
+    let attempt = 0;
+    let currentName = desiredName;
+    let success = false;
+    let lastError = null;
+
+    while (!success && attempt < 20) {
+      try {
+        const response = await createEnvironment(workspaceId, {
+          name: currentName,
+          environment_type: 'collection',  
+          is_active: false, 
+        });
+        const newEnv = normalizeEnvironment(response.data);
+        setEnvironments(prev => [...prev, newEnv]);
+        setSelectedEnvironmentId(newEnv.id);
+        setEnvironmentVariables(newEnv.variables || []);
+        toast.success('Environment created');
+        success = true;
+      } catch (err) {
+        if (err.response?.status === 409) {
+          attempt++;
+          currentName = `${desiredName} ${attempt}`;
+          lastError = err;
+        } else {
+          console.error('Failed to create environment:', err);
+          toast.error(err.response?.data?.message || 'Failed to create environment');
+          return;
+        }
+      }
+    }
+
+    if (!success) {
+      toast.error(`Could not create environment after ${attempt} attempts.`);
+    }
+  };
+
+const handleActivateEnvironment = async (envId) => {
+  if (envId === 'no-env') {
+    // Find current active environment
+    const activeEnv = environments.find(e => e.isActive);
+    if (activeEnv) {
+      try {
+        await deactivateEnvironment(activeEnv.id);
+        // Update state: no active environment
+        setEnvironments(prev => prev.map(env => ({ ...env, isActive: false })));
+        setSelectedEnvironmentId('no-env');
+        setEnvironmentVariables([]);
+        setEnvironmentVariablesDirty(false);
+        toast.success('Environment deactivated');
+      } catch (err) {
+        console.error('Failed to deactivate environment:', err);
+        toast.error(err.response?.data?.message || 'Failed to deactivate environment');
+      }
+    } else {
+      // Already no active environment, just ensure selection is 'no-env'
+      setSelectedEnvironmentId('no-env');
+      setEnvironmentVariables([]);
+      setEnvironmentVariablesDirty(false);
+    }
+    return;
+  }
+
+  try {
+    await activateEnvironment(envId);
+    // Update local state: set this env active, others inactive, and also select it for editing
+    setEnvironments(prev => prev.map(env => ({
+      ...env,
+      isActive: env.id === envId
+    })));
+    setSelectedEnvironmentId(envId);
+    const env = environments.find(e => e.id === envId);
+    if (env) {
+      setEnvironmentVariables(env.variables || []);
+    }
+    setEnvironmentVariablesDirty(false);
+    toast.success('Environment activated');
+  } catch (err) {
+    console.error('Failed to activate environment:', err);
+    toast.error(err.response?.data?.message || 'Failed to activate environment');
+  }
+};
+
+const handleRenameEnvironment = async (envId, newName) => {
+  if (!newName?.trim()) return;
+  try {
+    const response = await updateEnvironment(envId, { name: newName.trim() });
+    const updatedEnv = normalizeEnvironment(response.data);
+    setEnvironments(prev => prev.map(env => env.id === envId ? updatedEnv : env));
+    toast.success('Environment renamed');
+  } catch (err) {
+    console.error('Failed to rename environment:', err);
+    toast.error(err.response?.data?.message || 'Failed to rename environment');
+  }
+};
+
+const handleDeleteEnvironment = async (envId) => {
+  try {
+    await deleteEnvironment(envId);
+    setEnvironments(prev => prev.filter(env => env.id !== envId));
+    if (selectedEnvironmentId === envId) {
+      setSelectedEnvironmentId('no-env');
+      setEnvironmentVariables([]);
+    }
+    toast.success('Environment deleted');
+  } catch (err) {
+    console.error('Failed to delete environment:', err);
+    toast.error(err.response?.data?.message || 'Failed to delete environment');
+  }
+};
 
   const handleDeleteMock = (mockId) => {
     setMockApis((prev) => prev.filter(m => m.id !== mockId));
@@ -911,106 +1667,81 @@ function App() {
   };
 
   // Handle running all requests in a collection
-  const handleRunCollection = async (collection) => {
-    if (!collection || !collection.items) return;
+const handleRunCollection = async (collection) => {
+  if (!collection || !collection.id) return;
 
-    setIsRunningCollection(true);
+  setIsRunningCollection(true);
+  setCollectionRunResults({
+    collectionName: collection.name,
+    startTime: new Date().toISOString(),
+    status: 'running',
+    results: []
+  });
+
+  try {
+    // Call backend
+    const response = await executeCollection(collection.id);
+    const backendResult = response.data; // CollectionExecutionResult
+
+    // Build a map of requestId -> folderPath for the entire collection
+    const folderPathMap = new Map();
+    const traverse = (items, currentFolderPath = 'Root') => {
+      items.forEach(item => {
+        if (item.type === 'request') {
+          folderPathMap.set(item.id, currentFolderPath);
+        } else if (item.type === 'folder' && item.items) {
+          const newPath = currentFolderPath === 'Root' ? item.name : `${currentFolderPath} / ${item.name}`;
+          traverse(item.items, newPath);
+        }
+      });
+    };
+    traverse(collection.items || []);
+
+    // Map backend summaries to UI format
+    const mappedResults = backendResult.results.map(summary => ({
+      requestId: summary.requestId,
+      requestName: summary.requestName,
+      method: summary.method, // not provided by backend – we may need to fetch original request or accept that it's missing
+      url: summary.url || '', // backend doesn't return URL? We have it in summary but maybe not – let's check
+      folderPath: folderPathMap.get(summary.requestId) || 'Unknown',
+      status: summary.statusCode,
+      statusText: summary.statusText,
+      time: summary.responseTimeMs,
+      size: summary.size || 0,
+      data: null, // response body not returned in summary
+      success: summary.success,
+      error: summary.errorMessage
+    }));
+
     setCollectionRunResults({
       collectionName: collection.name,
       startTime: new Date().toISOString(),
-      status: 'running',
-      results: []
-    });
-
-    // Recursively collect all requests from collection
-    const collectRequests = (items, folderPath = '') => {
-      const requests = [];
-      items.forEach(item => {
-        if (item.type === 'request') {
-          requests.push({
-            ...item,
-            folderPath: folderPath || 'Root'
-          });
-        } else if (item.type === 'folder' && item.items) {
-          const newPath = folderPath ? `${folderPath} / ${item.name}` : item.name;
-          requests.push(...collectRequests(item.items, newPath));
-        }
-      });
-      return requests;
-    };
-
-    const allRequests = collectRequests(collection.items);
-    const results = [];
-
-    // Execute requests sequentially
-    for (let i = 0; i < allRequests.length; i++) {
-      const request = allRequests[i];
-      
-      setCollectionRunResults(prev => ({
-        ...prev,
-        currentIndex: i,
-        totalRequests: allRequests.length,
-        currentRequest: request.name
-      }));
-
-      try {
-        const res = await sendRequest({
-          url: substituteVariables(request.path || ''),
-          method: request.method || 'GET',
-          queryParams: request.queryParams || [{ key: '', value: '' }],
-          headers: request.headers || [{ key: '', value: '' }],
-          body: request.body || null,
-          authType: request.authType || 'none',
-          authData: request.authData || {},
-          preRequestScript: request.preRequestScript || ''
-        });
-
-        results.push({
-          requestId: request.id,
-          requestName: request.name,
-          method: request.method,
-          url: request.path,
-          folderPath: request.folderPath,
-          status: res.status,
-          statusText: res.statusText,
-          time: res.time,
-          size: res.size,
-          data: res.data,
-          success: res.status >= 200 && res.status < 300,
-          error: null
-        });
-      } catch (err) {
-        results.push({
-          requestId: request.id,
-          requestName: request.name,
-          method: request.method,
-          url: request.path,
-          folderPath: request.folderPath,
-          status: 0,
-          statusText: 'Error',
-          time: 0,
-          size: 0,
-          data: null,
-          success: false,
-          error: err.message || 'Request failed'
-        });
-      }
-    }
-
-    setCollectionRunResults({
-      collectionName: collection.name,
-      startTime: results[0]?.startTime || new Date().toISOString(),
       endTime: new Date().toISOString(),
       status: 'completed',
-      totalRequests: allRequests.length,
-      passedRequests: results.filter(r => r.success).length,
-      failedRequests: results.filter(r => !r.success).length,
-      results: results
+      totalRequests: backendResult.totalRequests,
+      passedRequests: backendResult.successCount,
+      failedRequests: backendResult.failureCount,
+      results: mappedResults
     });
-
+  } catch (error) {
+    console.error('Collection execution failed:', error);
+    setCollectionRunResults({
+      collectionName: collection.name,
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      status: 'failed',
+      error: error.response?.data?.message || error.message,
+      results: []
+    });
+    toast.error('Failed to run collection');
+  } finally {
     setIsRunningCollection(false);
-  };
+  }
+};
 
+const handleMockServerRun = (runData) => {
+  setCollectionRunResults(runData);
+};
   const isWorkspace = pathname.startsWith('/workspace');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
@@ -1241,7 +1972,12 @@ function App() {
                 isLoading={isLoading}
                 error={error}
                 environments={environments}
-                selectedEnvironment={selectedEnvironment}
+                selectedEnvironment={selectedEnvironmentId}
+                onEnvironmentChange={handleEnvironmentChange}
+                onCreateEnvironment={handleCreateEnvironment}
+                onActivateEnvironment={handleActivateEnvironment}
+                onRenameEnvironment={handleRenameEnvironment}
+                onDeleteEnvironment={handleDeleteEnvironment}
                 onSelectEndpoint={handleSelectEndpoint}
                 onMethodChange={(v) => updateActiveRequest('method', v)}
                 onUrlChange={(v) => updateActiveRequest('url', v)}
@@ -1254,17 +1990,14 @@ function App() {
                 onTestsChange={(v) => updateActiveRequest('tests', v)}
                 onExecute={handleExecute}
                 onNewRequest={handleNewTab}
-                onEnvironmentChange={setSelectedEnvironment}
                 onSaveRequest={handleSaveRequest}
                 onAddProject={handleAddProject}
                 onCollectionsChange={handleCollectionsChange}
                 onDeleteHistoryItem={handleDeleteHistoryItem}
                 environmentVariables={environmentVariables}
-                globalVariables={globalVariables}
-                onEnvironmentVariablesChange={setEnvironmentVariables}
-                onGlobalVariablesChange={setGlobalVariables}
+                onEnvironmentVariablesChange={handleEnvironmentVariablesChange}
                 onSaveEnvironmentVariables={handleSaveEnvironmentVariables}
-                onSaveGlobalVariables={handleSaveGlobalVariables}
+                environmentVariablesDirty={environmentVariablesDirty}
                 substituteVariables={substituteVariables}
                 collectionRunResults={collectionRunResults}
                 onRunCollection={handleRunCollection}
@@ -1276,6 +2009,27 @@ function App() {
                 onDeleteMock={handleDeleteMock}
                 onRenameMock={handleRenameMock}
                 onSelectMockRequest={handleSelectMockRequest}
+                isSavedRequest={isSavedRequest}
+                onUpdateRequest={handleUpdateRequest}
+                pristineRequests={pristineRequests}
+  globalEnvironment={globalEnvironment} 
+  globalVariablesDirty={globalVariablesDirty}
+  onGlobalVariablesChange={handleGlobalVariablesChange}
+  onSaveGlobalVariables={handleSaveGlobalVariables}
+  mockServers={mockServers}
+  isLoadingMocks={isLoadingMocks}
+  onCreateMockServer={handleCreateMockServer}
+  onRenameMockServer={handleRenameMockServer}
+  onDeleteMockServer={handleDeleteMockServer}
+  onToggleVisibility={handleToggleVisibility}
+  onExecuteMockRequest={handleExecuteMockRequest}
+  onSelectMockEndpoint={handleSelectMockEndpoint}
+  onUpdateMockServer={handleUpdateMockServer}
+  onOpenWorkspaceDetails={handleOpenWorkspaceDetails}
+  currentUserId={currentUserId}
+  onWorkspaceUpdate={handleWorkspaceUpdate}
+  onWorkspaceDelete={handleWorkspaceDelete}
+  onMockServerRun={handleMockServerRun}
               />
             }
           />

@@ -13,12 +13,19 @@ export default function SaveRequestModal({
 }) {
   const [selectedProject, setSelectedProject] = useState('');
   const [selectedCollection, setSelectedCollection] = useState('');
+  const [selectedFolder, setSelectedFolder] = useState(null);
   const [isAddingNewProject, setIsAddingNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newCollectionName, setNewCollectionName] = useState('');
   const [editableRequestName, setEditableRequestName] = useState('');
   const modalRef = useRef(null);
   const hasSavedRef = useRef(false);
+
+  const getFoldersForCollection = (collectionId) => {
+    const collection = collections.find(c => c.id === collectionId);
+    if (!collection || !collection.items) return [];
+    return collection.items.filter(item => item.type === 'folder');
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -52,6 +59,7 @@ export default function SaveRequestModal({
     if (isOpen) {
       setSelectedProject('');
       setSelectedCollection('');
+      setSelectedFolder(null);
       setIsAddingNewProject(false);
       setNewProjectName('');
       setNewCollectionName('');
@@ -101,7 +109,8 @@ export default function SaveRequestModal({
           projectName: projectName,
           collectionName: newCollectionName.trim(),
           isNewCollection: true,
-          requestName: editableRequestName.trim() || requestName || 'Untitled Request'
+          requestName: editableRequestName.trim() || requestName || 'Untitled Request',
+          folderId: null // new collection, folder not applicable
         });
         onClose();
       }
@@ -114,7 +123,8 @@ export default function SaveRequestModal({
           projectName: projectName,
           collectionId: selectedCollection,
           isNewCollection: false,
-          requestName: editableRequestName.trim() || requestName || 'Untitled Request'
+          requestName: editableRequestName.trim() || requestName || 'Untitled Request',
+          folderId: selectedFolder || null
         });
         onClose();
       }
@@ -213,9 +223,11 @@ export default function SaveRequestModal({
                   if (e.target.value === 'add-new') {
                     setIsAddingNewProject(true);
                     setSelectedCollection('');
+                    setSelectedFolder(null);
                   } else {
                     setSelectedProject(e.target.value);
                     setSelectedCollection('');
+                    setSelectedFolder(null);
                   }
                 }}
                 className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
@@ -259,7 +271,10 @@ export default function SaveRequestModal({
             ) : (
               <select
                 value={selectedCollection}
-                onChange={(e) => setSelectedCollection(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCollection(e.target.value);
+                  setSelectedFolder(null); // reset folder when collection changes
+                }}
                 disabled={isCollectionDisabled}
                 className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -274,6 +289,25 @@ export default function SaveRequestModal({
               </select>
             )}
           </div>
+
+          {/* Folder Dropdown (only when existing collection selected) */}
+          {selectedCollection && !needsNewCollection && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Folder (optional)
+              </label>
+              <select
+                value={selectedFolder || ''}
+                onChange={(e) => setSelectedFolder(e.target.value || null)}
+                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+              >
+                <option value="">Root (no folder)</option>
+                {getFoldersForCollection(selectedCollection).map(folder => (
+                  <option key={folder.id} value={folder.id}>{folder.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">

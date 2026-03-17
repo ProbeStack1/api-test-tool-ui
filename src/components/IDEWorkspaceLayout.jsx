@@ -700,6 +700,7 @@ useEffect(() => {
                   onRunCollection={onRunCollection}
                   onOpenWorkspaceDetails={onOpenWorkspaceDetails}
                   currentUserId={currentUserId}
+                  onWorkspaceDelete={onWorkspaceDelete}
                 />
               </div>
             )}

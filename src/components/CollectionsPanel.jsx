@@ -1240,6 +1240,7 @@ export default function CollectionsPanel({
   onCollectionsChange,
   onRunCollection,
   onOpenWorkspaceDetails,
+  onWorkspaceDelete,
 })
  {
   const collections = externalCollections;
@@ -2049,8 +2050,18 @@ const handleFileImport = (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
 
+  // Check file extension
   if (!file.name.endsWith('.json')) {
-    alert('Please select a valid JSON file');
+    toast.error('Please select a valid JSON file');
+    event.target.value = ''; // reset input
+    return;
+  }
+
+  // Check file size (max 5 MB)
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+  if (file.size > MAX_FILE_SIZE) {
+    toast.error('File size exceeds 5 MB limit. Please choose a smaller file.');
+    event.target.value = ''; // reset input
     return;
   }
 
@@ -2059,7 +2070,8 @@ const handleFileImport = (event) => {
     try {
       const jsonContent = JSON.parse(e.target.result);
       if (!jsonContent.info || !jsonContent.item) {
-        alert('Invalid Postman collection format');
+        toast.error('Invalid Postman collection format');
+        event.target.value = ''; // reset input
         return;
       }
       // Store both content and file name
@@ -2071,7 +2083,8 @@ const handleFileImport = (event) => {
       event.target.value = ''; // reset input
     } catch (error) {
       console.error('Error parsing JSON:', error);
-      alert('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+      toast.error('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+      event.target.value = ''; // reset input
     }
   };
   reader.readAsText(file);
@@ -2338,11 +2351,13 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
     }
   };
 
-  const handleDeleteWorkspace = async () => {
+const handleDeleteWorkspace = async () => {
     if (!workspaceToDelete) return;
     try {
       await deleteWorkspace(workspaceToDelete.id);
       toast.success('Workspace deleted');
+      // Notify parent to update projects list
+      onWorkspaceDelete?.(workspaceToDelete.id);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Delete failed');
     } finally {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState,useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot } from 'lucide-react';
+import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
@@ -15,6 +15,12 @@ import EnvironmentList from './sidebar/EnvironmentList';
 import EnvironmentDropdown from './sidebar/EnvironmentDropdown';
 import CreateMockServiceModal from '../components/modals/CreateMockServiceModal';
 import { runMockServer } from '../services/mockServerService';
+import {
+  listTestFiles,
+  uploadTestFile,
+  deleteTestFile,
+} from '../services/testFileService';
+import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
 
 export default function IDEWorkspaceLayout({
   history,
@@ -151,6 +157,19 @@ const inactiveEnvVars = new Set(
   useEffect(() => {
 }, [environmentVariablesDirty, selectedEnvironment]);
 
+useEffect(() => {
+  const fetchFiles = async () => {
+    if (!projects || projects.length === 0) return;
+    const workspaceId = projects[0].id;
+    try {
+      const res = await listTestFiles(workspaceId);
+      onTestFilesChange(res.items);
+    } catch (err) {
+      toast.error('Failed to load test files');
+    }
+  };
+  fetchFiles();
+}, [projects, onTestFilesChange]);
   // History menu state
   const [historyMenu, setHistoryMenu] = useState(null);
   const [showHistorySaveModal, setShowHistorySaveModal] = useState(false);
@@ -189,6 +208,7 @@ const inactiveEnvVars = new Set(
   // Testing sub-tabs
   const [testingSubTab, setTestingSubTab] = useState('generate');
   const testingSubTabs = [
+    { id: 'library', label: 'Spec Library', icon: BookOpen }, 
     { id: 'generate', label: 'Generate Test Cases', icon: FileSearch },
     { id: 'functional', label: 'Functional Test', icon: Play },
     { id: 'load', label: 'Load Test', icon: BarChart3 },
@@ -198,35 +218,59 @@ const inactiveEnvVars = new Set(
   const [generateTestcasesSearch, setGenerateTestcasesSearch] = useState('');
   const testDataFileInputRef = React.useRef(null);
   
-  const handleTestDataFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Only allow CSV and JSON files
-    const allowedTypes = ['application/json', 'text/csv', 'application/vnd.ms-excel'];
-    const allowedExtensions = ['.json', '.csv'];
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-    
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
-      alert('Only CSV and JSON files are allowed');
+const handleTestDataFileChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // validation (keep existing)
+  const allowedTypes = ['application/json', 'text/csv', 'application/vnd.ms-excel'];
+  const allowedExtensions = ['.json', '.csv'];
+  const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+  if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+    toast.error('Only CSV and JSON files are allowed');
+    return;
+  }
+
+  try {
+    const workspaceId = projects[0]?.id;
+    if (!workspaceId) {
+      toast.error('No workspace selected');
       return;
     }
-    
-    // Add file to testFiles state
-    const newFile = {
-      id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name: file.name,
-      type: fileExtension,
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-    };
-    
-    onTestFilesChange?.((prev) => [...prev, newFile]);
-  };
+    const uploaded = await uploadTestFile(workspaceId, file);
+    onTestFilesChange(prev => [...prev, uploaded]);
+    toast.success('File uploaded');
+  } catch (error) {
+    toast.error('Upload failed: ' + (error.response?.data?.message || error.message));
+  } finally {
+    e.target.value = ''; // reset input
+  }
+};
   
-  const handleDeleteTestFile = (fileId) => {
-    onTestFilesChange?.((prev) => prev.filter(f => f.id !== fileId));
-  };
+const handleDeleteTestFile = async (fileId) => {
+  try {
+    await deleteTestFile(fileId);
+    onTestFilesChange(prev => prev.filter(f => f.id !== fileId));
+    toast.success('File deleted');
+  } catch (error) {
+    toast.error('Delete failed: ' + (error.response?.data?.message || error.message));
+  }
+};
+
+const handleDownloadTestFile = async (fileId, fileName) => {
+  try {
+    const response = await downloadTestFile(fileId);
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    toast.error('Download failed');
+  }
+};
 
 const handleRunMockServer = async (mockServer) => {
   if (!mockServer.endpoints || mockServer.endpoints.length === 0) return;
@@ -1106,9 +1150,15 @@ useEffect(() => {
             ) : topMenuActive === 'testing' ? (
               // Testing: Generate Testcases | Functional Test | Load Test
               <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
+                {testingSubTab === 'library' && (
+  <SpecLibraryPanel
+    projects={projects}
+    currentUserId={currentUserId}
+  />
+)}
                 {testingSubTab === 'generate' && (
-                  <GenerateTestCase />
-                )}
+  <GenerateTestCase projects={projects} />
+)}
                 {testingSubTab === 'functional' && (
                   <div className="flex gap-6">
                     {/* Left side - Form */}
@@ -1530,7 +1580,9 @@ useEffect(() => {
             ) : topMenuActive === 'ai-assisted' ? (
               <AIAssisted />
             ) : topMenuActive === 'dashboard' ? (
-              <DashboardSpecTable />
+              <DashboardSpecTable
+  projects={projects}
+/>
             ) : (
               <APIExecutionStudio
                 requests={requests}

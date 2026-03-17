@@ -55,3 +55,18 @@ export const userSettingApi = axios.create({
   baseURL: "http://localhost:8086"
 });
 addUserIdInterceptor(userSettingApi);
+
+export const testFileApi = axios.create({
+  baseURL: "http://localhost:8087"
+});
+addUserIdInterceptor(testFileApi);
+
+export const testSpecificationApi = axios.create({
+  baseURL: "http://localhost:8088"
+});
+addUserIdInterceptor(testSpecificationApi);
+
+export const dashboardApi = axios.create({
+  baseURL: "http://localhost:8089"
+});
+addUserIdInterceptor(dashboardApi);

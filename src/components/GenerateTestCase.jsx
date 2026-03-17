@@ -1,15 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
-import { 
-  Plus, Upload, FileSearch, Sparkles, X, Edit2, Trash2, 
+import {
+  Plus, Upload, FileSearch, X, Edit2, Trash2,
   FileCode, Check, Search, Download, Save
 } from 'lucide-react';
+import { toast } from 'sonner';
+import clsx from 'clsx';
+import {
+  listTestSpecs,
+  createTestSpec,
+  updateTestSpec,
+  deleteTestSpec,
+} from '../services/testSpecificationService';
+import { listLibraryItems } from '../services/specLibraryService';
 
-// Storage key for test specs - separate from other data
-const TEST_SPECS_STORAGE_KEY = 'probestack_test_specs';
-const ACTIVE_SPEC_KEY = 'probestack_active_test_spec';
-
-// Default blank JSON spec template
 const BLANK_SPEC_TEMPLATE = {
   openapi: "3.0.0",
   info: {
@@ -23,48 +27,6 @@ const BLANK_SPEC_TEMPLATE = {
   }
 };
 
-// Helper to safely read from localStorage
-const getStoredSpecs = () => {
-  try {
-    const stored = localStorage.getItem(TEST_SPECS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
-// Helper to safely write to localStorage
-const saveSpecsToStorage = (specs) => {
-  try {
-    localStorage.setItem(TEST_SPECS_STORAGE_KEY, JSON.stringify(specs));
-  } catch (error) {
-    console.error('Failed to save test specs:', error);
-  }
-};
-
-// Helper to get active spec from storage
-const getActiveSpecFromStorage = () => {
-  try {
-    return localStorage.getItem(ACTIVE_SPEC_KEY) || null;
-  } catch {
-    return null;
-  }
-};
-
-// Helper to save active spec to storage
-const saveActiveSpecToStorage = (specId) => {
-  try {
-    if (specId) {
-      localStorage.setItem(ACTIVE_SPEC_KEY, specId);
-    } else {
-      localStorage.removeItem(ACTIVE_SPEC_KEY);
-    }
-  } catch (error) {
-    console.error('Failed to save active spec:', error);
-  }
-};
-
-// Monaco editor options (matching design tool)
 const MONACO_OPTIONS = {
   fontSize: 13,
   lineHeight: 20,
@@ -81,59 +43,95 @@ const MONACO_OPTIONS = {
   formatOnType: true,
 };
 
-export default function GenerateTestCase() {
-  // State for specs list
-  const [specs, setSpecs] = useState(getStoredSpecs);
-  const [activeSpecId, setActiveSpecId] = useState(getActiveSpecFromStorage);
-  
-  // Editor state
+// Helper to get source display properties
+const getSourceDisplay = (source) => {
+  switch(source) {
+    case 'upload': return { label: 'Uploaded', color: 'text-green-400 bg-green-400/10' };
+    case 'url': return { label: 'From URL', color: 'text-blue-400 bg-blue-400/10' };
+    case 'library': return { label: 'Library', color: 'text-purple-400 bg-purple-400/10' };
+    default: return { label: source || 'Unknown', color: 'text-gray-400 bg-gray-400/10' };
+  }
+};
+
+export default function GenerateTestCase({ projects }) {
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(projects[0]?.id || null);
+  const [specs, setSpecs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeSpecId, setActiveSpecId] = useState(null);
   const [editorContent, setEditorContent] = useState('');
   const [parseError, setParseError] = useState('');
-  const [isEditorReady, setIsEditorReady] = useState(false);
-  
-  // Modal state
+  const [isEditorDirty, setIsEditorDirty] = useState(false);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSpecName, setNewSpecName] = useState('');
-  const [createMode, setCreateMode] = useState('upload'); // 'upload', 'library', 'url'
+  const [createMode, setCreateMode] = useState('upload');
   const [selectedLibrarySpec, setSelectedLibrarySpec] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [importUrl, setImportUrl] = useState('');
   const fileInputRef = useRef(null);
-  
-  // Dummy organization specification library data
-  const ORG_SPEC_LIBRARY = [
-    { id: 'spec-1', name: 'REST API Testing Guide', description: 'Standard REST API test specifications with CRUD operations', category: 'General' },
-    { id: 'spec-2', name: 'Auth Service Tests', description: 'Authentication and authorization test cases', category: 'Security' },
-    { id: 'spec-3', name: 'Payment Gateway Spec', description: 'Payment processing API test specifications', category: 'Financial' },
-    { id: 'spec-4', name: 'User Management API', description: 'User CRUD and profile management tests', category: 'General' },
-  ];
-  
-  // Sidebar search
+
+  const [libraryItems, setLibraryItems] = useState([]);
+  const [loadingLibrary, setLoadingLibrary] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Inline editing state for specs
   const [editingSpecId, setEditingSpecId] = useState(null);
   const [editingName, setEditingName] = useState('');
-  
-  // Autosave timeout ref
-  const autosaveTimeoutRef = useRef(null);
 
-  // Get active spec
-  const activeSpec = useMemo(() => {
-    return specs.find(s => s.id === activeSpecId) || null;
-  }, [specs, activeSpecId]);
+  // Fetch specs when workspace changes
+  useEffect(() => {
+    if (!selectedWorkspaceId) return;
+    fetchSpecs();
+  }, [selectedWorkspaceId]);
 
-  // Initialize editor content when active spec changes
+  const fetchSpecs = async () => {
+    setLoading(true);
+    try {
+      const res = await listTestSpecs(selectedWorkspaceId, { limit: 100 });
+      setSpecs(res.items);
+      if (!activeSpecId && res.items.length > 0) {
+        setActiveSpecId(res.items[0].id);
+      } else if (res.items.length === 0) {
+        setActiveSpecId(null);
+      }
+    } catch (err) {
+      toast.error('Failed to load test specs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch library items for modal
+  useEffect(() => {
+    if (showCreateModal && createMode === 'library') {
+      fetchLibraryItems();
+    }
+  }, [showCreateModal, createMode]);
+
+  const fetchLibraryItems = async () => {
+    setLoadingLibrary(true);
+    try {
+      const items = await listLibraryItems();
+      setLibraryItems(items);
+    } catch (err) {
+      toast.error('Failed to load library');
+    } finally {
+      setLoadingLibrary(false);
+    }
+  };
+
+  const activeSpec = useMemo(() => specs.find(s => s.id === activeSpecId) || null, [specs, activeSpecId]);
+
+  // Update editor when active spec changes
   useEffect(() => {
     if (activeSpec) {
-      setEditorContent(activeSpec.content);
-      setParseError('');
+      setEditorContent(activeSpec.content || '');
+      setIsEditorDirty(false);
     } else {
       setEditorContent(JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2));
     }
-  }, [activeSpec?.id]);
+  }, [activeSpecId]);
 
-  // Parse validation
+  // JSON validation
   useEffect(() => {
     try {
       JSON.parse(editorContent);
@@ -143,217 +141,48 @@ export default function GenerateTestCase() {
     }
   }, [editorContent]);
 
-  // Filtered specs based on search
   const filteredSpecs = useMemo(() => {
     if (!searchQuery.trim()) return specs;
     const q = searchQuery.toLowerCase();
     return specs.filter(s => s.name.toLowerCase().includes(q));
   }, [specs, searchQuery]);
 
-  // Autosave effect
-  useEffect(() => {
-    if (!activeSpecId || !editorContent) return;
-    
-    // Clear existing timeout
-    if (autosaveTimeoutRef.current) {
-      clearTimeout(autosaveTimeoutRef.current);
-    }
-    
-    // Set new timeout for autosave
-    autosaveTimeoutRef.current = setTimeout(() => {
-      // Only save if content is valid JSON
-      try {
-        JSON.parse(editorContent);
-        
-        setSpecs(prev => {
-          const updated = prev.map(s => {
-            if (s.id === activeSpecId) {
-              return { ...s, content: editorContent, updatedAt: new Date().toISOString() };
-            }
-            return s;
-          });
-          saveSpecsToStorage(updated);
-          return updated;
-        });
-      } catch {
-        // Don't save invalid JSON
-      }
-    }, 1000); // 1 second debounce
-    
-    return () => {
-      if (autosaveTimeoutRef.current) {
-        clearTimeout(autosaveTimeoutRef.current);
-      }
-    };
-  }, [editorContent, activeSpecId]);
-
-  // Persist specs to localStorage whenever they change
-  useEffect(() => {
-    saveSpecsToStorage(specs);
-  }, [specs]);
-
-  // Persist active spec to localStorage
-  useEffect(() => {
-    saveActiveSpecToStorage(activeSpecId);
-  }, [activeSpecId]);
-
-  // Handle create new spec
-  const handleCreateNewSpec = () => {
-    setNewSpecName('');
-    setCreateMode('upload');
-    setUploadedFile(null);
-    setSelectedLibrarySpec(null);
-    setShowCreateModal(true);
-  };
-
-  // Handle file upload in modal
-  const handleFileUpload = (file) => {
-    if (file) {
-      setUploadedFile(file);
-    }
-  };
-
-  // Handle save new spec
-  const handleSaveNewSpec = async () => {
-    if (!newSpecName.trim()) {
-      alert('Please enter a spec name.');
-      return;
-    }
-    
-    let specContent = '';
-    let specName = newSpecName.trim();
-    
-    // Handle non-functional options
-    if (createMode === 'library') {
-      if (!selectedLibrarySpec) {
-        alert('Please select a specification from the library.');
-        return;
-      }
-      // Create spec from library selection with dummy content
-      const librarySpec = ORG_SPEC_LIBRARY.find(s => s.id === selectedLibrarySpec);
-      const newSpec = {
-        id: `spec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        name: specName,
-        content: JSON.stringify({
-          openapi: "3.0.0",
-          info: {
-            title: librarySpec.name,
-            version: "1.0.0",
-            description: librarySpec.description
-          },
-          paths: {},
-          components: { schemas: {} }
-        }, null, 2),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        source: 'library',
-        sourceId: selectedLibrarySpec
-      };
-      setSpecs(prev => [newSpec, ...prev]);
-      setActiveSpecId(newSpec.id);
-      setShowCreateModal(false);
-      setNewSpecName('');
-      setCreateMode('upload');
-      setUploadedFile(null);
-      setSelectedLibrarySpec(null);
-      setImportUrl('');
-      return;
-    }
-    
-    if (createMode === 'blank') {
-      specContent = JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2);
-    } else if (createMode === 'upload' && uploadedFile) {
-      try {
-        const text = await uploadedFile.text();
-        // Validate it's JSON
-        JSON.parse(text);
-        specContent = JSON.stringify(JSON.parse(text), null, 2);
-        // Use filename without extension as spec name if not provided
-        if (!newSpecName.trim()) {
-          specName = uploadedFile.name.replace(/\.json$/i, '');
-        }
-      } catch {
-        alert('Could not parse file as valid JSON.');
-        return;
-      }
-    } else if (createMode === 'url' && importUrl.trim()) {
-      // Fetch spec from URL
-      const trimmedUrl = importUrl.trim();
-      try {
-        const response = await fetch(trimmedUrl);
-        if (!response.ok) {
-          alert(`Failed to fetch spec from URL: ${response.statusText}`);
-          return;
-        }
-        const text = await response.text();
-        // Try to parse as JSON
-        try {
-          JSON.parse(text);
-          specContent = JSON.stringify(JSON.parse(text), null, 2);
-        } catch {
-          alert('Could not parse fetched content as valid JSON.');
-          return;
-        }
-      } catch (error) {
-        alert(`Error fetching spec from URL: ${error.message}`);
-        return;
-      }
-    }
-    
-    // Create new spec
-    const newSpec = {
-      id: `spec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      name: specName,
-      content: specContent,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setSpecs(prev => [newSpec, ...prev]);
-    setActiveSpecId(newSpec.id);
-    
-    // Close modal
-    setShowCreateModal(false);
-    setNewSpecName('');
-    setCreateMode('upload');
-    setUploadedFile(null);
-    setSelectedLibrarySpec(null);
-    setImportUrl('');
-  };
-
-  // Handle spec selection
+  // Handlers
   const handleSelectSpec = (spec) => {
     setActiveSpecId(spec.id);
   };
 
-  // Handle delete spec
-  const handleDeleteSpec = (e, spec) => {
+  const handleDeleteSpec = async (e, spec) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete "${spec.name}"?`)) {
+    if (!window.confirm(`Delete "${spec.name}"?`)) return;
+    try {
+      await deleteTestSpec(spec.id);
       setSpecs(prev => prev.filter(s => s.id !== spec.id));
       if (activeSpecId === spec.id) {
-        setActiveSpecId(null);
+        setActiveSpecId(specs.length > 1 ? specs[0].id : null);
       }
+      toast.success('Deleted');
+    } catch (err) {
+      toast.error('Delete failed');
     }
   };
 
-  // Handle inline rename start
   const handleStartRename = (e, spec) => {
     e.stopPropagation();
     setEditingSpecId(spec.id);
     setEditingName(spec.name);
   };
 
-  // Handle inline rename confirm
-  const handleConfirmRename = (e, spec) => {
+  const handleConfirmRename = async (e, spec) => {
     if (e.key === 'Enter') {
-      if (editingName.trim()) {
-        setSpecs(prev => prev.map(s => {
-          if (s.id === spec.id) {
-            return { ...s, name: editingName.trim(), updatedAt: new Date().toISOString() };
-          }
-          return s;
-        }));
+      if (editingName.trim() && editingName !== spec.name) {
+        try {
+          const updated = await updateTestSpec(spec.id, { name: editingName.trim() });
+          setSpecs(prev => prev.map(s => s.id === spec.id ? updated : s));
+          toast.success('Renamed');
+        } catch (err) {
+          toast.error('Rename failed');
+        }
       }
       setEditingSpecId(null);
       setEditingName('');
@@ -363,29 +192,125 @@ export default function GenerateTestCase() {
     }
   };
 
-  // Handle inline rename blur (save on blur if not empty)
-  const handleRenameBlur = (spec) => {
-    if (editingName.trim()) {
-      setSpecs(prev => prev.map(s => {
-        if (s.id === spec.id) {
-          return { ...s, name: editingName.trim(), updatedAt: new Date().toISOString() };
-        }
-        return s;
-      }));
+  const handleRenameBlur = async (spec) => {
+    if (editingName.trim() && editingName !== spec.name) {
+      try {
+        const updated = await updateTestSpec(spec.id, { name: editingName.trim() });
+        setSpecs(prev => prev.map(s => s.id === spec.id ? updated : s));
+      } catch (err) {
+        toast.error('Rename failed');
+      }
     }
     setEditingSpecId(null);
     setEditingName('');
   };
 
-  // Handle editor change
-  const handleEditorChange = (value) => {
-    setEditorContent(value || '');
+  const handleCreateNewSpec = () => {
+    setNewSpecName('');
+    setCreateMode('upload');
+    setUploadedFile(null);
+    setSelectedLibrarySpec(null);
+    setImportUrl('');
+    setShowCreateModal(true);
   };
 
-  // Handle download spec
+  const handleFileUpload = (file) => {
+    setUploadedFile(file);
+  };
+
+  const handleSaveNewSpec = async () => {
+    if (!newSpecName.trim()) {
+      toast.error('Please enter a spec name');
+      return;
+    }
+    if (!selectedWorkspaceId) {
+      toast.error('No workspace selected');
+      return;
+    }
+
+    let content = '';
+    let source = 'blank';
+    let sourceId = null;
+
+    if (createMode === 'upload') {
+      if (!uploadedFile) {
+        toast.error('Please select a file');
+        return;
+      }
+      try {
+        const text = await uploadedFile.text();
+        JSON.parse(text);
+        content = text;
+        source = 'upload';
+      } catch {
+        toast.error('Invalid JSON file');
+        return;
+      }
+    } else if (createMode === 'url') {
+      if (!importUrl.trim()) {
+        toast.error('Please enter a URL');
+        return;
+      }
+      try {
+        const response = await fetch(importUrl);
+        const text = await response.text();
+        JSON.parse(text);
+        content = text;
+        source = 'url';
+      } catch (err) {
+        toast.error('Failed to fetch or parse JSON from URL');
+        return;
+      }
+    } else if (createMode === 'library') {
+      if (!selectedLibrarySpec) {
+        toast.error('Please select a library spec');
+        return;
+      }
+      const libItem = libraryItems.find(i => i.id === selectedLibrarySpec);
+      content = libItem.content;
+      source = 'library';
+      sourceId = selectedLibrarySpec;
+    } else {
+      content = JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2);
+    }
+
+    try {
+      const payload = {
+        workspaceId: selectedWorkspaceId,
+        name: newSpecName.trim(),
+        content,
+        source,
+        sourceId,
+      };
+      const created = await createTestSpec(payload);
+      setSpecs(prev => [created, ...prev]);
+      setActiveSpecId(created.id);
+      setShowCreateModal(false);
+      setNewSpecName('');
+      setCreateMode('upload');
+      setUploadedFile(null);
+      setSelectedLibrarySpec(null);
+      setImportUrl('');
+      toast.success('Test spec created');
+    } catch (err) {
+      toast.error('Creation failed: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleSaveContent = async () => {
+    if (!activeSpecId || !editorContent || parseError) return;
+    try {
+      const updated = await updateTestSpec(activeSpecId, { content: editorContent });
+      setSpecs(prev => prev.map(s => s.id === activeSpecId ? updated : s));
+      setIsEditorDirty(false);
+      toast.success('Saved');
+    } catch (err) {
+      toast.error('Save failed');
+    }
+  };
+
   const handleDownload = () => {
     if (!activeSpec) return;
-    
     const blob = new Blob([editorContent], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -395,33 +320,37 @@ export default function GenerateTestCase() {
     URL.revokeObjectURL(url);
   };
 
-  // Handle editor mount
-  const handleEditorDidMount = (editor, monaco) => {
-    setIsEditorReady(true);
-  };
-
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0B1120]">
-      {/* Header */}
       <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Generate Test Cases</h2>
           <p className="text-sm text-gray-400">Create and manage JSON test case specifications</p>
         </div>
-        <button
-          onClick={handleCreateNewSpec}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
-        >
-          <Plus className="h-4 w-4" />
-          Create Test Case
-        </button>
+        <div className="flex items-center gap-4">
+          {projects.length > 1 && (
+            <select
+              value={selectedWorkspaceId}
+              onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+              className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={handleCreateNewSpec}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
+          >
+            <Plus className="h-4 w-4" />
+            Create Test Case
+          </button>
+        </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex min-h-0">
-        {/* Sidebar */}
         <aside className="w-72 border-r border-dark-700 bg-dark-800/30 flex flex-col">
-          {/* Search */}
           <div className="p-4 border-b border-dark-700">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -435,21 +364,23 @@ export default function GenerateTestCase() {
             </div>
           </div>
 
-          {/* Specs List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {filteredSpecs.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-sm">
-                {searchQuery ? 'No specs found' : 'No test case specs yet.\nClick "Create Test Case" to start.'}
+            {loading ? (
+              <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>
+            ) : filteredSpecs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 text-sm whitespace-pre-line">
+                {searchQuery ? 'No specs match your search' : 'No test specs yet.\nCreate one to get started.'}
               </div>
             ) : (
-              filteredSpecs.map((spec) => (
+              filteredSpecs.map(spec => (
                 <div
                   key={spec.id}
-                  className={`group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-all ${
+                  className={clsx(
+                    'group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-all',
                     activeSpecId === spec.id
                       ? 'bg-primary/10 border border-primary/30'
                       : 'hover:bg-dark-700/50 border border-transparent'
-                  }`}
+                  )}
                   onClick={() => handleSelectSpec(spec)}
                 >
                   <div className="flex-1 min-w-0">
@@ -472,24 +403,28 @@ export default function GenerateTestCase() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5 ml-6">
-                      {new Date(spec.updatedAt).toLocaleDateString()}
-                    </div>
+                    {/* Source badge instead of date */}
+                    {spec.source && (
+                      <div className="mt-0.5 ml-6">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] rounded ${getSourceDisplay(spec.source).color}`}>
+                          {getSourceDisplay(spec.source).label}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Inline Action Buttons */}
+
                   {editingSpecId !== spec.id && (
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => handleStartRename(e, spec)}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-600 transition-all"
+                        className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-600"
                         title="Rename"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={(e) => handleDeleteSpec(e, spec)}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10"
                         title="Delete"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -502,9 +437,7 @@ export default function GenerateTestCase() {
           </div>
         </aside>
 
-        {/* Editor Area */}
         <main className="flex-1 flex flex-col min-h-0 bg-[#0B1120]">
-          {/* Editor Header */}
           <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between bg-dark-800/20">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-white">
@@ -519,57 +452,54 @@ export default function GenerateTestCase() {
                   Invalid JSON
                 </span>
               )}
-              {!parseError && activeSpec && (
-                <span className="text-xs text-gray-500">
-                  Autosaved
-                </span>
-              )}
             </div>
-            
+
             {activeSpec && (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {}}
-                  className="p-2 rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors"
-                  title="Save"
-                >
-                  <Save className="h-4 w-4" />
-                </button>
+                {isEditorDirty && (
+                  <button
+                    onClick={handleSaveContent}
+                    className="p-2 rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors"
+                    title="Save changes"
+                  >
+                    <Save className="h-5 w-5" />
+                  </button>
+                )}
                 <button
                   onClick={handleDownload}
                   className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
                   title="Download JSON"
                 >
-                  <Download className="h-4 w-4" />
+                  <Download className="h-5 w-5" />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Editor */}
           <div className="flex-1 min-h-0">
             <Editor
               value={editorContent}
               language="json"
               theme="vs-dark"
               options={MONACO_OPTIONS}
-              onChange={handleEditorChange}
-              onMount={handleEditorDidMount}
+              onChange={(value) => {
+                setEditorContent(value || '');
+                setIsEditorDirty(true);
+              }}
               height="100%"
             />
           </div>
 
-          {/* Parse Error Banner */}
           {parseError && (
             <div className="px-4 py-3 bg-red-500/10 border-t border-red-500/20 text-red-400 text-sm flex items-center gap-2">
-              <span className="text-lg">⚠️</span>
+              <span>⚠️</span>
               <span>JSON Error: {parseError}</span>
             </div>
           )}
         </main>
       </div>
 
-      {/* Create Modal */}
+      {/* Create Modal (unchanged) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
@@ -588,9 +518,24 @@ export default function GenerateTestCase() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh]">
-              {/* Test Case Name Input */}
+              {projects.length > 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Target Workspace
+                  </label>
+                  <select
+                    value={selectedWorkspaceId}
+                    onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  >
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Test Case Name <span className="text-red-400">*</span>
@@ -604,7 +549,6 @@ export default function GenerateTestCase() {
                 />
               </div>
 
-              {/* Creation Options */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-3">
                   Creation Method
@@ -671,39 +615,49 @@ export default function GenerateTestCase() {
                         Browse and select from the specification library
                       </div>
                       {createMode === 'library' && (
-                        <div className="mt-4 space-y-2">
-                          {ORG_SPEC_LIBRARY.map((spec) => (
-                            <div
-                              key={spec.id}
-                              onClick={() => setSelectedLibrarySpec(spec.id)}
-                              className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                                selectedLibrarySpec === spec.id
-                                  ? 'border-primary bg-primary/10'
-                                  : 'border-dark-600 hover:border-primary/50 hover:bg-dark-700/50'
-                              }`}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
-                                  selectedLibrarySpec === spec.id
-                                    ? 'border-primary bg-primary'
-                                    : 'border-dark-500'
-                                }`}>
-                                  {selectedLibrarySpec === spec.id && (
-                                    <Check className="w-3 h-3 text-white" />
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="font-medium text-white text-sm">{spec.name}</div>
-                                  <div className="text-xs text-gray-400 mt-0.5">{spec.description}</div>
-                                  <div className="mt-1">
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-dark-600 text-gray-400">
-                                      {spec.category}
-                                    </span>
+                        <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
+                          {loadingLibrary ? (
+                            <div className="text-center py-4 text-gray-500">Loading library...</div>
+                          ) : libraryItems.length === 0 ? (
+                            <div className="text-center py-4 text-gray-500">No library items found</div>
+                          ) : (
+                            libraryItems.map((item) => (
+                              <div
+                                key={item.id}
+                                onClick={() => setSelectedLibrarySpec(item.id)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                  selectedLibrarySpec === item.id
+                                    ? 'border-primary bg-primary/10'
+                                    : 'border-dark-600 hover:border-primary/50 hover:bg-dark-700/50'
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
+                                    selectedLibrarySpec === item.id
+                                      ? 'border-primary bg-primary'
+                                      : 'border-dark-500'
+                                  }`}>
+                                    {selectedLibrarySpec === item.id && (
+                                      <Check className="w-3 h-3 text-white" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="font-medium text-white text-sm">{item.name}</div>
+                                    {item.description && (
+                                      <div className="text-xs text-gray-400 mt-0.5">{item.description}</div>
+                                    )}
+                                    {item.category && (
+                                      <div className="mt-1">
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-dark-600 text-gray-400">
+                                          {item.category}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))
+                          )}
                         </div>
                       )}
                     </div>
@@ -745,7 +699,6 @@ export default function GenerateTestCase() {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-dark-700 bg-dark-800/50 flex justify-end gap-3">
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -756,7 +709,8 @@ export default function GenerateTestCase() {
               <button
                 onClick={handleSaveNewSpec}
                 disabled={
-                  !newSpecName.trim() || 
+                  !newSpecName.trim() ||
+                  !selectedWorkspaceId ||
                   (createMode === 'upload' && !uploadedFile) ||
                   (createMode === 'url' && !importUrl.trim()) ||
                   (createMode === 'library' && !selectedLibrarySpec)

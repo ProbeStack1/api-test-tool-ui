@@ -582,7 +582,7 @@ const handleToggleVisibility = async (mockId) => {
 
 const handleExecuteMockRequest = async (mockServer, endpoint, requestOverrides = {}) => {
   try {
-    const { mockUrl } = mockServer;   // instead of urlSlug
+    const { mockUrl } = mockServer;
     const { method, path } = endpoint;
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
     const headers = requestOverrides.headers || {};
@@ -608,7 +608,6 @@ const handleExecuteMockRequest = async (mockServer, endpoint, requestOverrides =
       default:
         throw new Error(`Unsupported method: ${method}`);
     }
-    // Transform...
     return {
       status: response.status,
       statusText: response.statusText,
@@ -617,6 +616,18 @@ const handleExecuteMockRequest = async (mockServer, endpoint, requestOverrides =
       time: response.duration || 0,
     };
   } catch (error) {
+    // If the error contains a response (axios error with a non‑2xx status),
+    // treat it as the intended mock response.
+    if (error.response) {
+      return {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers,
+        time: 0, // Optionally compute duration if you have a start timestamp
+      };
+    }
+    // Otherwise, re‑throw the error (network failure, etc.)
     throw error;
   }
 };

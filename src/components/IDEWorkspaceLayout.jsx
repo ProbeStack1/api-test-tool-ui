@@ -138,6 +138,41 @@ const [fileSelectionContext, setFileSelectionContext] = useState({ context: null
 const [historySubTab, setHistorySubTab] = useState('req');
 const [loadTestRuns, setLoadTestRuns] = useState([]);
 
+const handleViewLoadTestResults = (run) => {
+  // console.log('🔍 handleViewLoadTestResults called with run:', run);
+
+  // Get the ID – fallback to run.id if run.loadTestId is missing
+  const loadTestId = run.loadTestId || run.id;
+  if (!loadTestId) {
+    // console.error('No load test ID found in run:', run);
+    // toast.error('Cannot open results: missing load test ID');
+    return;
+  }
+
+  // Check if a tab with this loadTestId already exists
+  const existingTabIndex = requests.findIndex(
+    tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
+  );
+  if (existingTabIndex !== -1) {
+    // Already exists – switch to it
+    onTabSelect(existingTabIndex);
+    // Navigate to collections to show the tab
+    navigate('/workspace/collections');
+    return;
+  }
+
+  // Create a new tab
+  const resultsTab = {
+    id: `load-test-results-${loadTestId}-${Date.now()}`,
+    type: 'load-test-results',
+    name: `Load Test Results: ${run.collectionName || 'Load Test'}`,
+    loadTestId: loadTestId,
+  };
+  onNewTab(resultsTab);
+  // After adding the tab, navigate to collections to show the APIExecutionStudio
+  navigate('/workspace/collections');
+};
+
 useEffect(() => {
   if (!activeWorkspaceId || !collections.length) return;
 
@@ -200,6 +235,25 @@ useEffect(() => {
   }
 }, [workspaceCollections]);
 
+const handleShowLoadTestResults = (loadTestId) => {
+  // Check if a tab with this loadTestId already exists
+  const existingTabIndex = requests.findIndex(tab => 
+    tab.type === 'load-test-results' && tab.loadTestId === loadTestId
+  );
+  if (existingTabIndex !== -1) {
+    // Already exists – switch to it
+    onTabSelect(existingTabIndex);
+  } else {
+    // Create a new tab
+    const newTab = {
+      id: `load-test-results-${loadTestId}-${Date.now()}`,
+      type: 'load-test-results',
+      name: `Load Test Results`,
+      loadTestId: loadTestId,
+    };
+    onNewTab(newTab);
+  }
+};
   const getTopMenuFromPath = (pathname) => {
     if (pathname.includes('/workspace/history')) return 'history';
     if (pathname.includes('/workspace/variables')) return 'environments';
@@ -1569,7 +1623,7 @@ topMenuActive === 'history' ? (
     )}
     {historySubTab === 'load' && (
       <div className="p-6">
-        <LoadTestRunsTable runs={loadTestRuns} onViewDetails={onViewRunResults} />
+        <LoadTestRunsTable runs={loadTestRuns} onViewDetails={handleViewLoadTestResults} />
       </div>
     )}
     {historySubTab === 'tracing' && (

@@ -190,6 +190,7 @@ const ChatInputBar = ({ userInput, setUserInput, onSend, isProcessing }) => (
  * @param {object} response - Response object from request
  * @param {object} requestInfo - Request details (url, method, etc.)
  */
+
 const AIChatbotHelper = ({
   isVisible,
   onClose,
@@ -521,7 +522,7 @@ const AIChatbotHelper = ({
 // and change the default export to AIChatbotHelperSidePanel
 // ============================================================================
 
-/*
+
 const AIChatbotHelperSidePanel = ({
   isVisible,
   onClose,
@@ -678,7 +679,7 @@ const AIChatbotHelperSidePanel = ({
     document.body
   );
 };
-*/
+
 
 
 // ============================================================================
@@ -687,7 +688,7 @@ const AIChatbotHelperSidePanel = ({
 // and change the default export to AIChatbotHelperBubble
 // ============================================================================
 
-/*
+
 const AIChatbotHelperBubble = ({
   isVisible,
   onClose,
@@ -930,7 +931,7 @@ const AIChatbotHelperBubble = ({
     document.body
   );
 };
-*/
+
 
 
 // ============================================================================

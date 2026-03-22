@@ -145,6 +145,18 @@ onRunCollectionWithOrder,
   const [loadingLogDetails, setLoadingLogDetails] = useState({});
 const syncSource = useRef(null);
 
+const tabsContainerRef = useRef(null);
+
+  // Scroll active tab into view when active index or tab count changes
+  useEffect(() => {
+    if (tabsContainerRef.current) {
+      const activeTab = tabsContainerRef.current.querySelector(`[data-index="${activeRequestIndex}"]`);
+      if (activeTab) {
+        activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
+    }
+  }, [activeRequestIndex, requests.length]);
+
 // Group executionHistory by date for logs tab
 const groupedLogs = useMemo(() => {
   const groups = {};
@@ -405,50 +417,56 @@ function KeyValueTable({ items }) {
 }
 
 
-return (
-  <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
-    <div className="flex-1 flex flex-col min-h-0 min-w-0">
-      {/* Tab bar: + first, then request tabs (Postman-style) */}
-      <div className="flex items-center border-b border-dark-700 bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
-        {!hideNewButton && (
-          <button
-            type="button"
-            onClick={onNewTab}
-            className="flex items-center justify-center gap-1.5 px-3 h-10 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
-            title="New request"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New</span>
-          </button>
-        )}
-        <div className="flex-1 flex items-center overflow-hidden min-w-0">
-          {requests.map((req, index) => {
-            const isActive = index === activeRequestIndex;
-            const label = getTabLabel(req);
-            const isEditing = editingTabIndex === index;
-            return (
-              <div
-                key={req.id}
-                role="tab"
-                tabIndex={0}
-                onClick={() => !isEditing && onTabSelect(index)}
-                onDoubleClick={() => {
-                  setEditingTabIndex(index);
-                  setEditingTabName(req.name || label);
-                }}
-                onKeyDown={(e) => {
-                  if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
-                    e.preventDefault();
-                    onTabSelect(index);
-                  }
-                }}
-                className={clsx(
-                  'flex items-center gap-2 pl-3 pr-1 py-2 min-w-0 max-w-[200px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group',
-                  isActive
-                    ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
-                )}
-              >
+  return (
+    <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* Tab bar */}
+        <div className="flex items-center border-b border-dark-700 bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
+          {!hideNewButton && (
+            <button
+              type="button"
+              onClick={onNewTab}
+              className="flex items-center justify-center gap-1.5 px-3 h-11 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
+              title="New request"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New</span>
+            </button>
+          )}
+          {/* Scrollable container */}
+  <div
+    ref={tabsContainerRef}
+    className="flex items-center overflow-x-auto overflow-y-hidden min-w-0"
+    style={{ marginBottom: '-8px' }}
+  >
+            {requests.map((req, index) => {
+              const isActive = index === activeRequestIndex;
+              const label = getTabLabel(req);
+              const isEditing = editingTabIndex === index;
+              return (
+                <div
+                  key={req.id}
+                  data-index={index}
+                  role="tab"
+                  tabIndex={0}
+                  onClick={() => !isEditing && onTabSelect(index)}
+                  onDoubleClick={() => {
+                    setEditingTabIndex(index);
+                    setEditingTabName(req.name || label);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      onTabSelect(index);
+                    }
+                  }}
+                  className={clsx(
+                    'flex items-center gap-2 pl-3 pr-1 py-2.5 min-w-0 max-w-[200px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group',
+                    isActive
+                      ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
+                  )}
+                >
                 {/* Only show method badge for non‑workspace tabs */}
                 {req.type !== 'workspace-details' && (
                   <span
@@ -606,6 +624,23 @@ return (
   activeEnvValues={activeEnvValues}
   inactiveEnvInfo={inactiveEnvInfo}
 />
+              <button
+                onClick={handleSendClick}
+                disabled={isLoading || !url?.trim()}
+                className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Send</span>
+                  </>
+                )}
+              </button>
               {!isMockEndpoint && (
                 <button
                   type="button"
@@ -621,23 +656,6 @@ return (
                   <span>Save</span>
                 </button>
               )}
-              <button
-                onClick={handleSendClick}
-                disabled={isLoading || !url?.trim()}
-                className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Sending...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>Send</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
 

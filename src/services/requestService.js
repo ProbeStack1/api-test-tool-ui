@@ -142,6 +142,9 @@ export const executeCollection = (collectionId) =>
 export const fetchRequestHistory = (id) =>
   requestApi.get(`${BASE}/${id}/history`);
 
+export const fetchHistoryEntry = (historyId) =>
+  requestApi.get(`${BASE}/history/${historyId}`);
+
 /**
  * DELETE /api/v1/requests/{id}/history
  * Delete all execution history

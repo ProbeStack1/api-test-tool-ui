@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef,useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3, Bot } from 'lucide-react';
+import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus  } from 'lucide-react';
 import clsx from 'clsx';
 // import { sendRequest } from './utils/api';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection } from './services/collectionService';
-import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory  } from './services/requestService';
+import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
+import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
   createEnvironment,
@@ -39,6 +40,10 @@ import { ProfileSupport } from './pages/ProfileSupport';
 import { ProfileSupportTicket } from './pages/ProfileSupportTicket';
 import {toast} from 'sonner';
 import AIAssisted from './pages/AIAssisted';
+import WorkspaceCreateModal from './components/modals/WorkspaceCreateModal';
+import { useVariableMaps } from './components/VariableHighlightInput';
+import RunModal from './components/modals/RunModal';
+import AIChatbotHelper from './components/AiChatbotHelper';
 
 function App() {
   const navigate = useNavigate();
@@ -51,6 +56,167 @@ const [globalVariablesDirty, setGlobalVariablesDirty] = useState(false);
 const [mockServers, setMockServers] = useState([]);
 const [isLoadingMocks, setIsLoadingMocks] = useState(false);
 const [projects, setProjects] = useState([]);
+const [workspaceSearch, setWorkspaceSearch] = useState('');
+const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
+const [showNewWorkspaceModal, setShowNewWorkspaceModal] = useState(false);
+const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
+const workspaceDropdownRef = useRef(null);
+
+
+
+const [chatbotVisible, setChatbotVisible] = useState(false);
+const [chatbotError, setChatbotError] = useState(null);
+const [chatbotResponse, setChatbotResponse] = useState(null);
+const [chatbotRequestInfo, setChatbotRequestInfo] = useState(null);
+
+const handleShowChatbot = (error, response, requestInfo) => {
+  setChatbotError(error);
+  setChatbotResponse(response);
+  setChatbotRequestInfo(requestInfo);
+  setChatbotVisible(true);
+};
+
+const handleCloseChatbot = () => {
+  setChatbotVisible(false);
+  setTimeout(() => {
+    setChatbotError(null);
+    setChatbotResponse(null);
+    setChatbotRequestInfo(null);
+  }, 300);
+};
+
+// ========== Workspace tab helpers (must be defined early) ==========
+const loadWorkspaceTabs = (workspaceId) => {
+  const saved = localStorage.getItem(`probestack_workspace_tabs_${workspaceId}`);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {}
+  }
+  return [createEmptyRequest()];
+};
+
+const loadWorkspaceActiveIndex = (workspaceId) => {
+  const saved = localStorage.getItem(`probestack_workspace_active_${workspaceId}`);
+  if (saved !== null) {
+    try {
+      return parseInt(saved, 10);
+    } catch (e) {}
+  }
+  return 0;
+};
+
+const safeStringify = (obj) => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === 'function') return undefined;
+    if (value instanceof Node) return undefined;
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) return '[Circular]';
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
+const saveWorkspaceTabs = (workspaceId, tabs, activeIdx) => {
+  try {
+    const serialized = safeStringify(tabs);
+    localStorage.setItem(`probestack_workspace_tabs_${workspaceId}`, serialized);
+  } catch (err) {
+    console.error('Failed to save project tabs:', err);
+  }
+  localStorage.setItem(`probestack_workspace_active_${workspaceId}`, activeIdx.toString());
+  setWorkspaceTabs(prev => ({ ...prev, [workspaceId]: tabs }));
+  setWorkspaceActiveIndex(prev => ({ ...prev, [workspaceId]: activeIdx }));
+};
+
+const buildPristineFromRequests = (reqs) => {
+  const pristine = {};
+  reqs.forEach(req => {
+    if (isSavedRequest(req)) {
+      pristine[req.id] = JSON.parse(JSON.stringify(req));
+    }
+  });
+  return pristine;
+};
+
+// Now loadWorkspaceTabsAndData – uses the above helpers
+const loadWorkspaceTabsAndData = (workspaceId, workspaceName) => {
+  const tabs = loadWorkspaceTabs(workspaceId);
+  let activeIndex = loadWorkspaceActiveIndex(workspaceId);
+  
+  const detailsIndex = tabs.findIndex(tab => tab.type === 'workspace-details' && tab.workspaceId === workspaceId);
+  if (detailsIndex !== -1) {
+    activeIndex = detailsIndex;
+  } else {
+    const newTab = {
+      id: `workspace-details-${workspaceId}-${Date.now()}`,
+      type: 'workspace-details',
+      workspaceId: workspaceId,
+      name: `Project: ${workspaceName}`,
+    };
+    tabs.push(newTab);
+    activeIndex = tabs.length - 1;
+    // Save immediately so it persists
+    saveWorkspaceTabs(workspaceId, tabs, activeIndex);
+  }
+  
+  setRequests(tabs);
+  setActiveRequestIndex(activeIndex);
+  setPristineRequests(buildPristineFromRequests(tabs));
+};
+
+const handleOpenWorkspaceDetails = (workspaceId) => {
+  const workspace = projects.find(p => p.id === workspaceId);
+  if (!workspace) return;
+
+  // Check if already open
+  const existingIndex = requests.findIndex(r => r.type === 'workspace-details' && r.workspaceId === workspaceId);
+  if (existingIndex !== -1) {
+    setActiveRequestIndex(existingIndex);
+    return;
+  }
+
+  const newTab = {
+    id: `workspace-details-${workspaceId}-${Date.now()}`,
+    type: 'workspace-details',
+    workspaceId: workspace.id,
+    name: `Project: ${workspace.name}`,
+    // can store workspace object or just id
+  };
+  setRequests(prev => [...prev, newTab]);
+  setActiveRequestIndex(requests.length); // will be the new last index
+};
+
+const handleSelectWorkspace = (workspaceId) => {
+  // Save current workspace's tabs
+  if (activeWorkspaceId) {
+    saveWorkspaceTabs(activeWorkspaceId, requests, activeRequestIndex);
+  }
+
+  // Get workspace name
+  const workspaceName = projects.find(p => p.id === workspaceId)?.name || workspaceId;
+
+  // Load new workspace's tabs (with name)
+  loadWorkspaceTabsAndData(workspaceId, workspaceName);
+
+  setActiveWorkspaceId(workspaceId);
+  localStorage.setItem('probestack_active_workspace_id', workspaceId);
+
+  setIsWorkspaceDropdownOpen(false);
+
+  // Update selected environment
+  const workspaceEnvs = environments.filter(env => env.workspaceId === workspaceId);
+  const activeEnv = workspaceEnvs.find(env => env.isActive);
+  if (activeEnv) {
+    setSelectedEnvironmentId(activeEnv.id);
+    setEnvironmentVariables(activeEnv.variables || []);
+  } else {
+    setSelectedEnvironmentId('no-env');
+    setEnvironmentVariables([]);
+  }
+};
 
 const fetchMockServers = async () => {
   setIsLoadingMocks(true);
@@ -77,57 +243,309 @@ const fetchMockServers = async () => {
   }
 };
 
-const handleCreateMockServer = async (mockData) => {
+const handleOpenCollectionRun = (collection) => {
+  // Check if already open
+  const existingIndex = requests.findIndex(r => r.type === 'collection-run' && r.collectionId === collection.id);
+  if (existingIndex !== -1) {
+    setActiveRequestIndex(existingIndex);
+    return;
+  }
+
+  const newTab = {
+    id: `collection-run-${collection.id}-${Date.now()}`,
+    type: 'collection-run',
+    collectionId: collection.id,
+    collectionName: collection.name,
+    name: `Run: ${collection.name}`,
+  };
+  setRequests(prev => [...prev, newTab]);
+  setActiveRequestIndex(requests.length);
+};
+
+const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
+  if (isRunningLoadTest) return;
+  setIsRunningLoadTest(true);
+  setLoadTestResults(null);
+
+  const runningTab = {
+    id: `load-test-running-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    type: 'load-test-running',
+    name: `Load Test Running`,
+    loadTestId: null,
+    config,
+  };
+
+if (configTabIndex >= 0 && configTabIndex < requests.length) {
+    // Replace existing tab
+    setRequests(prev => {
+      const newRequests = [...prev];
+      newRequests[configTabIndex] = runningTab;
+      return newRequests;
+    });
+  } else {
+    // Add as new tab (standalone)
+    handleNewTab(runningTab);
+    // 👇 Navigate to collections so the new tab becomes visible
+    navigate('/workspace/collections');
+  }
+
   try {
-    const workspaceId = projects[0]?.id;
-    if (!workspaceId) {
-      toast.error('No workspace available');
-      return null;
+    const response = await startLoadTest(collectionId, config);
+    const realId = response.data;
+
+    // Update the running tab with the real ID
+    if (configTabIndex >= 0 && configTabIndex < requests.length) {
+      setRequests(prev => {
+        const newRequests = [...prev];
+        if (newRequests[configTabIndex] && newRequests[configTabIndex].type === 'load-test-running') {
+          newRequests[configTabIndex] = {
+            ...newRequests[configTabIndex],
+            loadTestId: realId,
+          };
+        }
+        return newRequests;
+      });
+    } else {
+      // Find the running tab by its unique ID and update it
+      setRequests(prev =>
+        prev.map(tab =>
+          tab.id === runningTab.id ? { ...tab, loadTestId: realId } : tab
+        )
+      );
     }
 
-    // Step 1: Create the mock server
-    const { name, visibility, delay, collectionId, endpoints } = mockData;
-    const createPayload = {
-      name,
-      isPrivate: visibility === 'private', // convert string to boolean
+    // Optional: only navigate if it was a replace (not standalone)
+    if (configTabIndex >= 0) {
+      navigate('/workspace/collections');
+    }
+  } catch (error) {
+    toast.error(`Failed to start load test: ${error.message}`);
+    // Remove the running tab on error
+    if (configTabIndex >= 0 && configTabIndex < requests.length) {
+      handleCloseTab(configTabIndex);
+    } else {
+      setRequests(prev => prev.filter(tab => tab.id !== runningTab.id));
+    }
+    setIsRunningLoadTest(false);
+  }
+};
+
+const handleRunCollectionWithOrder = async (collectionId, selected, options, tabIndex) => {
+  console.log('🚀 handleRunCollectionWithOrder called', { collectionId, selected, options, tabIndex });
+
+
+  if (options.type === 'load') {
+    // Build load test config from UI options
+    const loadConfig = {
+      concurrency: options.virtualUsers || 20,
+      durationSeconds: options.durationUnit === 'mins' ? options.duration * 60 : options.duration,
+      rampUpSeconds: options.rampUp || 0,
+      targetRps: options.targetRps || 0,
+      timeoutMs: options.timeoutMs || 30000,
+      thinkTimeMs: options.delay || 0,
+      insecure: options.insecure || false,
+      maxErrorRatePct: options.maxErrorRatePct || 5,
+      maxP99LatencyMs: options.maxP99LatencyMs || 5000,
+      maxAvgLatencyMs: options.maxAvgLatencyMs || 2000,
+    };
+    await handleRunLoadTest(collectionId, loadConfig, tabIndex);
+    return;
+  }
+  setIsRunningCollection(true); // ✅ use the correct setter
+
+  try {
+    // Start the run – returns a run ID
+    const response = await runCollection(collectionId, {
+      iterations: options.iterations || 1,
+      delayMs: options.delay || 0,
+      timeoutMs: options.timeoutMs || 30000,
+      environmentOverrides: options.environmentOverrides,
+      dataFile: options.dataFile,
+      folderFilter: options.folderFilter,
+      requestFilters: options.requestFilters,
+      bail: options.bail || false,
+      insecure: options.insecure || false,
+      followRedirects: options.followRedirects !== false,
+      proxyHost: options.proxyHost,
+      proxyPort: options.proxyPort,
+      source: options.source || 'manual'
+    });
+
+    const runId = response.data; // UUID
+    console.log('✅ Run started, ID:', runId);
+
+    // Poll for results every 2 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        const resultResponse = await fetchRunResult(runId);
+        const runData = resultResponse.data;
+
+        if (runData.status === 'completed' || runData.status === 'failed') {
+          clearInterval(pollInterval);
+
+          // Open a new results tab
+          handleOpenCollectionRunResults(runData, collectionId, tabIndex);
+
+          // Close the configuration tab
+          setIsRunningCollection(false);
+        }
+      } catch (pollError) {
+        console.error('Polling error:', pollError);
+        clearInterval(pollInterval);
+        setIsRunningCollection(false);
+        toast.error('Failed to fetch run results');
+      }
+    }, 2000);
+
+  } catch (error) {
+    console.error('🔥 Error starting collection run:', error);
+    toast.error(`Run failed: ${error.message}`);
+    setIsRunningCollection(false);
+  }
+};
+
+
+
+const flattenRequests = (items) => {
+  const requests = [];
+  const traverse = (items) => {
+    if (!items) return;
+    items.forEach(item => {
+      if (item.type === 'request') {
+        requests.push(item);
+      } else if (item.items) {
+        traverse(item.items);
+      }
+    });
+  };
+  traverse(items);
+  return requests;
+};
+
+const handleOpenCollectionRunResults = (runData, collectionId, tabIndex) => {
+  if (!runData) {
+    console.error('Cannot open results tab – runData is null');
+    return;
+  }
+
+  const collection = collections.find(c => c.id === runData.collectionId);
+  const avgTime = runData.totalRequests > 0 
+    ? Math.round(runData.totalTimeMs / runData.totalRequests) 
+    : 0;
+
+  const mappedResults = {
+    collectionName: runData.collectionName || collection?.name || 'Collection',
+    source: runData.source || 'manual',
+    environment: runData.options?.environment ? 'provided' : 'No Environment',
+    iterations: runData.options?.iterations || 1,
+    duration: runData.totalTimeMs,
+    totalRequests: runData.totalRequests,
+    passed: runData.passedRequests,
+    failed: runData.failedRequests,
+    errors: runData.failedRequests,
+    avgResponseTime: avgTime,
+    results: (runData.results || []).map(r => ({
+      requestId: r.requestId,
+      requestName: r.requestName,
+      method: r.method,
+      url: r.url,
+      status: r.statusCode,
+      statusText: r.statusText,
+      time: r.responseTimeMs,
+      size: r.responseSizeBytes,
+      success: r.passed,
+      error: r.error,
+      fullDetails: {
+        request_headers: r.requestHeaders,
+        request_body: r.requestBody,
+        response_headers: r.responseHeaders,
+        response_body: r.responseBody,
+      }
+    }))
+  };
+
+  const resultsTab = {
+    id: `run-results-${Date.now()}`,
+    type: 'collection-run-results',
+    name: `Run Results: ${runData.collectionName || collection?.name || 'Collection'}`,
+    results: mappedResults,
+    collectionId: runData.collectionId,
+  };
+
+  // Replace the configuration tab at tabIndex with the results tab
+  setRequests(prev => {
+    const newRequests = [...prev];
+    newRequests[tabIndex] = resultsTab;
+    return newRequests;
+  });
+  // Active index stays the same, pointing to the results tab
+
+  navigate('/workspace/collections');
+
+if (tabIndex >= 0 && tabIndex < requests.length) {
+    // Replace existing tab
+    setRequests(prev => {
+      const newRequests = [...prev];
+      newRequests[tabIndex] = resultsTab;
+      return newRequests;
+    });
+    // Only navigate if this was a replacement (from Collection Runner)
+    navigate('/workspace/collections');
+  } else {
+    // Add as new tab (standalone run from Testing tab)
+    handleNewTab(resultsTab);
+    // 👇 Navigate to collections so the new tab becomes visible
+    navigate('/workspace/collections');
+  }
+
+};
+
+const handleCreateMockServer = async (mockData) => {
+  const workspaceId = activeWorkspaceId;
+  if (!workspaceId) {
+    toast.error('No project selected');
+    return null;
+  }
+
+  // Step 1: Create the mock server
+  const { name, visibility, delay, collectionId, endpoints } = mockData;
+  const createPayload = {
+    name,
+    isPrivate: visibility === 'private', // convert string to boolean
+    delayMs: delay,
+  };
+  if (collectionId) {
+    createPayload.collectionId = collectionId;
+  }
+
+  const createResponse = await createMockServer(workspaceId, createPayload);
+  const newMock = createResponse.data; // contains id, mockUrl, etc.
+
+  // Step 2: Create endpoints
+  const createdEndpoints = [];
+  for (const ep of endpoints) {
+    const endpointPayload = {
+      method: ep.method,
+      path: ep.path,
+      responseStatus: ep.statusCode,
+      responseBody: ep.responseBody,
+      responseHeaders: {}, // optional, can be added later
       delayMs: delay,
     };
-    if (collectionId) {
-      createPayload.collectionId = collectionId;
+    try {
+      const epResponse = await createEndpoint(newMock.id, endpointPayload);
+      createdEndpoints.push(epResponse.data);
+    } catch (epErr) {
+      toast.error(`Failed to create endpoint ${ep.path}`);
+      // Continue with other endpoints
     }
-
-    const createResponse = await createMockServer(workspaceId, createPayload);
-    const newMock = createResponse.data; // contains id, mockUrl, etc.
-
-    // Step 2: Create endpoints
-    const createdEndpoints = [];
-    for (const ep of endpoints) {
-      const endpointPayload = {
-        method: ep.method,
-        path: ep.path,
-        responseStatus: ep.statusCode,
-        responseBody: ep.responseBody,
-        responseHeaders: {}, // optional, can be added later
-        delayMs: delay,       // use the same global delay, or you could allow per‑endpoint later
-      };
-      try {
-        const epResponse = await createEndpoint(newMock.id, endpointPayload);
-        createdEndpoints.push(epResponse.data);
-      } catch (epErr) {
-        toast.error(`Failed to create endpoint ${ep.path}`);
-        // Continue with other endpoints? Decide based on requirements.
-      }
-    }
-
-    // Build the complete mock server object (including endpoints)
-    const newMockWithEndpoints = { ...newMock, endpoints: createdEndpoints };
-    setMockServers(prev => [...prev, newMockWithEndpoints]);
-    toast.success('Mock server created');
-    return newMockWithEndpoints;
-  } catch (error) {
-    toast.error(error.response?.data?.message || 'Creation failed');
-    throw error;
   }
+
+  // Build the complete mock server object (including endpoints and workspaceId)
+  const newMockWithEndpoints = { ...newMock, workspaceId, endpoints: createdEndpoints };
+  setMockServers(prev => [...prev, newMockWithEndpoints]);
+  toast.success('Mock server created');
+  return newMockWithEndpoints;
 };
 
 const handleRenameMockServer = async (mockId, newName) => {
@@ -294,17 +712,16 @@ const handleGlobalVariablesChange = (newVars) => {
 };
 
 const handleSaveGlobalVariables = async () => {
-  // Need a workspaceId for creation
-  const firstWorkspaceId = projects.length > 0 ? projects[0].id : null;
-  if (!firstWorkspaceId) {
-    toast.error('No workspace available to create global environment');
+  const workspaceId = activeWorkspaceId;   // <-- change this line
+  if (!workspaceId) {
+    toast.error('No project selected');
     return;
   }
 
   if (!globalEnvironment || !globalEnvironment.id) {
     // Create
     try {
-      const response = await createEnvironment(firstWorkspaceId, {
+      const response = await createEnvironment(workspaceId, {
         name: 'Global',
         environment_type: 'global',
         variables: globalVariables,
@@ -345,17 +762,7 @@ const createEmptyRequest = () => ({
   tests: '',
 });
 
-  const [requests, setRequests] = useState(() => {
-    try {
-      const stored = localStorage.getItem('probestack_requests');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed.length > 0 ? parsed : [createEmptyRequest()];
-      }
-    } catch (error) {
-    }
-    return [createEmptyRequest()];
-  });
+const [requests, setRequests] = useState([createEmptyRequest()]);
 
   const [collections, setCollections] = useState(() => {
     try {
@@ -369,16 +776,7 @@ const createEmptyRequest = () => ({
   });
 
  
-  const [activeRequestIndex, setActiveRequestIndex] = useState(() => {
-    try {
-      const stored = localStorage.getItem('probestack_active_request_index');
-      if (stored !== null) {
-        return parseInt(stored, 10);
-      }
-    } catch (error) {
-    }
-    return 0;
-  });
+const [activeRequestIndex, setActiveRequestIndex] = useState(0);
 
   const currentRequest = requests[activeRequestIndex] || requests[0];
   const method = currentRequest?.method ?? 'GET';
@@ -403,6 +801,9 @@ const createEmptyRequest = () => ({
 const [environments, setEnvironments] = useState(() => [{ id: 'no-env', name: 'No Environment' }]);
 const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('no-env');
 
+const { activeEnvVars, inactiveEnvVars, activeEnvValues, inactiveEnvInfo } = useVariableMaps(
+  environments.filter(e => e.workspaceId === activeWorkspaceId)
+);
 
   // Variables state with localStorage persistence
   const [environmentVariables, setEnvironmentVariables] = useState(() => {
@@ -426,6 +827,8 @@ const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('no-env');
   // Collection Run Results state
   const [collectionRunResults, setCollectionRunResults] = useState(null);
   const [isRunningCollection, setIsRunningCollection] = useState(false);
+  const [loadTestResults, setLoadTestResults] = useState(null);
+const [isRunningLoadTest, setIsRunningLoadTest] = useState(false);
 
   // Test files state for Generate Testcases - persisted to localStorage
   const [testFiles, setTestFiles] = useState(() => {
@@ -562,14 +965,27 @@ useEffect(() => {
 
   hasFetchedRef.current = true;
 
-const loadData = async () => {
-  try {
+  const loadData = async () => {
+    try {
+      // 1. Fetch workspaces / projects
+      const wsRes = await fetchWorkspaces();
+      const workspaces = wsRes.data.map(normalizeWorkspace);
+      setProjects(workspaces);
 
-    // 1. Fetch workspaces / projects
-    const wsRes = await fetchWorkspaces();
-    const workspaces = wsRes.data.map(normalizeWorkspace);
-    setProjects(workspaces);
+      // Restore last selected workspace
+      const savedWorkspaceId = localStorage.getItem('probestack_active_workspace_id');
+      let activeId = null;
+      if (savedWorkspaceId && workspaces.some(ws => ws.id === savedWorkspaceId)) {
+        activeId = savedWorkspaceId;
+      } else if (workspaces.length > 0) {
+        activeId = workspaces[0].id;
+      }
 
+if (activeId) {
+  const workspaceName = workspaces.find(w => w.id === activeId)?.name || activeId;
+  setActiveWorkspaceId(activeId);
+  loadWorkspaceTabsAndData(activeId, workspaceName);
+}
     const allCollections = [];
 
     for (const ws of workspaces) {
@@ -669,6 +1085,7 @@ const loadData = async () => {
 
       // Normalize backend items to frontend shape
       const normalizedHistory = (historyRes.data.data || []).map(item => ({
+        historyId: item.history_id, 
         url: item.url,
         method: item.method,
         status: item.status_code,
@@ -704,7 +1121,7 @@ try {
   // Remove duplicates by id (just in case)
   const uniqueEnvs = Array.from(new Map(allEnvs.map(env => [env.id, env])).values());
 
-  // ✅ Extract and store the global environment
+  //  Extract and store the global environment
   const globalEnv = uniqueEnvs.find(env => env.environmentType === 'global');
   setGlobalEnvironment(globalEnv || null);
 
@@ -847,12 +1264,12 @@ const handleExecute = async () => {
 
     // Build overrides
     const overrides = {};
-    overrides.url = url;
-    overrides.headers = headers.map(h => ({ key: h.key, value: h.value, enabled: h.enabled ?? true }));
-    overrides.query_params = queryParams.map(q => ({ key: q.key, value: q.value, enabled: q.enabled ?? true }));
+    overrides.url = substituteVariables(url);
+    overrides.headers = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
+    overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
 
     if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
-      overrides.body_content = body;
+      overrides.body_content = substituteVariables(body);
     }
     overrides.path_variables = [];
 
@@ -881,17 +1298,23 @@ const handleExecute = async () => {
     };
 
     setResponse(res);
-    addToHistory(url, method, res.status, res.size, res.time);
+if (res.status >= 400) {
+  if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
+}
+    addToHistory(url, method, res.status, res.size, res.time, false, executionResult.history_id);
   } catch (err) {
-    setError(err);
-    addToHistory(url, method, 0, 0, 0, true);
-  } finally {
-    setIsLoading(false);
-  }
+  setError(err);
+  addToHistory(url, method, 0, 0, 0, true, null);
+  // Show chatbot on network/exception error
+   if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+} finally {
+  setIsLoading(false);
+}
 };
 
-  const addToHistory = (url, method, status, size, time, isError = false) => {
+  const addToHistory = (url, method, status, size, time, isError = false,historyId = null) => {
     const newEntry = {
+      historyId,   
       url,
       method,
       status,
@@ -1021,87 +1444,108 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
     }
   };
 
-  const handleSaveRequest = async (saveData) => {
-    const { projectId, projectName, collectionId, collectionName, isNewCollection, request, folderId } = saveData;
+const handleSaveRequest = async (saveData) => {
+  const { projectId, projectName, collectionId, collectionName, isNewCollection, request, folderId } = saveData;
 
-    // Prevent duplicate saves
-    if (savedRequestIdsRef.current.has(request.id)) return;
-    savedRequestIdsRef.current.add(request.id);
+  if (savedRequestIdsRef.current.has(request.id)) return;
+  savedRequestIdsRef.current.add(request.id);
 
-    let targetCollectionId = collectionId;
-    let targetCollectionName = collectionName;
+  let targetCollectionId = collectionId;
+  let targetCollectionName = collectionName;
 
-    try {
-      // If creating a new collection, create it first
-      if (isNewCollection) {
-        const newColRes = await createCollection(projectId, { name: collectionName });
-        targetCollectionId = newColRes.data.id;
-        targetCollectionName = newColRes.data.name;
-      }
+  try {
+    if (isNewCollection) {
+      const newColRes = await createCollection(projectId, { name: collectionName });
+      targetCollectionId = newColRes.data.id;
+      targetCollectionName = newColRes.data.name;
+    }
 
-      // Prepare payload for createRequest
-      const payload = {
-        name: request.name,
-        method: request.method,
-        url: request.url,
-        headers: request.headers,
-        query_params: request.queryParams,
-        body_type: request.bodyType || 'none',
-        body_content: request.body,
-        auth_type: request.authType,
-        auth_config: request.authData,
-        pre_request_script: request.preRequestScript,
-        test_script: request.tests,
-        collection_id: targetCollectionId,
-        folder_id: folderId || null,
-      };
+    const payload = {
+      name: request.name,
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      query_params: request.queryParams,
+      body_type: request.bodyType || 'none',
+      body_content: request.body,
+      auth_type: request.authType,
+      auth_config: request.authData,
+      pre_request_script: request.preRequestScript,
+      test_script: request.tests,
+      collection_id: targetCollectionId,
+      folder_id: folderId || null,
+    };
 
-      const createRes = await createRequest(payload);
-      const savedRequest = normalizeRequest(createRes.data);
+    const createRes = await createRequest(payload);
+    const savedRequest = normalizeRequest(createRes.data);
 
-      // Replace the temporary tab request with the saved one
-      setRequests((prev) =>
-        prev.map((req) => (req.id === request.id ? savedRequest : req))
-      );
+    // Replace temporary tab
+    setRequests((prev) =>
+      prev.map((req) => (req.id === request.id ? savedRequest : req))
+    );
 
-      // Store pristine copy for the newly saved request
-      setPristineRequests((prev) => ({
-        ...prev,
-        [savedRequest.id]: JSON.parse(JSON.stringify(savedRequest)),
-      }));
+    // Store pristine copy
+    setPristineRequests((prev) => ({
+      ...prev,
+      [savedRequest.id]: JSON.parse(JSON.stringify(savedRequest)),
+    }));
 
-      // Add the request to the collections tree
-      setCollections((prev) => {
-        const newCollections = [...prev];
-        if (isNewCollection) {
-          const newCollection = {
-            id: targetCollectionId,
-            name: targetCollectionName,
-            type: 'collection',
-            project: projectId,
-            projectName,
-            items: [savedRequest],
-          };
-          newCollections.push(newCollection);
-        } else {
-          const collectionIndex = newCollections.findIndex((col) => col.id === targetCollectionId);
-          if (collectionIndex !== -1) {
-            if (!newCollections[collectionIndex].items) newCollections[collectionIndex].items = [];
-            if (!newCollections[collectionIndex].items.some((item) => item.id === savedRequest.id)) {
-              newCollections[collectionIndex].items.push(savedRequest);
+    // Update collections tree – insert request into correct folder
+    setCollections((prev) => {
+      // Helper to add request to a folder in the tree
+      const addRequestToCollection = (collections, collectionId, folderId, request) => {
+        const newCollections = [...collections];
+        const collectionIndex = newCollections.findIndex(col => col.id === collectionId);
+        if (collectionIndex === -1) return collections;
+
+        const collection = newCollections[collectionIndex];
+        if (!folderId) {
+          // Add to root
+          if (!collection.items) collection.items = [];
+          if (!collection.items.some(item => item.id === request.id)) {
+            collection.items.push(request);
+          }
+          return newCollections;
+        }
+
+        // Recursively find the folder and insert
+        const addToFolder = (items) => {
+          if (!items) return false;
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type === 'folder' && item.id === folderId) {
+              if (!item.items) item.items = [];
+              if (!item.items.some(sub => sub.id === request.id)) {
+                item.items.push(request);
+              }
+              return true;
             }
+            if (item.items && addToFolder(item.items)) return true;
+          }
+          return false;
+        };
+
+        const added = addToFolder(collection.items);
+        if (!added) {
+          // Fallback to root (shouldn't happen)
+          if (!collection.items) collection.items = [];
+          if (!collection.items.some(item => item.id === request.id)) {
+            collection.items.push(request);
           }
         }
         return newCollections;
-      });
+      };
 
-      toast.success('Request saved');
-    } catch (err) {
-      console.error('[handleSaveRequest] error:', err);
-      toast.error(err.response?.data?.message || 'Save failed');
-      savedRequestIdsRef.current.delete(request.id); // allow retry
-    }
-  };
+      return addRequestToCollection(prev, targetCollectionId, folderId, savedRequest);
+    });
+
+    toast.success('Request saved');
+  } catch (err) {
+    console.error('[handleSaveRequest] error:', err);
+    toast.error(err.response?.data?.message || 'Save failed');
+    savedRequestIdsRef.current.delete(request.id);
+  }
+};
 
 
   // Get all request names from collections (recursively)
@@ -1157,46 +1601,98 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
     return `${baseName} ${maxNumber + 1}`;
   };
 
-  const handleNewTab = () => {
-    setRequests((prev) => {
-      const uniqueName = generateUniqueRequestName();
-      
-      const newRequest = {
-        ...createEmptyRequest(),
-        name: uniqueName
-      };
-      const next = [...prev, newRequest];
-      setActiveRequestIndex(next.length - 1);
-      return next;
+const handleNewTab = (tabData) => {
+  if (tabData) {
+    setRequests(prev => {
+      const newRequests = [...prev, tabData];
+      // Set active index to the new tab (last position)
+      setActiveRequestIndex(newRequests.length - 1);
+      return newRequests;
     });
+  } else {
+    const uniqueName = generateUniqueRequestName();
+    const newRequest = {
+      ...createEmptyRequest(),
+      name: uniqueName
+    };
+    setRequests(prev => {
+      const newRequests = [...prev, newRequest];
+      setActiveRequestIndex(newRequests.length - 1);
+      return newRequests;
+    });
+    setPristineRequests(prevPristine => ({
+      ...prevPristine,
+      [newRequest.id]: JSON.parse(JSON.stringify(newRequest))
+    }));
     setResponse(null);
     setError(null);
-  };
+  }
+};
 
   const handleTabSelect = (index) => {
     setActiveRequestIndex(index);
   };
 
-  const handleCloseTab = (index) => {
-    if (requests.length <= 1) return;
-    setRequests((prev) => prev.filter((_, i) => i !== index));
-    setActiveRequestIndex((prev) => {
-      if (index < prev) return prev - 1;
-      if (index === prev) return Math.max(0, prev - 1);
-      return prev;
+const handleCloseTab = (index) => {
+  if (requests.length <= 1) return;
+  const closedRequest = requests[index];
+  setRequests((prev) => prev.filter((_, i) => i !== index));
+  setActiveRequestIndex((prev) => {
+    if (index < prev) return prev - 1;
+    if (index === prev) return Math.max(0, prev - 1);
+    return prev;
+  });
+  // Remove from pristine if it was saved
+  if (closedRequest && closedRequest.id) {
+    setPristineRequests(prev => {
+      const newPristine = { ...prev };
+      delete newPristine[closedRequest.id];
+      return newPristine;
     });
-  };
+  }
+};
 
-  const handleTabRename = (index, newName) => {
-    setRequests((prev) => {
-      const next = [...prev];
-      if (next[index]) {
-        next[index] = { ...next[index], name: newName };
+const handleTabRename = (index, newName) => {
+  setRequests((prev) => {
+    const next = [...prev];
+    if (next[index]) {
+      const oldReq = next[index];
+      const updatedReq = { ...oldReq, name: newName };
+      next[index] = updatedReq;
+      // Update pristine if the request is saved
+      if (oldReq.id && isSavedRequest(oldReq)) {
+        setPristineRequests(prevPristine => ({
+          ...prevPristine,
+          [oldReq.id]: JSON.parse(JSON.stringify(updatedReq))
+        }));
       }
-      return next;
-    });
-  };
+    }
+    return next;
+  });
+};
 
+const RunLoadingModal = ({ isOpen }) => {
+  if (!isOpen) return null;
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <div className="flex flex-col items-center text-center">
+          <div className="relative w-20 h-20 mb-6">
+            <div className="absolute inset-0 border-4 border-primary/20 rounded-full" />
+            <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">Running Collection</h3>
+          <p className="text-gray-400 mb-4">Please wait while your collection executes...</p>
+          <div className="w-full bg-dark-700 h-1.5 rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: '60%' }} />
+          </div>
+          <p className="text-xs text-gray-500 mt-4">This may take a few seconds</p>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
   // Parse Postman collection JSON to internal format
   const parsePostmanCollection = (postmanJson, projectId, projectName) => {
     const parseUrl = (urlObj) => {
@@ -1307,81 +1803,61 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
     };
   };
 
-  const handleAddProject = (workspaceData) => {
-    // Handle both old string format and new object format
-    const isLegacyFormat = typeof workspaceData === 'string';
-    const name = isLegacyFormat ? workspaceData : workspaceData.name;
-    const visibility = isLegacyFormat ? 'private' : (workspaceData.visibility || 'private');
-    const importedCollection = isLegacyFormat ? null : workspaceData.importedCollection;
+const handleAddProject = (workspaceData) => {
+  const isLegacyFormat = typeof workspaceData === 'string';
+  const name = isLegacyFormat ? workspaceData : workspaceData.name;
+  const visibility = isLegacyFormat ? 'private' : (workspaceData.visibility || 'private');
+  const description = isLegacyFormat ? '' : (workspaceData.description || '');
+  const importedCollection = isLegacyFormat ? null : workspaceData.importedCollection;
 
-    // Create workspace locally first (synchronous — CollectionsPanel relies on
-    // the return value immediately to set the selected workspace).
-    const tempId = `project-${Date.now()}`;
-    const newProject = {
-      id: tempId,
-      name: name.trim(),
-      visibility,
-    };
-    setProjects((prev) => [...prev, newProject]);
-
-    // If there's an imported collection, create it under this workspace
-    if (importedCollection && importedCollection.content) {
-      const parsedCollection = parsePostmanCollection(importedCollection.content, tempId, name.trim());
-      setCollections((prev) => [...prev, parsedCollection]);
-    }
-
-    // Persist to backend in the background; swap temp ID for the real UUID on success.
-    const userId = localStorage.getItem('probestack_user_id');
-    if (userId) {
-      createWorkspace({ name: name.trim(), visibility })
-        .then((res) => {
-          const realId = res.data?.id;
-          if (realId && realId !== tempId) {
-            setProjects((prev) =>
-              prev.map((p) => (p.id === tempId ? { ...p, id: realId } : p))
-            );
-            // Also update any collections/folders that reference the temp ID
-            setCollections((prev) =>
-              prev.map((col) =>
-                col.project === tempId ? { ...col, project: realId } : col
-              )
-            );
-          }
-        })
-        .catch((err) =>
-          console.error('[API] Failed to persist workspace to backend:', err)
-        );
-    }
-
-    return newProject;
+  const tempId = `project-${Date.now()}`;
+  const newProject = {
+    id: tempId,
+    name: name.trim(),
+    visibility,
+    description,
   };
+  setProjects((prev) => [...prev, newProject]);
+
+  // If there's an imported collection, create it under this workspace
+  if (importedCollection && importedCollection.content) {
+    const parsedCollection = parsePostmanCollection(importedCollection.content, tempId, name.trim());
+    setCollections((prev) => [...prev, parsedCollection]);
+  }
+
+  const userId = localStorage.getItem('probestack_user_id');
+  if (!userId) {
+    // Offline mode: set active immediately
+    setActiveWorkspaceId(tempId);
+  } else {
+    // Persist to backend
+    createWorkspace({ name: name.trim(), visibility, description })
+      .then((res) => {
+        const realId = res.data?.id;
+        if (realId && realId !== tempId) {
+          setProjects((prev) =>
+            prev.map((p) => (p.id === tempId ? { ...p, id: realId } : p))
+          );
+          setCollections((prev) =>
+            prev.map((col) =>
+              col.project === tempId ? { ...col, project: realId } : col
+            )
+          );
+          setActiveWorkspaceId(realId);
+        }
+      })
+      .catch((err) => console.error('[API] Failed to persist project:', err));
+  }
+
+  return newProject;
+};
 
   const handleCollectionsChange = (newCollections) => {
     setCollections(newCollections);
   };
 
   const savedRequestIdsRef = useRef(new Set());
-const handleOpenWorkspaceDetails = (workspaceId) => {
-  const workspace = projects.find(p => p.id === workspaceId);
-  if (!workspace) return;
 
-  // Check if already open
-  const existingIndex = requests.findIndex(r => r.type === 'workspace-details' && r.workspaceId === workspaceId);
-  if (existingIndex !== -1) {
-    setActiveRequestIndex(existingIndex);
-    return;
-  }
-
-  const newTab = {
-    id: `workspace-details-${workspaceId}-${Date.now()}`,
-    type: 'workspace-details',
-    workspaceId: workspace.id,
-    name: `Workspace: ${workspace.name}`,
-    // can store workspace object or just id
-  };
-  setRequests(prev => [...prev, newTab]);
-  setActiveRequestIndex(requests.length); // will be the new last index
-};
 
 const handleWorkspaceUpdate = (updatedWorkspace) => {
   setProjects(prev => prev.map(p => p.id === updatedWorkspace.id ? updatedWorkspace : p));
@@ -1389,9 +1865,42 @@ const handleWorkspaceUpdate = (updatedWorkspace) => {
 };
 
 const handleWorkspaceDelete = (workspaceId) => {
+  // Determine if this was the active workspace
+  const wasActive = activeWorkspaceId === workspaceId;
+  // Find a fallback workspace (if any)
+  const remainingWorkspaces = projects.filter(p => p.id !== workspaceId);
+  const newActiveId = wasActive && remainingWorkspaces.length > 0 ? remainingWorkspaces[0].id : null;
+
+  // Remove from state
   setProjects(prev => prev.filter(p => p.id !== workspaceId));
-  // Close any open workspace details tabs
+  setCollections(prev => prev.filter(col => col.project !== workspaceId));
+  setMockServers(prev => prev.filter(mock => mock.workspaceId !== workspaceId));
+  setEnvironments(prev => prev.filter(env => env.workspaceId !== workspaceId));
   setRequests(prev => prev.filter(req => !(req.type === 'workspace-details' && req.workspaceId === workspaceId)));
+
+  // Remove workspace tabs from localStorage
+  localStorage.removeItem(`probestack_workspace_tabs_${workspaceId}`);
+  localStorage.removeItem(`probestack_workspace_active_${workspaceId}`);
+  setWorkspaceTabs(prev => {
+    const newMap = { ...prev };
+    delete newMap[workspaceId];
+    return newMap;
+  });
+  setWorkspaceActiveIndex(prev => {
+    const newMap = { ...prev };
+    delete newMap[workspaceId];
+    return newMap;
+  });
+
+  // If it was active, switch to another workspace
+  if (wasActive && newActiveId) {
+    handleSelectWorkspace(newActiveId);
+  } else if (wasActive && remainingWorkspaces.length === 0) {
+    // No workspaces left – clear everything
+    setActiveWorkspaceId(null);
+    setRequests([createEmptyRequest()]);
+    setActiveRequestIndex(0);
+  }
 };
 
 
@@ -1442,12 +1951,12 @@ const handleWorkspaceDelete = (workspaceId) => {
     setMockApis((prev) => [...prev, newMock]);
     return newMock;
   };
-  const handleCreateEnvironment = async (desiredName) => {
-    const workspaceId = projects.length > 0 ? projects[0].id : null;
-    if (!workspaceId) {
-      toast.error('No workspace available');
-      return;
-    }
+const handleCreateEnvironment = async (desiredName) => {
+  const workspaceId = activeWorkspaceId;   
+  if (!workspaceId) {
+    toast.error('No project selected');
+    return;
+  }
 
     let attempt = 0;
     let currentName = desiredName;
@@ -1681,6 +2190,7 @@ const handleRunCollection = async (collection) => {
   try {
     // Call backend
     const response = await executeCollection(collection.id);
+    console.log('Collection execution response:', response.data);
     const backendResult = response.data; // CollectionExecutionResult
 
     // Build a map of requestId -> folderPath for the entire collection
@@ -1699,18 +2209,19 @@ const handleRunCollection = async (collection) => {
 
     // Map backend summaries to UI format
     const mappedResults = backendResult.results.map(summary => ({
-      requestId: summary.requestId,
-      requestName: summary.requestName,
-      method: summary.method, // not provided by backend – we may need to fetch original request or accept that it's missing
-      url: summary.url || '', // backend doesn't return URL? We have it in summary but maybe not – let's check
-      folderPath: folderPathMap.get(summary.requestId) || 'Unknown',
-      status: summary.statusCode,
-      statusText: summary.statusText,
-      time: summary.responseTimeMs,
-      size: summary.size || 0,
-      data: null, // response body not returned in summary
-      success: summary.success,
-      error: summary.errorMessage
+  requestId: summary.request_id,
+  requestName: summary.request_name,
+  method: summary.method,
+  url: summary.url,
+  folderPath: folderPathMap.get(summary.request_id) || 'Unknown',
+  status: summary.status_code,
+  statusText: summary.status_text,
+  time: summary.response_time_ms,
+  size: summary.response_size_bytes || 0,
+  data: summary.response_body,
+  success: summary.is_success,
+  error: summary.error_message,
+  fullDetails: summary
     }));
 
     setCollectionRunResults({
@@ -1746,6 +2257,34 @@ const handleMockServerRun = (runData) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
   const userMenuRef = useRef(null);
+  // Store tabs per workspace
+const [workspaceTabs, setWorkspaceTabs] = useState({});
+const [workspaceActiveIndex, setWorkspaceActiveIndex] = useState({});
+
+const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
+
+const filteredEnvironments = useMemo(() => {
+  return environments.filter(env => 
+    env.id === 'no-env' || 
+    env.environmentType === 'global' || 
+    env.workspaceId === activeWorkspaceId
+  );
+}, [environments, activeWorkspaceId]);
+
+const filteredMockServers = useMemo(() => {
+  return mockServers.filter(mock => mock.workspaceId === activeWorkspaceId);
+}, [mockServers, activeWorkspaceId]);
+
+  useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (workspaceDropdownRef.current && !workspaceDropdownRef.current.contains(e.target)) {
+      setIsWorkspaceDropdownOpen(false);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
+
 
   // Top menu navigation items
   const topMenuItems = [
@@ -1797,6 +2336,13 @@ const handleMockServerRun = (runData) => {
     } catch (_) {}
   }, [theme]);
 
+  // Save tabs whenever they change (requests or active index)
+useEffect(() => {
+  if (activeWorkspaceId) {
+    saveWorkspaceTabs(activeWorkspaceId, requests, activeRequestIndex);
+  }
+}, [requests, activeRequestIndex, activeWorkspaceId]);
+
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
   const handleLogout = () => {
@@ -1823,120 +2369,194 @@ const handleMockServerRun = (runData) => {
       <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-probestack-bg relative z-0 overflow-hidden">
         {/* Header - same logo block as Migration/DashboardNavbar (porbestack-new-repo) */}
         <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-header-bg">
-          <div className="flex items-center gap-8 flex-1 min-w-0">
-            <div className="flex items-center gap-2.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
-              <img
-                src="/assets/justlogo.png"
-                alt="ProbeStack logo"
-                className="h-11 w-auto"
-                onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
-              />
-              <div className="flex flex-col">
-                <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ForgeQ</span>
-                <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5 whitespace-nowrap">A ForgeCrux Company</span>
+  <div className="flex items-center gap-8 flex-1 min-w-0">
+    <div className="flex items-center gap-2.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
+      <img
+        src="/assets/justlogo.png"
+        alt="ProbeStack logo"
+        className="h-11 w-auto"
+        onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
+      />
+      <div className="flex flex-col">
+        <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ForgeQ</span>
+        <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5 whitespace-nowrap">A ForgeCrux Company</span>
+      </div>
+    </div>
+    
+    {/* Navigation Links - only show on workspace pages */}
+    {isWorkspace && (
+      <nav className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
+        {topMenuItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeMenu === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => navigate(item.path)}
+              className={clsx(
+                'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap shrink-0',
+                isActive
+                  ? 'bg-primary/20 border border-primary/30 text-primary'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5 border border-transparent'
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+    )}
+  </div>
+  
+  <div className="flex items-center gap-3">
+    {/* Workspace Dropdown */}
+    <div className="relative" ref={workspaceDropdownRef}>
+<button
+  type="button"
+  onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
+  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm font-medium bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors w-30 flex-shrink-0"
+>
+  <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+    {activeWorkspace ? activeWorkspace.name.charAt(0).toUpperCase() : 'W'}
+  </div>
+  <span className="flex-1 truncate">
+    {activeWorkspace ? activeWorkspace.name : 'Select Workspace'}
+  </span>
+  <ChevronDown className={clsx('w-4 h-4 transition-transform shrink-0', isWorkspaceDropdownOpen && 'rotate-180')} />
+</button>
+
+      {isWorkspaceDropdownOpen && (
+        <div className="absolute right-0 mt-2 w-70 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
+          {/* Header: Workspaces */}
+          <div className="px-4 py-2 border-b border-dark-700">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Projects</h3>
+          </div>
+
+          {/* Search + Create */}
+          <div className="p-3 border-b border-dark-700">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={workspaceSearch}
+                  onChange={(e) => setWorkspaceSearch(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
               </div>
+              <button
+                onClick={() => setShowNewWorkspaceModal(true)}
+                className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors"
+                title="Create new project"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
-            
-            {/* Navigation Links - only show on workspace pages */}
-            {isWorkspace && (
-              <nav className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
-                {topMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeMenu === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => navigate(item.path)}
-                      className={clsx(
-                        'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap shrink-0',
-                        isActive
-                          ? 'bg-primary/20 border border-primary/30 text-primary'
-                          : 'text-gray-300 hover:text-white hover:bg-white/5 border border-transparent'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </nav>
+          </div>
+
+          {/* Project list */}
+          <div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
+            {projects
+              .filter(ws => ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()))
+              .map(workspace => (
+                <button
+  key={workspace.id}
+  onClick={() => {
+    handleSelectWorkspace(workspace.id);
+    setIsWorkspaceDropdownOpen(false);
+  }}
+                  className={clsx(
+                    'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-dark-700 transition-colors',
+                    activeWorkspaceId === workspace.id && 'bg-primary/10 border-l-2 border-primary'
+                  )}
+                >
+                  <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                    {workspace.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{workspace.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {workspace.visibility === 'private' ? 'Private' : 'Public'}
+                    </p>
+                  </div>
+                  {activeWorkspaceId === workspace.id && (
+                    <Check className="w-4 h-4 text-primary" />
+                  )}
+                </button>
+              ))}
+            {projects.length === 0 && (
+              <div className="px-4 py-3 text-xs text-gray-500 text-center">
+                No Projects yet
+              </div>
             )}
           </div>
-          
-          <div className="flex items-center gap-3">
-            {/* Settings Button */}
+        </div>
+      )}
+    </div>
+
+    {/* Settings Button */}
+    <button
+      type="button"
+      onClick={() => navigate('/settings')}
+      aria-label="Settings"
+      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+    >
+      <Settings className="w-4 h-4" />
+    </button>
+
+    {/* Theme Toggle */}
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label="Toggle theme"
+      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+    >
+      {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+
+    {/* Profile Dropdown */}
+    <div className="relative" ref={userMenuRef}>
+      <button
+        type="button"
+        onClick={() => setIsUserMenuOpen((o) => !o)}
+        className="w-8 h-8 flex items-center justify-center gap-0.5 rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+      >
+        <User className="w-4 h-4" />
+        <ChevronDown className={clsx('w-3 h-3 transition-transform', isUserMenuOpen && 'rotate-180')} />
+      </button>
+      {isUserMenuOpen && (
+        <div className="absolute right-0 mt-2 w-48 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
+          <div className="py-1">
             <button
-              type="button"
-              onClick={() => navigate('/settings')}
-              aria-label="Settings"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+              onClick={() => { navigate('/workspace/profile'); setIsUserMenuOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
             >
-              <Settings className="w-4 h-4" />
+              <User className="w-4 h-4" />
+              Profile
             </button>
-
-            {/* Theme Toggle - same as DashboardNavbar (porbestack-new-repo) */}
             <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label="Toggle theme"
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+              onClick={() => { setIsUserMenuOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              <BookOpen className="w-4 h-4" />
+              Knowledgebase
             </button>
-
-            {/* User Menu Dropdown - same as DashboardNavbar */}
-            <div className="relative" ref={userMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsUserMenuOpen((o) => !o)}
-                className="w-8 h-8 flex items-center justify-center gap-0.5 rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-              >
-                <User className="w-4 h-4" />
-                <ChevronDown className={clsx('w-3 h-3 transition-transform', isUserMenuOpen && 'rotate-180')} />
-              </button>
-              {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
-                  <div className="py-1">
-                    <button
-                      type="button"
-                      onClick={() => { navigate('/workspace/profile'); setIsUserMenuOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
-                    >
-                      <User className="w-4 h-4" />
-                      Profile
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setIsUserMenuOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      Knowledgebase
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
             <button
-              type="button"
               onClick={handleLogout}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-              title="Log out"
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors text-left"
             >
               <LogOut className="w-4 h-4" />
+              Log out
             </button>
-
-            {/* KR ELIXIR TECHNOLOGY - same as DashboardNavbar - commented out */}
-            {/*
-            <div className="flex flex-col items-end ml-4">
-              <div className="text-xl font-bold text-white leading-tight whitespace-nowrap">KR ELIXIR</div>
-              <div className="text-xs text-gray-400 leading-tight whitespace-nowrap">TECHNOLOGY</div>
-            </div>
-            */}
           </div>
-        </header>
+        </div>
+      )}
+    </div>
+  </div>
+</header>
 
         <Routes>
           <Route path="/" element={<Home workspaces={projects} />} />
@@ -1971,7 +2591,6 @@ const handleMockServerRun = (runData) => {
                 response={response}
                 isLoading={isLoading}
                 error={error}
-                environments={environments}
                 selectedEnvironment={selectedEnvironmentId}
                 onEnvironmentChange={handleEnvironmentChange}
                 onCreateEnvironment={handleCreateEnvironment}
@@ -2016,7 +2635,6 @@ const handleMockServerRun = (runData) => {
   globalVariablesDirty={globalVariablesDirty}
   onGlobalVariablesChange={handleGlobalVariablesChange}
   onSaveGlobalVariables={handleSaveGlobalVariables}
-  mockServers={mockServers}
   isLoadingMocks={isLoadingMocks}
   onCreateMockServer={handleCreateMockServer}
   onRenameMockServer={handleRenameMockServer}
@@ -2030,10 +2648,40 @@ const handleMockServerRun = (runData) => {
   onWorkspaceUpdate={handleWorkspaceUpdate}
   onWorkspaceDelete={handleWorkspaceDelete}
   onMockServerRun={handleMockServerRun}
+  onFetchHistoryEntry={fetchHistoryEntry}
+  activeWorkspaceId={activeWorkspaceId}
+  setActiveWorkspaceId={setActiveWorkspaceId}
+  environments={filteredEnvironments}
+  mockServers={filteredMockServers}
+  onOpenCollectionRun={handleOpenCollectionRun}
+onRunCollectionWithOrder={handleRunCollectionWithOrder}
+onViewRunResults={handleOpenCollectionRunResults}
+activeEnvVars={activeEnvVars}
+inactiveEnvVars={inactiveEnvVars}
+activeEnvValues={activeEnvValues}
+inactiveEnvInfo={inactiveEnvInfo}
+onShowChatbot={handleShowChatbot}
               />
             }
           />
         </Routes>
+        <WorkspaceCreateModal
+  isOpen={showNewWorkspaceModal}
+  onClose={() => setShowNewWorkspaceModal(false)}
+  onCreate={handleAddProject}
+  workspaces={projects}
+/>
+
+<RunModal isOpen={isRunningCollection} />
+
+<AIChatbotHelper
+  isVisible={chatbotVisible}
+  onClose={handleCloseChatbot}
+  error={chatbotError}
+  response={chatbotResponse}
+  requestInfo={chatbotRequestInfo}
+/>
+
       </main>
     </div>
   );

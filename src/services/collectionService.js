@@ -142,3 +142,76 @@ export const deleteFolder = (id) =>
  */
 export const cloneFolder = (folderId) =>
   collectionApi.post(`${COLLECTIONS_BASE}/folders/${folderId}/clone`);
+
+/**
+ * POST /api/v1/collections/{collectionId}/run
+ * Starts an asynchronous collection run.
+ * @param {string} collectionId
+ * @param {object} options - RunCollectionRequest (iterations, delayMs, etc.)
+ * @returns {Promise<AxiosResponse<UUID>>} - run ID
+ */
+export const runCollection = (collectionId, options) =>
+  collectionApi.post(`${COLLECTIONS_BASE}/${collectionId}/run`, options);
+
+/**
+ * GET /api/v1/collections/runs/{runId}
+ * Retrieves the results of a completed run.
+ * @param {string} runId
+ * @returns {Promise<AxiosResponse<CollectionRun>>} - run data
+ */
+export const fetchRunResult = (runId) =>
+  collectionApi.get(`${COLLECTIONS_BASE}/runs/${runId}`);
+
+/**
+ * GET /api/v1/collections/{collectionId}/runs
+ * Lists all runs for a collection, newest first.
+ * @param {string} collectionId
+ * @returns {Promise<AxiosResponse<CollectionRun[]>>}
+ */
+export const listCollectionRuns = (collectionId) =>
+  collectionApi.get(`${COLLECTIONS_BASE}/${collectionId}/runs`);
+
+/**
+ * POST /api/v1/collections/{collectionId}/loadtest
+ * Start a load test on a collection.
+ * @param {string} collectionId
+ * @param {object} config - LoadTestConfig object
+ * @returns {Promise<AxiosResponse<UUID>>} - load test ID
+ */
+export const startLoadTest = (collectionId, config) =>
+  collectionApi.post(`${COLLECTIONS_BASE}/${collectionId}/loadtest`, config);
+
+/**
+ * GET /api/v1/collections/loadtests/{loadTestId}
+ * Fetch a load test run by ID.
+ * @param {string} loadTestId
+ * @returns {Promise<AxiosResponse<LoadTestRun>>}
+ */
+export const fetchLoadTestRun = (loadTestId) =>
+  collectionApi.get(`${COLLECTIONS_BASE}/loadtests/${loadTestId}`);
+
+/**
+ * POST /api/v1/collections/loadtests/{loadTestId}/stop
+ * Request a running load test to stop.
+ * @param {string} loadTestId
+ */
+export const stopLoadTest = (loadTestId) =>
+  collectionApi.post(`${COLLECTIONS_BASE}/loadtests/${loadTestId}/stop`);
+
+/**
+ * GET /api/v1/collections/{collectionId}/loadtests
+ * List all load test runs for a collection, newest first.
+ * @param {string} collectionId
+ * @returns {Promise<AxiosResponse<LoadTestRun[]>>}
+ */
+export const listCollectionLoadTests = (collectionId) =>
+  collectionApi.get(`${COLLECTIONS_BASE}/${collectionId}/loadtests`);
+
+/**
+ * GET /api/v1/workspaces/{workspaceId}/loadtests
+ * List all load test runs for a workspace, newest first.
+ * @param {string} workspaceId
+ * @returns {Promise<AxiosResponse<LoadTestRun[]>>}
+ */
+export const listWorkspaceLoadTests = (workspaceId) =>
+  collectionApi.get(`${COLLECTIONS_BASE}/loadtests`, { params: { workspaceId } });

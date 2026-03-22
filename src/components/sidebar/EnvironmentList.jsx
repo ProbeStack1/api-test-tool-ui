@@ -198,9 +198,9 @@ export default function EnvironmentList({
                   <>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate">{env.name}</div>
-                      {env.workspaceId && (
-                        <div className="text-[10px] text-gray-500 truncate">Workspace</div>
-                      )}
+                      {/* {env.workspaceId && (
+                        <div className="text-[10px] text-gray-500 truncate">Project</div>
+                      )} */}
                     </div>
 
                     {/* Save icon – only when dirty and this env is selected */}

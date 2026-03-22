@@ -1,9 +1,8 @@
 import React from 'react';
 import IDEWorkspaceLayout from '../components/IDEWorkspaceLayout';
-
 /**
  * Testing Tool page – separate route /workspace.
- * All request/workspace state and handlers are passed from App.
+ * All request/project state and handlers are passed from App.
  */
 export default function TestingToolPage({
   history,
@@ -86,6 +85,16 @@ export default function TestingToolPage({
     onWorkspaceUpdate,
   onWorkspaceDelete,
    onMockServerRun,
+   onFetchHistoryEntry,
+   activeWorkspaceId,
+         onOpenCollectionRun,
+      onRunCollectionWithOrder,
+      onViewRunResults,
+        activeEnvVars,
+  inactiveEnvVars,
+  activeEnvValues,
+  inactiveEnvInfo,
+  onShowChatbot,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -169,6 +178,16 @@ export default function TestingToolPage({
       onWorkspaceUpdate={onWorkspaceUpdate}
   onWorkspaceDelete={onWorkspaceDelete}
    onMockServerRun={onMockServerRun}
+   onFetchHistoryEntry={onFetchHistoryEntry}
+    activeWorkspaceId={activeWorkspaceId} 
+          onOpenCollectionRun={onOpenCollectionRun}
+      onRunCollectionWithOrder={onRunCollectionWithOrder}
+      onViewRunResults={onViewRunResults} 
+      activeEnvVars={activeEnvVars}
+      inactiveEnvVars={inactiveEnvVars}
+      activeEnvValues={activeEnvValues}
+      inactiveEnvInfo={inactiveEnvInfo}
+      onShowChatbot={onShowChatbot}  
     />
   );
 }

@@ -1,13 +1,22 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable, Columns, ChevronDown, ChevronUp, Folder, FileCode, TestTube } from 'lucide-react';
+import { Loader2, Building2, ChevronLeft, ChevronRight, Search, Activity, Zap, CheckCircle, Server, Variable, Columns, ChevronDown, ChevronUp, Folder, FileCode, TestTube } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 import { listTestSpecs } from '../services/testSpecificationService';
 import { getDashboardSummary, getTotalCollections, getTotalRequests, getModuleCount, getTotalEnvironments } from '../services/deshboardService';
+import { listWorkspaceLoadTests } from '../services/collectionService'; // ✅ correct import
+import CollectionRunsTable from './CollectionRunsTable';
+import LoadTestRunsTable from './LoadTestRunsTable';
 
 const getOrgColor = () => 'bg-primary/20 text-primary';
 
-export default function DashboardSpecTable({ projects }) {
+export default function DashboardSpecTable({ 
+  projects, 
+  workspaceRuns, 
+  loadingRuns, 
+  onViewRunResults,
+  onViewLoadTestRun, // required callback
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -16,6 +25,11 @@ export default function DashboardSpecTable({ projects }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
 
+  // Load test runs state
+  const [loadTestRuns, setLoadTestRuns] = useState([]);
+  const [loadingLoadRuns, setLoadingLoadRuns] = useState(false);
+
+  // Column visibility state
   const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false);
   const columnVisibilityRef = useRef(null);
   const [visibleColumns, setVisibleColumns] = useState({
@@ -40,11 +54,11 @@ export default function DashboardSpecTable({ projects }) {
     { key: 'requestStatus', label: 'Request Status' },
   ];
 
-  // Fetch dashboard summary on mount
+  // Fetch dashboard summary
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const data = await getDashboardSummary(); // all modules by default
+        const data = await getDashboardSummary();
         setDashboardData(data);
       } catch (err) {
         toast.error('Failed to load dashboard summary');
@@ -65,7 +79,6 @@ export default function DashboardSpecTable({ projects }) {
         for (const project of projects) {
           try {
             const res = await listTestSpecs(project.id, { limit: 100 });
-            // Add workspace name to each spec for display
             const specsWithWorkspace = res.items.map(spec => ({
               ...spec,
               workspaceName: project.name,
@@ -85,7 +98,38 @@ export default function DashboardSpecTable({ projects }) {
     fetchAllSpecs();
   }, [projects]);
 
-  // Close column dropdown
+  // Fetch load test runs from all workspaces
+  useEffect(() => {
+    if (!projects || projects.length === 0) return;
+    const fetchAllLoadTestRuns = async () => {
+      setLoadingLoadRuns(true);
+      try {
+        const allRuns = [];
+        for (const project of projects) {
+          try {
+            const res = await listWorkspaceLoadTests(project.id); // ✅ correct API
+            const runsWithWorkspace = (res.data || []).map(run => ({
+              ...run,
+              workspaceName: project.name,
+            }));
+            allRuns.push(...runsWithWorkspace);
+          } catch (err) {
+            console.error(`Failed to fetch load test runs for workspace ${project.name}:`, err);
+          }
+        }
+        // Sort by startedAt descending (newest first)
+        allRuns.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+        setLoadTestRuns(allRuns);
+      } catch (err) {
+        toast.error('Failed to load test runs');
+      } finally {
+        setLoadingLoadRuns(false);
+      }
+    };
+    fetchAllLoadTestRuns();
+  }, [projects]);
+
+  // Column dropdown handlers (unchanged)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (columnVisibilityRef.current && !columnVisibilityRef.current.contains(event.target)) {
@@ -144,7 +188,7 @@ export default function DashboardSpecTable({ projects }) {
       },
       {
         label: 'Test Cases',
-        value: getModuleCount(dashboardData, 'testSpecs').toString(), 
+        value: getModuleCount(dashboardData, 'testSpecs').toString(),
         change: 'total test cases',
         icon: TestTube,
         color: 'text-pink-400',
@@ -160,7 +204,7 @@ export default function DashboardSpecTable({ projects }) {
       },
       {
         label: 'Functional Testing',
-        value: getModuleCount(dashboardData, 'testSpecs').toString(), 
+        value: getModuleCount(dashboardData, 'testSpecs').toString(),
         change: 'collections',
         icon: CheckCircle,
         color: 'text-green-400',
@@ -189,7 +233,7 @@ export default function DashboardSpecTable({ projects }) {
   const tableRows = useMemo(() => {
     return specs.map((spec) => ({
       id: spec.id,
-      organization: 'ProbeStack', // or maybe spec.workspaceName? but we want organization name
+      organization: 'ProbeStack',
       projectName: spec.workspaceName || 'Unknown',
       appId: spec.id.slice(0, 13).toUpperCase(),
       specificationName: spec.name,
@@ -223,6 +267,7 @@ export default function DashboardSpecTable({ projects }) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-probestack-bg">
+      {/* Header with search */}
       <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50">
         <div className="flex items-center justify-between">
           <div>
@@ -269,150 +314,184 @@ export default function DashboardSpecTable({ projects }) {
           )}
         </div>
 
-        {/* Column visibility dropdown (unchanged) */}
-        <div className="mb-4 relative" ref={columnVisibilityRef}>
-          <button
-            onClick={() => setColumnVisibilityOpen(!columnVisibilityOpen)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dark-700 bg-dark-800/50 text-white hover:border-primary/50 focus:ring-2 focus:ring-primary/30 focus:border-transparent transition-all outline-none cursor-pointer"
-          >
-            <Columns className="h-4 w-4" />
-            <span className="text-sm font-medium">Manage Columns</span>
-            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${columnVisibilityOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {columnVisibilityOpen && (
-            <div className="absolute left-0 mt-2 w-72 rounded-lg border border-dark-700 bg-dark-800/95 backdrop-blur-xl shadow-lg overflow-hidden z-30 max-h-96 overflow-y-auto">
-              <div className="py-2">
-                <div className="px-4 py-2.5 border-b border-dark-700">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allColumnsVisible}
-                      onChange={(e) => toggleAllColumns(e.target.checked)}
-                      className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
-                    />
-                    <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ProbeStack</span>
-                  </label>
-                </div>
-                {columnDefinitions.map((col) => (
-                  <label key={col.key} className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer hover:bg-dark-700/50">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns[col.key]}
-                      onChange={() => toggleColumn(col.key)}
-                      className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
-                    />
-                    <span className="text-gray-300">{col.label}</span>
-                  </label>
-                ))}
-              </div>
+        {/* 1. Recent Collection Runs */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-white mb-4">Recent Collection Runs</h3>
+          {loadingRuns ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
+          ) : (
+            <CollectionRunsTable
+              runs={workspaceRuns}
+              onViewDetails={onViewRunResults}
+            />
           )}
         </div>
 
-        {/* Specs table */}
-        {anyColumnVisible ? (
-          <div className="bg-[#161B30] border border-slate-800 rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1200px]">
-                <thead>
-                  <tr className="bg-slate-800/50 border-b border-slate-700">
-                    {visibleColumns.organization && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Organization</th>}
-                    {visibleColumns.projectName && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Project Name</th>}
-                    {visibleColumns.appId && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">App ID</th>}
-                    {visibleColumns.specificationName && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Specification Name</th>}
-                    {visibleColumns.version && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Version</th>}
-                    {visibleColumns.testCases && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Test Cases</th>}
-                    {visibleColumns.collectionDetails && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Collection Details</th>}
-                    {visibleColumns.requestStatus && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Request Status</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {loadingSpecs ? (
-                    <tr><td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
-                  ) : paginatedData.length > 0 ? (
-                    paginatedData.map((item) => {
-                      const isExpanded = expandedRow === item.id;
-                      return (
-                        <React.Fragment key={item.id}>
-                          <tr onClick={() => handleRowClick(item.id)} className={clsx("group transition-colors cursor-pointer", isExpanded ? "bg-slate-800/50" : "hover:bg-slate-800/30")}>
-                            {visibleColumns.organization && (
-                              <td className="px-8 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
-                                    <Building2 className="h-3 w-3" />
-                                  </div>
-                                  <span className="font-medium text-white">{item.organization}</span>
-                                </div>
-                              </td>
-                            )}
-                            {visibleColumns.projectName && <td className="px-8 py-4 font-medium text-slate-200">{item.projectName}</td>}
-                            {visibleColumns.appId && <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase">{item.appId}</td>}
-                            {visibleColumns.specificationName && <td className="px-8 py-4"><span className="font-medium text-slate-200">{item.specificationName}</span></td>}
-                            {visibleColumns.version && <td className="px-8 py-4"><span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">{item.version}</span></td>}
-                            {visibleColumns.testCases && <td className="px-8 py-4"><span className="text-sm text-slate-300">{item.testCases}</span></td>}
-                            {visibleColumns.collectionDetails && <td className="px-8 py-4"><span className="text-sm text-slate-300">{item.collectionDetails}</span></td>}
-                            {visibleColumns.requestStatus && (
-                              <td className="px-8 py-4">
-                                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border bg-green-500/20 text-green-400 border-green-500/30">
-                                  Success
-                                </span>
-                              </td>
-                            )}
-                          </tr>
-                          {isExpanded && (
-                            <tr className="bg-slate-800/30">
-                              <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-8 py-4">
-                                <div className="space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-semibold text-slate-200">Test Cases</h4>
-                                    <button onClick={(e) => { e.stopPropagation(); setExpandedRow(null); }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded-lg">
-                                      <ChevronUp className="w-4 h-4" /> Collapse
-                                    </button>
-                                  </div>
-                                  <div className="text-sm text-slate-400">No test case details available.</div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })
-                  ) : (
-                    <tr><td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">No specifications found</td></tr>
-                  )}
-                </tbody>
-              </table>
+        {/* 2. Recent Load Test Runs */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-white mb-4">Recent Load Test Runs</h3>
+          {loadingLoadRuns ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
+          ) : (
+            <LoadTestRunsTable
+              runs={loadTestRuns}
+              onViewDetails={onViewLoadTestRun}
+            />
+          )}
+        </div>
 
-            <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-400">
-                  Showing {paginatedData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} results
-                </p>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="px-3 py-1 text-sm bg-[#161B30] border border-slate-700 rounded hover:bg-slate-800 disabled:opacity-50 text-slate-300 flex items-center gap-1">
-                    <ChevronLeft className="w-4 h-4" /> Previous
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {[...Array(totalPages)].map((_, i) => (
-                      <button key={i+1} onClick={() => setCurrentPage(i+1)} className={clsx('w-8 h-8 text-sm font-medium rounded', currentPage === i+1 ? 'bg-[#F97316] text-white' : 'text-slate-300 hover:bg-slate-800')}>
-                        {i+1}
-                      </button>
-                    ))}
+        {/* 3. Specifications Table (with column visibility) */}
+        <div className="mt-8">
+          {/* Column visibility dropdown */}
+          <div className="mb-4 relative" ref={columnVisibilityRef}>
+            <button
+              onClick={() => setColumnVisibilityOpen(!columnVisibilityOpen)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dark-700 bg-dark-800/50 text-white hover:border-primary/50 focus:ring-2 focus:ring-primary/30 focus:border-transparent transition-all outline-none cursor-pointer"
+            >
+              <Columns className="h-4 w-4" />
+              <span className="text-sm font-medium">Manage Columns</span>
+              <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${columnVisibilityOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {columnVisibilityOpen && (
+              <div className="absolute left-0 mt-2 w-72 rounded-lg border border-dark-700 bg-dark-800/95 backdrop-blur-xl shadow-lg overflow-hidden z-30 max-h-96 overflow-y-auto">
+                <div className="py-2">
+                  <div className="px-4 py-2.5 border-b border-dark-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allColumnsVisible}
+                        onChange={(e) => toggleAllColumns(e.target.checked)}
+                        className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
+                      />
+                      <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ProbeStack</span>
+                    </label>
                   </div>
-                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1 text-sm bg-[#161B30] border border-slate-700 rounded hover:bg-slate-800 disabled:opacity-50 text-slate-300 flex items-center gap-1">
-                    Next <ChevronRight className="w-4 h-4" />
-                  </button>
+                  {columnDefinitions.map((col) => (
+                    <label key={col.key} className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer hover:bg-dark-700/50">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns[col.key]}
+                        onChange={() => toggleColumn(col.key)}
+                        className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
+                      />
+                      <span className="text-gray-300">{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Specs table */}
+          {anyColumnVisible ? (
+            <div className="bg-[#161B30] border border-slate-800 rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[1200px]">
+                  <thead>
+                    <tr className="bg-slate-800/50 border-b border-slate-700">
+                      {visibleColumns.organization && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Organization</th>}
+                      {visibleColumns.projectName && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Project Name</th>}
+                      {visibleColumns.appId && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">App ID</th>}
+                      {visibleColumns.specificationName && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Specification Name</th>}
+                      {visibleColumns.version && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Version</th>}
+                      {visibleColumns.testCases && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Test Cases</th>}
+                      {visibleColumns.collectionDetails && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Collection Details</th>}
+                      {visibleColumns.requestStatus && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Request Status</th>}
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {loadingSpecs ? (
+                      <tr><td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
+                    ) : paginatedData.length > 0 ? (
+                      paginatedData.map((item) => {
+                        const isExpanded = expandedRow === item.id;
+                        return (
+                          <React.Fragment key={item.id}>
+                            <tr onClick={() => handleRowClick(item.id)} className={clsx("group transition-colors cursor-pointer", isExpanded ? "bg-slate-800/50" : "hover:bg-slate-800/30")}>
+                              {visibleColumns.organization && (
+                                <td className="px-8 py-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-6 h-6 rounded flex items-center justify-center ${getOrgColor()}`}>
+                                      <Building2 className="h-3 w-3" />
+                                    </div>
+                                    <span className="font-medium text-white">{item.organization}</span>
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.projectName && <td className="px-8 py-4 font-medium text-slate-200">{item.projectName}</td>}
+                              {visibleColumns.appId && <td className="px-8 py-4 font-mono text-xs text-slate-400 uppercase">{item.appId}</td>}
+                              {visibleColumns.specificationName && <td className="px-8 py-4"><span className="font-medium text-slate-200">{item.specificationName}</span></td>}
+                              {visibleColumns.version && <td className="px-8 py-4"><span className="text-xs px-2 py-1 bg-slate-800 rounded font-mono text-slate-300">{item.version}</span></td>}
+                              {visibleColumns.testCases && <td className="px-8 py-4"><span className="text-sm text-slate-300">{item.testCases}</span></td>}
+                              {visibleColumns.collectionDetails && <td className="px-8 py-4"><span className="text-sm text-slate-300">{item.collectionDetails}</span></td>}
+                              {visibleColumns.requestStatus && (
+                                <td className="px-8 py-4">
+                                  <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border bg-green-500/20 text-green-400 border-green-500/30">
+                                    Success
+                                  </span>
+                                </td>
+                              )}
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-slate-800/30">
+                                <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-8 py-4">
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-sm font-semibold text-slate-200">Test Cases</h4>
+                                      <button onClick={(e) => { e.stopPropagation(); setExpandedRow(null); }} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded-lg">
+                                        <ChevronUp className="w-4 h-4" /> Collapse
+                                      </button>
+                                    </div>
+                                    <div className="text-sm text-slate-400">No test case details available.</div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
+                    ) : (
+                      <tr><td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">No specifications found</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination for specs table */}
+              <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-400">
+                    Showing {paginatedData.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} results
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1} className="px-3 py-1 text-sm bg-[#161B30] border border-slate-700 rounded hover:bg-slate-800 disabled:opacity-50 text-slate-300 flex items-center gap-1">
+                      <ChevronLeft className="w-4 h-4" /> Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {[...Array(totalPages)].map((_, i) => (
+                        <button key={i+1} onClick={() => setCurrentPage(i+1)} className={clsx('w-8 h-8 text-sm font-medium rounded', currentPage === i+1 ? 'bg-[#F97316] text-white' : 'text-slate-300 hover:bg-slate-800')}>
+                          {i+1}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1 text-sm bg-[#161B30] border border-slate-700 rounded hover:bg-slate-800 disabled:opacity-50 text-slate-300 flex items-center gap-1">
+                      Next <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="bg-[#161B30] border border-slate-800 rounded-xl p-12 text-center text-slate-400">
-            No columns selected.
-          </div>
-        )}
+          ) : (
+            <div className="bg-[#161B30] border border-slate-800 rounded-xl p-12 text-center text-slate-400">
+              No columns selected.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

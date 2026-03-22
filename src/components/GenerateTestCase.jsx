@@ -53,8 +53,7 @@ const getSourceDisplay = (source) => {
   }
 };
 
-export default function GenerateTestCase({ projects }) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(projects[0]?.id || null);
+export default function GenerateTestCase({ projects, activeWorkspaceId }) {
   const [specs, setSpecs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeSpecId, setActiveSpecId] = useState(null);
@@ -77,16 +76,16 @@ export default function GenerateTestCase({ projects }) {
   const [editingSpecId, setEditingSpecId] = useState(null);
   const [editingName, setEditingName] = useState('');
 
-  // Fetch specs when workspace changes
+  // Fetch specs when project changes
   useEffect(() => {
-    if (!selectedWorkspaceId) return;
+    if (!activeWorkspaceId) return;
     fetchSpecs();
-  }, [selectedWorkspaceId]);
+  }, [activeWorkspaceId]);
 
   const fetchSpecs = async () => {
     setLoading(true);
     try {
-      const res = await listTestSpecs(selectedWorkspaceId, { limit: 100 });
+      const res = await listTestSpecs(activeWorkspaceId, { limit: 100 });
       setSpecs(res.items);
       if (!activeSpecId && res.items.length > 0) {
         setActiveSpecId(res.items[0].id);
@@ -223,8 +222,8 @@ export default function GenerateTestCase({ projects }) {
       toast.error('Please enter a spec name');
       return;
     }
-    if (!selectedWorkspaceId) {
-      toast.error('No workspace selected');
+    if (!activeWorkspaceId) {
+      toast.error('No project selected');
       return;
     }
 
@@ -276,7 +275,7 @@ export default function GenerateTestCase({ projects }) {
 
     try {
       const payload = {
-        workspaceId: selectedWorkspaceId,
+        workspaceId: activeWorkspaceId,
         name: newSpecName.trim(),
         content,
         source,
@@ -327,26 +326,13 @@ export default function GenerateTestCase({ projects }) {
           <h2 className="text-lg font-semibold text-white">Generate Test Cases</h2>
           <p className="text-sm text-gray-400">Create and manage JSON test case specifications</p>
         </div>
-        <div className="flex items-center gap-4">
-          {projects.length > 1 && (
-            <select
-              value={selectedWorkspaceId}
-              onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-              className="bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={handleCreateNewSpec}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
-          >
-            <Plus className="h-4 w-4" />
-            Create Test Case
-          </button>
-        </div>
+        <button
+          onClick={handleCreateNewSpec}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
+        >
+          <Plus className="h-4 w-4" />
+          Create Test Case
+        </button>
       </div>
 
       <div className="flex-1 flex min-h-0">
@@ -499,7 +485,7 @@ export default function GenerateTestCase({ projects }) {
         </main>
       </div>
 
-      {/* Create Modal (unchanged) */}
+      {/* Create Modal (no project dropdown inside) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
@@ -519,23 +505,6 @@ export default function GenerateTestCase({ projects }) {
             </div>
 
             <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh]">
-              {projects.length > 1 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Target Workspace
-                  </label>
-                  <select
-                    value={selectedWorkspaceId}
-                    onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  >
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Test Case Name <span className="text-red-400">*</span>
@@ -710,7 +679,7 @@ export default function GenerateTestCase({ projects }) {
                 onClick={handleSaveNewSpec}
                 disabled={
                   !newSpecName.trim() ||
-                  !selectedWorkspaceId ||
+                  !activeWorkspaceId ||
                   (createMode === 'upload' && !uploadedFile) ||
                   (createMode === 'url' && !importUrl.trim()) ||
                   (createMode === 'library' && !selectedLibrarySpec)

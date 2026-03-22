@@ -51,10 +51,6 @@ import {
   moveRequest,
   deleteRequest,
 } from '../services/requestService';
-import {
-  updateWorkspace,
-  deleteWorkspace,
-} from '../services/workspaceService';
 
 // ----------------------------------------------------------------------
 // MODAL COMPONENTS
@@ -68,7 +64,7 @@ const NEW_OPTIONS = [
   { id: 'websocket', label: 'WebSocket', icon: Zap, description: 'Open a WebSocket connection.' },
   { id: 'collection', label: 'Collection', icon: FolderPlus, description: 'Create a new collection to organize requests.' },
   { id: 'environment', label: 'Environment', icon: Layers, description: 'Create variables for different environments.' },
-  { id: 'workspace', label: 'Workspace', icon: LayoutGrid, description: 'Create a new workspace for your team.' },
+  { id: 'workspace', label: 'Project', icon: LayoutGrid, description: 'Create a new project for your team.' },
 ];
 
 function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
@@ -154,11 +150,16 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
   );
 }
 
-function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, onAddProject }) {
+function NewCollectionModal({
+  isOpen,
+  onClose,
+  onCreate,
+  collections,
+  activeWorkspaceId,
+  activeWorkspaceName,
+}) {
   const [collectionName, setCollectionName] = useState('');
-  const [selectedWorkspace, setSelectedWorkspace] = useState('');
-  const [isAddingNewWorkspace, setIsAddingNewWorkspace] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [description, setDescription] = useState('');
   const [validationError, setValidationError] = useState('');
   const modalRef = useRef(null);
 
@@ -174,23 +175,10 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
   useEffect(() => {
     if (isOpen) {
       setCollectionName('');
-      setSelectedWorkspace(projects[0]?.id || '');
-      setIsAddingNewWorkspace(false);
-      setNewWorkspaceName('');
+      setDescription('');
       setValidationError('');
     }
   }, [isOpen]);
-
-  // Update selected project if projects list changes and current selection is invalid
-  useEffect(() => {
-    if (isOpen && projects.length > 0) {
-      // Only reset if current selection is not in the projects list
-      const currentSelectionValid = projects.some((p) => p.id === selectedWorkspace);
-      if (!currentSelectionValid) {
-        setSelectedWorkspace(projects[0].id);
-      }
-    }
-  }, [projects, isOpen]);
 
   if (!isOpen) return null;
 
@@ -200,30 +188,18 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
       return;
     }
 
-    // Check for duplicate collection name
+    // Check duplicate in this workspace only
     const existingCollection = collections.find(
-      (col) => col.name.toLowerCase() === collectionName.trim().toLowerCase()
+      (col) => col.project === activeWorkspaceId &&
+                col.name.toLowerCase() === collectionName.trim().toLowerCase()
     );
     if (existingCollection) {
       setValidationError(`Collection "${collectionName.trim()}" already exists`);
       return;
     }
 
-    const workspace = projects.find((p) => p.id === selectedWorkspace);
-    const workspaceId = workspace?.id || projects[0]?.id || 'default';
-    const workspaceName = workspace?.name || projects[0]?.name || 'Default Workspace';
-
-    onCreate(collectionName.trim(), workspaceId, workspaceName);
+    onCreate(collectionName.trim(), description.trim(), activeWorkspaceId, activeWorkspaceName);
     onClose();
-  };
-
-  const handleAddNewWorkspace = () => {
-    if (newWorkspaceName.trim()) {
-      const newWorkspace = onAddProject(newWorkspaceName.trim());
-      setSelectedWorkspace(newWorkspace.id);
-      setIsAddingNewWorkspace(false);
-      setNewWorkspaceName('');
-    }
   };
 
   return (
@@ -242,73 +218,15 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
             type="button"
             onClick={onClose}
             className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Workspace Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Workspace
-            </label>
-            {isAddingNewWorkspace ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddNewWorkspace();
-                    if (e.key === 'Escape') {
-                      setIsAddingNewWorkspace(false);
-                      setNewWorkspaceName('');
-                    }
-                  }}
-                  placeholder="Enter workspace name"
-                  className="flex-1 bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={handleAddNewWorkspace}
-                  disabled={!newWorkspaceName.trim()}
-                  className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Add workspace"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <select
-                value={selectedWorkspace}
-                onChange={(e) => {
-                  if (e.target.value === 'add-new') {
-                    setIsAddingNewWorkspace(true);
-                  } else {
-                    setSelectedWorkspace(e.target.value);
-                  }
-                }}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
-              >
-                <option value="add-new" className="bg-dark-800 text-primary flex items-center">
-                  + Add New Workspace
-                </option>
-                {projects.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id} className="bg-dark-800 text-white">
-                    {workspace.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Collection Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Collection Name
+              Collection Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -322,10 +240,23 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
               }}
               placeholder="Enter collection name"
               className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              autoFocus
             />
             {validationError && (
               <p className="mt-2 text-xs text-red-400">{validationError}</p>
             )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Description <span className="text-gray-500 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the purpose of this collection"
+              rows="3"
+              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+            />
           </div>
         </div>
 
@@ -385,9 +316,9 @@ if (itemType === 'folder') {
   label = 'Folder Name';
   placeholder = 'Enter folder name';
 } else if (itemType === 'workspace') {
-  title = 'Rename Workspace';
-  label = 'Workspace Name';
-  placeholder = 'Enter workspace name';
+  title = 'Rename Project';
+  label = 'Project Name';
+  placeholder = 'Enter project name';
 } else if (itemType === 'collection') {
   title = 'Rename Collection';
   label = 'Collection Name';
@@ -598,7 +529,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
 
   const handleCreate = () => {
     if (!workspaceName.trim()) {
-      setValidationError('Workspace name is required');
+      setValidationError('Project name is required');
       return;
     }
 
@@ -607,7 +538,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
       (ws) => ws.name.toLowerCase() === workspaceName.trim().toLowerCase()
     );
     if (existingWorkspace) {
-      setValidationError(`Workspace "${workspaceName.trim()}" already exists`);
+      setValidationError(`Project "${workspaceName.trim()}" already exists`);
       return;
     }
 
@@ -668,23 +599,13 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
         className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h3 className="text-base font-semibold text-white">Create Workspace</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+
 
         <div className="p-5 space-y-5">
-          {/* Workspace Name */}
+          {/* Project Name */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Workspace Name <span className="text-red-400">*</span>
+              Project Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -696,7 +617,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreate();
               }}
-              placeholder="Enter workspace name"
+              placeholder="Enter project name"
               className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               autoFocus
             />
@@ -862,68 +783,30 @@ function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProjec
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-dark-700/50 border border-dark-600">
-            <Upload className="w-4 h-4 text-primary" />
-            <span className="text-sm text-gray-300 truncate">{fileName || 'No file selected'}</span>
-          </div>
-          <p className="text-sm text-gray-400">Select a workspace to import the collection into:</p>
-          {/* Workspace Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Workspace
-            </label>
-            {isAddingNewWorkspace ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddNewWorkspace();
-                    if (e.key === 'Escape') {
-                      setIsAddingNewWorkspace(false);
-                      setNewWorkspaceName('');
-                    }
-                  }}
-                  placeholder="Enter workspace name"
-                  className="flex-1 bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={handleAddNewWorkspace}
-                  disabled={!newWorkspaceName.trim()}
-                  className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Add workspace"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <select
-                value={selectedWorkspace}
-                onChange={(e) => {
-                  if (e.target.value === 'add-new') {
-                    setIsAddingNewWorkspace(true);
-                  } else {
-                    setSelectedWorkspace(e.target.value);
-                  }
-                }}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
-              >
-                <option value="add-new" className="bg-dark-800 text-primary flex items-center">
-                  + Add New Workspace
-                </option>
-                {projects.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id} className="bg-dark-800 text-white">
-                    {workspace.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
+<div className="p-5 space-y-4">
+  {/* Collection Name */}
+  <div>
+    <label className="block text-sm font-medium text-gray-300 mb-2">
+      Collection Name
+    </label>
+    <input
+      type="text"
+      value={collectionName}
+      onChange={(e) => {
+        setCollectionName(e.target.value);
+        setValidationError('');
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
+      }}
+      placeholder="Enter collection name"
+      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+    />
+    {validationError && (
+      <p className="mt-2 text-xs text-red-400">{validationError}</p>
+    )}
+  </div>
+</div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
           <button
@@ -1031,188 +914,8 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   );
 }
 
-function WorkspaceContextMenu({ x, y, onClose, onAction }) {
-  const menuRef = useRef(null);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
-    };
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [onClose]);
 
-  const options = [
-    { id: 'rename', label: 'Rename', icon: Edit3 },
-    { id: 'view-details', label: 'View Details', icon: FileText },
-    { id: 'delete', label: 'Delete', icon: Trash2 },
-  ];
-
-  return (
-    <div
-      ref={menuRef}
-      className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
-      style={{ left: x, top: y }}
-    >
-      {options.map((opt) => {
-        const Icon = opt.icon;
-        const isDelete = opt.id === 'delete';
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => {
-              onAction(opt.id);
-              onClose();
-            }}
-            className={clsx(
-              'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
-              isDelete
-                ? 'text-red-400 hover:bg-red-500/10'
-                : 'text-gray-300 hover:bg-dark-700 hover:text-white'
-            )}
-          >
-            <Icon className="w-4 h-4 flex-shrink-0" />
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------
-// DELETE CONFIRMATION MODAL (for workspace)
-// ----------------------------------------------------------------------
-
-function DeleteWorkspaceConfirmModal({ isOpen, onClose, workspaceName, onConfirm }) {
-  const modalRef = useRef(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        ref={modalRef}
-        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h3 className="text-base font-semibold text-white">Delete Workspace</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-5">
-          <p className="text-sm text-gray-300">
-            Are you sure you want to delete workspace <span className="font-semibold text-white">"{workspaceName}"</span>?
-            This action cannot be undone.
-          </p>
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------
-// VIEW DETAILS MODAL (simple version)
-// ----------------------------------------------------------------------
-
-function WorkspaceDetailsModal({ isOpen, onClose, workspace, collectionsCount }) {
-  const modalRef = useRef(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !workspace) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        ref={modalRef}
-        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h3 className="text-base font-semibold text-white">Workspace Details</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-5 space-y-3">
-          <div>
-            <p className="text-xs text-gray-500">Name</p>
-            <p className="text-sm text-white font-medium">{workspace.name}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">ID</p>
-            <p className="text-xs text-gray-400 font-mono">{workspace.id}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Visibility</p>
-            <p className="text-sm text-white capitalize">{workspace.visibility}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Collections</p>
-            <p className="text-sm text-white">{collectionsCount}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ----------------------------------------------------------------------
 // SORT ITEMS HELPER
@@ -1239,8 +942,8 @@ export default function CollectionsPanel({
   onAddProject,
   onCollectionsChange,
   onRunCollection,
-  onOpenWorkspaceDetails,
-  onWorkspaceDelete,
+  activeWorkspaceId,
+  onOpenCollectionRun ,
 })
  {
   const collections = externalCollections;
@@ -1249,7 +952,6 @@ export default function CollectionsPanel({
   const [contextMenu, setContextMenu] = useState(null);
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
-  const [showNewWorkspaceModal, setShowNewWorkspaceModal] = useState(false);
   const [showRequestTypeModal, setShowRequestTypeModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState(null);
@@ -1259,15 +961,12 @@ export default function CollectionsPanel({
   const fileInputRef = useRef(null);
     const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
   const [importFileData, setImportFileData] = useState(null);
+  // Filter collections to only those in the active workspace
+const workspaceCollections = externalCollections.filter(
+  col => col.project === activeWorkspaceId
+);
 
-  // Workspace actions state
-  const [workspaceMenu, setWorkspaceMenu] = useState(null);
-  const [workspaceToRename, setWorkspaceToRename] = useState(null);
-  const [showRenameWorkspaceModal, setShowRenameWorkspaceModal] = useState(false);
-  const [workspaceToDelete, setWorkspaceToDelete] = useState(null);
-  const [showDeleteWorkspaceConfirm, setShowDeleteWorkspaceConfirm] = useState(false);
-  const [workspaceToView, setWorkspaceToView] = useState(null);
-  const [showWorkspaceDetailsModal, setShowWorkspaceDetailsModal] = useState(false);
+
 
   // Helper to update collections
   const setCollections = (newCollectionsOrUpdater) => {
@@ -1302,8 +1001,11 @@ export default function CollectionsPanel({
       })
       .filter(Boolean);
   };
+  const filteredCollections = filterTree(workspaceCollections, search);
 
-  const filteredCollections = filterTree(collections, search);
+const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
+const activeWorkspaceName = activeWorkspace?.name || '';
+
 
   const findItemById = (items, id) => {
     for (const item of items) {
@@ -1407,11 +1109,16 @@ const handleContextAction = (actionId) => {
   const item = findItemById(collections, contextMenu.itemId);
   if (!item) return;
 
+// if (actionId === 'run-collection') {
+//   if (item && item.type === 'collection' && onRunCollection) {
+//     onRunCollection(item);
+//   }
+// } 
 if (actionId === 'run-collection') {
-  if (item && item.type === 'collection' && onRunCollection) {
-    onRunCollection(item);
+  if (item && item.type === 'collection' && onOpenCollectionRun) {
+    onOpenCollectionRun(item);
   }
-} else if (actionId === 'add-request') {
+}else if (actionId === 'add-request') {
     setSelectedCollectionId(contextMenu.itemId);
     setShowRequestTypeModal(true);
   } else if (actionId === 'add-folder') {
@@ -1695,12 +1402,19 @@ if (actionId === 'run-collection') {
     }
   };
 
-const handleCreateCollection = async (name, workspaceId, workspaceName) => {
+const handleCreateCollection = async (name, description, workspaceId, workspaceName) => {
+  console.log('Creating collection with workspaceId:', workspaceId); // Debug log
+  if (!workspaceId) {
+    toast.error('No active project selected. Please select a project first.');
+    return;
+  }
+
   const tempId = `col-${Date.now()}`;
   const newCollection = {
     id: tempId,
     _key: tempId,
     name,
+    description,
     type: 'collection',
     project: workspaceId,
     projectName: workspaceName,
@@ -1710,14 +1424,12 @@ const handleCreateCollection = async (name, workspaceId, workspaceName) => {
   setCollections([...collections, newCollection]);
 
   try {
-    const res = await createCollection(workspaceId, { name });
+    const res = await createCollection(workspaceId, { name, description });
     const raw = res.data;
     const realId = raw.collectionId || raw.id;
     if (realId) {
-      // Normalize the real collection using the same helper
       const workspaceArg = { id: workspaceId, name: workspaceName };
       const realCol = normalizeCollection(raw, workspaceArg);
-      // Replace the temporary with the real one (remove temp if still present)
       setCollections(prev => {
         const filtered = prev.filter(col => col.id !== tempId);
         return [...filtered, realCol];
@@ -1725,7 +1437,6 @@ const handleCreateCollection = async (name, workspaceId, workspaceName) => {
       toast.success('Collection created');
     }
   } catch (err) {
-    // If creation fails, remove the temporary collection
     setCollections(prev => prev.filter(col => col.id !== tempId));
     toast.error(err.response?.data?.message || 'Failed to create collection');
   }
@@ -2315,56 +2026,9 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
     setImportFileData(null);
   }
 };
-  // ----------------------------------------------------------------------
-  // WORKSPACE ACTIONS HANDLERS
-  // ----------------------------------------------------------------------
 
-  const handleWorkspaceAction = (actionId) => {
-    if (!workspaceMenu) return;
 
-    const { workspaceId, workspaceName, visibility } = workspaceMenu;
 
-    if (actionId === 'rename') {
-      setWorkspaceToRename({ id: workspaceId, name: workspaceName });
-      setShowRenameWorkspaceModal(true);
-    } else if (actionId === 'delete') {
-      setWorkspaceToDelete({ id: workspaceId, name: workspaceName });
-      setShowDeleteWorkspaceConfirm(true);
-    } else if (actionId === 'view-details') {
-      onOpenWorkspaceDetails?.(workspaceId);
-     }
-  };
-
-  const handleRenameWorkspace = async (newName) => {
-    if (!workspaceToRename) return;
-    try {
-      await updateWorkspace(workspaceToRename.id, { name: newName });
-      // Since projects are passed from parent, we need a way to update them.
-      // We'll assume the parent handles a refetch or we can call onAddProject again.
-      // For simplicity, we'll just show a success toast and close the modal.
-      toast.success('Workspace renamed');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Rename failed');
-    } finally {
-      setShowRenameWorkspaceModal(false);
-      setWorkspaceToRename(null);
-    }
-  };
-
-const handleDeleteWorkspace = async () => {
-    if (!workspaceToDelete) return;
-    try {
-      await deleteWorkspace(workspaceToDelete.id);
-      toast.success('Workspace deleted');
-      // Notify parent to update projects list
-      onWorkspaceDelete?.(workspaceToDelete.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Delete failed');
-    } finally {
-      setShowDeleteWorkspaceConfirm(false);
-      setWorkspaceToDelete(null);
-    }
-  };
 
   const getCollectionsCountForWorkspace = (workspaceId) => {
     return collections.filter(c => c.project === workspaceId).length;
@@ -2379,19 +2043,13 @@ const handleDeleteWorkspace = async () => {
       {/* Top buttons */}
       <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setShowNewWorkspaceModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
-          >
-            Create Workspace
-          </button>
+
           <button
             type="button"
             onClick={() => setShowNewCollectionModal(true)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
-            Create Collection
+           + Create 
           </button>
           <button
             type="button"
@@ -2426,108 +2084,40 @@ const handleDeleteWorkspace = async () => {
       </div>
 
       {/* Tree - Grouped by Workspaces */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
-        {(() => {
-          const collectionsByWorkspace = {};
-          filteredCollections.forEach(col => {
-            const wsId = col.project || 'default';
-            if (!collectionsByWorkspace[wsId]) collectionsByWorkspace[wsId] = [];
-            collectionsByWorkspace[wsId].push(col);
-            if (col._tempWorkspaceId && col._tempWorkspaceId !== wsId) {
-              if (!collectionsByWorkspace[col._tempWorkspaceId]) {
-                collectionsByWorkspace[col._tempWorkspaceId] = [];
-              }
-              if (!collectionsByWorkspace[col._tempWorkspaceId].some(c => c.id === col.id)) {
-                collectionsByWorkspace[col._tempWorkspaceId].push(col);
-              }
-            }
+<div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
+  {filteredCollections.length === 0 ? (
+    <div className="py-8 text-center text-gray-500 text-xs">
+      No collections in this workspace.
+    </div>
+  ) : (
+    filteredCollections.map((col) => (
+      <CollectionNode
+        key={col._key || col.id}
+        item={col}
+        expanded={expanded}
+        onToggle={toggle}
+        level={0}
+        onSelectEndpoint={onSelectEndpoint}
+        onOpenMenu={(e, item, itemType) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            itemId: item.id,
+            type: itemType,
           });
-
-          if (projects.length === 0) {
-            return (
-              <div className="py-8 text-center text-gray-500 text-xs">
-                No workspaces available. Create a workspace first.
-              </div>
-            );
-          }
-
-          return projects.map((workspace) => {
-            const workspaceCollections = collectionsByWorkspace[workspace.id] || [];
-            return (
-              <div key={workspace.id} className="mb-4">
-                {/* Workspace Header with 3-dots button */}
-                <div className="flex items-center gap-2 px-2 py-1.5 mb-1 group">
-                  <div className="flex items-center gap-1.5 flex-1">
-                    <Folder className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                      {workspace.name}
-                    </span>
-                    {workspace.visibility === 'private' && (
-                      <Lock className="w-3 h-3 text-gray-500" title="Private Workspace" />
-                    )}
-                  </div>
-                  <span className="text-[10px] text-gray-500 font-medium">
-                    {workspaceCollections.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setWorkspaceMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        workspaceId: workspace.id,
-                        workspaceName: workspace.name,
-                        visibility: workspace.visibility,
-                      });
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity"
-                    title="Workspace actions"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Collections under this workspace */}
-                <div className="ml-2">
-                  {workspaceCollections.length === 0 ? (
-                    <div className="text-xs text-gray-500 italic px-2 py-1">
-                      No collections
-                    </div>
-                  ) : (
-                    workspaceCollections.map((col) => (
-                      <CollectionNode
-                        key={col._key || col.id}
-                        item={col}
-                        expanded={expanded}
-                        onToggle={toggle}
-                        level={0}
-                        onSelectEndpoint={onSelectEndpoint}
-                        onOpenMenu={(e, item, itemType) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            itemId: item.id,
-                            type: itemType,
-                          });
-                        }}
-                        onDragStart={handleDragStart}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onDragEnd={handleDragEnd}
-                        dragOverItem={dragOverItem}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          });
-        })()}
-      </div>
+        }}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onDragEnd={handleDragEnd}
+        dragOverItem={dragOverItem}
+      />
+    ))
+  )}
+</div>
 
       {/* Context Menus */}
       {contextMenu && (
@@ -2540,31 +2130,17 @@ const handleDeleteWorkspace = async () => {
         />
       )}
 
-      {workspaceMenu && (
-        <WorkspaceContextMenu
-          x={workspaceMenu.x}
-          y={workspaceMenu.y}
-          onClose={() => setWorkspaceMenu(null)}
-          onAction={handleWorkspaceAction}
-        />
-      )}
 
-      {/* Modals */}
-      <NewWorkspaceModal
-        isOpen={showNewWorkspaceModal}
-        onClose={() => setShowNewWorkspaceModal(false)}
-        onCreate={onAddProject}
-        workspaces={projects}
-      />
 
-      <NewCollectionModal
-        isOpen={showNewCollectionModal}
-        onClose={() => setShowNewCollectionModal(false)}
-        onCreate={handleCreateCollection}
-        collections={collections}
-        projects={projects}
-        onAddProject={onAddProject}
-      />
+
+<NewCollectionModal
+  isOpen={showNewCollectionModal}
+  onClose={() => setShowNewCollectionModal(false)}
+  onCreate={handleCreateCollection}
+  collections={collections}
+  activeWorkspaceId={activeWorkspaceId}
+  activeWorkspaceName={activeWorkspaceName}
+/>
 
       <NewRequestTypeModal
         isOpen={showRequestTypeModal}
@@ -2596,39 +2172,11 @@ const handleDeleteWorkspace = async () => {
         onRename={handleRenameItem}
       />
 
-      {/* Workspace Rename Modal */}
-      <RenameModal
-        isOpen={showRenameWorkspaceModal}
-        onClose={() => {
-          setShowRenameWorkspaceModal(false);
-          setWorkspaceToRename(null);
-        }}
-        currentName={workspaceToRename?.name || ''}
-        itemType="workspace"
-        onRename={handleRenameWorkspace}
-      />
+  
 
-      {/* Workspace Delete Confirmation */}
-      <DeleteWorkspaceConfirmModal
-        isOpen={showDeleteWorkspaceConfirm}
-        onClose={() => {
-          setShowDeleteWorkspaceConfirm(false);
-          setWorkspaceToDelete(null);
-        }}
-        workspaceName={workspaceToDelete?.name || ''}
-        onConfirm={handleDeleteWorkspace}
-      />
 
-      {/* Workspace Details Modal */}
-      <WorkspaceDetailsModal
-        isOpen={showWorkspaceDetailsModal}
-        onClose={() => {
-          setShowWorkspaceDetailsModal(false);
-          setWorkspaceToView(null);
-        }}
-        workspace={workspaceToView}
-        collectionsCount={workspaceToView ? getCollectionsCountForWorkspace(workspaceToView.id) : 0}
-      />
+
+
 
 <ImportWorkspaceModal
   isOpen={showImportWorkspaceModal}

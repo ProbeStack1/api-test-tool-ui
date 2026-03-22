@@ -43,6 +43,9 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
   const [importItemId, setImportItemId] = useState(null);
 
   const isOwner = (item) => item.createdBy === currentUserId;
+  console.log("current user:", currentUserId);
+  console.log("library items:", items);
+    
   const canEdit = selectedItem && isOwner(selectedItem);
 
   useEffect(() => {

@@ -1,11 +1,11 @@
-import React, { useEffect, useState,useRef } from 'react';
+import React, { useEffect, useState,useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen } from 'lucide-react';
+import {  History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen, Activity } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
 import CollectionsPanel from './CollectionsPanel';
-import SaveRequestModal from './SaveRequestModal';
+import SaveRequestModal from './modals/SaveRequestModal';
 import VariablesEditor from './VariablesEditor';
 import DashboardSpecTable from './DashboardSpecTable';
 import GenerateTestCase from './GenerateTestCase';
@@ -15,12 +15,20 @@ import EnvironmentList from './sidebar/EnvironmentList';
 import EnvironmentDropdown from './sidebar/EnvironmentDropdown';
 import CreateMockServiceModal from '../components/modals/CreateMockServiceModal';
 import { runMockServer } from '../services/mockServerService';
-import {
-  listTestFiles,
-  uploadTestFile,
-  deleteTestFile,
-} from '../services/testFileService';
+import { listCollectionRuns } from '../services/collectionService';
+import {listTestFiles,uploadTestFile,deleteTestFile,} from '../services/testFileService';
+import { listTestSpecs } from '../services/testSpecificationService';
+import { listLibraryItems ,updateLibraryItem, deleteLibraryItem } from '../services/specLibraryService';
 import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
+import CollectionRunsTable from './CollectionRunsTable';
+import LoadTestRunningView from './detailsTab/LoadTestRunningView';
+import LoadTestResultsView from './detailsTab/LoadTestResultsView';
+import {
+  listWorkspaceLoadTests, 
+} from '../services/collectionService';
+import { toast } from 'sonner';
+import LoadTestRunsTable from './LoadTestRunsTable';
+import RequestHistoryList from './RequestHistoryList';
 
 export default function IDEWorkspaceLayout({
   history,
@@ -103,10 +111,94 @@ export default function IDEWorkspaceLayout({
       onWorkspaceUpdate,
   onWorkspaceDelete,
   onMockServerRun,
+  onFetchHistoryEntry,
+  activeWorkspaceId,
+        onOpenCollectionRun,
+      onRunCollectionWithOrder,
+      onViewRunResults,
+      activeEnvVars,
+inactiveEnvVars,
+activeEnvValues,
+inactiveEnvInfo,
+onShowChatbot,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const globalVariables = globalEnvironment?.variables || [];
+  const [workspaceRuns, setWorkspaceRuns] = useState([]);
+const [loadingRuns, setLoadingRuns] = useState(false);
+const [selectedLoadCollectionId, setSelectedLoadCollectionId] = useState(null);
+const currentRequest = requests[activeRequestIndex];
+const [selectedTestCollectionId, setSelectedTestCollectionId] = useState(null);
+const [testSpecs, setTestSpecs] = useState([]);
+const [libraryItems, setLibraryItems] = useState([]);
+const [loadingSpecs, setLoadingSpecs] = useState(false);
+const [loadingLibrary, setLoadingLibrary] = useState(false);
+const [fileSelectionContext, setFileSelectionContext] = useState({ context: null, selectedFile: null });
+const [historySubTab, setHistorySubTab] = useState('req');
+const [loadTestRuns, setLoadTestRuns] = useState([]);
+
+useEffect(() => {
+  if (!activeWorkspaceId || !collections.length) return;
+
+  const fetchAllRuns = async () => {
+    setLoadingRuns(true);
+    try {
+      // Get all collections in this workspace
+      const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
+      const runPromises = workspaceCollections.map(col => 
+        listCollectionRuns(col.id).then(res => res.data)
+      );
+      const runsArrays = await Promise.all(runPromises);
+      // Flatten and sort by startedAt (newest first)
+      const allRuns = runsArrays.flat().sort((a, b) => 
+        new Date(b.startedAt) - new Date(a.startedAt)
+      );
+      setWorkspaceRuns(allRuns);
+    } catch (err) {
+      // console.error('Failed to fetch runs:', err);
+      // toast.error('Failed to load run history');
+    } finally {
+      setLoadingRuns(false);
+    }
+  };
+
+  fetchAllRuns();
+}, [activeWorkspaceId, collections]);
+
+const workspaceCollections = useMemo(() => {
+  return collections.filter(c => c.project === activeWorkspaceId);
+}, [collections, activeWorkspaceId]);
+
+// Fetch load test runs for the active workspace
+useEffect(() => {
+  if (!activeWorkspaceId) return;
+
+  const fetchLoadTestRuns = async () => {
+    try {
+      const response = await listWorkspaceLoadTests(activeWorkspaceId);
+      setLoadTestRuns(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch load test runs:', err);
+      toast.error('Could not load load test history');
+    }
+  };
+
+  fetchLoadTestRuns();
+}, [activeWorkspaceId]);
+
+useEffect(() => {
+  if (workspaceCollections.length > 0 && !selectedTestCollectionId) {
+    setSelectedTestCollectionId(workspaceCollections[0].id);
+  }
+}, [workspaceCollections, selectedTestCollectionId]);
+
+
+useEffect(() => {
+  if (workspaceCollections.length > 0 && !selectedLoadCollectionId) {
+    setSelectedLoadCollectionId(workspaceCollections[0].id);
+  }
+}, [workspaceCollections]);
 
   const getTopMenuFromPath = (pathname) => {
     if (pathname.includes('/workspace/history')) return 'history';
@@ -138,15 +230,27 @@ export default function IDEWorkspaceLayout({
   const [workspaceSearch, setWorkspaceSearch] = useState('');
   const [rightPanelOpen, setRightPanelOpen] = useState(null); // null | 'code' | 'insights' — both closed by default
   const [variablesScope, setVariablesScope] = useState('environment-scope');
-  
-  // IDEWorkspaceLayout.jsx
-const activeEnvironment = environments.find(env => env.isActive);
-const activeEnvVars = new Set(activeEnvironment?.variables?.map(v => v.key) || []);
-const inactiveEnvVars = new Set(
-  environments
-    .filter(env => !env.isActive)
-    .flatMap(env => env.variables?.map(v => v.key) || [])
-);
+
+  // Already present (from earlier code) – ensure these are defined:
+const [functionalSelectedFile, setFunctionalSelectedFile] = useState(null);
+const [loadSelectedFile, setLoadSelectedFile] = useState(null);
+const fileSelectCallbackRef = useRef(null);
+
+const handleFileSelect = (file) => {
+  if (fileSelectCallbackRef.current) {
+    fileSelectCallbackRef.current(file);
+  }
+  setShowFileSelectionModal(false);
+};
+
+// const activeEnvironment = environments.find(env => env.isActive);
+// const activeEnvVars = new Set(activeEnvironment?.variables?.map(v => v.key) || []);
+// const inactiveEnvVars = new Set(
+//   environments
+//     .filter(env => !env.isActive)
+//     .flatMap(env => env.variables?.map(v => v.key) || [])
+// );
+
   // Collapse sidebar when navigating to dashboard or ai-assisted, expand when leaving
   useEffect(() => {
     if (topMenuActive === 'dashboard' || topMenuActive === 'ai-assisted') {
@@ -158,18 +262,17 @@ const inactiveEnvVars = new Set(
 }, [environmentVariablesDirty, selectedEnvironment]);
 
 useEffect(() => {
+  if (!activeWorkspaceId) return;
   const fetchFiles = async () => {
-    if (!projects || projects.length === 0) return;
-    const workspaceId = projects[0].id;
     try {
-      const res = await listTestFiles(workspaceId);
+      const res = await listTestFiles(activeWorkspaceId);
       onTestFilesChange(res.items);
     } catch (err) {
       toast.error('Failed to load test files');
     }
   };
   fetchFiles();
-}, [projects, onTestFilesChange]);
+}, [activeWorkspaceId, onTestFilesChange]);
   // History menu state
   const [historyMenu, setHistoryMenu] = useState(null);
   const [showHistorySaveModal, setShowHistorySaveModal] = useState(false);
@@ -207,12 +310,21 @@ useEffect(() => {
 
   // Testing sub-tabs
   const [testingSubTab, setTestingSubTab] = useState('generate');
-  const testingSubTabs = [
-    { id: 'library', label: 'Spec Library', icon: BookOpen }, 
-    { id: 'generate', label: 'Generate Test Cases', icon: FileSearch },
-    { id: 'functional', label: 'Functional Test', icon: Play },
-    { id: 'load', label: 'Load Test', icon: BarChart3 },
-  ];
+const testingSubTabs = [
+  { id: 'library', label: 'Spec Library', icon: BookOpen },
+  { id: 'generate', label: 'Testing', icon: FileSearch },
+  { id: 'functional', label: 'Functional Test', icon: Play },
+  { id: 'load', label: 'Load Test', icon: BarChart3 },
+  { id: 'tracing', label: 'Tracing', icon: Activity }, // new tab
+];
+
+// History sub-tabs
+const historySubTabs = [
+  { id: 'req', label: 'Request', icon: History },
+  { id: 'functional', label: 'Functional', icon: Play },
+  { id: 'load', label: 'Load', icon: BarChart3 },
+  { id: 'tracing', label: 'Tracing', icon: Activity }, // new
+];
 
   // Generate Testcases - uploaded test files (CSV/JSON only)
   const [generateTestcasesSearch, setGenerateTestcasesSearch] = useState('');
@@ -234,7 +346,7 @@ const handleTestDataFileChange = async (e) => {
   try {
     const workspaceId = projects[0]?.id;
     if (!workspaceId) {
-      toast.error('No workspace selected');
+      toast.error('No project selected');
       return;
     }
     const uploaded = await uploadTestFile(workspaceId, file);
@@ -361,6 +473,38 @@ const handleRunMockServer = async (mockServer) => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const confirmRef = useRef(null);
 
+
+  const closeFileSelectionModal = () => {
+  setShowFileSelectionModal(false);
+  setFileSelectionContext({ context: null, selectedFile: null });
+};
+
+
+  useEffect(() => {
+  if (!showFileSelectionModal || !activeWorkspaceId) return;
+
+  const fetchData = async () => {
+    setLoadingSpecs(true);
+    setLoadingLibrary(true);
+    try {
+      // Fetch test specs for the current project
+      const specsRes = await listTestSpecs(activeWorkspaceId);
+      setTestSpecs(specsRes.items || []);
+      
+      // Fetch library items (global, no projecct ID needed)
+      const libraryRes = await listLibraryItems();
+      setLibraryItems(libraryRes || []);
+    } catch (err) {
+      console.error('Failed to fetch test data:', err);
+      toast.error('Could not load test data');
+    } finally {
+      setLoadingSpecs(false);
+      setLoadingLibrary(false);
+    }
+  };
+  fetchData();
+}, [showFileSelectionModal, activeWorkspaceId]);
+
   useEffect(() => {
   const handleClickOutside = (e) => {
     if (mockMenu) {
@@ -485,81 +629,6 @@ useEffect(() => {
     }, 500); // 500ms per iteration for visual effect
   };
 
-  // Handler for Load Testing Run
-  const handleRunLoadTest = () => {
-    if (isRunningLoadTest) return;
-    
-    // Calculate total duration in seconds
-    const durationValue = loadDuration || 1;
-    const durationInSeconds = loadDurationUnit === 'mins' ? durationValue * 60 : durationValue;
-    
-    setIsRunningLoadTest(true);
-    setLoadTestCountdown(durationInSeconds);
-    setLoadTestResults({
-      status: 'running',
-      testName: 'Load Test',
-      startTime: new Date().toISOString(),
-      virtualUsers: loadVirtualUsers,
-      duration: durationInSeconds,
-      countdown: durationInSeconds,
-    });
-    
-    // Countdown timer
-    const countdownInterval = setInterval(() => {
-      setLoadTestCountdown(prev => {
-        const newCount = prev - 1;
-        if (newCount <= 0) {
-          clearInterval(countdownInterval);
-          return 0;
-        }
-        return newCount;
-      });
-    }, 1000);
-    
-    // Complete the test after duration
-    setTimeout(() => {
-      clearInterval(countdownInterval);
-      
-      // Generate dummy load test results
-      const totalRequests = loadVirtualUsers * 50; // 50 requests per virtual user
-      const passedRequests = Math.floor(totalRequests * 0.95); // 95% success rate
-      const failedRequests = totalRequests - passedRequests;
-      const avgResponseTime = Math.floor(Math.random() * 200) + 100; // 100-300ms
-      const maxResponseTime = avgResponseTime + Math.floor(Math.random() * 500);
-      const minResponseTime = Math.max(50, avgResponseTime - Math.floor(Math.random() * 100));
-      
-      // Generate results per virtual user
-      const userResults = [];
-      for (let i = 0; i < loadVirtualUsers; i++) {
-        userResults.push({
-          userId: `VU-${i + 1}`,
-          requestsCompleted: 50,
-          avgResponseTime: avgResponseTime + Math.floor(Math.random() * 50 - 25),
-          successRate: 0.9 + Math.random() * 0.1,
-        });
-      }
-      
-      setLoadTestResults({
-        status: 'completed',
-        testName: 'Load Test',
-        startTime: new Date().toISOString(),
-        endTime: new Date().toISOString(),
-        virtualUsers: loadVirtualUsers,
-        duration: durationInSeconds,
-        totalRequests,
-        passedRequests,
-        failedRequests,
-        avgResponseTime,
-        minResponseTime,
-        maxResponseTime,
-        requestsPerSecond: (totalRequests / durationInSeconds).toFixed(2),
-        userResults,
-      });
-      
-      setIsRunningLoadTest(false);
-      setLoadTestCountdown(0);
-    }, durationInSeconds * 1000);
-  };
 
   const loadHistoryItem = (item) => {
     onUrlChange(item.url);
@@ -677,9 +746,45 @@ useEffect(() => {
     setSelectedHistoryIndex(null);
   };
 
+  const refreshLibraryItems = async () => {
+  if (!activeWorkspaceId) return;
+  try {
+    const libraryRes = await listLibraryItems();
+    setLibraryItems(libraryRes || []);
+  } catch (err) {
+    console.error('Failed to refresh library:', err);
+  }
+};
+
+const handleEditLibraryItem = async (item) => {
+  const newName = prompt('Edit name', item.name);
+  if (newName && newName.trim() !== item.name) {
+    try {
+      await updateLibraryItem(item.id, { name: newName.trim() });
+      toast.success('Library item updated');
+      await refreshLibraryItems();
+    } catch (err) {
+      toast.error('Failed to update library item');
+    }
+  }
+};
+
+const handleDeleteLibraryItem = async (item) => {
+  if (confirm(`Delete "${item.name}"? This action cannot be undone.`)) {
+    try {
+      await deleteLibraryItem(item.id);
+      toast.success('Library item deleted');
+      await refreshLibraryItems();
+    } catch (err) {
+      toast.error('Failed to delete library item');
+    }
+  }
+};
+
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
-      {/* Workspace header bar: Search + Environment selector */}
+      {/* project header bar: Search + Environment selector */}
       <header className="shrink-0 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3 px-4 py-2">
           <div className="flex-1"></div>
@@ -687,7 +792,7 @@ useEffect(() => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
             <input
               type="text"
-              placeholder="Search workspace..."
+              placeholder="Search project..."
               value={workspaceSearch}
               onChange={(e) => setWorkspaceSearch(e.target.value)}
               className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
@@ -717,11 +822,11 @@ useEffect(() => {
           sidebarCollapsed ? 'w-0' : 'w-72'
         )}>
           <div className="px-3 py-2 border-b border-dark-700/50 flex items-center justify-between shrink-0">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-              {topMenuActive === 'testing'
-                ? (testingSubTabs.find(t => t.id === testingSubTab)?.label ?? 'Testing')
-                : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
-            </h2>
+<h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+  {topMenuActive === 'testing'
+    ? 'Testing'
+    : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
+</h2>
             {!sidebarCollapsed && (
               <button
                 onClick={() => setSidebarCollapsed(true)}
@@ -734,98 +839,48 @@ useEffect(() => {
           <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 flex flex-col">
             {topMenuActive === 'collections' && (
               <div className="flex-1 min-h-0 flex flex-col">
-                <CollectionsPanel 
-                  onSelectEndpoint={onSelectEndpoint}
-                  existingTabRequests={requests}
-                  collections={collections}
-                  projects={projects}
-                  onAddProject={onAddProject}
-                  onCollectionsChange={onCollectionsChange}
-                  onRunCollection={onRunCollection}
-                  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
-                  currentUserId={currentUserId}
-                  onWorkspaceDelete={onWorkspaceDelete}
-                />
+<CollectionsPanel 
+  onSelectEndpoint={onSelectEndpoint}
+  existingTabRequests={requests}
+  collections={collections}
+  projects={projects}
+  onAddProject={onAddProject}
+  onCollectionsChange={onCollectionsChange}
+  onRunCollection={onRunCollection}
+  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+  currentUserId={currentUserId}
+  activeWorkspaceId={activeWorkspaceId} 
+  onOpenCollectionRun={onOpenCollectionRun}
+/>
               </div>
             )}
-            {topMenuActive === 'history' && (
-              <div className="flex-1 flex flex-col p-4">
-                <span className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">History</span>
-                {history.length === 0 ? (
-                  <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6 text-center">
-                    <p className="text-sm text-gray-400">No history</p>
-                    <p className="text-xs text-gray-500 mt-1">Run requests to see them here</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {history.slice(0, 20).map((item, index) => (
-                      <div
-                        key={index}
-                        className="group w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all border border-transparent hover:bg-dark-800 hover:border-primary/20 text-gray-300 hover:text-white flex items-center justify-between"
-                      >
-                        <button
-                          onClick={() => loadHistoryItem(item)}
-                          className="flex-1 text-left"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={clsx(
-                              'text-[10px] font-bold px-1.5 py-0.5 rounded',
-                              item.method === 'GET' && 'text-green-400 bg-green-400/10',
-                              item.method === 'POST' && 'text-yellow-400 bg-yellow-400/10',
-                              'text-purple-400 bg-purple-400/10'
-                            )}>
-                              {item.method}
-                            </span>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                              {new Date(item.date).toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <div className="text-xs truncate font-mono">{item.url}</div>
-                        </button>
-                        {/* Triple dot action button */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleHistoryMenuOpen(e, item, index)}
-                          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all text-gray-500 hover:text-white hover:bg-dark-700"
-                          title="Actions"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* History Context Menu */}
-                {historyMenu && (
-                  <HistoryContextMenu
-                    x={historyMenu.x}
-                    y={historyMenu.y}
-                    onClose={() => setHistoryMenu(null)}
-                    onAction={handleHistoryAction}
-                  />
-                )}
-                
-                {/* Save Request Modal for History */}
-                {showHistorySaveModal && selectedHistoryItem && (
-                  <SaveRequestModal
-                    isOpen={showHistorySaveModal}
-                    onClose={() => {
-                      setShowHistorySaveModal(false);
-                      setSelectedHistoryItem(null);
-                      setSelectedHistoryIndex(null);
-                    }}
-                    onSave={handleSaveHistoryRequest}
-                    requestName="" // Empty for history - user must enter
-                    collections={collections}
-                    projects={projects}
-                    onAddProject={onAddProject}
-                    // New prop to indicate this is from history (editable name)
-                    isHistorySave={true}
-                  />
-                )}
-              </div>
+
+{topMenuActive === 'history' && (
+  <div className="flex-1 flex flex-col p-4">
+    <div className="space-y-1">
+      {historySubTabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setHistorySubTab(tab.id)}
+            className={clsx(
+              'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+              historySubTab === tab.id
+                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
             )}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+)}
+
             {topMenuActive === 'environments' && (
   <EnvironmentList
     environments={environments}
@@ -847,37 +902,31 @@ useEffect(() => {
     onGlobalVariablesChange={onGlobalVariablesChange} 
   />
 )}
-            {topMenuActive === 'testing' && (
-              <div className="flex-1 flex flex-col p-4">
-                <div className="space-y-3">
-                  {testingSubTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <div key={tab.id} className="rounded-xl border border-dark-700 bg-dark-800/40 p-3">
-                        <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                          {tab.label}
-                        </div>
-                        <div className="space-y-1">
-                          <button
-                            type="button"
-                            onClick={() => setTestingSubTab(tab.id)}
-                            className={clsx(
-                              'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-                              testingSubTab === tab.id
-                                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
-                            )}
-                          >
-                            <Icon className="w-4 h-4 shrink-0" />
-                            <span>{tab.label}</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+{topMenuActive === 'testing' && (
+  <div className="flex-1 flex flex-col p-4">
+    <div className="space-y-1">
+      {testingSubTabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setTestingSubTab(tab.id)}
+            className={clsx(
+              'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+              testingSubTab === tab.id
+                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
             )}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+)}
 {topMenuActive === 'mock-service' && (
   <div className="flex-1 flex flex-col min-h-0">
     {/* Create Mock Service Button */}
@@ -885,7 +934,7 @@ useEffect(() => {
 <button
   type="button"
   onClick={() => setShowCreateMockServiceModal(true)}
-  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-4 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
 >
   <Plus className="w-4 h-4" />
   Create Mock Service
@@ -1114,7 +1163,7 @@ useEffect(() => {
               <div className="flex-1 flex flex-col p-4">
                 <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
                   <h3 className="text-sm font-semibold text-gray-200">Settings - General</h3>
-                  <p className="text-xs text-gray-500 mt-2">General workspace settings are available here.</p>
+                  <p className="text-xs text-gray-500 mt-2">General Project settings are available here.</p>
                 </div>
               </div>
             )}
@@ -1140,450 +1189,452 @@ useEffect(() => {
 
         {/* Center + Right: Request builder and Execution Insights side by side */}
         <section className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-          <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
             {topMenuActive === 'environments' ? (
               <VariablesEditor
                 pairs={variablesScope === 'environment-scope' ? environmentVariables : globalVariables}
                 onChange={variablesScope === 'environment-scope' ? onEnvironmentVariablesChange : onGlobalVariablesChange}
                 title={variablesScope === 'environment-scope' ? 'Environment Variables' : 'Global Variables'}
               />
-            ) : topMenuActive === 'testing' ? (
-              // Testing: Generate Testcases | Functional Test | Load Test
-              <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
-                {testingSubTab === 'library' && (
-  <SpecLibraryPanel
-    projects={projects}
-    currentUserId={currentUserId}
-  />
-)}
-                {testingSubTab === 'generate' && (
-  <GenerateTestCase projects={projects} />
-)}
-                {testingSubTab === 'functional' && (
-                  <div className="flex gap-6">
-                    {/* Left side - Form */}
-                    <div className="flex-1 max-w-2xl space-y-6">
-                      <h2 className="text-lg font-semibold text-white">Functional Test</h2>
-                      <p className="text-sm text-gray-400">Choose how to run your collection and configure run options.</p>
-                      <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
-                        <div>
-                          <h3 className="text-sm font-medium text-white mb-3">Choose how to run your collection</h3>
-                          <div className="space-y-2">
-                            {[
-                              { id: 'manual', label: 'Run manually', desc: 'Run this collection in the Collection Runner.' },
-                              { id: 'schedule', label: 'Schedule runs', desc: 'Periodically run collection at a specified time.' },
-                              { id: 'cli', label: 'Automate runs via CLI', desc: 'Configure CLI command to run on your build pipeline.' },
-                            ].map((opt) => (
-                              <label key={opt.id} className="flex items-start gap-3 p-3 rounded-lg border border-dark-700 hover:bg-dark-800/50 cursor-pointer">
-                                <input type="radio" name="functionalRunMode" checked={functionalRunMode === opt.id} onChange={() => setFunctionalRunMode(opt.id)} className="mt-1 text-primary" />
-                                <div>
-                                  <span className="text-sm font-medium text-white">{opt.label}</span>
-                                  <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-medium text-white mb-3">Run configuration</h3>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Iterations</label>
-                              <input type="number" min={1} value={functionalIterations} onChange={(e) => setFunctionalIterations(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Delay (ms)</label>
-                              <input type="number" min={0} value={functionalDelay} onChange={(e) => setFunctionalDelay(Number(e.target.value) || 0)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                            </div>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">Test data file: Only JSON and CSV files are accepted.</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button 
-                              type="button" 
-                              onClick={() => setShowFileSelectionModal(true)}
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm"
-                            >
-                              Select File
-                            </button>
-                            {selectedFunctionalFile && (
-                              <span className="text-sm text-primary">{selectedFunctionalFile.name}</span>
-                            )}
-                          </div>
-                        </div>
-                        <details className="group">
-                          <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none flex items-center gap-1">Advanced settings</summary>
-                          <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">Additional options can be added here.</div>
-                        </details>
-                        <button 
-                          type="button" 
-                          onClick={handleRunFunctionalTest}
-                          disabled={isRunningFunctional}
-                          className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isRunningFunctional ? 'Running...' : 'Run collection'}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Right side - Results */}
-                    {functionalRunResults && (
-                      <div className="flex-1 max-w-2xl mt-[72px]">
-                        <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 max-h-[600px] flex flex-col">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-semibold text-white">Collection Run Results</h3>
-                            <button
-                              type="button"
-                              onClick={() => setFunctionalRunResults(null)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                          
-                          {functionalRunResults.status === 'running' ? (
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2 text-yellow-400">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span className="text-sm">Running iteration {functionalRunResults.currentIteration} of {functionalRunResults.iterations}...</span>
-                              </div>
-                              <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-primary rounded-full transition-all duration-300"
-                                  style={{ 
-                                    width: `${((functionalRunResults.currentIteration || 0) / (functionalRunResults.iterations || 1)) * 100}%` 
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4">
-                              {/* Summary */}
-                              <div className="flex items-center justify-between pb-3 border-b border-dark-700">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-sm font-semibold text-gray-200">
-                                    {functionalRunResults.collectionName}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <span className={clsx(
-                                      'text-xs px-2 py-0.5 rounded font-medium',
-                                      functionalRunResults.failedRequests === 0
-                                        ? 'text-green-400 bg-green-400/10'
-                                        : 'text-red-400 bg-red-400/10'
-                                    )}>
-                                      {functionalRunResults.passedRequests} / {functionalRunResults.totalRequests} Passed
-                                    </span>
-                                    {functionalRunResults.failedRequests > 0 && (
-                                      <span className="text-xs px-2 py-0.5 rounded font-medium text-red-400 bg-red-400/10">
-                                        {functionalRunResults.failedRequests} Failed
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <span className="text-xs text-gray-500">
-                                  {functionalRunResults.iterations} iteration{functionalRunResults.iterations !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              
-                              {/* Results by Iteration */}
-                              <div className="space-y-3">
-                                {(() => {
-                                  // Group results by iteration
-                                  const grouped = functionalRunResults.results.reduce((acc, result) => {
-                                    const path = result.folderPath || 'Root';
-                                    if (!acc[path]) acc[path] = [];
-                                    acc[path].push(result);
-                                    return acc;
-                                  }, {});
+            ) : 
 
-                                  return Object.entries(grouped).map(([folderPath, results]) => (
-                                    <div key={folderPath} className="border border-dark-700 rounded-lg overflow-hidden">
-                                      <div className="flex items-center gap-2 px-3 py-2 bg-dark-800/50">
-                                        <Folder className="w-4 h-4 text-amber-500/90" />
-                                        <span className="text-xs font-medium text-gray-300">{folderPath}</span>
-                                        <span className="text-xs text-gray-500 ml-auto">
-                                          {results.length} request{results.length !== 1 ? 's' : ''}
-                                        </span>
-                                      </div>
-                                      <div className="divide-y divide-dark-700/50">
-                                        {results.map((result, idx) => (
-                                          <div key={idx} className="px-3 py-2 hover:bg-dark-800/30">
-                                            <div className="flex items-center gap-3">
-                                              <span className={clsx(
-                                                'text-[10px] font-bold w-10 text-center shrink-0',
-                                                result.method === 'GET' && 'text-green-400',
-                                                result.method === 'POST' && 'text-yellow-400',
-                                                result.method === 'PUT' && 'text-blue-400',
-                                                result.method === 'DELETE' && 'text-red-400',
-                                                'text-purple-400'
-                                              )}>
-                                                {result.method}
-                                              </span>
-                                              <span className="text-xs text-gray-300 truncate flex-1">
-                                                {result.requestName}
-                                              </span>
-                                              {result.status > 0 ? (
-                                                <span className={clsx(
-                                                  'text-[10px] font-bold px-1.5 py-0.5 rounded',
-                                                  result.success
-                                                    ? 'text-green-400 bg-green-400/10'
-                                                    : 'text-red-400 bg-red-400/10'
-                                                )}>
-                                                  {result.status}
-                                                </span>
-                                              ) : (
-                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-red-400 bg-red-400/10">
-                                                  ERR
-                                                </span>
-                                              )}
-                                              <span className="text-xs text-gray-500 w-14 text-right">
-                                                {result.time}ms
-                                              </span>
-                                            </div>
-                                            {result.error && (
-                                              <div className="mt-1 ml-[52px] text-[10px] text-red-400">
-                                                {result.error}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ));
-                                })()}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {testingSubTab === 'load' && (
-                  <div className="flex gap-6">
-                    {/* Left side - Form */}
-                    <div className="flex-1 max-w-2xl space-y-6">
-                      <h2 className="text-lg font-semibold text-white">Load Test</h2>
-                      <p className="text-sm text-gray-400">Set up your performance test with virtual users and duration.</p>
-                      <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
-                        <div>
-                          <h3 className="text-sm font-medium text-white mb-3">Set up your performance test</h3>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Load profile</label>
-                              <select value={loadProfile} onChange={(e) => setLoadProfile(e.target.value)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30">
-                                <option value="fixed" className="bg-dark-800">Fixed</option>
-                                <option value="ramp" className="bg-dark-800">Ramp up</option>
-                              </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-xs text-gray-500 mb-1">Virtual users</label>
-                                <input type="number" min={1} value={loadVirtualUsers} onChange={(e) => setLoadVirtualUsers(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                              </div>
-                              <div className="flex gap-2 items-end">
-                                <div className="flex-1">
-                                  <label className="block text-xs text-gray-500 mb-1">Test duration</label>
-                                  <input type="number" min={1} value={loadDuration} onChange={(e) => setLoadDuration(Number(e.target.value) || 1)} className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                                </div>
-                                <select value={loadDurationUnit} onChange={(e) => setLoadDurationUnit(e.target.value)} className="bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
-                                  <option value="mins" className="bg-dark-800">mins</option>
-                                  <option value="secs" className="bg-dark-800">secs</option>
-                                </select>
-                              </div>
-                            </div>
-                            <p className="text-xs text-gray-500">{loadVirtualUsers} virtual users run for {loadDuration} {loadDurationUnit}, each executing all requests sequentially.</p>
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Data file</label>
-                              <button type="button" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm">Select file</button>
-                            </div>
-                            <details className="group">
-                              <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none">Pass test if...</summary>
-                              <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">Configure pass/fail conditions.</div>
-                            </details>
-                          </div>
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-medium text-white mb-2">Run</h3>
-                          <div className="flex gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input type="radio" name="loadRunMode" checked={loadRunMode === 'app'} onChange={() => setLoadRunMode('app')} className="text-primary" />
-                              <span className="text-sm text-gray-300">In the app</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input type="radio" name="loadRunMode" checked={loadRunMode === 'cli'} onChange={() => setLoadRunMode('cli')} className="text-primary" />
-                              <span className="text-sm text-gray-300">via the CLI</span>
-                            </label>
-                          </div>
-                        </div>
-                        <button 
-                          type="button" 
-                          onClick={handleRunLoadTest}
-                          disabled={isRunningLoadTest}
-                          className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isRunningLoadTest ? 'Running...' : 'Run performance test'}
-                        </button>
-                      </div>
+topMenuActive === 'testing' ? (
+  <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
+    {/* Library */}
+    {testingSubTab === 'library' && (
+      <SpecLibraryPanel projects={projects} currentUserId={currentUserId} />
+    )}
+
+    {/* Generate Testcases */}
+    {testingSubTab === 'generate' && (
+      <GenerateTestCase projects={projects} activeWorkspaceId={activeWorkspaceId} />
+    )}
+
+    {/* Functional Testing */}
+    {testingSubTab === 'functional' && (
+      <div className="space-y-4">
+        <div>
+          <label className="text-sm font-medium text-gray-300">Select Collection</label>
+          <select
+            value={selectedTestCollectionId || ''}
+            onChange={(e) => setSelectedTestCollectionId(e.target.value)}
+            className="mt-1 w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+          >
+            <option value="">Select a collection</option>
+            {workspaceCollections.map(col => (
+              <option key={col.id} value={col.id}>{col.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedTestCollectionId && (
+          <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+            {/* Functional config UI – copied from CollectionRunView */}
+            <div>
+              <h3 className="text-sm font-medium text-white mb-3">Choose how to run your collection</h3>
+              <div className="space-y-2">
+                {[
+                  { id: 'manual', label: 'Run manually', desc: 'Run this collection in the Collection Runner.' },
+                  { id: 'schedule', label: 'Schedule runs', desc: 'Periodically run collection at a specified time.' },
+                  { id: 'cli', label: 'Automate runs via CLI', desc: 'Configure CLI command to run on your build pipeline.' },
+                ].map((opt) => (
+                  <label
+                    key={opt.id}
+                    className="flex items-start gap-3 p-3 rounded-lg border border-dark-700 hover:bg-dark-800/50 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="functionalRunMode"
+                      checked={functionalRunMode === opt.id}
+                      onChange={() => setFunctionalRunMode(opt.id)}
+                      className="mt-1 text-primary"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-white">{opt.label}</span>
+                      <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
                     </div>
-                    
-                    {/* Right side - Results */}
-                    {(loadTestResults || isRunningLoadTest) && (
-                      <div className="flex-1 max-w-2xl mt-[72px]">
-                        <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 max-h-[600px] flex flex-col">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-semibold text-white">Load Test Results</h3>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLoadTestResults(null);
-                                setIsRunningLoadTest(false);
-                                setLoadTestCountdown(0);
-                              }}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                          
-                          {isRunningLoadTest ? (
-                            <div className="space-y-6">
-                              {/* Countdown Display */}
-                              <div className="text-center py-8">
-                                <div className="text-5xl font-bold text-primary mb-2">
-                                  {Math.floor(loadTestCountdown / 60).toString().padStart(2, '0')}:{(loadTestCountdown % 60).toString().padStart(2, '0')}
-                                </div>
-                                <p className="text-sm text-gray-400">Time remaining</p>
-                              </div>
-                              
-                              {/* Progress Bar */}
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-400">Running load test...</span>
-                                  <span className="text-primary">{loadVirtualUsers} virtual users</span>
-                                </div>
-                                <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-primary rounded-full transition-all duration-1000"
-                                    style={{ 
-                                      width: `${((loadTestResults?.duration - loadTestCountdown) / (loadTestResults?.duration || 1)) * 100}%` 
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              
-                              {/* Animated loader */}
-                              <div className="flex items-center justify-center gap-2 text-yellow-400">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span className="text-sm">Simulating {loadVirtualUsers} concurrent users...</span>
-                              </div>
-                            </div>
-                          ) : loadTestResults?.status === 'completed' ? (
-                            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4">
-                              {/* Summary Stats */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
-                                  <p className="text-xs text-gray-500 mb-1">Total Requests</p>
-                                  <p className="text-lg font-semibold text-white">{loadTestResults.totalRequests.toLocaleString()}</p>
-                                </div>
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
-                                  <p className="text-xs text-gray-500 mb-1">Requests/sec</p>
-                                  <p className="text-lg font-semibold text-white">{loadTestResults.requestsPerSecond}</p>
-                                </div>
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
-                                  <p className="text-xs text-gray-500 mb-1">Avg Response Time</p>
-                                  <p className="text-lg font-semibold text-white">{loadTestResults.avgResponseTime}ms</p>
-                                </div>
-                                <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
-                                  <p className="text-xs text-gray-500 mb-1">Success Rate</p>
-                                  <p className="text-lg font-semibold text-green-400">
-                                    {((loadTestResults.passedRequests / loadTestResults.totalRequests) * 100).toFixed(1)}%
-                                  </p>
-                                </div>
-                              </div>
-                              
-                              {/* Response Time Stats */}
-                              <div className="p-3 rounded-lg bg-dark-800/50 border border-dark-700">
-                                <p className="text-xs text-gray-500 mb-2">Response Times</p>
-                                <div className="flex items-center gap-4">
-                                  <div>
-                                    <span className="text-xs text-gray-400">Min:</span>
-                                    <span className="text-sm text-white ml-1">{loadTestResults.minResponseTime}ms</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-xs text-gray-400">Avg:</span>
-                                    <span className="text-sm text-white ml-1">{loadTestResults.avgResponseTime}ms</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-xs text-gray-400">Max:</span>
-                                    <span className="text-sm text-white ml-1">{loadTestResults.maxResponseTime}ms</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Pass/Fail */}
-                              <div className="flex items-center gap-2">
-                                <span className={clsx(
-                                  'text-xs px-2 py-1 rounded font-medium',
-                                  loadTestResults.failedRequests === 0
-                                    ? 'text-green-400 bg-green-400/10'
-                                    : 'text-yellow-400 bg-yellow-400/10'
-                                )}>
-                                  {loadTestResults.passedRequests.toLocaleString()} Passed
-                                </span>
-                                {loadTestResults.failedRequests > 0 && (
-                                  <span className="text-xs px-2 py-1 rounded font-medium text-red-400 bg-red-400/10">
-                                    {loadTestResults.failedRequests.toLocaleString()} Failed
-                                  </span>
-                                )}
-                              </div>
-                              
-                              {/* Virtual User Summary */}
-                              <div className="border border-dark-700 rounded-lg overflow-hidden">
-                                <div className="px-3 py-2 bg-dark-800/50 border-b border-dark-700">
-                                  <span className="text-xs font-medium text-gray-300">Virtual User Summary</span>
-                                </div>
-                                <div className="divide-y divide-dark-700/50 max-h-48 overflow-y-auto custom-scrollbar">
-                                  {loadTestResults.userResults.slice(0, 10).map((user) => (
-                                    <div key={user.userId} className="px-3 py-2 flex items-center justify-between">
-                                      <span className="text-xs text-gray-300">{user.userId}</span>
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-xs text-gray-500">{user.requestsCompleted} req</span>
-                                        <span className="text-xs text-gray-400">{user.avgResponseTime}ms avg</span>
-                                        <span className={clsx(
-                                          'text-xs px-1.5 py-0.5 rounded',
-                                          user.successRate >= 0.95
-                                            ? 'text-green-400 bg-green-400/10'
-                                            : 'text-yellow-400 bg-yellow-400/10'
-                                        )}>
-                                          {(user.successRate * 100).toFixed(0)}%
-                                        </span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {loadTestResults.userResults.length > 10 && (
-                                    <div className="px-3 py-2 text-center">
-                                      <span className="text-xs text-gray-500">
-                                        ... and {loadTestResults.userResults.length - 10} more users
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-white mb-3">Run configuration</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Iterations</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={functionalIterations}
+                    onChange={(e) => setFunctionalIterations(Number(e.target.value) || 1)}
+                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Delay (ms)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={functionalDelay}
+                    onChange={(e) => setFunctionalDelay(Number(e.target.value) || 0)}
+                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Test data file: Only JSON and CSV files are accepted.</p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    fileSelectCallbackRef.current = setFunctionalSelectedFile;
+                    setFileSelectionContext({ context: 'functional', selectedFile: functionalSelectedFile });
+                    setShowFileSelectionModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm"
+                >
+                  Select File
+                </button>
+                {functionalSelectedFile && (
+                  <span className="text-sm text-primary truncate max-w-[200px]">{functionalSelectedFile.name}</span>
                 )}
               </div>
-            ) : topMenuActive === 'ai-assisted' ? (
+            </div>
+
+            <details className="group">
+              <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none flex items-center gap-1">
+                Advanced settings
+              </summary>
+              <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">
+                Additional options can be added here.
+              </div>
+            </details>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (!selectedTestCollectionId) {
+                  toast.error('Please select a collection');
+                  return;
+                }
+                const options = {
+                  type: 'functional',
+                  iterations: functionalIterations,
+                  delay: functionalDelay,
+                  testFile: functionalSelectedFile,
+                };
+                onRunCollectionWithOrder(selectedTestCollectionId, [], options, -1);
+              }}
+              className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm"
+            >
+              Run Functional Test
+            </button>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Load Testing */}
+    {testingSubTab === 'load' && (
+      <div className="space-y-4">
+        <div>
+          <label className="text-sm font-medium text-gray-300">Select Collection</label>
+          <select
+            value={selectedTestCollectionId || ''}
+            onChange={(e) => setSelectedTestCollectionId(e.target.value)}
+            className="mt-1 w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+          >
+            <option value="">Select a collection</option>
+            {workspaceCollections.map(col => (
+              <option key={col.id} value={col.id}>{col.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedTestCollectionId && (
+          <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+            <div>
+              <h3 className="text-sm font-medium text-white mb-3">Set up your performance test</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Load profile</label>
+                  <select
+                    value={loadProfile}
+                    onChange={(e) => setLoadProfile(e.target.value)}
+                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    <option value="fixed">Fixed</option>
+                    <option value="ramp">Ramp up</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Virtual users</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={loadVirtualUsers}
+                      onChange={(e) => setLoadVirtualUsers(Number(e.target.value) || 1)}
+                      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1">Test duration</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={loadDuration}
+                        onChange={(e) => setLoadDuration(Number(e.target.value) || 1)}
+                        className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <select
+                      value={loadDurationUnit}
+                      onChange={(e) => setLoadDurationUnit(e.target.value)}
+                      className="bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+                    >
+                      <option value="mins">mins</option>
+                      <option value="secs">secs</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {loadVirtualUsers} virtual users run for {loadDuration} {loadDurationUnit}, each executing all requests sequentially.
+                </p>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Data file</label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fileSelectCallbackRef.current = setLoadSelectedFile;
+                        setFileSelectionContext({ context: 'load', selectedFile: loadSelectedFile });
+                        setShowFileSelectionModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm"
+                    >
+                      Select File
+                    </button>
+                    {loadSelectedFile && (
+                      <span className="text-sm text-primary truncate max-w-[200px]">{loadSelectedFile.name}</span>
+                    )}
+                  </div>
+                </div>
+                <details className="group">
+                  <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none">
+                    Pass test if...
+                  </summary>
+                  <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">
+                    Configure pass/fail conditions.
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-white mb-2">Run</h3>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="loadRunMode"
+                    checked={loadRunMode === 'app'}
+                    onChange={() => setLoadRunMode('app')}
+                    className="text-primary"
+                  />
+                  <span className="text-sm text-gray-300">In the app</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="loadRunMode"
+                    checked={loadRunMode === 'cli'}
+                    onChange={() => setLoadRunMode('cli')}
+                    className="text-primary"
+                  />
+                  <span className="text-sm text-gray-300">via the CLI</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (!selectedTestCollectionId) {
+                  toast.error('Please select a collection');
+                  return;
+                }
+                const options = {
+                  type: 'load',
+                  virtualUsers: loadVirtualUsers,
+                  duration: loadDuration,
+                  durationUnit: loadDurationUnit,
+                  delay: functionalDelay, // think time
+                };
+                onRunCollectionWithOrder(selectedTestCollectionId, [], options, -1);
+              }}
+              className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm"
+            >
+              Run performance test
+            </button>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Tracing (NEW) - dummy API execution visualization */}
+    {testingSubTab === 'tracing' && (
+      <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
+        <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-5">
+          <h3 className="text-sm font-semibold text-white mb-4">API Execution Trace</h3>
+          {/* Dummy data visualization */}
+          <div className="space-y-4">
+            <div className="bg-dark-900/40 rounded-lg p-4 border border-dark-700">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-mono text-gray-400">Trace ID: trace_abc123</span>
+                <span className="text-xs text-green-400">Completed</span>
+              </div>
+              <div className="space-y-3">
+                {/* Dummy request/response steps */}
+                {[
+                  { method: 'GET', path: '/api/users', status: 200, duration: '45ms', timestamp: '10:23:45' },
+                  { method: 'POST', path: '/api/auth', status: 201, duration: '87ms', timestamp: '10:23:46' },
+                  { method: 'PUT', path: '/api/settings', status: 200, duration: '32ms', timestamp: '10:23:47' },
+                ].map((step, idx) => (
+                  <div key={idx} className="flex items-center gap-3 py-2 border-b border-dark-700 last:border-0">
+                    <div className={clsx(
+                      'w-12 text-xs font-bold',
+                      step.method === 'GET' && 'text-green-400',
+                      step.method === 'POST' && 'text-yellow-400',
+                      step.method === 'PUT' && 'text-blue-400',
+                    )}>
+                      {step.method}
+                    </div>
+                    <div className="flex-1 text-sm text-gray-300">{step.path}</div>
+                    <div className="text-xs text-gray-500">{step.duration}</div>
+                    <div className={clsx(
+                      'text-xs font-mono',
+                      step.status >= 200 && step.status < 300 ? 'text-green-400' : 'text-red-400'
+                    )}>
+                      {step.status}
+                    </div>
+                    <div className="text-xs text-gray-500">{step.timestamp}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-dark-900/40 rounded-lg p-4 border border-dark-700">
+              <h4 className="text-xs font-semibold text-gray-400 mb-2">Visualization</h4>
+              <div className="h-32 flex items-end gap-2">
+                {[65, 45, 80, 55, 70].map((height, i) => (
+                  <div key={i} className="flex-1 bg-primary/30 rounded-t" style={{ height: `${height}%` }} />
+                ))}
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                <span>GET /users</span>
+                <span>POST /auth</span>
+                <span>PUT /settings</span>
+                <span>GET /profile</span>
+                <span>DELETE /session</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)
+          
+          : topMenuActive === 'ai-assisted' ? (
               <AIAssisted />
             ) : topMenuActive === 'dashboard' ? (
-              <DashboardSpecTable
-  projects={projects}
-/>
-            ) : (
+  <DashboardSpecTable
+    projects={projects}
+    workspaceRuns={workspaceRuns}
+    loadingRuns={loadingRuns}
+    onViewRunResults={onViewRunResults}
+  />
+            ) :
+
+topMenuActive === 'history' ? (
+  <>
+    {historySubTab === 'req' && (
+      <RequestHistoryList onFetchHistoryEntry={onFetchHistoryEntry} />
+    )}
+    {historySubTab === 'functional' && (
+      <div className="p-6">
+        <CollectionRunsTable runs={workspaceRuns} onViewDetails={onViewRunResults} />
+      </div>
+    )}
+    {historySubTab === 'load' && (
+      <div className="p-6">
+        <LoadTestRunsTable runs={loadTestRuns} onViewDetails={onViewRunResults} />
+      </div>
+    )}
+    {historySubTab === 'tracing' && (
+      <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
+        <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-5">
+          <h3 className="text-sm font-semibold text-white mb-4">API Execution Trace (History)</h3>
+          {/* Dummy data visualization */}
+          <div className="space-y-4">
+            <div className="bg-dark-900/40 rounded-lg p-4 border border-dark-700">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-mono text-gray-400">Trace ID: trace_xyz789</span>
+                <span className="text-xs text-green-400">Completed</span>
+              </div>
+              <div className="space-y-3">
+                {/* Dummy request/response steps */}
+                {[
+                  { method: 'GET', path: '/api/users', status: 200, duration: '45ms', timestamp: '10:23:45' },
+                  { method: 'POST', path: '/api/auth', status: 201, duration: '87ms', timestamp: '10:23:46' },
+                  { method: 'PUT', path: '/api/settings', status: 200, duration: '32ms', timestamp: '10:23:47' },
+                ].map((step, idx) => (
+                  <div key={idx} className="flex items-center gap-3 py-2 border-b border-dark-700 last:border-0">
+                    <div className={clsx(
+                      'w-12 text-xs font-bold',
+                      step.method === 'GET' && 'text-green-400',
+                      step.method === 'POST' && 'text-yellow-400',
+                      step.method === 'PUT' && 'text-blue-400',
+                    )}>
+                      {step.method}
+                    </div>
+                    <div className="flex-1 text-sm text-gray-300">{step.path}</div>
+                    <div className="text-xs text-gray-500">{step.duration}</div>
+                    <div className={clsx(
+                      'text-xs font-mono',
+                      step.status >= 200 && step.status < 300 ? 'text-green-400' : 'text-red-400'
+                    )}>
+                      {step.status}
+                    </div>
+                    <div className="text-xs text-gray-500">{step.timestamp}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-dark-900/40 rounded-lg p-4 border border-dark-700">
+              <h4 className="text-xs font-semibold text-gray-400 mb-2">Visualization</h4>
+              <div className="h-32 flex items-end gap-2">
+                {[65, 45, 80, 55, 70].map((height, i) => (
+                  <div key={i} className="flex-1 bg-primary/30 rounded-t" style={{ height: `${height}%` }} />
+                ))}
+              </div>
+              <div className="flex justify-between mt-2 text-xs text-gray-500">
+                <span>GET /users</span>
+                <span>POST /auth</span>
+                <span>PUT /settings</span>
+                <span>GET /profile</span>
+                <span>DELETE /session</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+) 
+
+: (
               <APIExecutionStudio
                 requests={requests}
                 activeRequestIndex={activeRequestIndex}
@@ -1617,20 +1668,32 @@ useEffect(() => {
                 onNewRequest={onNewRequest}
                 onSaveRequest={onSaveRequest}
                 collections={collections}
-                projects={projects}
                 onAddProject={onAddProject}
                 substituteVariables={substituteVariables}
                 collectionRunResults={collectionRunResults}
                 isSavedRequest={isSavedRequest}
                 onUpdateRequest={onUpdateRequest}
                 pristineRequests={pristineRequests}
-                activeEnvVars={activeEnvVars}
-                inactiveEnvVars={inactiveEnvVars}
                 hideNewButton={topMenuActive === 'mock-service'}
                 hideSaveButton={topMenuActive === 'mock-service'}
                 currentUserId={currentUserId}
                     onWorkspaceUpdate={onWorkspaceUpdate}
   onWorkspaceDelete={onWorkspaceDelete}
+  onFetchHistoryEntry={onFetchHistoryEntry}
+  activeWorkspaceId={activeWorkspaceId}
+        onOpenCollectionRun={onOpenCollectionRun}
+      onRunCollectionWithOrder={onRunCollectionWithOrder}
+        sidebarCollapsed={sidebarCollapsed}
+  testFiles={testFiles}
+  onTestFilesChange={onTestFilesChange}
+  projects={projects}
+  onUploadTestFile={uploadTestFile}   
+  onDeleteTestFile={deleteTestFile} 
+  activeEnvVars={activeEnvVars}
+  inactiveEnvVars={inactiveEnvVars}
+  activeEnvValues={activeEnvValues}
+  inactiveEnvInfo={inactiveEnvInfo}
+  onShowChatbot={onShowChatbot}
               />
             )}
           </div>
@@ -1722,180 +1785,239 @@ useEffect(() => {
       </footer>
 
       {/* File Selection Modal for Functional Testing */}
-      {showFileSelectionModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={() => setShowFileSelectionModal(false)}
+{showFileSelectionModal && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    onClick={closeFileSelectionModal}
+  >
+    <div
+      className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[80vh]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+        <h3 className="text-base font-semibold text-white">Select Test Data</h3>
+        <button
+          type="button"
+          onClick={closeFileSelectionModal}
+          className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
         >
-          <div
-            className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[80vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-              <h3 className="text-base font-semibold text-white">Select Test Data</h3>
-              <button
-                type="button"
-                onClick={() => setShowFileSelectionModal(false)}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-5 overflow-y-auto max-h-[60vh]">
-              {/* Test Specs from Generate Test Case */}
-              {(() => {
-                // Read specs from localStorage
-                let testSpecs = [];
-                try {
-                  const stored = localStorage.getItem('probestack_test_specs');
-                  if (stored) {
-                    testSpecs = JSON.parse(stored);
-                  }
-                } catch (e) {
-                  console.error('Failed to load test specs:', e);
-                }
-                
-                const hasSpecs = testSpecs.length > 0;
-                const hasFiles = testFiles && testFiles.length > 0;
-                
-                if (!hasSpecs && !hasFiles) {
-                  return (
-                    <div className="text-center py-8">
-                      <div className="w-12 h-12 bg-dark-800 rounded-xl flex items-center justify-center mx-auto mb-3 border border-dark-700">
-                        <Upload className="w-6 h-6 text-gray-500" />
-                      </div>
-                      <p className="text-sm text-gray-400">No test data available</p>
-                      <p className="text-xs text-gray-500 mt-1">Create specs in the Generate Testcases section</p>
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div className="space-y-6">
-                    {/* Test Specs Section */}
-                    {hasSpecs && (
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                          Test Case Specs
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {testSpecs.map((spec) => (
-                            <button
-                              key={spec.id}
-                              type="button"
-                              onClick={() => {
-                                // Create a file-like object from the spec
-                                const specFile = {
-                                  id: spec.id,
-                                  name: `${spec.name}.json`,
-                                  type: '.json',
-                                  size: new Blob([spec.content]).size,
-                                  uploadedAt: spec.updatedAt,
-                                  isSpec: true,
-                                  content: spec.content,
-                                };
-                                setSelectedFunctionalFile(specFile);
-                                setShowFileSelectionModal(false);
-                              }}
-                              className={clsx(
-                                'flex flex-col p-4 rounded-lg border transition-all text-left',
-                                selectedFunctionalFile?.id === spec.id
-                                  ? 'border-primary bg-primary/10'
-                                  : 'border-dark-700 hover:bg-dark-800 hover:border-primary/30'
-                              )}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                                  <FileCode className="w-5 h-5 text-blue-400" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-white truncate">{spec.name}</p>
-                                  <p className="text-xs text-gray-500 mt-0.5">
-                                    Spec • {new Date(spec.updatedAt).toLocaleDateString()}
-                                  </p>
-                                </div>
-                              </div>
-                              {selectedFunctionalFile?.id === spec.id && (
-                                <div className="mt-3 pt-3 border-t border-primary/20 flex items-center justify-between">
-                                  <span className="text-xs text-primary font-medium">Selected</span>
-                                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  </div>
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Uploaded Files Section */}
-                    {hasFiles && (
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                          Uploaded Files
-                        </h4>
-                        <div className="space-y-2">
-                          {testFiles.map((file) => (
-                            <button
-                              key={file.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedFunctionalFile(file);
-                                setShowFileSelectionModal(false);
-                              }}
-                              className={clsx(
-                                'w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
-                                selectedFunctionalFile?.id === file.id
-                                  ? 'border-primary bg-primary/10'
-                                  : 'border-dark-700 hover:bg-dark-800'
-                              )}
-                            >
-                              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                {file.type === '.json' ? (
-                                  <span className="text-xs font-bold text-primary">JSON</span>
-                                ) : (
-                                  <span className="text-xs font-bold text-primary">CSV</span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-white truncate">{file.name}</p>
-                                <p className="text-xs text-gray-500">
-                                  {(file.size / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
-                                </p>
-                              </div>
-                              {selectedFunctionalFile?.id === file.id && (
-                                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-            
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
-              <button
-                type="button"
-                onClick={() => setShowFileSelectionModal(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="p-5 overflow-y-auto max-h-[60vh]">
+        {loadingSpecs || loadingLibrary ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
-        </div>
-      )}
+        ) : (testSpecs.length === 0 && libraryItems.length === 0 && testFiles.length === 0) ? (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 bg-dark-800 rounded-xl flex items-center justify-center mx-auto mb-3 border border-dark-700">
+              <Upload className="w-6 h-6 text-gray-500" />
+            </div>
+            <p className="text-sm text-gray-400">No test data available</p>
+            <p className="text-xs text-gray-500 mt-1">Create specs in the Generate Testcases section or upload a file</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Test Case Specs */}
+            {testSpecs.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+                  Test Case Specs
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {testSpecs.map((spec) => {
+                    const specFile = {
+                      id: spec.id,
+                      name: spec.name,
+                      type: '.json',
+                      size: new Blob([spec.content]).size,
+                      uploadedAt: spec.updatedAt,
+                      isSpec: true,
+                      content: spec.content,
+                    };
+                    const isSelected = fileSelectionContext.selectedFile?.id === spec.id;
+                    return (
+                      <button
+                        key={spec.id}
+                        type="button"
+                        onClick={() => {
+                          if (fileSelectCallbackRef.current) {
+                            fileSelectCallbackRef.current(isSelected ? null : specFile);
+                          }
+                          closeFileSelectionModal();
+                        }}
+                        className={clsx(
+                          'flex flex-col p-4 rounded-lg border transition-all text-left',
+                          isSelected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-dark-700 hover:bg-dark-800 hover:border-primary/30'
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <FileCode className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{spec.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Spec • {new Date(spec.updatedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="mt-3 pt-3 border-t border-primary/20 flex items-center justify-between">
+                            <span className="text-xs text-primary font-medium">Selected</span>
+                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Spec Library */}
+            {libraryItems.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+                  Spec Library
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {libraryItems.map((item) => {
+                    const specFile = {
+                      id: item.id,
+                      name: item.name,
+                      type: '.json',
+                      size: new Blob([item.content]).size,
+                      uploadedAt: new Date().toISOString(),
+                      isLibrary: true,
+                      content: item.content,
+                    };
+                    const isSelected = fileSelectionContext.selectedFile?.id === item.id;
+                    return (
+                      <div key={item.id} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (fileSelectCallbackRef.current) {
+                              fileSelectCallbackRef.current(isSelected ? null : specFile);
+                            }
+                            closeFileSelectionModal();
+                          }}
+                          className={clsx(
+                            'w-full flex flex-col p-4 rounded-lg border transition-all text-left',
+                            isSelected
+                              ? 'border-primary bg-primary/10'
+                              : 'border-dark-700 hover:bg-dark-800 hover:border-primary/30'
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                              <FileCode className="w-5 h-5 text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{item.name}</p>
+                              {item.description && (
+                                <p className="text-xs text-gray-500 mt-0.5 truncate">{item.description}</p>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="mt-3 pt-3 border-t border-primary/20 flex items-center justify-between">
+                              <span className="text-xs text-primary font-medium">Selected</span>
+                              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </button>
+
+
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Uploaded Files */}
+            {testFiles.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+                  Uploaded Files
+                </h4>
+                <div className="space-y-2">
+                  {testFiles.map((file) => {
+                    const isSelected = fileSelectionContext.selectedFile?.id === file.id;
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() => {
+                          if (fileSelectCallbackRef.current) {
+                            fileSelectCallbackRef.current(isSelected ? null : file);
+                          }
+                          closeFileSelectionModal();
+                        }}
+                        className={clsx(
+                          'w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
+                          isSelected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-dark-700 hover:bg-dark-800'
+                        )}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          {file.type === '.json' ? (
+                            <span className="text-xs font-bold text-primary">JSON</span>
+                          ) : (
+                            <span className="text-xs font-bold text-primary">CSV</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{file.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024).toFixed(1)} KB • {new Date(file.uploadedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
+        <button
+          type="button"
+          onClick={closeFileSelectionModal}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Mock Creation Modal */}
       {showMockModal && selectedMockRequest && (

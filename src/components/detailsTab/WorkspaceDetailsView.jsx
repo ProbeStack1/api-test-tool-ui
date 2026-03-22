@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Folder, Lock, Edit3, Trash2, Copy, Check, Eye, EyeOff, UserPlus, X, User, Calendar, Clock, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import clsx from 'clsx';
-import { updateWorkspace, deleteWorkspace } from '../services/workspaceService';
+import { updateWorkspace, deleteWorkspace } from '../../services/workspaceService';
 import {
   fetchWorkspaceMembers,
   addWorkspaceMember,
   updateWorkspaceMemberRole,
   removeWorkspaceMember
-} from '../services/workspaceMemberService';
+} from '../../services/workspaceMemberService';
 
 
 // Helper to check permissions based on role
@@ -85,7 +85,7 @@ export default function WorkspaceDetailsView({
   // Handlers
   const handleCopyId = () => {
     navigator.clipboard.writeText(workspace.id);
-    toast.success('Workspace ID copied');
+    toast.success('Project ID copied');
   };
 
   const handleRename = async () => {
@@ -97,7 +97,7 @@ export default function WorkspaceDetailsView({
     try {
       const payload = { name: editedName.trim() };
       await updateWorkspace(workspace.id, payload);
-      toast.success('Workspace renamed');
+      toast.success('Project renamed');
       onWorkspaceUpdate?.({ ...workspace, name: editedName.trim() });
       setIsEditingName(false);
     } catch (error) {
@@ -132,7 +132,7 @@ export default function WorkspaceDetailsView({
     try {
       const payload = { visibility: newVisibility };
       await updateWorkspace(workspace.id, payload);
-      toast.success(`Workspace is now ${newVisibility}`);
+      toast.success(`Project is now ${newVisibility}`);
       onWorkspaceUpdate?.({ ...workspace, visibility: newVisibility });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Visibility change failed');
@@ -150,7 +150,7 @@ const handleDelete = async () => {
     await deleteWorkspace(workspace.id);
 
     setDeleteStage('success');
-    toast.success('Workspace deleted successfully');
+    toast.success('Project deleted successfully');
 
     // Wait ~1.8 seconds to show nice success animation, then close & trigger callback
     setTimeout(() => {
@@ -161,7 +161,7 @@ const handleDelete = async () => {
 
   } catch (error) {
     setDeleteStage('error');
-    toast.error(error.response?.data?.message || 'Failed to delete workspace');
+    toast.error(error.response?.data?.message || 'Failed to delete project');
 
     // Let user see error for a moment, then allow retry / close
     setTimeout(() => {
@@ -215,7 +215,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
 };
 
   if (!workspace) {
-    return <div className="p-6 text-gray-400">Workspace not found</div>;
+    return <div className="p-6 text-gray-400">Project not found</div>;
   }
 
   const canEdit = canEditWorkspace(currentUserRole);
@@ -589,7 +589,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
             </div>
             <div className="p-4 flex items-center justify-between">
               <p className="text-xs text-gray-500">
-                This action cannot be undone. All collections, requests, and data in this workspace will be permanently deleted.
+                This action cannot be undone. All collections, requests, and data in this project will be permanently deleted.
               </p>
               <button
                 onClick={() => setShowDeleteModal(true)}
@@ -597,7 +597,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
                 className="flex items-center gap-2 px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white text-sm font-medium disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete Workspace
+                Delete project
               </button>
             </div>
           </div>
@@ -627,7 +627,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
         <>
           <h3 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
             <Trash2 className="w-5 h-5 text-red-400" />
-            Delete Workspace
+            Delete Project
           </h3>
 <p className="text-sm text-gray-400 mb-6">
               Are you sure you want to delete <span className="font-medium text-white">{workspace.name}</span>? This action cannot be undone. All collections, requests, and data will be permanently lost.
@@ -667,7 +667,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
             <Check className="w-12 h-12 text-green-400" strokeWidth={3} />
           </div>
           <h3 className="text-2xl font-bold text-green-400 mb-2">Deleted!</h3>
-          <p className="text-sm text-gray-400">Workspace removed successfully</p>
+          <p className="text-sm text-gray-400">Project removed successfully</p>
         </div>
       )}
 

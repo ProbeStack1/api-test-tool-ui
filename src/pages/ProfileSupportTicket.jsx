@@ -12,6 +12,7 @@ import {
   Loader2,
   ArrowLeft,
 } from "lucide-react";
+import { submitTicket } from "../services/supportService"; // adjust path as needed
 
 export const ProfileSupportTicket = () => {
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ export const ProfileSupportTicket = () => {
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [ticketInfo, setTicketInfo] = useState(null); // to store response data
 
   const productAreas = [
     { value: "", label: "Select an area" },
@@ -149,13 +151,33 @@ export const ProfileSupportTicket = () => {
     setIsSubmitting(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      // Prepare data for the API
+      const ticketData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        productArea: formData.productArea,
+        subject: formData.subject,
+        description: formData.description,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+
+      // Call the real service
+      const response = await submitTicket(ticketData);
+
+      // Save ticket info for display
+      setTicketInfo({
+        id: response.id,
+        estimatedResponseTime: response.estimatedResponseTime,
+        createdAt: response.createdAt,
+      });
+
       setSubmitted(true);
+      toast.success("Ticket submitted successfully!");
     } catch (error) {
-      console.error("Error submitting ticket:", error);
-      toast.error("Failed to submit ticket. Please try again.");
+      console.error('[ProfileSupportTicket] Error submitting ticket:', error);
+      // Show a more specific error message if available
+      const errorMsg = error.response?.data?.message || "Failed to submit ticket. Please try again.";
+      toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -204,16 +226,25 @@ export const ProfileSupportTicket = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-xl border border-dark-700 bg-dark-800/50 p-8 text-center"
+              className="rounded-xl border border-dark-700 bg-dark-800/50 p-8 text-center space-y-3"
             >
-              <p className="text-white font-medium mb-2">
-                Thank you for reaching out.
+              <p className="text-white font-medium text-lg">
+                Thank you for reaching out!
               </p>
-              <p className="text-gray-400 text-sm mb-6">
-                We&apos;ve received your ticket and will respond within 24
-                hours.
+              {ticketInfo && (
+                <>
+                  <p className="text-gray-300 text-sm">
+                    Your ticket ID: <span className="font-mono text-primary">{ticketInfo.id}</span>
+                  </p>
+                  <p className="text-gray-300 text-sm">
+                    Estimated response time: {ticketInfo.estimatedResponseTime || "< 24 hours"}
+                  </p>
+                </>
+              )}
+              <p className="text-gray-400 text-sm mt-2">
+                We&apos;ve received your ticket and will respond as soon as possible.
               </p>
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="mt-4">
                 <Link to="/workspace/profile/support">Back to Help Center</Link>
               </Button>
             </motion.div>

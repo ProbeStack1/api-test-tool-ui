@@ -25,8 +25,36 @@ import {
   Play,
   Lock,
   Upload,
+  FileText,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { toast } from 'sonner';
+import {
+  createCollection,
+  updateCollection,
+  deleteCollection,
+  createFolder,
+  fetchFolders,
+  updateFolder,
+  deleteFolder,
+  forkCollection,
+  cloneFolder,
+  normalizeFolder,
+  normalizeCollection
+} from '../services/collectionService';
+import {
+  createRequest,
+  fetchRequests,
+  updateRequest,
+  normalizeRequest,
+  cloneRequest,
+  moveRequest,
+  deleteRequest,
+} from '../services/requestService';
+
+// ----------------------------------------------------------------------
+// MODAL COMPONENTS
+// ----------------------------------------------------------------------
 
 const NEW_OPTIONS = [
   { id: 'http', label: 'HTTP', icon: Globe, description: 'Create a new HTTP request to test REST APIs.' },
@@ -36,7 +64,7 @@ const NEW_OPTIONS = [
   { id: 'websocket', label: 'WebSocket', icon: Zap, description: 'Open a WebSocket connection.' },
   { id: 'collection', label: 'Collection', icon: FolderPlus, description: 'Create a new collection to organize requests.' },
   { id: 'environment', label: 'Environment', icon: Layers, description: 'Create variables for different environments.' },
-  { id: 'workspace', label: 'Workspace', icon: LayoutGrid, description: 'Create a new workspace for your team.' },
+  { id: 'workspace', label: 'Project', icon: LayoutGrid, description: 'Create a new project for your team.' },
 ];
 
 function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
@@ -78,7 +106,6 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-
         <div className="p-5">
           <div className="grid grid-cols-4 gap-3">
             {NEW_OPTIONS.map((opt) => {
@@ -114,7 +141,6 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
               );
             })}
           </div>
-
           <p className="mt-4 text-sm text-gray-400 text-center min-h-[1.25rem]">
             {description}
           </p>
@@ -124,11 +150,16 @@ function NewRequestTypeModal({ isOpen, onClose, onSelect }) {
   );
 }
 
-function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, onAddProject }) {
+function NewCollectionModal({
+  isOpen,
+  onClose,
+  onCreate,
+  collections,
+  activeWorkspaceId,
+  activeWorkspaceName,
+}) {
   const [collectionName, setCollectionName] = useState('');
-  const [selectedWorkspace, setSelectedWorkspace] = useState('');
-  const [isAddingNewWorkspace, setIsAddingNewWorkspace] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [description, setDescription] = useState('');
   const [validationError, setValidationError] = useState('');
   const modalRef = useRef(null);
 
@@ -144,23 +175,10 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
   useEffect(() => {
     if (isOpen) {
       setCollectionName('');
-      setSelectedWorkspace(projects[0]?.id || '');
-      setIsAddingNewWorkspace(false);
-      setNewWorkspaceName('');
+      setDescription('');
       setValidationError('');
     }
   }, [isOpen]);
-
-  // Update selected project if projects list changes and current selection is invalid
-  useEffect(() => {
-    if (isOpen && projects.length > 0) {
-      // Only reset if current selection is not in the projects list
-      const currentSelectionValid = projects.some((p) => p.id === selectedWorkspace);
-      if (!currentSelectionValid) {
-        setSelectedWorkspace(projects[0].id);
-      }
-    }
-  }, [projects, isOpen]);
 
   if (!isOpen) return null;
 
@@ -170,30 +188,18 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
       return;
     }
 
-    // Check for duplicate collection name
+    // Check duplicate in this workspace only
     const existingCollection = collections.find(
-      (col) => col.name.toLowerCase() === collectionName.trim().toLowerCase()
+      (col) => col.project === activeWorkspaceId &&
+                col.name.toLowerCase() === collectionName.trim().toLowerCase()
     );
     if (existingCollection) {
       setValidationError(`Collection "${collectionName.trim()}" already exists`);
       return;
     }
 
-    const workspace = projects.find((p) => p.id === selectedWorkspace);
-    const workspaceId = workspace?.id || projects[0]?.id || 'default';
-    const workspaceName = workspace?.name || projects[0]?.name || 'Default Workspace';
-
-    onCreate(collectionName.trim(), workspaceId, workspaceName);
+    onCreate(collectionName.trim(), description.trim(), activeWorkspaceId, activeWorkspaceName);
     onClose();
-  };
-
-  const handleAddNewWorkspace = () => {
-    if (newWorkspaceName.trim()) {
-      const newWorkspace = onAddProject(newWorkspaceName.trim());
-      setSelectedWorkspace(newWorkspace.id);
-      setIsAddingNewWorkspace(false);
-      setNewWorkspaceName('');
-    }
   };
 
   return (
@@ -212,73 +218,15 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
             type="button"
             onClick={onClose}
             className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Workspace Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Workspace
-            </label>
-            {isAddingNewWorkspace ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddNewWorkspace();
-                    if (e.key === 'Escape') {
-                      setIsAddingNewWorkspace(false);
-                      setNewWorkspaceName('');
-                    }
-                  }}
-                  placeholder="Enter workspace name"
-                  className="flex-1 bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={handleAddNewWorkspace}
-                  disabled={!newWorkspaceName.trim()}
-                  className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Add workspace"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <select
-                value={selectedWorkspace}
-                onChange={(e) => {
-                  if (e.target.value === 'add-new') {
-                    setIsAddingNewWorkspace(true);
-                  } else {
-                    setSelectedWorkspace(e.target.value);
-                  }
-                }}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer"
-              >
-                <option value="add-new" className="bg-dark-800 text-primary flex items-center">
-                  + Add New Workspace
-                </option>
-                {projects.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id} className="bg-dark-800 text-white">
-                    {workspace.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Collection Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Collection Name
+              Collection Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -288,14 +236,27 @@ function NewCollectionModal({ isOpen, onClose, onCreate, collections, projects, 
                 setValidationError('');
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
+                if (e.key === 'Enter') handleCreate();
               }}
               placeholder="Enter collection name"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              autoFocus
             />
             {validationError && (
               <p className="mt-2 text-xs text-red-400">{validationError}</p>
             )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Description <span className="text-gray-500 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the purpose of this collection"
+              rows="3"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+            />
           </div>
         </div>
 
@@ -349,9 +310,24 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
     }
   };
 
-  const title = itemType === 'folder' ? 'Rename Folder' : 'Rename Request';
-  const label = itemType === 'folder' ? 'Folder Name' : 'Request Name';
-  const placeholder = itemType === 'folder' ? 'Enter folder name' : 'Enter request name';
+  let title, label, placeholder;
+  if (itemType === 'folder') {
+    title = 'Rename Folder';
+    label = 'Folder Name';
+    placeholder = 'Enter folder name';
+  } else if (itemType === 'workspace') {
+    title = 'Rename Project';
+    label = 'Project Name';
+    placeholder = 'Enter project name';
+  } else if (itemType === 'collection') {
+    title = 'Rename Collection';
+    label = 'Collection Name';
+    placeholder = 'Enter collection name';
+  } else {
+    title = 'Rename Request';
+    label = 'Request Name';
+    placeholder = 'Enter request name';
+  }
 
   return (
     <div
@@ -374,7 +350,6 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
             <X className="w-5 h-5" />
           </button>
         </div>
-
         <div className="p-5">
           <label className="block text-sm font-medium text-gray-300 mb-2">
             {label}
@@ -387,11 +362,10 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
               if (e.key === 'Enter') handleSave();
             }}
             placeholder={placeholder}
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             autoFocus
           />
         </div>
-
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
           <button
             type="button"
@@ -493,7 +467,7 @@ function NewFolderModal({ isOpen, onClose, onCreate, parentItem }) {
               if (e.key === 'Enter') handleCreate();
             }}
             placeholder="Enter folder name"
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             autoFocus
           />
           {validationError && (
@@ -555,7 +529,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
 
   const handleCreate = () => {
     if (!workspaceName.trim()) {
-      setValidationError('Workspace name is required');
+      setValidationError('Project name is required');
       return;
     }
 
@@ -564,7 +538,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
       (ws) => ws.name.toLowerCase() === workspaceName.trim().toLowerCase()
     );
     if (existingWorkspace) {
-      setValidationError(`Workspace "${workspaceName.trim()}" already exists`);
+      setValidationError(`Project "${workspaceName.trim()}" already exists`);
       return;
     }
 
@@ -626,7 +600,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
-          <h3 className="text-base font-semibold text-white">Create Workspace</h3>
+          <h3 className="text-base font-semibold text-white">Create Project</h3>
           <button
             type="button"
             onClick={onClose}
@@ -638,10 +612,10 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Workspace Name */}
+          {/* Project Name */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Workspace Name <span className="text-red-400">*</span>
+              Project Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -653,8 +627,8 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreate();
               }}
-              placeholder="Enter workspace name"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              placeholder="Enter project name"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               autoFocus
             />
             {validationError && (
@@ -756,55 +730,122 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
   );
 }
 
-const DEFAULT_COLLECTIONS = [
-  {
-    id: '1',
-    name: 'API Echo',
-    type: 'collection',
-    items: [
-      {
-        id: '1-1',
-        name: 'Request Methods',
-        type: 'folder',
-        items: [
-          { id: '1-1-1', name: 'GET Request', method: 'GET', type: 'request', path: '/api/echo' },
-          { id: '1-1-2', name: 'POST Raw Body', method: 'POST', type: 'request', path: '/api/echo' },
-        ],
-      },
-      { id: '1-2', name: 'Authentication', type: 'folder', items: [] },
-    ],
-  },
-  {
-    id: '2',
-    name: 'My API V1',
-    type: 'collection',
-    items: [
-      {
-        id: '2-1',
-        name: 'Users',
-        type: 'folder',
-        items: [
-          { id: '2-1-1', name: 'List Users', method: 'GET', type: 'request', path: '/api/users' },
-          { id: '2-1-2', name: 'Create User', method: 'POST', type: 'request', path: '/api/users' },
-        ],
-      },
-    ],
-  },
-  {
-    id: '3',
-    name: 'External APIs',
-    type: 'collection',
-    icon: 'globe',
-    items: [
-      { id: '3-1', name: 'GitHub Users API', method: 'GET', type: 'request', path: 'https://api.github.com/users' },
-      { id: '3-2', name: 'JSONPlaceholder Posts', method: 'GET', type: 'request', path: 'https://jsonplaceholder.typicode.com/posts' },
-    ],
-  },
-];
+function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProject, fileName }) {
+  const [selectedWorkspace, setSelectedWorkspace] = useState('');
+  const [isAddingNewWorkspace, setIsAddingNewWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedWorkspace(projects[0]?.id || '');
+      setIsAddingNewWorkspace(false);
+      setNewWorkspaceName('');
+    }
+  }, [isOpen, projects]);
+
+  if (!isOpen) return null;
+
+  const handleImport = () => {
+    const workspace = projects.find(p => p.id === selectedWorkspace);
+    if (!workspace) return;
+    onImport(workspace.id, workspace.name);
+    onClose();
+  };
+
+  const handleAddNewWorkspace = () => {
+    if (newWorkspaceName.trim()) {
+      const newWorkspace = onAddProject(newWorkspaceName.trim());
+      setSelectedWorkspace(newWorkspace.id);
+      setIsAddingNewWorkspace(false);
+      setNewWorkspaceName('');
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-base font-semibold text-white">Import Collection</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Collection Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Collection Name
+            </label>
+            <input
+              type="text"
+              value={collectionName}
+              onChange={(e) => {
+                setCollectionName(e.target.value);
+                setValidationError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
+              }}
+              placeholder="Enter collection name"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+            {validationError && (
+              <p className="mt-2 text-xs text-red-400">{validationError}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={!selectedWorkspace}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Import
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// CONTEXT MENUS
+// ----------------------------------------------------------------------
 
 function ContextMenu({ x, y, type, onClose, onAction }) {
   const menuRef = useRef(null);
-  const [position, setPosition] = useState({ left: x, top: y });
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -820,42 +861,6 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
-
-  // Adjust position to keep menu within viewport
-  useEffect(() => {
-    if (menuRef.current) {
-      const menu = menuRef.current;
-      const menuRect = menu.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-
-      let adjustedLeft = x;
-      let adjustedTop = y;
-
-      // Check if menu exceeds bottom of viewport
-      if (y + menuRect.height > viewportHeight) {
-        // Position above cursor if there's space, otherwise align to bottom with some padding
-        adjustedTop = Math.max(10, viewportHeight - menuRect.height - 10);
-      }
-
-      // Check if menu exceeds right edge of viewport
-      if (x + menuRect.width > viewportWidth) {
-        adjustedLeft = Math.max(10, viewportWidth - menuRect.width - 10);
-      }
-
-      // Check if menu exceeds left edge
-      if (adjustedLeft < 10) {
-        adjustedLeft = 10;
-      }
-
-      // Check if menu exceeds top edge
-      if (adjustedTop < 10) {
-        adjustedTop = 10;
-      }
-
-      setPosition({ left: adjustedLeft, top: adjustedTop });
-    }
-  }, [x, y]);
 
   const collectionOptions = [
     { id: 'run-collection', label: 'Run Collection', icon: Play },
@@ -889,8 +894,8 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 min-w-[180px] max-h-[calc(100vh-20px)] overflow-y-auto py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
-      style={{ left: position.left, top: position.top }}
+      className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+      style={{ left: x, top: y }}
     >
       {options.map((opt) => {
         const Icon = opt.icon;
@@ -919,47 +924,66 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   );
 }
 
-const STORAGE_KEY = 'probestack_collections';
+// ----------------------------------------------------------------------
+// SORT ITEMS HELPER
+// ----------------------------------------------------------------------
 
 const sortItems = (items) => {
   if (!items || !Array.isArray(items)) return items;
   return [...items].sort((a, b) => {
-    const aIsFolder = a.type === 'folder';
-    const bIsFolder = b.type === 'folder';
-    if (aIsFolder && !bIsFolder) return -1;
-    if (!aIsFolder && bIsFolder) return 1;
-    return 0;
+    if (a.type === 'folder' && b.type !== 'folder') return -1;
+    if (a.type !== 'folder' && b.type === 'folder') return 1;
+    return (a.orderIndex || 0) - (b.orderIndex || 0);
   });
 };
 
-export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests = [], collections: externalCollections, projects = [], onAddProject, onCollectionsChange, onRunCollection }) {
-  // Use externalCollections directly from App.jsx - no local state management
-  const collections = externalCollections || DEFAULT_COLLECTIONS;
-  const [expanded, setExpanded] = useState({ '3': true }); // External APIs expanded by default (original design)
+// ----------------------------------------------------------------------
+// MAIN COMPONENT
+// ----------------------------------------------------------------------
+
+export default function CollectionsPanel({
+  onSelectEndpoint,
+  existingTabRequests = [],
+  collections: externalCollections,
+  projects = [],
+  onAddProject,
+  onCollectionsChange,
+  onRunCollection,
+  activeWorkspaceId,
+  onOpenCollectionRun,
+}) {
+  const collections = externalCollections;
+  const [expanded, setExpanded] = useState({ '3': true });
   const [search, setSearch] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
-  const [showNewWorkspaceModal, setShowNewWorkspaceModal] = useState(false);
   const [showRequestTypeModal, setShowRequestTypeModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState(null);
   const [selectedItemForRename, setSelectedItemForRename] = useState(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
-  const [untitledRequestCounter, setUntitledRequestCounter] = useState(0);
   const fileInputRef = useRef(null);
+  const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
+  const [importFileData, setImportFileData] = useState(null);
 
-  // Helper to update collections - notifies parent via callback
+  // Filter collections to only those in the active workspace
+  const workspaceCollections = externalCollections.filter(
+    col => col.project === activeWorkspaceId
+  );
+
+  // Helper to update collections
   const setCollections = (newCollectionsOrUpdater) => {
     if (onCollectionsChange) {
-      const newCollections = typeof newCollectionsOrUpdater === 'function' 
-        ? newCollectionsOrUpdater(collections) 
+      const newCollections = typeof newCollectionsOrUpdater === 'function'
+        ? newCollectionsOrUpdater(collections)
         : newCollectionsOrUpdater;
       onCollectionsChange(newCollections);
     }
   };
 
+  // Tree helpers
   const toggle = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -982,8 +1006,10 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       })
       .filter(Boolean);
   };
+  const filteredCollections = filterTree(workspaceCollections, search);
 
-  const filteredCollections = filterTree(collections, search);
+  const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
+  const activeWorkspaceName = activeWorkspace?.name || '';
 
   const findItemById = (items, id) => {
     for (const item of items) {
@@ -1016,11 +1042,10 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     return null;
   };
 
-  // Get all request names in a collection (recursively)
+  // Request name helpers
   const getAllRequestNamesInCollection = (collectionId) => {
     const collection = findItemById(collections, collectionId);
     if (!collection) return [];
-    
     const names = [];
     const traverse = (items) => {
       if (!items) return;
@@ -1032,29 +1057,15 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         }
       });
     };
-    
     traverse(collection.items || []);
     return names;
   };
 
-  // Generate unique request name with auto-increment
-  // Checks BOTH collection requests AND tab requests for unified validation
   const generateUniqueRequestName = (collectionId, baseName = 'Untitled Request') => {
-    // Get names from collection
     const collectionNames = getAllRequestNamesInCollection(collectionId);
-    
-    // Get names from existing tabs
     const tabNames = existingTabRequests.map(req => req.name?.toLowerCase() || '');
-    
-    // Combine all existing names
     const existingNames = [...collectionNames, ...tabNames];
-    
-    // If base name doesn't exist, return it
-    if (!existingNames.includes(baseName.toLowerCase())) {
-      return baseName;
-    }
-    
-    // Find the highest number suffix
+    if (!existingNames.includes(baseName.toLowerCase())) return baseName;
     let maxNumber = 0;
     const baseNameLower = baseName.toLowerCase();
     existingNames.forEach(name => {
@@ -1063,25 +1074,18 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       } else if (name.startsWith(baseNameLower + ' ')) {
         const suffix = name.substring(baseNameLower.length + 1);
         const num = parseInt(suffix, 10);
-        if (!isNaN(num)) {
-          maxNumber = Math.max(maxNumber, num);
-        }
+        if (!isNaN(num)) maxNumber = Math.max(maxNumber, num);
       }
     });
-    
-    // Return next number
     return `${baseName} ${maxNumber + 1}`;
   };
 
   const deepCloneItem = (item, collectionId = null) => {
     let clonedName = item.name;
-    
-    // For requests, ensure unique name in collection
     if (item.type === 'request' && collectionId) {
       const existingNames = getAllRequestNamesInCollection(collectionId);
       let suffix = 1;
       let testName = `${item.name} Copy`;
-      
       while (existingNames.includes(testName.toLowerCase())) {
         suffix++;
         testName = `${item.name} Copy ${suffix}`;
@@ -1092,7 +1096,6 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     } else {
       clonedName = `${item.name} Clone`;
     }
-    
     const cloned = {
       ...item,
       id: `${item.id}-clone-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -1104,15 +1107,15 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     return cloned;
   };
 
+  // Handlers for collection/folder/request actions
   const handleContextAction = (actionId) => {
     if (!contextMenu) return;
-
     const item = findItemById(collections, contextMenu.itemId);
     if (!item) return;
 
     if (actionId === 'run-collection') {
-      if (item && item.type === 'collection' && onRunCollection) {
-        onRunCollection(item);
+      if (item && item.type === 'collection' && onOpenCollectionRun) {
+        onOpenCollectionRun(item);
       }
     } else if (actionId === 'add-request') {
       setSelectedCollectionId(contextMenu.itemId);
@@ -1124,131 +1127,408 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       setSelectedItemForRename(item);
       setShowRenameModal(true);
     } else if (actionId === 'clone') {
-      const parent = findParentCollection(collections, item.id);
-      const rootCollection = findRootCollection(item.id);
-      const collectionId = rootCollection ? rootCollection.id : null;
-      
-      if (parent) {
-        // Cloning a folder or request (has a parent)
-        const clonedItem = deepCloneItem(item, collectionId);
-        const newCollections = [...collections];
-        const parentInNew = findItemById(newCollections, parent.id);
-        if (parentInNew && parentInNew.items) {
-          parentInNew.items.push(clonedItem);
-          setCollections(newCollections);
-        }
-      } else {
-        // Cloning a collection (no parent)
-        const clonedCollection = deepCloneItem(item, collectionId);
-        setCollections([...collections, clonedCollection]);
+      if (item.type === 'collection') {
+        const workspaceId = item.project || 'default';
+        const cloneCollectionAndFetch = async () => {
+          const res = await forkCollection(item.id, workspaceId);
+          const raw = res.data;
+          const workspaceArg = {
+            id: workspaceId,
+            name: item.projectName || "Default Workspace"
+          };
+          const newCol = normalizeCollection(raw, workspaceArg);
+
+          // 1. Fetch folders and requests for the new collection
+          const foldersRes = await fetchFolders(newCol.id);
+          const folders = foldersRes.data.map(normalizeFolder);
+          const requestsRes = await fetchRequests({ collectionId: newCol.id });
+          const requests = requestsRes.data.map(normalizeRequest);
+
+          // 2. Build folder hierarchy
+          const folderMap = new Map();
+          folders.forEach(f => folderMap.set(f.id, f));
+
+          const rootFolders = [];
+          folders.forEach(f => {
+            if (f.parentFolderId) {
+              const parent = folderMap.get(f.parentFolderId);
+              if (parent) {
+                if (!parent.items) parent.items = [];
+                parent.items.push(f);
+              } else {
+                rootFolders.push(f);
+              }
+            } else {
+              rootFolders.push(f);
+            }
+          });
+
+          const items = [...rootFolders];
+
+          // 3. Place requests under their parent folders
+          requests.forEach(req => {
+            if (req.folderId) {
+              const parent = folderMap.get(req.folderId);
+              if (parent) {
+                if (!parent.items) parent.items = [];
+                parent.items.push(req);
+              } else {
+                items.push(req);
+              }
+            } else {
+              items.push(req);
+            }
+          });
+
+          // 4. Recursive sorting
+          const sortItems = (items) => {
+            if (!items) return;
+            items.sort((a, b) => {
+              if (a.type === 'folder' && b.type !== 'folder') return -1;
+              if (a.type !== 'folder' && b.type === 'folder') return 1;
+              return (a.orderIndex || 0) - (b.orderIndex || 0);
+            });
+            items.forEach(item => {
+              if (item.items) sortItems(item.items);
+            });
+          };
+          sortItems(items);
+
+          newCol.items = items;
+          return newCol;
+        };
+
+        toast.promise(
+          cloneCollectionAndFetch(),
+          {
+            loading: `Cloning "${item.name}"...`,
+            success: (newCol) => {
+              setCollections(prev => [...prev, newCol]);
+              return `Cloned as "${newCol.name}"`;
+            },
+            error: (err) => err.response?.data?.message || 'Failed to clone collection'
+          }
+        );
+      } else if (item.type === 'folder') {
+        const cloneFolderAndFetch = async () => {
+          const res = await cloneFolder(item.id);
+          const newFolder = normalizeFolder(res.data);
+          const collectionId = item.collectionId;
+
+          // Fetch all folders and requests in the collection
+          const foldersRes = await fetchFolders(collectionId);
+          const allFolders = foldersRes.data.map(normalizeFolder);
+          const requestsRes = await fetchRequests({ collectionId });
+          const allRequests = requestsRes.data.map(normalizeRequest);
+
+          // Build map of all folders
+          const folderMap = new Map();
+          allFolders.forEach(f => folderMap.set(f.id, f));
+
+          // For the new folder, we need to extract its subtree.
+          // Since all folders are already in the map, we can walk down from newFolder.id.
+          const buildSubtree = (folderId) => {
+            const folder = folderMap.get(folderId);
+            if (!folder) return null;
+            const children = allFolders.filter(f => f.parentFolderId === folderId);
+            folder.items = children.map(child => buildSubtree(child.id)).filter(Boolean);
+            // Add requests belonging to this folder
+            const folderRequests = allRequests.filter(req => req.folderId === folderId);
+            folder.items.push(...folderRequests);
+            // Sort items
+            const sortItems = (items) => {
+              if (!items) return;
+              items.sort((a, b) => {
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+                return (a.orderIndex || 0) - (b.orderIndex || 0);
+              });
+              items.forEach(item => {
+                if (item.items) sortItems(item.items);
+              });
+            };
+            sortItems(folder.items);
+            return folder;
+          };
+
+          const populatedFolder = buildSubtree(newFolder.id);
+          return { newFolder: populatedFolder, parentId: item.parentFolderId };
+        };
+
+        toast.promise(
+          cloneFolderAndFetch(),
+          {
+            loading: `Cloning folder "${item.name}"...`,
+            success: ({ newFolder, parentId }) => {
+              setCollections(prev => {
+                const updated = structuredClone(prev);
+                const parentNode = parentId ? findItemById(updated, parentId) : null;
+                if (parentNode && parentNode.items) {
+                  parentNode.items.push(newFolder);
+                  // Re-sort the parent's items
+                  const sortItems = (items) => {
+                    if (!items) return;
+                    items.sort((a, b) => {
+                      if (a.type === 'folder' && b.type !== 'folder') return -1;
+                      if (a.type !== 'folder' && b.type === 'folder') return 1;
+                      return (a.orderIndex || 0) - (b.orderIndex || 0);
+                    });
+                  };
+                  sortItems(parentNode.items);
+                } else {
+                  // If no parent (should not happen for a folder), fallback to pushing at collection root
+                  const collection = findItemById(updated, item.collectionId);
+                  if (collection && collection.items) {
+                    collection.items.push(newFolder);
+                    sortItems(collection.items);
+                  }
+                }
+                return updated;
+              });
+              return `Cloned as "${newFolder.name}"`;
+            },
+            error: (err) => err.response?.data?.message || 'Failed to clone folder'
+          }
+        );
+      } else if (item.type === 'request') {
+        toast.promise(
+          cloneRequest(item.id),
+          {
+            loading: `Cloning request "${item.name}"...`,
+            success: (res) => {
+              const newRequest = normalizeRequest(res.data);
+              const parent = findParentCollection(collections, item.id);
+              if (parent) {
+                setCollections(prev => {
+                  const updated = structuredClone(prev);
+                  const parentNode = findItemById(updated, parent.id);
+                  if (parentNode && parentNode.items) {
+                    parentNode.items.push(newRequest);
+                    parentNode.items = sortItems(parentNode.items);
+                  }
+                  return updated;
+                });
+              }
+              return `Cloned as "${newRequest.name}"`;
+            },
+            error: (err) => err.response?.data?.message || 'Failed to clone request'
+          }
+        );
       }
     } else if (actionId === 'delete') {
-      const deleteItem = (items, id) => {
+      const removeItemById = (items, id) => {
         for (let i = 0; i < items.length; i++) {
           if (items[i].id === id) {
             items.splice(i, 1);
             return true;
           }
-          if (items[i].items && deleteItem(items[i].items, id)) {
+          if (items[i].items && removeItemById(items[i].items, id)) {
             return true;
           }
         }
         return false;
       };
       const newCollections = [...collections];
-      deleteItem(newCollections, item.id);
+      removeItemById(newCollections, item.id);
       setCollections(newCollections);
+
+      const userId = localStorage.getItem('probestack_user_id');
+      if (!userId) return;
+
+      let apiCall;
+      if (item.type === 'collection') apiCall = deleteCollection(item.id);
+      else if (item.type === 'folder') apiCall = deleteFolder(item.id);
+      else if (item.type === 'request') apiCall = deleteRequest(item.id);
+      else return;
+
+      apiCall.catch((err) => {
+        toast.error(err.response?.data?.message || err.message || 'Failed to delete item');
+      });
     }
   };
 
-  const handleRequestTypeSelect = (optionId) => {
-    if (optionId === 'http') {
-      if (selectedCollectionId) {
-        // Find the root collection for this item
-        const rootCollection = findRootCollection(selectedCollectionId);
-        const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
-        
-        // Generate unique name
-        const uniqueName = generateUniqueRequestName(collectionId);
-        
-        const newRequest = {
-          id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: uniqueName,
-          method: 'GET',
-          type: 'request',
-          path: ''
-        };
-        const newCollections = [...collections];
-        const collection = findItemById(newCollections, selectedCollectionId);
-        if (collection && collection.items) {
-          collection.items.push(newRequest);
-          setCollections(newCollections);
-          setExpanded((prev) => ({ ...prev, [selectedCollectionId]: true }));
-        }
+  const handleRequestTypeSelect = async (optionId) => {
+    if (optionId !== 'http') return;
+    if (!selectedCollectionId) {
+      toast.warning('Please select a collection or folder first');
+      return;
+    }
+
+    const rootCollection = findRootCollection(selectedCollectionId);
+    const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
+    const folderId = selectedCollectionId !== collectionId ? selectedCollectionId : null;
+
+    const uniqueName = generateUniqueRequestName(collectionId);
+
+    const payload = {
+      name: uniqueName,
+      method: 'GET',
+      url: '',
+      collection_id: collectionId,
+      folder_id: folderId,
+      headers: [],
+      query_params: [],
+      body_type: 'none',
+      auth_type: 'none',
+    };
+
+    try {
+      const response = await createRequest(payload);
+      const savedRequest = normalizeRequest(response.data);
+
+      if (onSelectEndpoint) {
+        onSelectEndpoint({
+          method: savedRequest.method || 'GET',
+          path: savedRequest.url || savedRequest.path || '',
+          name: savedRequest.name || uniqueName,
+        });
       }
-      // DISABLED: Auto-population to execution area to avoid naming confusion
-      // if (onSelectEndpoint) {
-      //   onSelectEndpoint({ method: 'GET', path: '' });
-      // }
+
+      setCollections((prev) => {
+        const updated = structuredClone(prev);
+        const target = findItemById(updated, selectedCollectionId);
+        if (target?.items) {
+          target.items.push(savedRequest);
+          target.items = sortItems(target.items);
+        }
+        return updated;
+      });
+
+      toast.success('Request created & opened in new tab');
+    } catch (error) {
+      console.error('Failed to create request:', error);
+      toast.error('Failed to create request');
     }
   };
 
-  const handleCreateCollection = (name, workspaceId, workspaceName) => {
+  const handleCreateCollection = async (name, description, workspaceId, workspaceName) => {
+    console.log('Creating collection with workspaceId:', workspaceId);
+    if (!workspaceId) {
+      toast.error('No active project selected. Please select a project first.');
+      return;
+    }
+
+    const tempId = `col-${Date.now()}`;
     const newCollection = {
-      id: `col-${Date.now()}`,
-      name: name,
+      id: tempId,
+      _key: tempId,
+      name,
+      description,
       type: 'collection',
       project: workspaceId,
       projectName: workspaceName,
-      items: []
+      items: [],
+      _tempWorkspaceId: workspaceId,
     };
     setCollections([...collections, newCollection]);
+
+    try {
+      const res = await createCollection(workspaceId, { name, description });
+      const raw = res.data;
+      const realId = raw.collectionId || raw.id;
+      if (realId) {
+        const workspaceArg = { id: workspaceId, name: workspaceName };
+        const realCol = normalizeCollection(raw, workspaceArg);
+        setCollections(prev => {
+          const filtered = prev.filter(col => col.id !== tempId);
+          return [...filtered, realCol];
+        });
+        toast.success('Collection created');
+      }
+    } catch (err) {
+      setCollections(prev => prev.filter(col => col.id !== tempId));
+      toast.error(err.response?.data?.message || 'Failed to create collection');
+    }
   };
 
-  const handleCreateFolder = (name) => {
-    if (!selectedCollectionId) return;
-    const newFolder = {
-      id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name: name,
-      type: 'folder',
-      items: []
-    };
-    const newCollections = [...collections];
-    const parent = findItemById(newCollections, selectedCollectionId);
-    if (parent && parent.items) {
-      parent.items.push(newFolder);
-      setCollections(newCollections);
-      setExpanded((prev) => ({ ...prev, [selectedCollectionId]: true }));
+  const handleCreateFolder = async (name) => {
+    if (!selectedCollectionId) {
+      toast.error("Please select a collection or folder first");
+      return;
+    }
+
+    const rootCollection = findRootCollection(selectedCollectionId);
+    const collectionId = rootCollection ? rootCollection.id : selectedCollectionId;
+    let parentFolderId = null;
+
+    if (selectedCollectionId !== collectionId) {
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedCollectionId);
+      if (isValidUUID) {
+        parentFolderId = selectedCollectionId;
+      } else {
+        console.warn("Selected parent is not a valid UUID — creating as root");
+        toast.info("Creating as root folder (unexpected parent ID)");
+      }
+    }
+
+    const payload = { name };
+    if (parentFolderId) {
+      payload.parentFolderId = parentFolderId;
+    }
+
+    try {
+      const res = await createFolder(collectionId, payload);
+      const newFolderFromBackend = normalizeFolder(res.data);
+
+      setCollections((prev) => {
+        const updated = structuredClone(prev);
+        const targetParent = findItemById(updated, selectedCollectionId);
+        if (targetParent?.items) {
+          targetParent.items.push(newFolderFromBackend);
+          targetParent.items = sortItems(targetParent.items);
+        } else {
+          const collection = findItemById(updated, collectionId);
+          if (collection?.items) {
+            collection.items.push(newFolderFromBackend);
+            collection.items = sortItems(collection.items);
+          }
+        }
+        return updated;
+      });
+
+      toast.success("Folder created successfully");
+    } catch (err) {
+      console.error("Folder creation failed:", err);
+      toast.error(err.response?.data?.message || "Failed to create folder");
     }
   };
 
   const handleRenameItem = (newName) => {
     if (!selectedItemForRename) return;
+
     const newCollections = [...collections];
     const item = findItemById(newCollections, selectedItemForRename.id);
-    if (item) {
-      item.name = newName;
-      setCollections(newCollections);
-    }
+    if (!item) return;
+
+    item.name = newName;
+    setCollections(newCollections);
+
+    const userId = localStorage.getItem('probestack_user_id');
+    if (!userId) return;
+
+    let apiCall;
+    if (item.type === 'collection') apiCall = updateCollection(item.id, { name: newName });
+    else if (item.type === 'folder') apiCall = updateFolder(item.id, { name: newName });
+    else if (item.type === 'request') apiCall = updateRequest(item.id, { name: newName });
+    else return;
+
+    apiCall.catch((err) => {
+      toast.error(err.response?.data?.message || err.message || 'Failed to rename item');
+      item.name = selectedItemForRename.name;
+      setCollections([...newCollections]);
+    });
   };
 
+  // Drag and drop handlers
   const handleDragStart = (item) => {
-    // Only allow dragging folders and requests, not collections
-    if (item.type === 'folder' || item.type === 'request') {
-      setDraggedItem(item);
-    }
+    if (item.type === 'folder' || item.type === 'request') setDraggedItem(item);
   };
 
   const handleDragOver = (e, item) => {
     e.preventDefault();
     e.stopPropagation();
-    
     if (!draggedItem) return;
-    
-    // Only allow dropping on collections and folders
-    if (item.type === 'collection' || item.type === 'folder') {
-      setDragOverItem(item.id);
-    }
+    if (item.type === 'collection' || item.type === 'folder') setDragOverItem(item.id);
   };
 
   const handleDragLeave = (e) => {
@@ -1260,45 +1540,30 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
   const handleDrop = (e, targetItem) => {
     e.preventDefault();
     e.stopPropagation();
-    
     if (!draggedItem || !targetItem) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
-
-    // Prevent dropping on self
     if (draggedItem.id === targetItem.id) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
-
-    // Only allow dropping on collections and folders
     if (targetItem.type !== 'collection' && targetItem.type !== 'folder') {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
-    // Find root collections for both dragged and target items
     const draggedRootCollection = findRootCollection(draggedItem.id);
     const targetRootCollection = findRootCollection(targetItem.id);
-
-    // Prevent dropping within the same collection EXCEPT when:
-    // - Dragging a request into a folder (allowed for organization)
-    // - Dragging a folder into another folder (allowed for nested subfolders)
-    const isSameCollection = draggedRootCollection && targetRootCollection && draggedRootCollection.id === targetRootCollection.id;
-    const isRequestToFolderInSameCollection = draggedItem.type === 'request' && targetItem.type === 'folder' && isSameCollection;
-    const isFolderToFolderInSameCollection = draggedItem.type === 'folder' && targetItem.type === 'folder' && isSameCollection;
-    
-    if (isSameCollection && !isRequestToFolderInSameCollection && !isFolderToFolderInSameCollection) {
+    if (!targetRootCollection) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
-    // Check if target is a descendant of dragged item (prevent circular reference)
     const isDescendant = (parent, childId) => {
       if (!parent.items) return false;
       for (const item of parent.items) {
@@ -1307,26 +1572,68 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
       }
       return false;
     };
-
     if (isDescendant(draggedItem, targetItem.id)) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
-    // Clone the dragged item with unique naming
-    const targetRootCollectionId = targetRootCollection ? targetRootCollection.id : targetItem.id;
-    const clonedItem = deepCloneItem(draggedItem, targetRootCollectionId);
-    
-    // Add to target
-    const newCollections = [...collections];
-    const target = findItemById(newCollections, targetItem.id);
-    
-    if (target && target.items) {
-      target.items.push(clonedItem);
-      setCollections(newCollections);
-      // Auto-expand the target to show the new item
+    let newCollectionId = targetRootCollection.id;
+    let newFolderId = null;
+    if (targetItem.type === 'folder') {
+      newFolderId = targetItem.id;
+    } else if (targetItem.type === 'collection') {
+      newFolderId = null;
+    }
+
+    if (draggedItem.type === 'request') {
+      const sourceParent = findParentCollection(collections, draggedItem.id);
+      if (!sourceParent) {
+        setDraggedItem(null);
+        setDragOverItem(null);
+        return;
+      }
+
+      const moveData = {
+        targetCollectionId: newCollectionId,
+        targetFolderId: newFolderId,
+      };
+
+      setCollections(prev => {
+        const updated = structuredClone(prev);
+        const sourceParentNode = findItemById(updated, sourceParent.id);
+        if (sourceParentNode && sourceParentNode.items) {
+          const index = sourceParentNode.items.findIndex(i => i.id === draggedItem.id);
+          if (index !== -1) sourceParentNode.items.splice(index, 1);
+        }
+        const targetParentNode = findItemById(updated, targetItem.id);
+        if (targetParentNode && targetParentNode.items) {
+          draggedItem.collectionId = newCollectionId;
+          draggedItem.folderId = newFolderId;
+          targetParentNode.items.push(draggedItem);
+          targetParentNode.items = sortItems(targetParentNode.items);
+        }
+        return updated;
+      });
+
       setExpanded((prev) => ({ ...prev, [targetItem.id]: true }));
+
+      moveRequest(draggedItem.id, moveData).catch(err => {
+        toast.error('Failed to move request: ' + (err.response?.data?.message || err.message));
+      });
+    } else if (draggedItem.type === 'folder') {
+      const clonedItem = deepCloneItem(draggedItem, targetRootCollection.id);
+      setCollections(prev => {
+        const updated = structuredClone(prev);
+        const target = findItemById(updated, targetItem.id);
+        if (target && target.items) {
+          target.items.push(clonedItem);
+          target.items = sortItems(target.items);
+        }
+        return updated;
+      });
+      setExpanded((prev) => ({ ...prev, [targetItem.id]: true }));
+      toast.info('Folder cloned (move not yet implemented for folders)');
     }
 
     setDraggedItem(null);
@@ -1338,20 +1645,20 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     setDragOverItem(null);
   };
 
-  // Parse Postman collection JSON to internal format
-  const parsePostmanCollection = (postmanJson) => {
+  // Parse Postman collection
+  const parsePostmanCollection = (postmanJson, workspaceId, workspaceName) => {
     const parseUrl = (urlObj) => {
       if (typeof urlObj === 'string') return urlObj;
       if (!urlObj) return '';
-      
+
       const protocol = urlObj.protocol || 'http';
       const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
       const port = urlObj.port ? `:${urlObj.port}` : '';
       const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
-      const query = urlObj.query && urlObj.query.length > 0 
-        ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` 
+      const query = urlObj.query && urlObj.query.length > 0
+        ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}`
         : '';
-      
+
       return `${protocol}://${host}${port}${path}${query}`;
     };
 
@@ -1366,18 +1673,18 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
 
     const parseBody = (body) => {
       if (!body) return { type: 'none', data: '' };
-      
+
       if (body.mode === 'raw') {
         return { type: 'raw', data: body.raw || '' };
       } else if (body.mode === 'formdata') {
-        return { 
-          type: 'form-data', 
-          data: body.formdata || [] 
+        return {
+          type: 'form-data',
+          data: body.formdata || []
         };
       } else if (body.mode === 'urlencoded') {
-        return { 
-          type: 'x-www-form-urlencoded', 
-          data: body.urlencoded || [] 
+        return {
+          type: 'x-www-form-urlencoded',
+          data: body.urlencoded || []
         };
       }
       return { type: 'none', data: '' };
@@ -1385,7 +1692,7 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
 
     const parseAuth = (auth) => {
       if (!auth || !auth.type) return { type: 'none' };
-      
+
       if (auth.type === 'bearer') {
         const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
         return { type: 'bearer', token };
@@ -1403,7 +1710,6 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     };
 
     const parseItem = (item, depth = 0) => {
-      // If item has 'request' property, it's a request
       if (item.request) {
         const request = item.request;
         return {
@@ -1418,8 +1724,7 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
           params: request.url?.query || [],
         };
       }
-      
-      // If item has 'item' array, it's a folder
+
       if (item.item && Array.isArray(item.item)) {
         return {
           id: `imported-folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -1429,21 +1734,20 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
           items: item.item.map(subItem => parseItem(subItem, depth + 1))
         };
       }
-      
+
       return null;
     };
 
-    // Parse the collection
     const collectionName = postmanJson.info?.name || 'Imported Collection';
     const items = postmanJson.item ? postmanJson.item.map(item => parseItem(item)) : [];
-    
+
     return {
       id: `imported-collection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       name: collectionName,
       type: 'collection',
       icon: 'folder',
-      project: 'auth-security',
-      projectName: 'Auth and Security',
+      project: workspaceId,
+      projectName: workspaceName,
       items: items.filter(Boolean)
     };
   };
@@ -1456,9 +1760,18 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
+    // Check file extension
     if (!file.name.endsWith('.json')) {
-      alert('Please select a valid JSON file');
+      toast.error('Please select a valid JSON file');
+      event.target.value = ''; // reset input
+      return;
+    }
+
+    // Check file size (max 5 MB)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File size exceeds 5 MB limit. Please choose a smaller file.');
+      event.target.value = ''; // reset input
       return;
     }
 
@@ -1466,49 +1779,272 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
     reader.onload = (e) => {
       try {
         const jsonContent = JSON.parse(e.target.result);
-        
-        // Validate it's a Postman collection
         if (!jsonContent.info || !jsonContent.item) {
-          alert('Invalid Postman collection format');
+          toast.error('Invalid Postman collection format');
+          event.target.value = ''; // reset input
           return;
         }
-
-        // Parse and add to collections
-        const importedCollection = parsePostmanCollection(jsonContent);
-        setCollections(prev => [...prev, importedCollection]);
-        
-        // Auto-expand the imported collection
-        setExpanded(prev => ({ ...prev, [importedCollection.id]: true }));
-        
-        // Reset file input
-        event.target.value = '';
+        // Store both content and file name
+        setImportFileData({
+          content: jsonContent,
+          fileName: file.name
+        });
+        setShowImportWorkspaceModal(true);
+        event.target.value = ''; // reset input
       } catch (error) {
         console.error('Error parsing JSON:', error);
-        alert('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+        toast.error('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+        event.target.value = ''; // reset input
       }
     };
-    
     reader.readAsText(file);
   };
 
+  // Helper to extract request payload from Postman item
+  const extractRequestPayload = (postmanItem, collectionId, folderId) => {
+    const request = postmanItem.request;
+    const parseUrl = (urlObj) => {
+      if (typeof urlObj === 'string') return urlObj;
+      if (!urlObj) return '';
+      const protocol = urlObj.protocol || 'http';
+      const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
+      const port = urlObj.port ? `:${urlObj.port}` : '';
+      const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
+      const query = urlObj.query?.length ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` : '';
+      return `${protocol}://${host}${port}${path}${query}`;
+    };
+    const parseHeaders = (headers) => {
+      if (!Array.isArray(headers)) return [];
+      return headers.map(h => ({ key: h.key, value: h.value, enabled: !h.disabled }));
+    };
+    const parseBody = (body) => {
+      if (!body) return { type: 'none', data: '' };
+      if (body.mode === 'raw') return { type: 'raw', data: body.raw || '' };
+      if (body.mode === 'formdata') return { type: 'form-data', data: body.formdata || [] };
+      if (body.mode === 'urlencoded') return { type: 'x-www-form-urlencoded', data: body.urlencoded || [] };
+      return { type: 'none', data: '' };
+    };
+    const parseAuth = (auth) => {
+      if (!auth || !auth.type) return { type: 'none', config: {} };
+      if (auth.type === 'bearer') {
+        const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+        return { type: 'bearer', config: { token } };
+      }
+      if (auth.type === 'basic') {
+        const username = auth.basic?.find(b => b.key === 'username')?.value || '';
+        const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+        return { type: 'basic', config: { username, password } };
+      }
+      if (auth.type === 'apikey') {
+        const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
+        const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
+        const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
+        return { type: 'apikey', config: { key, value, in: addTo } };
+      }
+      return { type: 'none', config: {} };
+    };
+
+    const body = parseBody(request.body);
+    const auth = parseAuth(request.auth);
+    const url = parseUrl(request.url);
+    const headers = parseHeaders(request.header);
+    const params = request.url?.query?.map(q => ({ key: q.key, value: q.value })) || [];
+
+    return {
+      name: postmanItem.name || 'Untitled Request',
+      method: (request.method || 'GET').toUpperCase(),
+      url,
+      headers,
+      query_params: params,
+      body_type: body.type,
+      body_content: typeof body.data === 'string' ? body.data : JSON.stringify(body.data),
+      auth_type: auth.type,
+      auth_config: auth.config,
+      pre_request_script: '',
+      test_script: '',
+      collection_id: collectionId,
+      folder_id: folderId,
+    };
+  };
+
+  // Recursive import function with counters
+  const importItems = async (items, collectionId, parentFolderId, counts) => {
+    for (const item of items) {
+      if (item.request) {
+        // Request
+        const payload = extractRequestPayload(item, collectionId, parentFolderId);
+        try {
+          await createRequest(payload);
+          counts.success++;
+        } catch (error) {
+          counts.failure++;
+          console.error('❌ Failed to create request:', item.name, error.response?.data || error.message);
+          // Log full error details to console for debugging
+          if (error.response) {
+            console.error('Status:', error.response.status);
+            console.error('Data:', error.response.data);
+          }
+        }
+      } else if (item.item) {
+        // Folder
+        try {
+          const folderRes = await createFolder(collectionId, {
+            name: item.name || 'Untitled Folder',
+            parentFolderId,
+          });
+          const folderId = folderRes.data.FolderId || folderRes.data.folderId || folderRes.data.id;
+          if (!folderId) {
+            console.error('❌ Folder creation response missing ID:', folderRes.data);
+            counts.failure++;
+            continue;
+          }
+          counts.foldersCreated++;
+          await importItems(item.item, collectionId, folderId, counts);
+        } catch (error) {
+          counts.failure++;
+          console.error('❌ Failed to create folder:', item.name, error.response?.data || error.message);
+          if (error.response) {
+            console.error('Status:', error.response.status);
+            console.error('Data:', error.response.data);
+          }
+        }
+      }
+    }
+  };
+
+  const handleImportToWorkspace = async (workspaceId, workspaceName) => {
+    if (!importFileData) return;
+    const { content: postmanJson } = importFileData;
+
+    // Determine base name
+    let baseName = postmanJson.info?.name?.trim() || 'Imported Collection';
+
+    // Check for existing collections in this workspace
+    const existingNames = collections
+      .filter(c => c.project === workspaceId)
+      .map(c => c.name.toLowerCase());
+
+    let finalName = baseName;
+    let counter = 0;
+    while (existingNames.includes(finalName.toLowerCase())) {
+      counter++;
+      finalName = counter === 1 ? `${baseName} (imported)` : `${baseName} (imported ${counter})`;
+    }
+
+    const toastId = toast.loading(`Importing "${baseName}"...`);
+
+    const counts = { success: 0, failure: 0, foldersCreated: 0 };
+
+    try {
+      // Step 1: Create collection
+      const createColRes = await createCollection(workspaceId, { name: finalName });
+      const collectionId = createColRes.data.id || createColRes.data.collectionId;
+      if (!collectionId) throw new Error('Failed to create collection');
+
+      // Step 2: Recursively create folders and requests
+      await importItems(postmanJson.item || [], collectionId, null, counts);
+
+      // Step 3: Fetch the new collection's folders and requests to build tree
+      const foldersRes = await fetchFolders(collectionId);
+      const folders = foldersRes.data.map(normalizeFolder);
+      const requestsRes = await fetchRequests({ collectionId });
+      const requests = requestsRes.data.map(normalizeRequest);
+
+      // Build folder hierarchy
+      const folderMap = new Map();
+      folders.forEach(f => folderMap.set(f.id, f));
+
+      const rootFolders = [];
+      folders.forEach(f => {
+        if (f.parentFolderId) {
+          const parent = folderMap.get(f.parentFolderId);
+          if (parent) {
+            if (!parent.items) parent.items = [];
+            parent.items.push(f);
+          } else {
+            rootFolders.push(f);
+          }
+        } else {
+          rootFolders.push(f);
+        }
+      });
+
+      const items = [...rootFolders];
+
+      requests.forEach(req => {
+        if (req.folderId) {
+          const parent = folderMap.get(req.folderId);
+          if (parent) {
+            if (!parent.items) parent.items = [];
+            parent.items.push(req);
+          } else {
+            items.push(req);
+          }
+        } else {
+          items.push(req);
+        }
+      });
+
+      // Sort items
+      const sortItems = (items) => {
+        if (!items) return;
+        items.sort((a, b) => {
+          if (a.type === 'folder' && b.type !== 'folder') return -1;
+          if (a.type !== 'folder' && b.type === 'folder') return 1;
+          return (a.orderIndex || 0) - (b.orderIndex || 0);
+        });
+        items.forEach(item => {
+          if (item.items) sortItems(item.items);
+        });
+      };
+      sortItems(items);
+
+      const newCollection = {
+        id: collectionId,
+        name: finalName,
+        type: 'collection',
+        project: workspaceId,
+        projectName: workspaceName,
+        items,
+      };
+
+      setCollections(prev => [...prev, newCollection]);
+      setExpanded(prev => ({ ...prev, [newCollection.id]: true }));
+
+      // Show summary toast
+      const totalItems = counts.success + counts.failure;
+      if (counts.failure === 0) {
+        toast.success(`✅ Collection "${finalName}" imported successfully (${counts.success} requests)`, { id: toastId });
+      } else {
+        toast.warning(`⚠️ Imported with issues: ${counts.success} succeeded, ${counts.failure} failed. Check console for details.`, { id: toastId });
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast.error(error.response?.data?.message || error.message || 'Import failed', { id: toastId });
+    } finally {
+      setImportFileData(null);
+    }
+  };
+
+  const getCollectionsCountForWorkspace = (workspaceId) => {
+    return collections.filter(c => c.project === workspaceId).length;
+  };
+
+  // ----------------------------------------------------------------------
+  // RENDER
+  // ----------------------------------------------------------------------
+
   return (
-    <div className="flex flex-col h-full bg-dark-800/40">
-      {/* Postman-style: New + Import */}
-      <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
+    <div className="flex flex-col h-full bg-[#161B30]">
+      {/* Top buttons */}
+      <div className="shrink-0 px-4 py-3 border-b border-dark-600">
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setShowNewWorkspaceModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
-          >
-            Create Workspace
-          </button>
           <button
             type="button"
             onClick={() => setShowNewCollectionModal(true)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
-            Create Collection
+            + Create
           </button>
           <button
             type="button"
@@ -1528,8 +2064,8 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         </div>
       </div>
 
-      {/* Search collections */}
-      <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
+      {/* Search */}
+      <div className="shrink-0 px-3 py-2 border-b border-dark-600">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
@@ -1537,92 +2073,48 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
             placeholder="Search collections"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           />
         </div>
       </div>
 
-      {/* Tree - Grouped by Workspaces */}
+      {/* Tree - Grouped by Workspaces (no grouping, just collections) */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
         {filteredCollections.length === 0 ? (
-          <div className="py-8 text-center text-gray-500 text-xs">No collections match your search</div>
+          <div className="py-8 text-center text-gray-500 text-xs">
+            No collections in this workspace.
+          </div>
         ) : (
-          (() => {
-            // Group collections by workspace
-            const workspaceGroups = {};
-            filteredCollections.forEach((col) => {
-              const workspaceId = col.project || 'default';
-              const workspaceName = col.projectName || 'Default Workspace';
-              if (!workspaceGroups[workspaceId]) {
-                workspaceGroups[workspaceId] = {
-                  id: workspaceId,
-                  name: workspaceName,
-                  collections: []
-                };
-              }
-              workspaceGroups[workspaceId].collections.push(col);
-            });
-
-            // Create a lookup for workspace visibility from projects
-            const workspaceVisibilityMap = {};
-            projects.forEach(p => {
-              workspaceVisibilityMap[p.id] = p.visibility || 'private';
-            });
-
-            return Object.values(workspaceGroups).map((workspace) => (
-              <div key={workspace.id} className="mb-4">
-                {/* Workspace Header */}
-                <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
-                  <div className="flex items-center gap-1.5 flex-1">
-                    <Folder className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                      {workspace.name}
-                    </span>
-                    {(workspace.visibility === 'private' || workspaceVisibilityMap[workspace.id] === 'private') && (
-                      <Lock className="w-3 h-3 text-gray-500" title="Private Workspace" />
-                    )}
-                  </div>
-                  <span className="text-[10px] text-gray-500 font-medium">
-                    {workspace.collections.length}
-                  </span>
-                </div>
-                
-                {/* Collections under this workspace */}
-                <div className="ml-2">
-                  {workspace.collections.map((col) => (
-                    <CollectionNode
-                      key={col.id}
-                      item={col}
-                      expanded={expanded}
-                      onToggle={toggle}
-                      level={0}
-                      onSelectEndpoint={onSelectEndpoint}
-                      onOpenMenu={(e, item, itemType) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          itemId: item.id,
-                          type: itemType,
-                        });
-                      }}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                      dragOverItem={dragOverItem}
-                      contextMenuItemId={contextMenu?.itemId}
-                    />
-                  ))}
-                </div>
-              </div>
-            ));
-          })()
+          filteredCollections.map((col) => (
+            <CollectionNode
+              key={col._key || col.id}
+              item={col}
+              expanded={expanded}
+              onToggle={toggle}
+              level={0}
+              onSelectEndpoint={onSelectEndpoint}
+              onOpenMenu={(e, item, itemType) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  itemId: item.id,
+                  type: itemType,
+                });
+              }}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onDragEnd={handleDragEnd}
+              dragOverItem={dragOverItem}
+            />
+          ))
         )}
       </div>
 
+      {/* Context Menus */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -1633,20 +2125,13 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         />
       )}
 
-      <NewWorkspaceModal
-        isOpen={showNewWorkspaceModal}
-        onClose={() => setShowNewWorkspaceModal(false)}
-        onCreate={onAddProject}
-        workspaces={projects}
-      />
-
       <NewCollectionModal
         isOpen={showNewCollectionModal}
         onClose={() => setShowNewCollectionModal(false)}
         onCreate={handleCreateCollection}
         collections={collections}
-        projects={projects}
-        onAddProject={onAddProject}
+        activeWorkspaceId={activeWorkspaceId}
+        activeWorkspaceName={activeWorkspaceName}
       />
 
       <NewRequestTypeModal
@@ -1678,31 +2163,44 @@ export default function CollectionsPanel({ onSelectEndpoint, existingTabRequests
         itemType={selectedItemForRename?.type || 'request'}
         onRename={handleRenameItem}
       />
+
+      <ImportWorkspaceModal
+        isOpen={showImportWorkspaceModal}
+        onClose={() => {
+          setShowImportWorkspaceModal(false);
+          setImportFileData(null);
+        }}
+        onImport={handleImportToWorkspace}
+        projects={projects}
+        onAddProject={onAddProject}
+        fileName={importFileData?.fileName}
+      />
     </div>
   );
 }
 
-function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem, contextMenuItemId }) {
+// ----------------------------------------------------------------------
+// COLLECTION NODE COMPONENT
+// ----------------------------------------------------------------------
+
+function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem }) {
   const isExpanded = expanded[item.id];
   const hasChildren = item.items && item.items.length > 0;
   const isRequest = item.type === 'request';
   const isFolder = item.type === 'folder';
   const isCollection = level === 0;
   const isDragOver = dragOverItem === item.id;
-  const isContextMenuOpen = contextMenuItemId === item.id;
   const canDrag = isRequest || isFolder;
   const canDrop = isCollection || isFolder;
 
   const handleRowClick = () => {
     if (isRequest && onSelectEndpoint) {
-      onSelectEndpoint({ method: item.method, path: item.path || '/', name: item.name });
+      onSelectEndpoint(item);
     } else if (!isRequest) {
       onToggle(item.id);
     }
   };
 
-  // Indentation: 16px per nesting level (industry standard like VS Code/Postman)
-  // Level 0 (collection): 0px, Level 1: 16px, Level 2: 32px, etc.
   const indentPx = level * 16;
 
   return (
@@ -1735,7 +2233,6 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
         className={clsx(
           'flex items-center gap-1.5 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50',
           isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50',
-          isContextMenuOpen && 'bg-dark-700/50',
           canDrag && 'cursor-move'
         )}
         onClick={handleRowClick}
@@ -1764,10 +2261,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
             {item.method}
           </span>
         ) : item.icon === 'globe' ? (
-          <Globe
-            className="w-4 h-4 shrink-0 text-sky-400/90"
-            aria-hidden
-          />
+          <Globe className="w-4 h-4 shrink-0 text-sky-400/90" aria-hidden />
         ) : (
           <Folder
             className={clsx(
@@ -1812,7 +2306,6 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
               onDrop={onDrop}
               onDragEnd={onDragEnd}
               dragOverItem={dragOverItem}
-              contextMenuItemId={contextMenuItemId}
             />
           ))}
         </div>

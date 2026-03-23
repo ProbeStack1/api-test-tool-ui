@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Shield, ChevronDown, ChevronUp, User, Bell, Globe, Database, Lock, FileText, Save, Check, ArrowLeft } from 'lucide-react';
 import clsx from 'clsx';
+import { toast } from 'sonner';
+import { fetchSettings, updateGeneralSettings, updateCertificationSettings } from '../services/userSettingService';
 
 /**
  * Settings Page - General and Certification sections with accordions
@@ -9,19 +11,24 @@ import clsx from 'clsx';
 export default function SettingsPage() {
   const navigate = useNavigate();
   
+  // Loading states
+  const [isFetching, setIsFetching] = useState(true);
+  const [isSavingGeneral, setIsSavingGeneral] = useState(false);
+  const [isSavingCert, setIsSavingCert] = useState(false);
+  
   // Accordion states
   const [generalOpen, setGeneralOpen] = useState(true);
   const [certificationOpen, setCertificationOpen] = useState(false);
   
   // General settings state
   const [generalSettings, setGeneralSettings] = useState({
-    username: 'admin',
-    email: 'admin@probestack.io',
+    username: '',
+    email: '',
     language: 'en',
     timezone: 'UTC',
     notifications: true,
     autoSave: true,
-    theme: 'dark',
+    theme: 'dark', 
   });
   
   // Certification settings state
@@ -34,13 +41,56 @@ export default function SettingsPage() {
     strictSSL: true,
   });
   
-  // Save feedback state
+  // Save feedback state 
   const [savedSection, setSavedSection] = useState(null);
-  
-  const handleSave = (section) => {
+
+// Fetch settings on mount
+useEffect(() => {
+  const loadSettings = async () => {
+    try {
+      setIsFetching(true);
+      const response = await fetchSettings();
+      const data = response.data;  
+      // Merge with existing state to keep all fields defined
+      setGeneralSettings(prev => ({ ...prev, ...data.general }));
+      setCertSettings(prev => ({ ...prev, ...data.certification }));
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+      toast.error('Failed to load settings. Please refresh the page.');
+    } finally {
+      setIsFetching(false);
+    }
+  };
+  loadSettings();
+}, []);
+
+const handleSave = async (section) => {
+  try {
+    if (section === 'general') {
+      setIsSavingGeneral(true);
+      const updated = await updateGeneralSettings(generalSettings);
+      // Merge to preserve any fields not returned by the API
+      setGeneralSettings(prev => ({ ...prev, ...updated }));
+      toast.success('General settings saved successfully');
+    } else if (section === 'certification') {
+      setIsSavingCert(true);
+      const updated = await updateCertificationSettings(certSettings);
+      setCertSettings(prev => ({ ...prev, ...updated }));
+      toast.success('Certification settings saved successfully');
+    }
     setSavedSection(section);
     setTimeout(() => setSavedSection(null), 2000);
-  };
+  } catch (error) {
+    console.error(`Failed to save ${section} settings:`, error);
+    toast.error(`Failed to save ${section} settings. Please try again.`);
+  } finally {
+    if (section === 'general') {
+      setIsSavingGeneral(false);
+    } else {
+      setIsSavingCert(false);
+    }
+  }
+};
   
   const handleGeneralChange = (field, value) => {
     setGeneralSettings(prev => ({ ...prev, [field]: value }));
@@ -49,6 +99,32 @@ export default function SettingsPage() {
   const handleCertChange = (field, value) => {
     setCertSettings(prev => ({ ...prev, [field]: value }));
   };
+
+  // Show loading skeleton while fetching
+  if (isFetching) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
+        <div className="px-6 pt-4">
+          <div className="h-5 w-16 bg-dark-700/50 animate-pulse rounded" />
+        </div>
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-3xl mx-auto space-y-4">
+            <div className="h-8 w-48 bg-dark-700/50 animate-pulse rounded mb-2" />
+            <div className="h-4 w-64 bg-dark-700/50 animate-pulse rounded mb-6" />
+            {/* Accordion skeletons */}
+            <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-4 space-y-4">
+              <div className="h-12 bg-dark-700/50 animate-pulse rounded" />
+              <div className="h-32 bg-dark-700/50 animate-pulse rounded" />
+            </div>
+            <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-4 space-y-4">
+              <div className="h-12 bg-dark-700/50 animate-pulse rounded" />
+              <div className="h-32 bg-dark-700/50 animate-pulse rounded" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
@@ -212,14 +288,21 @@ export default function SettingsPage() {
                 <div className="pt-4 border-t border-dark-700/50 flex justify-end">
                   <button
                     onClick={() => handleSave('general')}
+                    disabled={isSavingGeneral}
                     className={clsx(
                       'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
                       savedSection === 'general'
                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                        : 'bg-primary text-white hover:bg-primary/90'
+                        : 'bg-primary text-white hover:bg-primary/90',
+                      isSavingGeneral && 'opacity-50 cursor-not-allowed'
                     )}
                   >
-                    {savedSection === 'general' ? (
+                    {isSavingGeneral ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : savedSection === 'general' ? (
                       <>
                         <Check className="w-4 h-4" />
                         Saved
@@ -405,14 +488,21 @@ export default function SettingsPage() {
                 <div className="pt-4 border-t border-dark-700/50 flex justify-end">
                   <button
                     onClick={() => handleSave('certification')}
+                    disabled={isSavingCert}
                     className={clsx(
                       'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
                       savedSection === 'certification'
                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                        : 'bg-primary text-white hover:bg-primary/90'
+                        : 'bg-primary text-white hover:bg-primary/90',
+                      isSavingCert && 'opacity-50 cursor-not-allowed'
                     )}
                   >
-                    {savedSection === 'certification' ? (
+                    {isSavingCert ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : savedSection === 'certification' ? (
                       <>
                         <Check className="w-4 h-4" />
                         Saved

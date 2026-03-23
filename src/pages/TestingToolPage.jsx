@@ -1,9 +1,8 @@
 import React from 'react';
 import IDEWorkspaceLayout from '../components/IDEWorkspaceLayout';
-
 /**
  * Testing Tool page – separate route /workspace.
- * All request/workspace state and handlers are passed from App.
+ * All request/project state and handlers are passed from App.
  */
 export default function TestingToolPage({
   history,
@@ -47,11 +46,8 @@ export default function TestingToolPage({
   onCollectionsChange,
   onDeleteHistoryItem,
   environmentVariables,
-  globalVariables,
   onEnvironmentVariablesChange,
-  onGlobalVariablesChange,
   onSaveEnvironmentVariables,
-  onSaveGlobalVariables,
   substituteVariables,
   collectionRunResults,
   onRunCollection,
@@ -63,6 +59,42 @@ export default function TestingToolPage({
   onDeleteMock,
   onRenameMock,
   onSelectMockRequest,
+  isSavedRequest,
+  onUpdateRequest,
+  pristineRequests,
+  onCreateEnvironment,
+  onActivateEnvironment,
+  onRenameEnvironment,
+  onDeleteEnvironment,
+  environmentVariablesDirty,
+  globalEnvironment,
+  globalVariablesDirty,
+  onGlobalVariablesChange,
+  onSaveGlobalVariables,
+  mockServers,
+  isLoadingMocks,
+  onCreateMockServer,
+  onRenameMockServer,
+  onDeleteMockServer,
+  onToggleVisibility,
+  onExecuteMockRequest,
+  onSelectMockEndpoint,
+  onUpdateMockServer,
+  onOpenWorkspaceDetails,
+  currentUserId,
+    onWorkspaceUpdate,
+  onWorkspaceDelete,
+   onMockServerRun,
+   onFetchHistoryEntry,
+   activeWorkspaceId,
+         onOpenCollectionRun,
+      onRunCollectionWithOrder,
+      onViewRunResults,
+        activeEnvVars,
+  inactiveEnvVars,
+  activeEnvValues,
+  inactiveEnvInfo,
+  onShowChatbot,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -107,11 +139,8 @@ export default function TestingToolPage({
       onCollectionsChange={onCollectionsChange}
       onDeleteHistoryItem={onDeleteHistoryItem}
       environmentVariables={environmentVariables}
-      globalVariables={globalVariables}
       onEnvironmentVariablesChange={onEnvironmentVariablesChange}
-      onGlobalVariablesChange={onGlobalVariablesChange}
       onSaveEnvironmentVariables={onSaveEnvironmentVariables}
-      onSaveGlobalVariables={onSaveGlobalVariables}
       substituteVariables={substituteVariables}
       collectionRunResults={collectionRunResults}
       onRunCollection={onRunCollection}
@@ -123,6 +152,42 @@ export default function TestingToolPage({
       onDeleteMock={onDeleteMock}
       onRenameMock={onRenameMock}
       onSelectMockRequest={onSelectMockRequest}
+      isSavedRequest={isSavedRequest}
+      onUpdateRequest={onUpdateRequest}
+      pristineRequests={pristineRequests}
+      onCreateEnvironment={onCreateEnvironment}
+      onActivateEnvironment={onActivateEnvironment}
+      onRenameEnvironment={onRenameEnvironment}
+      onDeleteEnvironment={onDeleteEnvironment}
+      environmentVariablesDirty={environmentVariablesDirty}
+      globalEnvironment={globalEnvironment}
+      globalVariablesDirty={globalVariablesDirty}
+      onGlobalVariablesChange={onGlobalVariablesChange}
+      onSaveGlobalVariables={onSaveGlobalVariables}
+      mockServers={mockServers}
+  isLoadingMocks={isLoadingMocks}
+  onCreateMockServer={onCreateMockServer}
+  onRenameMockServer={onRenameMockServer}
+  onDeleteMockServer={onDeleteMockServer}
+  onToggleVisibility={onToggleVisibility}
+  onExecuteMockRequest={onExecuteMockRequest}
+  onSelectMockEndpoint={onSelectMockEndpoint}
+  onUpdateMockServer={onUpdateMockServer}
+  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+  currentUserId={currentUserId}
+      onWorkspaceUpdate={onWorkspaceUpdate}
+  onWorkspaceDelete={onWorkspaceDelete}
+   onMockServerRun={onMockServerRun}
+   onFetchHistoryEntry={onFetchHistoryEntry}
+    activeWorkspaceId={activeWorkspaceId} 
+          onOpenCollectionRun={onOpenCollectionRun}
+      onRunCollectionWithOrder={onRunCollectionWithOrder}
+      onViewRunResults={onViewRunResults} 
+      activeEnvVars={activeEnvVars}
+      inactiveEnvVars={inactiveEnvVars}
+      activeEnvValues={activeEnvValues}
+      inactiveEnvInfo={inactiveEnvInfo}
+      onShowChatbot={onShowChatbot}  
     />
   );
 }

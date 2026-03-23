@@ -1333,7 +1333,7 @@ if (actionId === 'run-collection') {
     removeItemById(newCollections, item.id);
     setCollections(newCollections);
 
-    const userId = localStorage.getItem('probestack_user_id');
+    const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
     if (!userId) return;
 
     let apiCall;
@@ -1504,7 +1504,7 @@ const handleCreateCollection = async (name, description, workspaceId, workspaceN
     item.name = newName;
     setCollections(newCollections);
 
-    const userId = localStorage.getItem('probestack_user_id');
+    const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
     if (!userId) return;
 
     let apiCall;

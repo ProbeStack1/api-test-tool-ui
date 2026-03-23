@@ -16,57 +16,60 @@ const addUserIdInterceptor = (instance) => {
 
 // Create separate instances for each service
 export const workspaceApi = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/workspaces",
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(workspaceApi);
 
 export const collectionApi = axios.create({
-  baseURL: "http://localhost:8081",
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/collections",
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(collectionApi);
 
 export const requestApi = axios.create({
-  baseURL: "http://localhost:8082",
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/requests",
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(requestApi);
 
 export const environmentApi = axios.create({
-  baseURL: "http://localhost:8083",
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/environments",
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(environmentApi);
 
 export const mockserverApi = axios.create({
-  baseURL: "http://localhost:8084",
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/mocks",
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(mockserverApi);
 
 export const supportApi = axios.create({
-  baseURL: "http://localhost:8085",
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/support",
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(supportApi);
 
 export const userSettingApi = axios.create({
-  baseURL: "http://localhost:8086"
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/settings",
+  headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(userSettingApi);
 
 export const testFileApi = axios.create({
-  baseURL: "http://localhost:8087"
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/test-files",
+  headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(testFileApi);
 
 export const testSpecificationApi = axios.create({
-  baseURL: "http://localhost:8088"
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/test-specs",
+  headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(testSpecificationApi);
 
 export const dashboardApi = axios.create({
-  baseURL: "http://localhost:8089"
+  baseURL: "https://prod.forgeq.probestack.io/api/v1/dashboard"
 });
 addUserIdInterceptor(dashboardApi);

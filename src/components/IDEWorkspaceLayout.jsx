@@ -366,7 +366,7 @@ useEffect(() => {
   const [testingSubTab, setTestingSubTab] = useState('generate');
 const testingSubTabs = [
   { id: 'library', label: 'Spec Library', icon: BookOpen },
-  { id: 'generate', label: 'Testing', icon: FileSearch },
+  { id: 'generate', label: 'Test Cases', icon: FileSearch },
   { id: 'functional', label: 'Functional Test', icon: Play },
   { id: 'load', label: 'Load Test', icon: BarChart3 },
   { id: 'tracing', label: 'Tracing', icon: Activity }, // new tab
@@ -911,7 +911,7 @@ const handleDeleteLibraryItem = async (item) => {
 
 {topMenuActive === 'history' && (
   <div className="flex-1 flex flex-col p-4">
-    <div className="space-y-1">
+    <div className="space-y-3.5">
       {historySubTabs.map((tab) => {
         const Icon = tab.icon;
         return (
@@ -920,10 +920,10 @@ const handleDeleteLibraryItem = async (item) => {
             type="button"
             onClick={() => setHistorySubTab(tab.id)}
             className={clsx(
-              'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+              'w-full flex items-center gap-2 text-left px-5 py-3 rounded-xl text-md font-medium transition-all border border-dark-600',
               historySubTab === tab.id
                 ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                : 'text-gray-400 hover:text-white hover:bg-dark-800'
             )}
           >
             <Icon className="w-4 h-4 shrink-0" />
@@ -958,7 +958,7 @@ const handleDeleteLibraryItem = async (item) => {
 )}
 {topMenuActive === 'testing' && (
   <div className="flex-1 flex flex-col p-4">
-    <div className="space-y-1">
+    <div className="space-y-3.5">
       {testingSubTabs.map((tab) => {
         const Icon = tab.icon;
         return (
@@ -967,10 +967,10 @@ const handleDeleteLibraryItem = async (item) => {
             type="button"
             onClick={() => setTestingSubTab(tab.id)}
             className={clsx(
-              'w-full flex items-center gap-2 text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+              'w-full flex items-center gap-2 text-left px-5 py-3 rounded-xl text-md font-medium transition-all border border-dark-600',
               testingSubTab === tab.id
                 ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-dark-800 border border-transparent'
+                : 'text-gray-400 hover:text-white hover:bg-dark-800 '
             )}
           >
             <Icon className="w-4 h-4 shrink-0" />

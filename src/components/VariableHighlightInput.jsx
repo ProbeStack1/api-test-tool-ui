@@ -131,7 +131,7 @@ const VariableBadge = ({ varName, status, tooltip }) => {
         <div
           className={clsx(
             "fixed px-3 py-2 text-xs rounded-lg shadow-xl z-[200]",
-            "whitespace-nowrap max-w-[280px] truncate pointer-events-none",
+            "whitespace-normal break-words max-w-[280px] pointer-events-none",
             "bg-dark-800 border",
             tooltipBorder[status]
           )}
@@ -169,6 +169,7 @@ const VariableHighlightInput = ({
   onChange,
   placeholder = '',
   className = '',
+  inputClassName = '',
   activeEnvVars = new Set(),
   inactiveEnvVars = new Set(),
   activeEnvValues = {},
@@ -279,7 +280,8 @@ const VariableHighlightInput = ({
           hasVariables ? "text-transparent caret-white" : "text-white",
           "placeholder:text-gray-500",
           disabled && "opacity-50 cursor-not-allowed",
-          multiline && "min-h-[100px] resize-y"
+          multiline && "min-h-[100px] resize-y",
+          inputClassName 
         )}
         {...props}
       />

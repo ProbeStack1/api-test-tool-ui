@@ -88,7 +88,7 @@ function VariableTooltipInline({ tooltip, status, children }) {
         <div
           className={clsx(
             "fixed px-2.5 py-1.5 text-[10px] rounded-lg shadow-xl z-[200]",
-            "whitespace-nowrap max-w-[250px] truncate pointer-events-none",
+            "whitespace-normal break-words max-w-[250px] pointer-events-none",
             "bg-dark-800 border",
             status === 'active' && "border-blue-400/30 text-blue-300",
             status === 'inactive' && "border-yellow-400/30 text-yellow-300",

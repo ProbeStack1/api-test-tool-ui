@@ -273,7 +273,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold text-white">{workspace.name}</h1>
+                  <h1 className="text-lg font-semibold text-white">{workspace.name}</h1>
                   {canEdit && (
                     <button
                       onClick={() => {

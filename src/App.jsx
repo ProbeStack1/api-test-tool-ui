@@ -1228,20 +1228,42 @@ const handleExecute = async () => {
 
   const currentReq = requests[activeRequestIndex];
 
-  // ✅ Check for mock endpoint FIRST and execute via mock handler
-  if (currentReq.isMockEndpoint) {
-    try {
-      const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
-      setResponse(res);
-      addToHistory(url, method, res.status, res.size, res.time);
-    } catch (err) {
-      setError(err);
-      addToHistory(url, method, 0, 0, 0, true);
-    } finally {
-      setIsLoading(false);
+if (currentReq.isMockEndpoint) {
+  try {
+    const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
+    // Apply fallback for empty error bodies
+    if (res.status >= 400) {
+      const isBodyEmpty = 
+        !res.data ||
+        (typeof res.data === 'string' && res.data.trim() === '') ||
+        (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
+        (Array.isArray(res.data) && res.data.length === 0);
+      if (isBodyEmpty) {
+        res.data = `${res.status} ${res.statusText || 'Error'}`;
+      }
     }
-    return;
+    setResponse(res);
+    addToHistory(url, method, res.status, res.size, res.time);
+  } catch (err) {
+    const errorMessage = err.message || 'Unknown error';
+    const res = {
+      status: 0,
+      statusText: 'Error',
+      time: 0,
+      size: 0,
+      data: errorMessage,
+      headers: [],
+      testResults: [],
+      testScriptError: null,
+    };
+    setResponse(res);
+    addToHistory(url, method, 0, 0, 0, true);
+    if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+  } finally {
+    setIsLoading(false);
   }
+  return;
+}
 
   // Normal request flow (saved or unsaved)
   const saved = isSavedRequest(currentReq);
@@ -1287,29 +1309,46 @@ const handleExecute = async () => {
     const axiosResponse = await executeRequest(targetRequestId, { overrides });
     const executionResult = axiosResponse.data;
 
-    let parsedBody = executionResult.response_body;
-    if (typeof parsedBody === 'string') {
-      const trimmed = parsedBody.trim();
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        try {
-          parsedBody = JSON.parse(parsedBody);
-        } catch (e) {}
-      }
-    }
+let parsedBody = executionResult.response_body;
+if (typeof parsedBody === 'string') {
+  const trimmed = parsedBody.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      parsedBody = JSON.parse(parsedBody);
+    } catch (e) {}
+  }
+}
 
-    const res = {
-      status: executionResult.status_code,
-      statusText: executionResult.status_text || '',
-      time: executionResult.response_time_ms || 0,
-      size: executionResult.response_size_bytes || 0,
-      data: parsedBody,
-      headers: executionResult.response_headers || [],
-      testResults: executionResult.test_results || [],
-      testScriptError: executionResult.error_message || null,
-    };
+// If it's a status 0 error (DNS, timeout, etc.), use the error_message as the body
+if (executionResult.status_code === 0 && executionResult.error_message) {
+  parsedBody = executionResult.error_message;
+}
+
+const res = {
+  status: executionResult.status_code,
+  statusText: executionResult.status_text || '',
+  time: executionResult.response_time_ms || 0,
+  size: executionResult.response_size_bytes || 0,
+  data: parsedBody,
+  headers: executionResult.response_headers || [],
+  testResults: executionResult.test_results || [],
+  testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
+};
+
+// For error responses, replace empty/unhelpful body with status text
+if (res.status >= 400) {
+  const isBodyEmpty = 
+    !res.data ||
+    (typeof res.data === 'string' && res.data.trim() === '') ||
+    (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
+    (Array.isArray(res.data) && res.data.length === 0);
+  if (isBodyEmpty) {
+    res.data = `${res.status} ${res.statusText || 'Error'}`;
+  }
+}
 
     setResponse(res);
-if (res.status >= 400) {
+if (res.status >= 400 || res.status === 0) {
   if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
 }
     addToHistory(url, method, res.status, res.size, res.time, false, executionResult.history_id);

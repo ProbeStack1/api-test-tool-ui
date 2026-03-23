@@ -777,6 +777,7 @@ function KeyValueTable({ items }) {
   activeEnvValues={activeEnvValues}
   inactiveEnvInfo={inactiveEnvInfo}
   className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
+  inputClassName="h-full" 
 />
                       </div>
                     ) : bodyType === 'none' ? (
@@ -859,7 +860,7 @@ function KeyValueTable({ items }) {
     {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults &&  (
       <>
         <ResizableBottomPanel
-          defaultHeight={257}
+          defaultHeight={380}
           minHeight={48}
           maxHeight={800}
           collapsed={bottomPanelCollapsed}
@@ -905,124 +906,151 @@ function KeyValueTable({ items }) {
           {/* Panel Content */}
           {!bottomPanelCollapsed && (
             <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-              {bottomPanelTab === 'response' && (
-                <>
-                  {isLoading ? (
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <div className="w-3 h-3 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                      <span>Executing request...</span>
-                    </div>
-                  ) : error ? (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <XCircle className="w-4 h-4 text-red-400" />
-                        <h4 className="text-xs font-semibold text-red-400">Request Failed</h4>
-                      </div>
-                      <pre className="text-xs font-mono text-red-300 whitespace-pre-wrap break-all">
-                        {error.message || JSON.stringify(error, null, 2)}
-                      </pre>
-                    </div>
-                  ) : response ? (
-                    <div className="space-y-3">
-                      {/* Response Header: Very Simple Tabs + Status Right */}
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between mb-4">
-                          {/* Simple Tabs - Left Side */}
-                          <div className="flex items-center gap-6">
-                            <button
-                              onClick={() => setResponseTab('body')}
-                              className={clsx(
-                                'text-sm font-medium transition-colors',
-                                responseTab === 'body'
-                                  ? 'text-primary'           // Selected = Primary color
-                                  : 'text-gray-400 hover:text-gray-200'
-                              )}
-                            >
-                              Body
-                            </button>
-                            <button
-                              onClick={() => setResponseTab('headers')}
-                              className={clsx(
-                                'text-sm font-medium transition-colors',
-                                responseTab === 'headers'
-                                  ? 'text-primary'           // Selected = Primary color
-                                  : 'text-gray-400 hover:text-gray-200'
-                              )}
-                            >
-                              Headers ({response.headers?.length || 0})
-                            </button>
-                          </div>
 
-                          {/* Status, Time & Size - Right Side */}
-                          <div className="flex items-center gap-5 text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500">Status:</span>
-                              <span className={clsx(
-                                "font-bold px-2 py-0.5 rounded",
-                                response.status >= 200 && response.status < 300
-                                  ? "text-green-400 bg-green-400/10"
-                                  : "text-red-400 bg-red-400/10"
-                              )}>
-                                {response.status} {response.statusText}
-                              </span>
-                            </div>
+{bottomPanelTab === 'response' && (
+  <>
+    {isLoading ? (
+      <div className="flex items-center gap-2 text-xs text-gray-400">
+        <div className="w-3 h-3 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+        <span>Executing request...</span>
+      </div>
+    ) : (() => {
+      // Determine if we should show an error message
+      const hasError = !!error || (response && response.testScriptError);
 
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="w-3 h-3 text-gray-500" />
-                              <span className="text-gray-400 font-medium">{response.time}ms</span>
-                            </div>
+      if (hasError) {
+        // Build error message from available sources
+        let errorMessage = '';
+        if (error) {
+          errorMessage = error.message || JSON.stringify(error, null, 2);
+        } else if (response && response.testScriptError) {
+          errorMessage = response.testScriptError;
+        } else if (response && response.status >= 400) {
+          errorMessage = `${response.status} ${response.statusText || 'Error'}`;
+        } else if (response && response.status === 0) {
+          errorMessage = 'Network error – no response received';
+        } else {
+          errorMessage = 'Request failed – unknown error';
+        }
 
-                            <div className="flex items-center gap-1.5">
-                              <Database className="w-3 h-3 text-gray-500" />
-                              <span className="text-gray-400 font-medium">{response.size} B</span>
-                            </div>
-                          </div>
-                        </div>
+        return (
+          <div className="bg-red-500/10 border border-red-500/20 rounded p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <XCircle className="w-4 h-4 text-red-400" />
+              <h4 className="text-xs font-semibold text-red-400">Request Failed</h4>
+            </div>
+            <pre className="text-xs font-mono text-red-300 whitespace-pre-wrap break-all">
+              {errorMessage}
+            </pre>
+          </div>
+        );
+      }
 
-                        {/* Body or Headers Content */}
-                        {responseTab === 'body' ? (
-                          <div className="bg-dark-900/60 rounded-lg p-4 font-mono text-sm overflow-auto max-h-96 border border-dark-700">
-                            <pre className="text-gray-300 whitespace-pre-wrap break-all">
-                              {formatResponseBody(response.data)}
-                            </pre>
-                          </div>
-                        ) : (
-                          <div className="bg-dark-900/60 rounded-lg p-4 overflow-auto max-h-96 border border-dark-700">
-                            {response.headers && response.headers.length > 0 ? (
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="text-gray-400 border-b border-dark-700">
-                                    <th className="text-left py-2 font-medium">Header</th>
-                                    <th className="text-left py-2 font-medium">Value</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {response.headers.map((h, idx) => (
-                                    <tr key={idx} className="border-b border-dark-700/50 last:border-0">
-                                      <td className="py-2 text-gray-300 font-mono">{h.key}</td>
-                                      <td className="py-2 text-gray-400 font-mono break-all">{h.value}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            ) : (
-                              <p className="text-gray-500 text-sm">No response headers received</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+      if (response) {
+        // Normal success response (status 2xx)
+        return (
+          <div className="space-y-3">
+            {/* Existing response display code */}
+            <div className="mt-2">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-6">
+                  <button
+                    onClick={() => setResponseTab('body')}
+                    className={clsx(
+                      'text-sm font-medium transition-colors',
+                      responseTab === 'body'
+                        ? 'text-primary'
+                        : 'text-gray-400 hover:text-gray-200'
+                    )}
+                  >
+                    Body
+                  </button>
+                  <button
+                    onClick={() => setResponseTab('headers')}
+                    className={clsx(
+                      'text-sm font-medium transition-colors',
+                      responseTab === 'headers'
+                        ? 'text-primary'
+                        : 'text-gray-400 hover:text-gray-200'
+                    )}
+                  >
+                    Headers ({response.headers?.length || 0})
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Status:</span>
+                    <span className={clsx(
+                      "font-bold px-2 py-0.5 rounded",
+                      response.status >= 200 && response.status < 300
+                        ? "text-green-400 bg-green-400/10"
+                        : "text-red-400 bg-red-400/10"
+                    )}>
+                      {response.status} {response.statusText}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-gray-500" />
+                    <span className="text-gray-400 font-medium">{response.time}ms</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Database className="w-3 h-3 text-gray-500" />
+                    <span className="text-gray-400 font-medium">{response.size} B</span>
+                  </div>
+                </div>
+              </div>
+
+              {responseTab === 'body' ? (
+                <div className="bg-dark-900/60 rounded-lg p-4 font-mono text-sm overflow-auto max-h-96 border border-dark-700">
+                  <pre className="text-gray-300 whitespace-pre-wrap break-all">
+                    {formatResponseBody(response.data)}
+                  </pre>
+                </div>
+              ) : (
+                <div className="bg-dark-900/60 rounded-lg p-4 overflow-auto max-h-96 border border-dark-700">
+                  {response.headers && response.headers.length > 0 ? (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-400 border-b border-dark-700">
+                          <th className="text-left py-2 font-medium">Header</th>
+                          <th className="text-left py-2 font-medium">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {response.headers.map((h, idx) => (
+                          <tr key={idx} className="border-b border-dark-700/50 last:border-0">
+                            <td className="py-2 text-gray-300 font-mono">{h.key}</td>
+                            <td className="py-2 text-gray-400 font-mono break-all">{h.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   ) : (
-                    <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
-                      <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">
-                        <Terminal className="h-7 w-7" />
-                      </div>
-                      <p className="text-sm font-medium text-white/80">Execute a request to see response</p>
-                      <p className="text-xs mt-1">Output will be formatted as JSON by default</p>
-                    </div>
+                    <p className="text-gray-500 text-sm">No response headers received</p>
                   )}
-                </>
+                </div>
               )}
+            </div>
+          </div>
+        );
+      }
+
+      // No response yet
+      return (
+        <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
+          <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">
+            <Terminal className="h-7 w-7" />
+          </div>
+          <p className="text-sm font-medium text-white/80">Execute a request to see response</p>
+          <p className="text-xs mt-1">Output will be formatted as JSON by default</p>
+        </div>
+      );
+    })()}
+  </>
+)}
 
 {bottomPanelTab === 'logs' && (
   <div className="space-y-4">
@@ -1240,6 +1268,7 @@ function KeyValueTable({ items }) {
                   )}
                 </div>
               )}
+
 {/* ========== COLLECTION RUN TAB ========== */}
 {bottomPanelTab === 'collection-run' && (
   <div className="space-y-4">

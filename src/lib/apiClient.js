@@ -4,7 +4,7 @@ import axios from 'axios';
 const addUserIdInterceptor = (instance) => {
   instance.interceptors.request.use(
     (config) => {
-      const userId = localStorage.getItem('probestack_user_id');
+      const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
       if (userId) {
         config.headers['X-User-Id'] = userId;
       }

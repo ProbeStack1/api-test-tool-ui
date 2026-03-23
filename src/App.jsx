@@ -49,7 +49,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
-const currentUserId = localStorage.getItem('probestack_user_id');
+const currentUserId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
   const [environmentVariablesDirty, setEnvironmentVariablesDirty] = useState(false);
   const [globalEnvironment, setGlobalEnvironment] = useState(null);
 const [globalVariablesDirty, setGlobalVariablesDirty] = useState(false);
@@ -971,7 +971,7 @@ const [isRunningLoadTest, setIsRunningLoadTest] = useState(false);
 // Guard to ensure initial fetch runs only once
 // Load Workspaces + Collections + Folders + Requests from Backend on Mount
 useEffect(() => {
-  const userId = localStorage.getItem('probestack_user_id');
+  const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
   if (!userId || hasFetchedRef.current) return;
 
   hasFetchedRef.current = true;
@@ -1875,7 +1875,7 @@ const handleAddProject = (workspaceData) => {
     setCollections((prev) => [...prev, parsedCollection]);
   }
 
-  const userId = localStorage.getItem('probestack_user_id');
+  const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
   if (!userId) {
     // Offline mode: set active immediately
     setActiveWorkspaceId(tempId);

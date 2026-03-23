@@ -236,10 +236,10 @@ function NewCollectionModal({
                 setValidationError('');
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
+                if (e.key === 'Enter') handleCreate();
               }}
               placeholder="Enter collection name"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               autoFocus
             />
             {validationError && (
@@ -255,7 +255,7 @@ function NewCollectionModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the purpose of this collection"
               rows="3"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
             />
           </div>
         </div>
@@ -310,24 +310,24 @@ function RenameModal({ isOpen, onClose, currentName, onRename, itemType = 'reque
     }
   };
 
-let title, label, placeholder;
-if (itemType === 'folder') {
-  title = 'Rename Folder';
-  label = 'Folder Name';
-  placeholder = 'Enter folder name';
-} else if (itemType === 'workspace') {
-  title = 'Rename Project';
-  label = 'Project Name';
-  placeholder = 'Enter project name';
-} else if (itemType === 'collection') {
-  title = 'Rename Collection';
-  label = 'Collection Name';
-  placeholder = 'Enter collection name';
-} else {
-  title = 'Rename Request';
-  label = 'Request Name';
-  placeholder = 'Enter request name';
-}
+  let title, label, placeholder;
+  if (itemType === 'folder') {
+    title = 'Rename Folder';
+    label = 'Folder Name';
+    placeholder = 'Enter folder name';
+  } else if (itemType === 'workspace') {
+    title = 'Rename Project';
+    label = 'Project Name';
+    placeholder = 'Enter project name';
+  } else if (itemType === 'collection') {
+    title = 'Rename Collection';
+    label = 'Collection Name';
+    placeholder = 'Enter collection name';
+  } else {
+    title = 'Rename Request';
+    label = 'Request Name';
+    placeholder = 'Enter request name';
+  }
 
   return (
     <div
@@ -362,7 +362,7 @@ if (itemType === 'folder') {
               if (e.key === 'Enter') handleSave();
             }}
             placeholder={placeholder}
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             autoFocus
           />
         </div>
@@ -467,7 +467,7 @@ function NewFolderModal({ isOpen, onClose, onCreate, parentItem }) {
               if (e.key === 'Enter') handleCreate();
             }}
             placeholder="Enter folder name"
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             autoFocus
           />
           {validationError && (
@@ -599,7 +599,17 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
         className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-
+        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+          <h3 className="text-base font-semibold text-white">Create Project</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         <div className="p-5 space-y-5">
           {/* Project Name */}
@@ -618,7 +628,7 @@ function NewWorkspaceModal({ isOpen, onClose, onCreate, workspaces, onImportColl
                 if (e.key === 'Enter') handleCreate();
               }}
               placeholder="Enter project name"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               autoFocus
             />
             {validationError && (
@@ -783,30 +793,30 @@ function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProjec
           </button>
         </div>
 
-<div className="p-5 space-y-4">
-  {/* Collection Name */}
-  <div>
-    <label className="block text-sm font-medium text-gray-300 mb-2">
-      Collection Name
-    </label>
-    <input
-      type="text"
-      value={collectionName}
-      onChange={(e) => {
-        setCollectionName(e.target.value);
-        setValidationError('');
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
-      }}
-      placeholder="Enter collection name"
-      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-    />
-    {validationError && (
-      <p className="mt-2 text-xs text-red-400">{validationError}</p>
-    )}
-  </div>
-</div>
+        <div className="p-5 space-y-4">
+          {/* Collection Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Collection Name
+            </label>
+            <input
+              type="text"
+              value={collectionName}
+              onChange={(e) => {
+                setCollectionName(e.target.value);
+                setValidationError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
+              }}
+              placeholder="Enter collection name"
+              className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+            {validationError && (
+              <p className="mt-2 text-xs text-red-400">{validationError}</p>
+            )}
+          </div>
+        </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
           <button
@@ -914,9 +924,6 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   );
 }
 
-
-
-
 // ----------------------------------------------------------------------
 // SORT ITEMS HELPER
 // ----------------------------------------------------------------------
@@ -943,9 +950,8 @@ export default function CollectionsPanel({
   onCollectionsChange,
   onRunCollection,
   activeWorkspaceId,
-  onOpenCollectionRun ,
-})
- {
+  onOpenCollectionRun,
+}) {
   const collections = externalCollections;
   const [expanded, setExpanded] = useState({ '3': true });
   const [search, setSearch] = useState('');
@@ -959,14 +965,13 @@ export default function CollectionsPanel({
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
   const fileInputRef = useRef(null);
-    const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
+  const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
   const [importFileData, setImportFileData] = useState(null);
+
   // Filter collections to only those in the active workspace
-const workspaceCollections = externalCollections.filter(
-  col => col.project === activeWorkspaceId
-);
-
-
+  const workspaceCollections = externalCollections.filter(
+    col => col.project === activeWorkspaceId
+  );
 
   // Helper to update collections
   const setCollections = (newCollectionsOrUpdater) => {
@@ -1003,9 +1008,8 @@ const workspaceCollections = externalCollections.filter(
   };
   const filteredCollections = filterTree(workspaceCollections, search);
 
-const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
-const activeWorkspaceName = activeWorkspace?.name || '';
-
+  const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
+  const activeWorkspaceName = activeWorkspace?.name || '';
 
   const findItemById = (items, id) => {
     for (const item of items) {
@@ -1104,139 +1108,79 @@ const activeWorkspaceName = activeWorkspace?.name || '';
   };
 
   // Handlers for collection/folder/request actions
-const handleContextAction = (actionId) => {
-  if (!contextMenu) return;
-  const item = findItemById(collections, contextMenu.itemId);
-  if (!item) return;
+  const handleContextAction = (actionId) => {
+    if (!contextMenu) return;
+    const item = findItemById(collections, contextMenu.itemId);
+    if (!item) return;
 
-// if (actionId === 'run-collection') {
-//   if (item && item.type === 'collection' && onRunCollection) {
-//     onRunCollection(item);
-//   }
-// } 
-if (actionId === 'run-collection') {
-  if (item && item.type === 'collection' && onOpenCollectionRun) {
-    onOpenCollectionRun(item);
-  }
-}else if (actionId === 'add-request') {
-    setSelectedCollectionId(contextMenu.itemId);
-    setShowRequestTypeModal(true);
-  } else if (actionId === 'add-folder') {
-    setSelectedCollectionId(contextMenu.itemId);
-    setShowNewFolderModal(true);
-  } else if (actionId === 'rename') {
-    setSelectedItemForRename(item);
-    setShowRenameModal(true);
-  } else if (actionId === 'clone') {
-    if (item.type === 'collection') {
-      const workspaceId = item.project || 'default';
-      const cloneCollectionAndFetch = async () => {
-        const res = await forkCollection(item.id, workspaceId);
-        const raw = res.data;
-        const workspaceArg = {
-          id: workspaceId,
-          name: item.projectName || "Default Workspace"
-        };
-        const newCol = normalizeCollection(raw, workspaceArg);
+    if (actionId === 'run-collection') {
+      if (item && item.type === 'collection' && onOpenCollectionRun) {
+        onOpenCollectionRun(item);
+      }
+    } else if (actionId === 'add-request') {
+      setSelectedCollectionId(contextMenu.itemId);
+      setShowRequestTypeModal(true);
+    } else if (actionId === 'add-folder') {
+      setSelectedCollectionId(contextMenu.itemId);
+      setShowNewFolderModal(true);
+    } else if (actionId === 'rename') {
+      setSelectedItemForRename(item);
+      setShowRenameModal(true);
+    } else if (actionId === 'clone') {
+      if (item.type === 'collection') {
+        const workspaceId = item.project || 'default';
+        const cloneCollectionAndFetch = async () => {
+          const res = await forkCollection(item.id, workspaceId);
+          const raw = res.data;
+          const workspaceArg = {
+            id: workspaceId,
+            name: item.projectName || "Default Workspace"
+          };
+          const newCol = normalizeCollection(raw, workspaceArg);
 
-        // 1. Fetch folders and requests for the new collection
-        const foldersRes = await fetchFolders(newCol.id);
-        const folders = foldersRes.data.map(normalizeFolder);
-        const requestsRes = await fetchRequests({ collectionId: newCol.id });
-        const requests = requestsRes.data.map(normalizeRequest);
+          // 1. Fetch folders and requests for the new collection
+          const foldersRes = await fetchFolders(newCol.id);
+          const folders = foldersRes.data.map(normalizeFolder);
+          const requestsRes = await fetchRequests({ collectionId: newCol.id });
+          const requests = requestsRes.data.map(normalizeRequest);
 
-        // 2. Build folder hierarchy
-        const folderMap = new Map();
-        folders.forEach(f => folderMap.set(f.id, f));
+          // 2. Build folder hierarchy
+          const folderMap = new Map();
+          folders.forEach(f => folderMap.set(f.id, f));
 
-        const rootFolders = [];
-        folders.forEach(f => {
-          if (f.parentFolderId) {
-            const parent = folderMap.get(f.parentFolderId);
-            if (parent) {
-              if (!parent.items) parent.items = [];
-              parent.items.push(f);
+          const rootFolders = [];
+          folders.forEach(f => {
+            if (f.parentFolderId) {
+              const parent = folderMap.get(f.parentFolderId);
+              if (parent) {
+                if (!parent.items) parent.items = [];
+                parent.items.push(f);
+              } else {
+                rootFolders.push(f);
+              }
             } else {
               rootFolders.push(f);
             }
-          } else {
-            rootFolders.push(f);
-          }
-        });
+          });
 
-        const items = [...rootFolders];
+          const items = [...rootFolders];
 
-        // 3. Place requests under their parent folders
-        requests.forEach(req => {
-          if (req.folderId) {
-            const parent = folderMap.get(req.folderId);
-            if (parent) {
-              if (!parent.items) parent.items = [];
-              parent.items.push(req);
+          // 3. Place requests under their parent folders
+          requests.forEach(req => {
+            if (req.folderId) {
+              const parent = folderMap.get(req.folderId);
+              if (parent) {
+                if (!parent.items) parent.items = [];
+                parent.items.push(req);
+              } else {
+                items.push(req);
+              }
             } else {
               items.push(req);
             }
-          } else {
-            items.push(req);
-          }
-        });
-
-        // 4. Recursive sorting
-        const sortItems = (items) => {
-          if (!items) return;
-          items.sort((a, b) => {
-            if (a.type === 'folder' && b.type !== 'folder') return -1;
-            if (a.type !== 'folder' && b.type === 'folder') return 1;
-            return (a.orderIndex || 0) - (b.orderIndex || 0);
           });
-          items.forEach(item => {
-            if (item.items) sortItems(item.items);
-          });
-        };
-        sortItems(items);
 
-        newCol.items = items;
-        return newCol;
-      };
-
-      toast.promise(
-        cloneCollectionAndFetch(),
-        {
-          loading: `Cloning "${item.name}"...`,
-          success: (newCol) => {
-            setCollections(prev => [...prev, newCol]);
-            return `Cloned as "${newCol.name}"`;
-          },
-          error: (err) => err.response?.data?.message || 'Failed to clone collection'
-        }
-      );
-    } else if (item.type === 'folder') {
-      const cloneFolderAndFetch = async () => {
-        const res = await cloneFolder(item.id);
-        const newFolder = normalizeFolder(res.data);
-        const collectionId = item.collectionId;
-
-        // Fetch all folders and requests in the collection
-        const foldersRes = await fetchFolders(collectionId);
-        const allFolders = foldersRes.data.map(normalizeFolder);
-        const requestsRes = await fetchRequests({ collectionId });
-        const allRequests = requestsRes.data.map(normalizeRequest);
-
-        // Build map of all folders
-        const folderMap = new Map();
-        allFolders.forEach(f => folderMap.set(f.id, f));
-
-        // For the new folder, we need to extract its subtree.
-        // Since all folders are already in the map, we can walk down from newFolder.id.
-        const buildSubtree = (folderId) => {
-          const folder = folderMap.get(folderId);
-          if (!folder) return null;
-          const children = allFolders.filter(f => f.parentFolderId === folderId);
-          folder.items = children.map(child => buildSubtree(child.id)).filter(Boolean);
-          // Add requests belonging to this folder
-          const folderRequests = allRequests.filter(req => req.folderId === folderId);
-          folder.items.push(...folderRequests);
-          // Sort items
+          // 4. Recursive sorting
           const sortItems = (items) => {
             if (!items) return;
             items.sort((a, b) => {
@@ -1248,105 +1192,160 @@ if (actionId === 'run-collection') {
               if (item.items) sortItems(item.items);
             });
           };
-          sortItems(folder.items);
-          return folder;
+          sortItems(items);
+
+          newCol.items = items;
+          return newCol;
         };
 
-        const populatedFolder = buildSubtree(newFolder.id);
-        return { newFolder: populatedFolder, parentId: item.parentFolderId };
-      };
+        toast.promise(
+          cloneCollectionAndFetch(),
+          {
+            loading: `Cloning "${item.name}"...`,
+            success: (newCol) => {
+              setCollections(prev => [...prev, newCol]);
+              return `Cloned as "${newCol.name}"`;
+            },
+            error: (err) => err.response?.data?.message || 'Failed to clone collection'
+          }
+        );
+      } else if (item.type === 'folder') {
+        const cloneFolderAndFetch = async () => {
+          const res = await cloneFolder(item.id);
+          const newFolder = normalizeFolder(res.data);
+          const collectionId = item.collectionId;
 
-      toast.promise(
-        cloneFolderAndFetch(),
-        {
-          loading: `Cloning folder "${item.name}"...`,
-          success: ({ newFolder, parentId }) => {
-            setCollections(prev => {
-              const updated = structuredClone(prev);
-              const parentNode = parentId ? findItemById(updated, parentId) : null;
-              if (parentNode && parentNode.items) {
-                parentNode.items.push(newFolder);
-                // Re-sort the parent's items
-                const sortItems = (items) => {
-                  if (!items) return;
-                  items.sort((a, b) => {
-                    if (a.type === 'folder' && b.type !== 'folder') return -1;
-                    if (a.type !== 'folder' && b.type === 'folder') return 1;
-                    return (a.orderIndex || 0) - (b.orderIndex || 0);
-                  });
-                };
-                sortItems(parentNode.items);
-              } else {
-                // If no parent (should not happen for a folder), fallback to pushing at collection root
-                const collection = findItemById(updated, item.collectionId);
-                if (collection && collection.items) {
-                  collection.items.push(newFolder);
-                  sortItems(collection.items);
-                }
-              }
-              return updated;
-            });
-            return `Cloned as "${newFolder.name}"`;
-          },
-          error: (err) => err.response?.data?.message || 'Failed to clone folder'
-        }
-      );
-    } else if (item.type === 'request') {
-      toast.promise(
-        cloneRequest(item.id),
-        {
-          loading: `Cloning request "${item.name}"...`,
-          success: (res) => {
-            const newRequest = normalizeRequest(res.data);
-            const parent = findParentCollection(collections, item.id);
-            if (parent) {
+          // Fetch all folders and requests in the collection
+          const foldersRes = await fetchFolders(collectionId);
+          const allFolders = foldersRes.data.map(normalizeFolder);
+          const requestsRes = await fetchRequests({ collectionId });
+          const allRequests = requestsRes.data.map(normalizeRequest);
+
+          // Build map of all folders
+          const folderMap = new Map();
+          allFolders.forEach(f => folderMap.set(f.id, f));
+
+          // For the new folder, we need to extract its subtree.
+          // Since all folders are already in the map, we can walk down from newFolder.id.
+          const buildSubtree = (folderId) => {
+            const folder = folderMap.get(folderId);
+            if (!folder) return null;
+            const children = allFolders.filter(f => f.parentFolderId === folderId);
+            folder.items = children.map(child => buildSubtree(child.id)).filter(Boolean);
+            // Add requests belonging to this folder
+            const folderRequests = allRequests.filter(req => req.folderId === folderId);
+            folder.items.push(...folderRequests);
+            // Sort items
+            const sortItems = (items) => {
+              if (!items) return;
+              items.sort((a, b) => {
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+                return (a.orderIndex || 0) - (b.orderIndex || 0);
+              });
+              items.forEach(item => {
+                if (item.items) sortItems(item.items);
+              });
+            };
+            sortItems(folder.items);
+            return folder;
+          };
+
+          const populatedFolder = buildSubtree(newFolder.id);
+          return { newFolder: populatedFolder, parentId: item.parentFolderId };
+        };
+
+        toast.promise(
+          cloneFolderAndFetch(),
+          {
+            loading: `Cloning folder "${item.name}"...`,
+            success: ({ newFolder, parentId }) => {
               setCollections(prev => {
                 const updated = structuredClone(prev);
-                const parentNode = findItemById(updated, parent.id);
+                const parentNode = parentId ? findItemById(updated, parentId) : null;
                 if (parentNode && parentNode.items) {
-                  parentNode.items.push(newRequest);
-                  parentNode.items = sortItems(parentNode.items);
+                  parentNode.items.push(newFolder);
+                  // Re-sort the parent's items
+                  const sortItems = (items) => {
+                    if (!items) return;
+                    items.sort((a, b) => {
+                      if (a.type === 'folder' && b.type !== 'folder') return -1;
+                      if (a.type !== 'folder' && b.type === 'folder') return 1;
+                      return (a.orderIndex || 0) - (b.orderIndex || 0);
+                    });
+                  };
+                  sortItems(parentNode.items);
+                } else {
+                  // If no parent (should not happen for a folder), fallback to pushing at collection root
+                  const collection = findItemById(updated, item.collectionId);
+                  if (collection && collection.items) {
+                    collection.items.push(newFolder);
+                    sortItems(collection.items);
+                  }
                 }
                 return updated;
               });
-            }
-            return `Cloned as "${newRequest.name}"`;
-          },
-          error: (err) => err.response?.data?.message || 'Failed to clone request'
-        }
-      );
-    }
-  } else if (actionId === 'delete') {
-    const removeItemById = (items, id) => {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].id === id) {
-          items.splice(i, 1);
-          return true;
-        }
-        if (items[i].items && removeItemById(items[i].items, id)) {
-          return true;
-        }
+              return `Cloned as "${newFolder.name}"`;
+            },
+            error: (err) => err.response?.data?.message || 'Failed to clone folder'
+          }
+        );
+      } else if (item.type === 'request') {
+        toast.promise(
+          cloneRequest(item.id),
+          {
+            loading: `Cloning request "${item.name}"...`,
+            success: (res) => {
+              const newRequest = normalizeRequest(res.data);
+              const parent = findParentCollection(collections, item.id);
+              if (parent) {
+                setCollections(prev => {
+                  const updated = structuredClone(prev);
+                  const parentNode = findItemById(updated, parent.id);
+                  if (parentNode && parentNode.items) {
+                    parentNode.items.push(newRequest);
+                    parentNode.items = sortItems(parentNode.items);
+                  }
+                  return updated;
+                });
+              }
+              return `Cloned as "${newRequest.name}"`;
+            },
+            error: (err) => err.response?.data?.message || 'Failed to clone request'
+          }
+        );
       }
-      return false;
-    };
-    const newCollections = [...collections];
-    removeItemById(newCollections, item.id);
-    setCollections(newCollections);
+    } else if (actionId === 'delete') {
+      const removeItemById = (items, id) => {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].id === id) {
+            items.splice(i, 1);
+            return true;
+          }
+          if (items[i].items && removeItemById(items[i].items, id)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      const newCollections = [...collections];
+      removeItemById(newCollections, item.id);
+      setCollections(newCollections);
 
-    const userId = localStorage.getItem('probestack_user_id');
-    if (!userId) return;
+      const userId = localStorage.getItem('probestack_user_id');
+      if (!userId) return;
 
-    let apiCall;
-    if (item.type === 'collection') apiCall = deleteCollection(item.id);
-    else if (item.type === 'folder') apiCall = deleteFolder(item.id);
-    else if (item.type === 'request') apiCall = deleteRequest(item.id);
-    else return;
+      let apiCall;
+      if (item.type === 'collection') apiCall = deleteCollection(item.id);
+      else if (item.type === 'folder') apiCall = deleteFolder(item.id);
+      else if (item.type === 'request') apiCall = deleteRequest(item.id);
+      else return;
 
-    apiCall.catch((err) => {
-      toast.error(err.response?.data?.message || err.message || 'Failed to delete item');
-    });
-  }
-};
+      apiCall.catch((err) => {
+        toast.error(err.response?.data?.message || err.message || 'Failed to delete item');
+      });
+    }
+  };
 
   const handleRequestTypeSelect = async (optionId) => {
     if (optionId !== 'http') return;
@@ -1402,45 +1401,45 @@ if (actionId === 'run-collection') {
     }
   };
 
-const handleCreateCollection = async (name, description, workspaceId, workspaceName) => {
-  console.log('Creating collection with workspaceId:', workspaceId); // Debug log
-  if (!workspaceId) {
-    toast.error('No active project selected. Please select a project first.');
-    return;
-  }
-
-  const tempId = `col-${Date.now()}`;
-  const newCollection = {
-    id: tempId,
-    _key: tempId,
-    name,
-    description,
-    type: 'collection',
-    project: workspaceId,
-    projectName: workspaceName,
-    items: [],
-    _tempWorkspaceId: workspaceId,
-  };
-  setCollections([...collections, newCollection]);
-
-  try {
-    const res = await createCollection(workspaceId, { name, description });
-    const raw = res.data;
-    const realId = raw.collectionId || raw.id;
-    if (realId) {
-      const workspaceArg = { id: workspaceId, name: workspaceName };
-      const realCol = normalizeCollection(raw, workspaceArg);
-      setCollections(prev => {
-        const filtered = prev.filter(col => col.id !== tempId);
-        return [...filtered, realCol];
-      });
-      toast.success('Collection created');
+  const handleCreateCollection = async (name, description, workspaceId, workspaceName) => {
+    console.log('Creating collection with workspaceId:', workspaceId);
+    if (!workspaceId) {
+      toast.error('No active project selected. Please select a project first.');
+      return;
     }
-  } catch (err) {
-    setCollections(prev => prev.filter(col => col.id !== tempId));
-    toast.error(err.response?.data?.message || 'Failed to create collection');
-  }
-};
+
+    const tempId = `col-${Date.now()}`;
+    const newCollection = {
+      id: tempId,
+      _key: tempId,
+      name,
+      description,
+      type: 'collection',
+      project: workspaceId,
+      projectName: workspaceName,
+      items: [],
+      _tempWorkspaceId: workspaceId,
+    };
+    setCollections([...collections, newCollection]);
+
+    try {
+      const res = await createCollection(workspaceId, { name, description });
+      const raw = res.data;
+      const realId = raw.collectionId || raw.id;
+      if (realId) {
+        const workspaceArg = { id: workspaceId, name: workspaceName };
+        const realCol = normalizeCollection(raw, workspaceArg);
+        setCollections(prev => {
+          const filtered = prev.filter(col => col.id !== tempId);
+          return [...filtered, realCol];
+        });
+        toast.success('Collection created');
+      }
+    } catch (err) {
+      setCollections(prev => prev.filter(col => col.id !== tempId));
+      toast.error(err.response?.data?.message || 'Failed to create collection');
+    }
+  };
 
   const handleCreateFolder = async (name) => {
     if (!selectedCollectionId) {
@@ -1647,388 +1646,385 @@ const handleCreateCollection = async (name, description, workspaceId, workspaceN
   };
 
   // Parse Postman collection
-const parsePostmanCollection = (postmanJson, workspaceId, workspaceName) => {
-  const parseUrl = (urlObj) => {
-    if (typeof urlObj === 'string') return urlObj;
-    if (!urlObj) return '';
+  const parsePostmanCollection = (postmanJson, workspaceId, workspaceName) => {
+    const parseUrl = (urlObj) => {
+      if (typeof urlObj === 'string') return urlObj;
+      if (!urlObj) return '';
 
-    const protocol = urlObj.protocol || 'http';
-    const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
-    const port = urlObj.port ? `:${urlObj.port}` : '';
-    const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
-    const query = urlObj.query && urlObj.query.length > 0
-      ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}`
-      : '';
+      const protocol = urlObj.protocol || 'http';
+      const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
+      const port = urlObj.port ? `:${urlObj.port}` : '';
+      const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
+      const query = urlObj.query && urlObj.query.length > 0
+        ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}`
+        : '';
 
-    return `${protocol}://${host}${port}${path}${query}`;
+      return `${protocol}://${host}${port}${path}${query}`;
+    };
+
+    const parseHeaders = (headers) => {
+      if (!headers || !Array.isArray(headers)) return [];
+      return headers.map(h => ({
+        key: h.key || '',
+        value: h.value || '',
+        enabled: h.disabled !== true
+      }));
+    };
+
+    const parseBody = (body) => {
+      if (!body) return { type: 'none', data: '' };
+
+      if (body.mode === 'raw') {
+        return { type: 'raw', data: body.raw || '' };
+      } else if (body.mode === 'formdata') {
+        return {
+          type: 'form-data',
+          data: body.formdata || []
+        };
+      } else if (body.mode === 'urlencoded') {
+        return {
+          type: 'x-www-form-urlencoded',
+          data: body.urlencoded || []
+        };
+      }
+      return { type: 'none', data: '' };
+    };
+
+    const parseAuth = (auth) => {
+      if (!auth || !auth.type) return { type: 'none' };
+
+      if (auth.type === 'bearer') {
+        const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+        return { type: 'bearer', token };
+      } else if (auth.type === 'basic') {
+        const username = auth.basic?.find(b => b.key === 'username')?.value || '';
+        const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+        return { type: 'basic', username, password };
+      } else if (auth.type === 'apikey') {
+        const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
+        const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
+        const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
+        return { type: 'apikey', key, value, in: addTo };
+      }
+      return { type: 'none' };
+    };
+
+    const parseItem = (item, depth = 0) => {
+      if (item.request) {
+        const request = item.request;
+        return {
+          id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          name: item.name || 'Untitled Request',
+          type: 'request',
+          method: (request.method || 'GET').toUpperCase(),
+          path: parseUrl(request.url),
+          headers: parseHeaders(request.header),
+          body: parseBody(request.body),
+          auth: parseAuth(request.auth),
+          params: request.url?.query || [],
+        };
+      }
+
+      if (item.item && Array.isArray(item.item)) {
+        return {
+          id: `imported-folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          name: item.name || 'Untitled Folder',
+          type: 'folder',
+          icon: 'folder',
+          items: item.item.map(subItem => parseItem(subItem, depth + 1))
+        };
+      }
+
+      return null;
+    };
+
+    const collectionName = postmanJson.info?.name || 'Imported Collection';
+    const items = postmanJson.item ? postmanJson.item.map(item => parseItem(item)) : [];
+
+    return {
+      id: `imported-collection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      name: collectionName,
+      type: 'collection',
+      icon: 'folder',
+      project: workspaceId,
+      projectName: workspaceName,
+      items: items.filter(Boolean)
+    };
   };
-
-  const parseHeaders = (headers) => {
-    if (!headers || !Array.isArray(headers)) return [];
-    return headers.map(h => ({
-      key: h.key || '',
-      value: h.value || '',
-      enabled: h.disabled !== true
-    }));
-  };
-
-  const parseBody = (body) => {
-    if (!body) return { type: 'none', data: '' };
-
-    if (body.mode === 'raw') {
-      return { type: 'raw', data: body.raw || '' };
-    } else if (body.mode === 'formdata') {
-      return {
-        type: 'form-data',
-        data: body.formdata || []
-      };
-    } else if (body.mode === 'urlencoded') {
-      return {
-        type: 'x-www-form-urlencoded',
-        data: body.urlencoded || []
-      };
-    }
-    return { type: 'none', data: '' };
-  };
-
-  const parseAuth = (auth) => {
-    if (!auth || !auth.type) return { type: 'none' };
-
-    if (auth.type === 'bearer') {
-      const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
-      return { type: 'bearer', token };
-    } else if (auth.type === 'basic') {
-      const username = auth.basic?.find(b => b.key === 'username')?.value || '';
-      const password = auth.basic?.find(b => b.key === 'password')?.value || '';
-      return { type: 'basic', username, password };
-    } else if (auth.type === 'apikey') {
-      const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
-      const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
-      const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
-      return { type: 'apikey', key, value, in: addTo };
-    }
-    return { type: 'none' };
-  };
-
-  const parseItem = (item, depth = 0) => {
-    if (item.request) {
-      const request = item.request;
-      return {
-        id: `imported-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        name: item.name || 'Untitled Request',
-        type: 'request',
-        method: (request.method || 'GET').toUpperCase(),
-        path: parseUrl(request.url),
-        headers: parseHeaders(request.header),
-        body: parseBody(request.body),
-        auth: parseAuth(request.auth),
-        params: request.url?.query || [],
-      };
-    }
-
-    if (item.item && Array.isArray(item.item)) {
-      return {
-        id: `imported-folder-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        name: item.name || 'Untitled Folder',
-        type: 'folder',
-        icon: 'folder',
-        items: item.item.map(subItem => parseItem(subItem, depth + 1))
-      };
-    }
-
-    return null;
-  };
-
-  const collectionName = postmanJson.info?.name || 'Imported Collection';
-  const items = postmanJson.item ? postmanJson.item.map(item => parseItem(item)) : [];
-
-  return {
-    id: `imported-collection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    name: collectionName,
-    type: 'collection',
-    icon: 'folder',
-    project: workspaceId,
-    projectName: workspaceName,
-    items: items.filter(Boolean)
-  };
-};
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
 
-const handleFileImport = (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
+  const handleFileImport = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  // Check file extension
-  if (!file.name.endsWith('.json')) {
-    toast.error('Please select a valid JSON file');
-    event.target.value = ''; // reset input
-    return;
-  }
-
-  // Check file size (max 5 MB)
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
-  if (file.size > MAX_FILE_SIZE) {
-    toast.error('File size exceeds 5 MB limit. Please choose a smaller file.');
-    event.target.value = ''; // reset input
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const jsonContent = JSON.parse(e.target.result);
-      if (!jsonContent.info || !jsonContent.item) {
-        toast.error('Invalid Postman collection format');
-        event.target.value = ''; // reset input
-        return;
-      }
-      // Store both content and file name
-      setImportFileData({
-        content: jsonContent,
-        fileName: file.name
-      });
-      setShowImportWorkspaceModal(true);
+    // Check file extension
+    if (!file.name.endsWith('.json')) {
+      toast.error('Please select a valid JSON file');
       event.target.value = ''; // reset input
-    } catch (error) {
-      console.error('Error parsing JSON:', error);
-      toast.error('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+      return;
+    }
+
+    // Check file size (max 5 MB)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('File size exceeds 5 MB limit. Please choose a smaller file.');
       event.target.value = ''; // reset input
+      return;
     }
-  };
-  reader.readAsText(file);
-};
 
-// Helper to extract request payload from Postman item
-const extractRequestPayload = (postmanItem, collectionId, folderId) => {
-  const request = postmanItem.request;
-  const parseUrl = (urlObj) => {
-    if (typeof urlObj === 'string') return urlObj;
-    if (!urlObj) return '';
-    const protocol = urlObj.protocol || 'http';
-    const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
-    const port = urlObj.port ? `:${urlObj.port}` : '';
-    const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
-    const query = urlObj.query?.length ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` : '';
-    return `${protocol}://${host}${port}${path}${query}`;
-  };
-  const parseHeaders = (headers) => {
-    if (!Array.isArray(headers)) return [];
-    return headers.map(h => ({ key: h.key, value: h.value, enabled: !h.disabled }));
-  };
-  const parseBody = (body) => {
-    if (!body) return { type: 'none', data: '' };
-    if (body.mode === 'raw') return { type: 'raw', data: body.raw || '' };
-    if (body.mode === 'formdata') return { type: 'form-data', data: body.formdata || [] };
-    if (body.mode === 'urlencoded') return { type: 'x-www-form-urlencoded', data: body.urlencoded || [] };
-    return { type: 'none', data: '' };
-  };
-  const parseAuth = (auth) => {
-    if (!auth || !auth.type) return { type: 'none', config: {} };
-    if (auth.type === 'bearer') {
-      const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
-      return { type: 'bearer', config: { token } };
-    }
-    if (auth.type === 'basic') {
-      const username = auth.basic?.find(b => b.key === 'username')?.value || '';
-      const password = auth.basic?.find(b => b.key === 'password')?.value || '';
-      return { type: 'basic', config: { username, password } };
-    }
-    if (auth.type === 'apikey') {
-      const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
-      const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
-      const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
-      return { type: 'apikey', config: { key, value, in: addTo } };
-    }
-    return { type: 'none', config: {} };
-  };
-
-  const body = parseBody(request.body);
-  const auth = parseAuth(request.auth);
-  const url = parseUrl(request.url);
-  const headers = parseHeaders(request.header);
-  const params = request.url?.query?.map(q => ({ key: q.key, value: q.value })) || [];
-
-  return {
-    name: postmanItem.name || 'Untitled Request',
-    method: (request.method || 'GET').toUpperCase(),
-    url,
-    headers,
-    query_params: params,
-    body_type: body.type,
-    body_content: typeof body.data === 'string' ? body.data : JSON.stringify(body.data),
-    auth_type: auth.type,
-    auth_config: auth.config,
-    pre_request_script: '',
-    test_script: '',
-    collection_id: collectionId,
-    folder_id: folderId,
-  };
-};
-
-// Recursive import function with counters
-const importItems = async (items, collectionId, parentFolderId, counts) => {
-  for (const item of items) {
-    if (item.request) {
-      // Request
-      const payload = extractRequestPayload(item, collectionId, parentFolderId);
+    const reader = new FileReader();
+    reader.onload = (e) => {
       try {
-        await createRequest(payload);
-        counts.success++;
-      } catch (error) {
-        counts.failure++;
-        console.error('❌ Failed to create request:', item.name, error.response?.data || error.message);
-        // Log full error details to console for debugging
-        if (error.response) {
-          console.error('Status:', error.response.status);
-          console.error('Data:', error.response.data);
+        const jsonContent = JSON.parse(e.target.result);
+        if (!jsonContent.info || !jsonContent.item) {
+          toast.error('Invalid Postman collection format');
+          event.target.value = ''; // reset input
+          return;
         }
-      }
-    } else if (item.item) {
-      // Folder
-      try {
-        const folderRes = await createFolder(collectionId, {
-          name: item.name || 'Untitled Folder',
-          parentFolderId,
+        // Store both content and file name
+        setImportFileData({
+          content: jsonContent,
+          fileName: file.name
         });
-        const folderId = folderRes.data.FolderId || folderRes.data.folderId || folderRes.data.id;
-        if (!folderId) {
-          console.error('❌ Folder creation response missing ID:', folderRes.data);
-          counts.failure++;
-          continue;
-        }
-        counts.foldersCreated++;
-        await importItems(item.item, collectionId, folderId, counts);
+        setShowImportWorkspaceModal(true);
+        event.target.value = ''; // reset input
       } catch (error) {
-        counts.failure++;
-        console.error('❌ Failed to create folder:', item.name, error.response?.data || error.message);
-        if (error.response) {
-          console.error('Status:', error.response.status);
-          console.error('Data:', error.response.data);
+        console.error('Error parsing JSON:', error);
+        toast.error('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
+        event.target.value = ''; // reset input
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Helper to extract request payload from Postman item
+  const extractRequestPayload = (postmanItem, collectionId, folderId) => {
+    const request = postmanItem.request;
+    const parseUrl = (urlObj) => {
+      if (typeof urlObj === 'string') return urlObj;
+      if (!urlObj) return '';
+      const protocol = urlObj.protocol || 'http';
+      const host = Array.isArray(urlObj.host) ? urlObj.host.join('.') : (urlObj.host || 'localhost');
+      const port = urlObj.port ? `:${urlObj.port}` : '';
+      const path = Array.isArray(urlObj.path) ? `/${urlObj.path.join('/')}` : (urlObj.path || '');
+      const query = urlObj.query?.length ? `?${urlObj.query.map(q => `${q.key}=${q.value || ''}`).join('&')}` : '';
+      return `${protocol}://${host}${port}${path}${query}`;
+    };
+    const parseHeaders = (headers) => {
+      if (!Array.isArray(headers)) return [];
+      return headers.map(h => ({ key: h.key, value: h.value, enabled: !h.disabled }));
+    };
+    const parseBody = (body) => {
+      if (!body) return { type: 'none', data: '' };
+      if (body.mode === 'raw') return { type: 'raw', data: body.raw || '' };
+      if (body.mode === 'formdata') return { type: 'form-data', data: body.formdata || [] };
+      if (body.mode === 'urlencoded') return { type: 'x-www-form-urlencoded', data: body.urlencoded || [] };
+      return { type: 'none', data: '' };
+    };
+    const parseAuth = (auth) => {
+      if (!auth || !auth.type) return { type: 'none', config: {} };
+      if (auth.type === 'bearer') {
+        const token = auth.bearer?.find(b => b.key === 'token')?.value || '';
+        return { type: 'bearer', config: { token } };
+      }
+      if (auth.type === 'basic') {
+        const username = auth.basic?.find(b => b.key === 'username')?.value || '';
+        const password = auth.basic?.find(b => b.key === 'password')?.value || '';
+        return { type: 'basic', config: { username, password } };
+      }
+      if (auth.type === 'apikey') {
+        const key = auth.apikey?.find(a => a.key === 'key')?.value || '';
+        const value = auth.apikey?.find(a => a.key === 'value')?.value || '';
+        const addTo = auth.apikey?.find(a => a.key === 'in')?.value || 'header';
+        return { type: 'apikey', config: { key, value, in: addTo } };
+      }
+      return { type: 'none', config: {} };
+    };
+
+    const body = parseBody(request.body);
+    const auth = parseAuth(request.auth);
+    const url = parseUrl(request.url);
+    const headers = parseHeaders(request.header);
+    const params = request.url?.query?.map(q => ({ key: q.key, value: q.value })) || [];
+
+    return {
+      name: postmanItem.name || 'Untitled Request',
+      method: (request.method || 'GET').toUpperCase(),
+      url,
+      headers,
+      query_params: params,
+      body_type: body.type,
+      body_content: typeof body.data === 'string' ? body.data : JSON.stringify(body.data),
+      auth_type: auth.type,
+      auth_config: auth.config,
+      pre_request_script: '',
+      test_script: '',
+      collection_id: collectionId,
+      folder_id: folderId,
+    };
+  };
+
+  // Recursive import function with counters
+  const importItems = async (items, collectionId, parentFolderId, counts) => {
+    for (const item of items) {
+      if (item.request) {
+        // Request
+        const payload = extractRequestPayload(item, collectionId, parentFolderId);
+        try {
+          await createRequest(payload);
+          counts.success++;
+        } catch (error) {
+          counts.failure++;
+          console.error('❌ Failed to create request:', item.name, error.response?.data || error.message);
+          // Log full error details to console for debugging
+          if (error.response) {
+            console.error('Status:', error.response.status);
+            console.error('Data:', error.response.data);
+          }
+        }
+      } else if (item.item) {
+        // Folder
+        try {
+          const folderRes = await createFolder(collectionId, {
+            name: item.name || 'Untitled Folder',
+            parentFolderId,
+          });
+          const folderId = folderRes.data.FolderId || folderRes.data.folderId || folderRes.data.id;
+          if (!folderId) {
+            console.error('❌ Folder creation response missing ID:', folderRes.data);
+            counts.failure++;
+            continue;
+          }
+          counts.foldersCreated++;
+          await importItems(item.item, collectionId, folderId, counts);
+        } catch (error) {
+          counts.failure++;
+          console.error('❌ Failed to create folder:', item.name, error.response?.data || error.message);
+          if (error.response) {
+            console.error('Status:', error.response.status);
+            console.error('Data:', error.response.data);
+          }
         }
       }
     }
-  }
-};
+  };
 
-const handleImportToWorkspace = async (workspaceId, workspaceName) => {
-  if (!importFileData) return;
-  const { content: postmanJson } = importFileData;
+  const handleImportToWorkspace = async (workspaceId, workspaceName) => {
+    if (!importFileData) return;
+    const { content: postmanJson } = importFileData;
 
-  // Determine base name
-  let baseName = postmanJson.info?.name?.trim() || 'Imported Collection';
+    // Determine base name
+    let baseName = postmanJson.info?.name?.trim() || 'Imported Collection';
 
-  // Check for existing collections in this workspace
-  const existingNames = collections
-    .filter(c => c.project === workspaceId)
-    .map(c => c.name.toLowerCase());
+    // Check for existing collections in this workspace
+    const existingNames = collections
+      .filter(c => c.project === workspaceId)
+      .map(c => c.name.toLowerCase());
 
-  let finalName = baseName;
-  let counter = 0;
-  while (existingNames.includes(finalName.toLowerCase())) {
-    counter++;
-    finalName = counter === 1 ? `${baseName} (imported)` : `${baseName} (imported ${counter})`;
-  }
+    let finalName = baseName;
+    let counter = 0;
+    while (existingNames.includes(finalName.toLowerCase())) {
+      counter++;
+      finalName = counter === 1 ? `${baseName} (imported)` : `${baseName} (imported ${counter})`;
+    }
 
-  const toastId = toast.loading(`Importing "${baseName}"...`);
+    const toastId = toast.loading(`Importing "${baseName}"...`);
 
-  const counts = { success: 0, failure: 0, foldersCreated: 0 };
+    const counts = { success: 0, failure: 0, foldersCreated: 0 };
 
-  try {
-    // Step 1: Create collection
-    const createColRes = await createCollection(workspaceId, { name: finalName });
-    const collectionId = createColRes.data.id || createColRes.data.collectionId;
-    if (!collectionId) throw new Error('Failed to create collection');
+    try {
+      // Step 1: Create collection
+      const createColRes = await createCollection(workspaceId, { name: finalName });
+      const collectionId = createColRes.data.id || createColRes.data.collectionId;
+      if (!collectionId) throw new Error('Failed to create collection');
 
-    // Step 2: Recursively create folders and requests
-    await importItems(postmanJson.item || [], collectionId, null, counts);
+      // Step 2: Recursively create folders and requests
+      await importItems(postmanJson.item || [], collectionId, null, counts);
 
-    // Step 3: Fetch the new collection's folders and requests to build tree
-    const foldersRes = await fetchFolders(collectionId);
-    const folders = foldersRes.data.map(normalizeFolder);
-    const requestsRes = await fetchRequests({ collectionId });
-    const requests = requestsRes.data.map(normalizeRequest);
+      // Step 3: Fetch the new collection's folders and requests to build tree
+      const foldersRes = await fetchFolders(collectionId);
+      const folders = foldersRes.data.map(normalizeFolder);
+      const requestsRes = await fetchRequests({ collectionId });
+      const requests = requestsRes.data.map(normalizeRequest);
 
-    // Build folder hierarchy
-    const folderMap = new Map();
-    folders.forEach(f => folderMap.set(f.id, f));
+      // Build folder hierarchy
+      const folderMap = new Map();
+      folders.forEach(f => folderMap.set(f.id, f));
 
-    const rootFolders = [];
-    folders.forEach(f => {
-      if (f.parentFolderId) {
-        const parent = folderMap.get(f.parentFolderId);
-        if (parent) {
-          if (!parent.items) parent.items = [];
-          parent.items.push(f);
+      const rootFolders = [];
+      folders.forEach(f => {
+        if (f.parentFolderId) {
+          const parent = folderMap.get(f.parentFolderId);
+          if (parent) {
+            if (!parent.items) parent.items = [];
+            parent.items.push(f);
+          } else {
+            rootFolders.push(f);
+          }
         } else {
           rootFolders.push(f);
         }
-      } else {
-        rootFolders.push(f);
-      }
-    });
+      });
 
-    const items = [...rootFolders];
+      const items = [...rootFolders];
 
-    requests.forEach(req => {
-      if (req.folderId) {
-        const parent = folderMap.get(req.folderId);
-        if (parent) {
-          if (!parent.items) parent.items = [];
-          parent.items.push(req);
+      requests.forEach(req => {
+        if (req.folderId) {
+          const parent = folderMap.get(req.folderId);
+          if (parent) {
+            if (!parent.items) parent.items = [];
+            parent.items.push(req);
+          } else {
+            items.push(req);
+          }
         } else {
           items.push(req);
         }
+      });
+
+      // Sort items
+      const sortItems = (items) => {
+        if (!items) return;
+        items.sort((a, b) => {
+          if (a.type === 'folder' && b.type !== 'folder') return -1;
+          if (a.type !== 'folder' && b.type === 'folder') return 1;
+          return (a.orderIndex || 0) - (b.orderIndex || 0);
+        });
+        items.forEach(item => {
+          if (item.items) sortItems(item.items);
+        });
+      };
+      sortItems(items);
+
+      const newCollection = {
+        id: collectionId,
+        name: finalName,
+        type: 'collection',
+        project: workspaceId,
+        projectName: workspaceName,
+        items,
+      };
+
+      setCollections(prev => [...prev, newCollection]);
+      setExpanded(prev => ({ ...prev, [newCollection.id]: true }));
+
+      // Show summary toast
+      const totalItems = counts.success + counts.failure;
+      if (counts.failure === 0) {
+        toast.success(`✅ Collection "${finalName}" imported successfully (${counts.success} requests)`, { id: toastId });
       } else {
-        items.push(req);
+        toast.warning(`⚠️ Imported with issues: ${counts.success} succeeded, ${counts.failure} failed. Check console for details.`, { id: toastId });
       }
-    });
-
-    // Sort items
-    const sortItems = (items) => {
-      if (!items) return;
-      items.sort((a, b) => {
-        if (a.type === 'folder' && b.type !== 'folder') return -1;
-        if (a.type !== 'folder' && b.type === 'folder') return 1;
-        return (a.orderIndex || 0) - (b.orderIndex || 0);
-      });
-      items.forEach(item => {
-        if (item.items) sortItems(item.items);
-      });
-    };
-    sortItems(items);
-
-    const newCollection = {
-      id: collectionId,
-      name: finalName,
-      type: 'collection',
-      project: workspaceId,
-      projectName: workspaceName,
-      items,
-    };
-
-    setCollections(prev => [...prev, newCollection]);
-    setExpanded(prev => ({ ...prev, [newCollection.id]: true }));
-
-    // Show summary toast
-    const totalItems = counts.success + counts.failure;
-    if (counts.failure === 0) {
-      toast.success(`✅ Collection "${finalName}" imported successfully (${counts.success} requests)`, { id: toastId });
-    } else {
-      toast.warning(`⚠️ Imported with issues: ${counts.success} succeeded, ${counts.failure} failed. Check console for details.`, { id: toastId });
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast.error(error.response?.data?.message || error.message || 'Import failed', { id: toastId });
+    } finally {
+      setImportFileData(null);
     }
-  } catch (error) {
-    console.error('Import failed:', error);
-    toast.error(error.response?.data?.message || error.message || 'Import failed', { id: toastId });
-  } finally {
-    setImportFileData(null);
-  }
-};
-
-
-
+  };
 
   const getCollectionsCountForWorkspace = (workspaceId) => {
     return collections.filter(c => c.project === workspaceId).length;
@@ -2039,22 +2035,21 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
   // ----------------------------------------------------------------------
 
   return (
-    <div className="flex flex-col h-full bg-dark-800/40">
+    <div className="flex flex-col h-full bg-[#161B30]">
       {/* Top buttons */}
-      <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
+      <div className="shrink-0 px-4 py-3 border-b border-dark-600">
         <div className="flex gap-2">
-
           <button
             type="button"
             onClick={() => setShowNewCollectionModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
-           + Create 
+            + Create
           </button>
           <button
             type="button"
             onClick={handleImportClick}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#161B30] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
             title="Import Collections"
           >
             Import
@@ -2070,7 +2065,7 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
       </div>
 
       {/* Search */}
-      <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
+      <div className="shrink-0 px-3 py-2 border-b border-dark-600">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
@@ -2078,46 +2073,46 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
             placeholder="Search collections"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-[#0f172a]/50 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           />
         </div>
       </div>
 
-      {/* Tree - Grouped by Workspaces */}
-<div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
-  {filteredCollections.length === 0 ? (
-    <div className="py-8 text-center text-gray-500 text-xs">
-      No collections in this workspace.
-    </div>
-  ) : (
-    filteredCollections.map((col) => (
-      <CollectionNode
-        key={col._key || col.id}
-        item={col}
-        expanded={expanded}
-        onToggle={toggle}
-        level={0}
-        onSelectEndpoint={onSelectEndpoint}
-        onOpenMenu={(e, item, itemType) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            itemId: item.id,
-            type: itemType,
-          });
-        }}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onDragEnd={handleDragEnd}
-        dragOverItem={dragOverItem}
-      />
-    ))
-  )}
-</div>
+      {/* Tree - Grouped by Workspaces (no grouping, just collections) */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
+        {filteredCollections.length === 0 ? (
+          <div className="py-8 text-center text-gray-500 text-xs">
+            No collections in this workspace.
+          </div>
+        ) : (
+          filteredCollections.map((col) => (
+            <CollectionNode
+              key={col._key || col.id}
+              item={col}
+              expanded={expanded}
+              onToggle={toggle}
+              level={0}
+              onSelectEndpoint={onSelectEndpoint}
+              onOpenMenu={(e, item, itemType) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  itemId: item.id,
+                  type: itemType,
+                });
+              }}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onDragEnd={handleDragEnd}
+              dragOverItem={dragOverItem}
+            />
+          ))
+        )}
+      </div>
 
       {/* Context Menus */}
       {contextMenu && (
@@ -2130,17 +2125,14 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
         />
       )}
 
-
-
-
-<NewCollectionModal
-  isOpen={showNewCollectionModal}
-  onClose={() => setShowNewCollectionModal(false)}
-  onCreate={handleCreateCollection}
-  collections={collections}
-  activeWorkspaceId={activeWorkspaceId}
-  activeWorkspaceName={activeWorkspaceName}
-/>
+      <NewCollectionModal
+        isOpen={showNewCollectionModal}
+        onClose={() => setShowNewCollectionModal(false)}
+        onCreate={handleCreateCollection}
+        collections={collections}
+        activeWorkspaceId={activeWorkspaceId}
+        activeWorkspaceName={activeWorkspaceName}
+      />
 
       <NewRequestTypeModal
         isOpen={showRequestTypeModal}
@@ -2172,23 +2164,17 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
         onRename={handleRenameItem}
       />
 
-  
-
-
-
-
-
-<ImportWorkspaceModal
-  isOpen={showImportWorkspaceModal}
-  onClose={() => {
-    setShowImportWorkspaceModal(false);
-    setImportFileData(null);
-  }}
-  onImport={handleImportToWorkspace}
-  projects={projects}
-  onAddProject={onAddProject}
-  fileName={importFileData?.fileName}
-/>
+      <ImportWorkspaceModal
+        isOpen={showImportWorkspaceModal}
+        onClose={() => {
+          setShowImportWorkspaceModal(false);
+          setImportFileData(null);
+        }}
+        onImport={handleImportToWorkspace}
+        projects={projects}
+        onAddProject={onAddProject}
+        fileName={importFileData?.fileName}
+      />
     </div>
   );
 }

@@ -2502,4 +2502,3 @@ function MockCollectionNode({ item, expanded, onToggle, level, sortItems, isRequ
     </div>
   );
 }
-

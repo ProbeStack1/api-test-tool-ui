@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { toast } from 'sonner';
 import { listTestSpecs } from '../services/testSpecificationService';
 import { getDashboardSummary, getTotalCollections, getTotalRequests, getModuleCount, getTotalEnvironments } from '../services/deshboardService';
-import { listWorkspaceLoadTests } from '../services/collectionService'; // ✅ correct import
+import { listWorkspaceLoadTests } from '../services/collectionService';
 import CollectionRunsTable from './CollectionRunsTable';
 import LoadTestRunsTable from './LoadTestRunsTable';
 
@@ -15,7 +15,7 @@ export default function DashboardSpecTable({
   workspaceRuns, 
   loadingRuns, 
   onViewRunResults,
-  onViewLoadTestRun, // required callback
+  onViewLoadTestRun,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,11 +25,9 @@ export default function DashboardSpecTable({
   const [dashboardData, setDashboardData] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
 
-  // Load test runs state
   const [loadTestRuns, setLoadTestRuns] = useState([]);
   const [loadingLoadRuns, setLoadingLoadRuns] = useState(false);
 
-  // Column visibility state
   const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false);
   const columnVisibilityRef = useRef(null);
   const [visibleColumns, setVisibleColumns] = useState({
@@ -54,7 +52,6 @@ export default function DashboardSpecTable({
     { key: 'requestStatus', label: 'Request Status' },
   ];
 
-  // Fetch dashboard summary
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
@@ -69,7 +66,6 @@ export default function DashboardSpecTable({
     fetchDashboard();
   }, []);
 
-  // Fetch specs from all workspaces
   useEffect(() => {
     if (!projects || projects.length === 0) return;
     const fetchAllSpecs = async () => {
@@ -98,7 +94,6 @@ export default function DashboardSpecTable({
     fetchAllSpecs();
   }, [projects]);
 
-  // Fetch load test runs from all workspaces
   useEffect(() => {
     if (!projects || projects.length === 0) return;
     const fetchAllLoadTestRuns = async () => {
@@ -107,7 +102,7 @@ export default function DashboardSpecTable({
         const allRuns = [];
         for (const project of projects) {
           try {
-            const res = await listWorkspaceLoadTests(project.id); // ✅ correct API
+            const res = await listWorkspaceLoadTests(project.id);
             const runsWithWorkspace = (res.data || []).map(run => ({
               ...run,
               workspaceName: project.name,
@@ -117,7 +112,6 @@ export default function DashboardSpecTable({
             console.error(`Failed to fetch load test runs for workspace ${project.name}:`, err);
           }
         }
-        // Sort by startedAt descending (newest first)
         allRuns.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
         setLoadTestRuns(allRuns);
       } catch (err) {
@@ -129,7 +123,6 @@ export default function DashboardSpecTable({
     fetchAllLoadTestRuns();
   }, [projects]);
 
-  // Column dropdown handlers (unchanged)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (columnVisibilityRef.current && !columnVisibilityRef.current.contains(event.target)) {
@@ -158,7 +151,6 @@ export default function DashboardSpecTable({
     }));
   };
 
-  // Metrics derived from dashboard data
   const metricsData = useMemo(() => {
     if (!dashboardData) return [];
     return [
@@ -229,7 +221,6 @@ export default function DashboardSpecTable({
     ];
   }, [dashboardData]);
 
-  // Transform specs into row format
   const tableRows = useMemo(() => {
     return specs.map((spec) => ({
       id: spec.id,
@@ -297,12 +288,21 @@ export default function DashboardSpecTable({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {metricsData.map((metric, index) => (
-                <div key={index} className="bg-dark-800/50 border border-dark-700 rounded-xl p-4 hover:border-primary/30 transition-all duration-300">
+                <div
+                  key={index}
+                  className="bg-[#1e2330] border border-dark-700 rounded-xl p-4 hover:border-primary/30 transition-all duration-300"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{metric.label}</div>
-                      <div className="text-2xl font-bold text-white mb-1">{metric.value}</div>
-                      <div className="text-xs font-medium text-green-400">{metric.change}</div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                        {metric.label}
+                      </div>
+                      <div className="text-2xl font-bold text-white mb-1">
+                        {metric.value}
+                      </div>
+                      <div className="text-xs font-medium text-green-400">
+                        {metric.change}
+                      </div>
                     </div>
                     <div className={`p-2 rounded-lg ${metric.bgColor} ${metric.color}`}>
                       <metric.icon className="h-5 w-5" />
@@ -402,11 +402,15 @@ export default function DashboardSpecTable({
                       {visibleColumns.testCases && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Test Cases</th>}
                       {visibleColumns.collectionDetails && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Collection Details</th>}
                       {visibleColumns.requestStatus && <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Request Status</th>}
-                     </tr>
+                    </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {loadingSpecs ? (
-                      <tr><td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
+                      <tr>
+                        <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">
+                          Loading...
+                        </td>
+                      </tr>
                     ) : paginatedData.length > 0 ? (
                       paginatedData.map((item) => {
                         const isExpanded = expandedRow === item.id;
@@ -456,7 +460,11 @@ export default function DashboardSpecTable({
                         );
                       })
                     ) : (
-                      <tr><td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">No specifications found</td></tr>
+                      <tr>
+                        <td colSpan={Object.values(visibleColumns).filter(v => v).length} className="px-6 py-12 text-center text-slate-400">
+                          No specifications found
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>

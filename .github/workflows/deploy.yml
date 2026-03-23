@@ -32,6 +32,17 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
@@ -62,10 +73,9 @@ jobs:
           context: .
           push: true
           provenance: false
+          no-cache: true   # 🔥 IMPORTANT (avoid stale dist)
           tags: |
             ${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Get GKE credentials
         run: |
@@ -77,6 +87,11 @@ jobs:
         run: |
           kubectl set image deployment/${{ env.SERVICE_NAME }} \
           ${{ env.SERVICE_NAME }}=${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          -n ${{ env.NAMESPACE }}
+
+      - name: Force restart deployment
+        run: |
+          kubectl rollout restart deployment/${{ env.SERVICE_NAME }} \
           -n ${{ env.NAMESPACE }}
 
       - name: Wait for deployment rollout

@@ -1320,24 +1320,19 @@ if (currentReq.isMockEndpoint) {
       targetRequestId = savedRequest.id;
     }
 
-    // Build overrides
-    const overrides = {};
-    overrides.url = substituteVariables(url);
-   const headersArray = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
-// Convert to object for backend
-const headersObj = {};
-headersArray.forEach(h => {
-  if (h.key && h.enabled !== false) {
-    headersObj[h.key] = h.value;
-  }
-});
-overrides.headers = headersObj;
-    overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
+// Build overrides
+const overrides = {};
+// Remove query string from URL (backend will add it from query_params)
+overrides.url = substituteVariables(url).split('?')[0];
+// Send headers as array of objects (KeyValueEnabled)
+overrides.headers = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
+// Send query params as array
+overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
 
-    if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
-      overrides.body_content = substituteVariables(body);
-    }
-    overrides.path_variables = [];
+if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
+  overrides.body_content = substituteVariables(body);
+}
+overrides.path_variables = [];
 
     const axiosResponse = await executeRequest(targetRequestId, { overrides });
     const executionResult = axiosResponse.data;

@@ -74,51 +74,6 @@ const [loadingRuns, setLoadingRuns] = useState(false);
 const [loadTestRuns, setLoadTestRuns] = useState([]);
 const [loadingLoadRuns, setLoadingLoadRuns] = useState(false);
 
-// Fetch collection runs for the active workspace
-useEffect(() => {
-  if (!activeWorkspaceId || !collections.length) return;
-
-  const fetchAllRuns = async () => {
-    setLoadingRuns(true);
-    try {
-      const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
-      const runPromises = workspaceCollections.map(col =>
-        listCollectionRuns(col.id).then(res => res.data)
-      );
-      const runsArrays = await Promise.all(runPromises);
-      const allRuns = runsArrays.flat().sort((a, b) =>
-        new Date(b.startedAt) - new Date(a.startedAt)
-      );
-      setWorkspaceRuns(allRuns);
-    } catch (err) {
-      console.error('Failed to fetch runs:', err);
-    } finally {
-      setLoadingRuns(false);
-    }
-  };
-
-  fetchAllRuns();
-}, [activeWorkspaceId, collections]);
-
-// Fetch load test runs for the active workspace
-useEffect(() => {
-  if (!activeWorkspaceId) return;
-
-  const fetchLoadTestRuns = async () => {
-    setLoadingLoadRuns(true);
-    try {
-      const response = await listWorkspaceLoadTests(activeWorkspaceId);
-      setLoadTestRuns(response.data || []);
-    } catch (err) {
-      console.error('Failed to fetch load test runs:', err);
-    } finally {
-      setLoadingLoadRuns(false);
-    }
-  };
-
-  fetchLoadTestRuns();
-}, [activeWorkspaceId]);
-
 const handleShowChatbot = (error, response, requestInfo) => {
   setChatbotError(error);
   setChatbotResponse(response);
@@ -904,6 +859,51 @@ const [requests, setRequests] = useState([createEmptyRequest()]);
     }
     return [];
   });
+
+// Fetch collection runs for the active workspace
+useEffect(() => {
+  if (!activeWorkspaceId || !collections.length) return;
+
+  const fetchAllRuns = async () => {
+    setLoadingRuns(true);
+    try {
+      const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
+      const runPromises = workspaceCollections.map(col =>
+        listCollectionRuns(col.id).then(res => res.data)
+      );
+      const runsArrays = await Promise.all(runPromises);
+      const allRuns = runsArrays.flat().sort((a, b) =>
+        new Date(b.startedAt) - new Date(a.startedAt)
+      );
+      setWorkspaceRuns(allRuns);
+    } catch (err) {
+      console.error('Failed to fetch runs:', err);
+    } finally {
+      setLoadingRuns(false);
+    }
+  };
+
+  fetchAllRuns();
+}, [activeWorkspaceId, collections]);
+
+// Fetch load test runs for the active workspace
+useEffect(() => {
+  if (!activeWorkspaceId) return;
+
+  const fetchLoadTestRuns = async () => {
+    setLoadingLoadRuns(true);
+    try {
+      const response = await listWorkspaceLoadTests(activeWorkspaceId);
+      setLoadTestRuns(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch load test runs:', err);
+    } finally {
+      setLoadingLoadRuns(false);
+    }
+  };
+
+  fetchLoadTestRuns();
+}, [activeWorkspaceId]);
 
  
 const [activeRequestIndex, setActiveRequestIndex] = useState(0);

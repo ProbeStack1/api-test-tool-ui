@@ -141,6 +141,34 @@ const buildPristineFromRequests = (reqs) => {
   return pristine;
 };
 
+// Helper to compute environment overrides for collection/load runs
+const getEnvironmentOverrides = () => {
+  const activeEnvironment = environments.find(e => e.isActive);
+  const combined = {};
+
+  if (activeEnvironment) {
+    // Add active environment variables
+    (activeEnvironment.variables || []).forEach(v => {
+      if (v.key && v.value) combined[v.key] = v.value;
+    });
+    // If active environment is not global, also add global variables
+    if (activeEnvironment.environment_type !== 'global' && globalEnvironment) {
+      (globalEnvironment.variables || []).forEach(v => {
+        if (v.key && v.value) combined[v.key] = v.value;
+      });
+    }
+  } else {
+    // No active environment – use only global variables
+    if (globalEnvironment) {
+      (globalEnvironment.variables || []).forEach(v => {
+        if (v.key && v.value) combined[v.key] = v.value;
+      });
+    }
+  }
+
+  return combined;
+};
+
 // Now loadWorkspaceTabsAndData – uses the above helpers
 const loadWorkspaceTabsAndData = (workspaceId, workspaceName) => {
   const tabs = loadWorkspaceTabs(workspaceId);
@@ -264,6 +292,22 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
   setIsRunningLoadTest(true);
   setLoadTestResults(null);
 
+    const environmentOverrides = getEnvironmentOverrides();
+
+  const loadConfig = {
+    concurrency: config.concurrency || 20,
+    durationSeconds: config.durationUnit === 'mins' ? config.duration * 60 : config.duration,
+    rampUpSeconds: config.rampUp || 0,
+    targetRps: config.targetRps || 0,
+    timeoutMs: config.timeoutMs || 30000,
+    thinkTimeMs: config.delay || 0,
+    insecure: config.insecure || false,
+    maxErrorRatePct: config.maxErrorRatePct || 5,
+    maxP99LatencyMs: config.maxP99LatencyMs || 5000,
+    maxAvgLatencyMs: config.maxAvgLatencyMs || 2000,
+    environmentOverrides,                            // <-- add this
+  };
+
   const runningTab = {
     id: `load-test-running-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     type: 'load-test-running',
@@ -287,7 +331,7 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
   }
 
   try {
-    const response = await startLoadTest(collectionId, config);
+    const response = await startLoadTest(collectionId, loadConfig);
     const realId = response.data;
 
     // Update the running tab with the real ID
@@ -328,8 +372,6 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
 };
 
 const handleRunCollectionWithOrder = async (collectionId, selected, options, tabIndex) => {
-  console.log('🚀 handleRunCollectionWithOrder called', { collectionId, selected, options, tabIndex });
-
 
   if (options.type === 'load') {
     // Build load test config from UI options
@@ -351,12 +393,13 @@ const handleRunCollectionWithOrder = async (collectionId, selected, options, tab
   setIsRunningCollection(true); // ✅ use the correct setter
 
   try {
+    const environmentOverrides = getEnvironmentOverrides();
     // Start the run – returns a run ID
     const response = await runCollection(collectionId, {
       iterations: options.iterations || 1,
       delayMs: options.delay || 0,
       timeoutMs: options.timeoutMs || 30000,
-      environmentOverrides: options.environmentOverrides,
+      environmentOverrides,
       dataFile: options.dataFile,
       folderFilter: options.folderFilter,
       requestFilters: options.requestFilters,
@@ -2267,7 +2310,8 @@ const handleRunCollection = async (collection) => {
 
   try {
     // Call backend
-    const response = await executeCollection(collection.id);
+    const environmentOverrides = getEnvironmentOverrides();
+    const response = await executeCollection(collection.id, { environmentOverrides });
     console.log('Collection execution response:', response.data);
     const backendResult = response.data; // CollectionExecutionResult
 

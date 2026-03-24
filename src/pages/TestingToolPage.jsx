@@ -201,7 +201,7 @@ export default function TestingToolPage({
   loadingRuns={loadingRuns}
   loadTestRuns={loadTestRuns}
   loadingLoadRuns={loadingLoadRuns}
-  onLoadTestComplete={handleLoadTestComplete}
+  onLoadTestComplete={onLoadTestComplete}
     />
   );
 }

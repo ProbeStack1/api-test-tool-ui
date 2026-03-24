@@ -95,6 +95,8 @@ export default function TestingToolPage({
   activeEnvValues,
   inactiveEnvInfo,
   onShowChatbot,
+   globalVars,
+  globalValues,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -188,6 +190,8 @@ export default function TestingToolPage({
       activeEnvValues={activeEnvValues}
       inactiveEnvInfo={inactiveEnvInfo}
       onShowChatbot={onShowChatbot}  
+          globalVars={globalVars}
+    globalValues={globalValues}
     />
   );
 }

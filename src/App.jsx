@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef,useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus  } from 'lucide-react';
+import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info  } from 'lucide-react';
 import clsx from 'clsx';
 // import { sendRequest } from './utils/api';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
@@ -145,23 +145,20 @@ const buildPristineFromRequests = (reqs) => {
 const loadWorkspaceTabsAndData = (workspaceId, workspaceName) => {
   const tabs = loadWorkspaceTabs(workspaceId);
   let activeIndex = loadWorkspaceActiveIndex(workspaceId);
-  
-  const detailsIndex = tabs.findIndex(tab => tab.type === 'workspace-details' && tab.workspaceId === workspaceId);
-  if (detailsIndex !== -1) {
-    activeIndex = detailsIndex;
+
+  // Remove the automatic addition of workspace details tab
+  // Instead, just ensure there is at least one tab
+  if (!tabs || tabs.length === 0) {
+    // No saved tabs → create a default request tab
+    tabs.push(createEmptyRequest());
+    activeIndex = 0;
   } else {
-    const newTab = {
-      id: `workspace-details-${workspaceId}-${Date.now()}`,
-      type: 'workspace-details',
-      workspaceId: workspaceId,
-      name: `Project: ${workspaceName}`,
-    };
-    tabs.push(newTab);
-    activeIndex = tabs.length - 1;
-    // Save immediately so it persists
-    saveWorkspaceTabs(workspaceId, tabs, activeIndex);
+    // Ensure activeIndex is within bounds
+    if (activeIndex < 0 || activeIndex >= tabs.length) {
+      activeIndex = 0;
+    }
   }
-  
+
   setRequests(tabs);
   setActiveRequestIndex(activeIndex);
   setPristineRequests(buildPristineFromRequests(tabs));
@@ -687,6 +684,13 @@ const handleEnvironmentVariablesChange = (newVars) => {
   }
 };
 
+const globalVars = useMemo(() => new Set(globalEnvironment?.variables?.map(v => v.key) || []), [globalEnvironment]);
+const globalValues = useMemo(() => {
+  const map = {};
+  globalEnvironment?.variables?.forEach(v => { map[v.key] = v.value; });
+  return map;
+}, [globalEnvironment]);
+
   const isSavedRequest = (req) => {
   if (!req || !req.id) return false;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -723,23 +727,19 @@ const handleGlobalVariablesChange = (newVars) => {
 };
 
 const handleSaveGlobalVariables = async () => {
-  const workspaceId = activeWorkspaceId;   // <-- change this line
-  if (!workspaceId) {
-    toast.error('No project selected');
-    return;
-  }
-
+  // No workspaceId needed for global environment
   if (!globalEnvironment || !globalEnvironment.id) {
-    // Create
+    // Create global environment (no workspaceId)
     try {
-      const response = await createEnvironment(workspaceId, {
+      const response = await createEnvironment(null, {
         name: 'Global',
         environment_type: 'global',
         variables: globalVariables,
-        is_active:true
+        is_active: true
       });
       const newEnv = normalizeEnvironment(response.data);
       setGlobalEnvironment(newEnv);
+      // Add to environments list if not already present (global env will be added by loadData)
       setEnvironments(prev => [...prev.filter(e => e.id !== 'no-env'), newEnv, { id: 'no-env', name: 'No Environment' }]);
       setGlobalVariablesDirty(false);
       toast.success('Global variables saved');
@@ -747,7 +747,7 @@ const handleSaveGlobalVariables = async () => {
       toast.error('Failed to create global variables');
     }
   } else {
-    // Update
+    // Update existing global environment
     try {
       await updateEnvironment(globalEnvironment.id, { variables: globalVariables });
       setGlobalVariablesDirty(false);
@@ -1323,7 +1323,15 @@ if (currentReq.isMockEndpoint) {
     // Build overrides
     const overrides = {};
     overrides.url = substituteVariables(url);
-    overrides.headers = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
+   const headersArray = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
+// Convert to object for backend
+const headersObj = {};
+headersArray.forEach(h => {
+  if (h.key && h.enabled !== false) {
+    headersObj[h.key] = h.value;
+  }
+});
+overrides.headers = headersObj;
     overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
 
     if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
@@ -2487,6 +2495,7 @@ useEffect(() => {
   
   <div className="flex items-center gap-3">
     {/* Workspace Dropdown */}
+  {isWorkspace && (
     <div className="relative" ref={workspaceDropdownRef}>
 <button
   type="button"
@@ -2533,45 +2542,57 @@ useEffect(() => {
           </div>
 
           {/* Project list */}
-          <div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
-            {projects
-              .filter(ws => ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()))
-              .map(workspace => (
-                <button
-  key={workspace.id}
-  onClick={() => {
-    handleSelectWorkspace(workspace.id);
-    setIsWorkspaceDropdownOpen(false);
-  }}
-                  className={clsx(
-                    'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-dark-700 transition-colors',
-                    activeWorkspaceId === workspace.id && 'bg-primary/10 border-l-2 border-primary'
-                  )}
-                >
-                  <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                    {workspace.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{workspace.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {workspace.visibility === 'private' ? 'Private' : 'Public'}
-                    </p>
-                  </div>
-                  {activeWorkspaceId === workspace.id && (
-                    <Check className="w-4 h-4 text-primary" />
-                  )}
-                </button>
-              ))}
-            {projects.length === 0 && (
-              <div className="px-4 py-3 text-xs text-gray-500 text-center">
-                No Projects yet
-              </div>
-            )}
-          </div>
+<div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
+  {projects
+    .filter(ws => ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()))
+    .map(workspace => (
+      <button
+        key={workspace.id}
+        onClick={() => {
+          handleSelectWorkspace(workspace.id);
+          setIsWorkspaceDropdownOpen(false);
+        }}
+        className={clsx(
+          'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-dark-700 transition-colors',
+          activeWorkspaceId === workspace.id && 'bg-primary/10 border-l-2 border-primary'
+        )}
+      >
+        <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+          {workspace.name.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-white truncate">{workspace.name}</p>
+          <p className="text-xs text-gray-500">
+            {workspace.visibility === 'private' ? 'Private' : 'Public'}
+          </p>
+        </div>
+        {/* New icon button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();          // prevent the parent button click
+            handleOpenWorkspaceDetails(workspace.id);
+            setIsWorkspaceDropdownOpen(false);
+          }}
+          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-600 transition-colors"
+          title="View project details"
+        >
+          <Info className="w-4 h-4" />
+        </button>
+        {activeWorkspaceId === workspace.id && (
+          <Check className="w-4 h-4 text-primary" />
+        )}
+      </button>
+    ))}
+  {projects.length === 0 && (
+    <div className="px-4 py-3 text-xs text-gray-500 text-center">
+      No Projects yet
+    </div>
+  )}
+</div>
         </div>
       )}
     </div>
-
+)}
     {/* Settings Button */}
     <button
       type="button"
@@ -2736,6 +2757,8 @@ inactiveEnvVars={inactiveEnvVars}
 activeEnvValues={activeEnvValues}
 inactiveEnvInfo={inactiveEnvInfo}
 onShowChatbot={handleShowChatbot}
+  globalVars={globalVars}
+  globalValues={globalValues}
               />
             }
           />

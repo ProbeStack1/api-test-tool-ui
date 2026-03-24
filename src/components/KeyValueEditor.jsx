@@ -36,10 +36,11 @@ const parseVariables = (text) => {
 /**
  * Gets variable status and tooltip
  */
-const getVariableStatus = (varName, activeEnvVars, inactiveEnvVars, activeEnvValues, inactiveEnvInfo) => {
+const getVariableStatus = (varName, activeEnvVars, inactiveEnvVars, globalVars, activeEnvValues, inactiveEnvInfo, globalValues) => {
   if (activeEnvVars && activeEnvVars.has(varName)) {
     return {
       status: 'active',
+      color: 'text-blue-400',
       tooltip: `Value: ${activeEnvValues?.[varName] || '(empty)'}`
     };
   }
@@ -47,11 +48,20 @@ const getVariableStatus = (varName, activeEnvVars, inactiveEnvVars, activeEnvVal
     const info = inactiveEnvInfo?.[varName] || {};
     return {
       status: 'inactive',
+      color: 'text-yellow-400',
       tooltip: `Present in "${info.envName || 'another environment'}" which is not active. Please activate first, then use.`
+    };
+  }
+  if (globalVars && globalVars.has(varName)) {
+    return {
+      status: 'global',
+      color: 'text-purple-400',
+      tooltip: `Global variable: ${globalValues?.[varName] || '(empty)'}`
     };
   }
   return {
     status: 'missing',
+    color: 'text-red-400',
     tooltip: 'No environment variable present with this name.'
   };
 };
@@ -86,14 +96,15 @@ function VariableTooltipInline({ tooltip, status, children }) {
       {children}
       {show && ReactDOM.createPortal(
         <div
-          className={clsx(
-            "fixed px-2.5 py-1.5 text-[10px] rounded-lg shadow-xl z-[200]",
-            "whitespace-normal break-words max-w-[250px] pointer-events-none",
-            "bg-dark-800 border",
-            status === 'active' && "border-blue-400/30 text-blue-300",
-            status === 'inactive' && "border-yellow-400/30 text-yellow-300",
-            status === 'missing' && "border-red-400/30 text-red-300"
-          )}
+className={clsx(
+  "fixed px-2.5 py-1.5 text-[10px] rounded-lg shadow-xl z-[200]",
+  "whitespace-normal break-words max-w-[250px] pointer-events-none",
+  "bg-dark-800 border",
+  status === 'active' && "border-blue-400/30 text-blue-300",
+  status === 'inactive' && "border-yellow-400/30 text-yellow-300",
+  status === 'global' && "border-purple-400/30 text-purple-300",
+  status === 'missing' && "border-red-400/30 text-red-300"
+)}
           style={{
             top: pos.top,
             left: pos.left,
@@ -115,7 +126,7 @@ function VariableTooltipInline({ tooltip, status, children }) {
  * CRITICAL: No padding/border on variable spans - only color + background.
  * This ensures overlay text matches input text width exactly (no cursor offset).
  */
-function HighlightedInput({ value, onChange, placeholder, activeEnvVars, inactiveEnvVars, activeEnvValues, inactiveEnvInfo }) {
+function HighlightedInput({ value, onChange, placeholder, activeEnvVars, inactiveEnvVars, activeEnvValues, inactiveEnvInfo, globalVars, globalValues }) {
   const inputRef = useRef(null);
   const overlayRef = useRef(null);
 
@@ -129,15 +140,17 @@ function HighlightedInput({ value, onChange, placeholder, activeEnvVars, inactiv
     }
   }, []);
 
-  const colorClass = {
+const colorClass = {
     active: 'text-blue-400',
     inactive: 'text-yellow-400',
+    global: 'text-purple-400',
     missing: 'text-red-400'
   };
 
   const bgColor = {
     active: 'rgba(96,165,250,0.18)',
     inactive: 'rgba(250,204,21,0.18)',
+    global: 'rgba(168,85,247,0.18)',
     missing: 'rgba(248,113,113,0.18)'
   };
 
@@ -164,9 +177,15 @@ function HighlightedInput({ value, onChange, placeholder, activeEnvVars, inactiv
         >
           {segments.map((seg, i) => {
             if (seg.type === 'variable') {
-              const { status, tooltip } = getVariableStatus(
-                seg.varName, activeEnvVars, inactiveEnvVars, activeEnvValues, inactiveEnvInfo
-              );
+               const { status, tooltip, color } = getVariableStatus(
+    seg.varName,
+    activeEnvVars,
+    inactiveEnvVars,
+    globalVars,
+    activeEnvValues,
+    inactiveEnvInfo,
+    globalValues
+  );
               return (
                 <span key={i} className="pointer-events-auto">
                   <VariableTooltipInline tooltip={tooltip} status={status}>
@@ -202,10 +221,12 @@ function HighlightedInput({ value, onChange, placeholder, activeEnvVars, inactiv
 export default function KeyValueEditor({
   pairs,
   onChange,
-  activeEnvVars,
-  inactiveEnvVars,
-  activeEnvValues,
-  inactiveEnvInfo
+  activeEnvVars = new Set(),
+  inactiveEnvVars = new Set(),
+  activeEnvValues = {},
+  inactiveEnvInfo = {},
+  globalVars = new Set(),
+  globalValues = {},
 }) {
   const handleChange = (index, field, value) => {
     const newPairs = [...pairs];
@@ -227,7 +248,7 @@ export default function KeyValueEditor({
   };
 
   // Check if variable highlighting is enabled (env data provided)
-  const hasEnvData = activeEnvVars || inactiveEnvVars;
+const hasEnvData = activeEnvVars.size > 0 || inactiveEnvVars.size > 0 || globalVars.size > 0;
 
   return (
     <div className="border border-dark-700 rounded overflow-hidden bg-dark-900/30" data-testid="key-value-editor">
@@ -260,15 +281,17 @@ export default function KeyValueEditor({
             {/* Key field - with variable highlighting */}
             <div className="flex-1 border-r border-dark-700/30">
               {hasEnvData ? (
-                <HighlightedInput
-                  value={pair.key}
-                  onChange={(val) => handleChange(index, "key", val)}
-                  placeholder="Key"
-                  activeEnvVars={activeEnvVars}
-                  inactiveEnvVars={inactiveEnvVars}
-                  activeEnvValues={activeEnvValues}
-                  inactiveEnvInfo={inactiveEnvInfo}
-                />
+<HighlightedInput
+  value={pair.key}
+  onChange={(val) => handleChange(index, "key", val)}
+  placeholder="Key"
+  activeEnvVars={activeEnvVars}
+  inactiveEnvVars={inactiveEnvVars}
+  activeEnvValues={activeEnvValues}
+  inactiveEnvInfo={inactiveEnvInfo}
+  globalVars={globalVars}
+  globalValues={globalValues}
+/>
               ) : (
                 <input
                   type="text"
@@ -291,6 +314,8 @@ export default function KeyValueEditor({
                   inactiveEnvVars={inactiveEnvVars}
                   activeEnvValues={activeEnvValues}
                   inactiveEnvInfo={inactiveEnvInfo}
+                  globalVars={globalVars}
+                  globalValues={globalValues}
                 />
               ) : (
                 <input

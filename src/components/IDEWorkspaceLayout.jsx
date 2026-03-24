@@ -121,6 +121,8 @@ inactiveEnvVars,
 activeEnvValues,
 inactiveEnvInfo,
 onShowChatbot,
+   globalVars,
+  globalValues,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1748,6 +1750,8 @@ topMenuActive === 'history' ? (
   activeEnvValues={activeEnvValues}
   inactiveEnvInfo={inactiveEnvInfo}
   onShowChatbot={onShowChatbot}
+    globalVars={globalVars}
+    globalValues={globalValues}
               />
             )}
           </div>

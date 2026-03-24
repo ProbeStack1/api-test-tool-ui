@@ -43,36 +43,36 @@ const parseVariables = (text) => {
  * @param {Object} activeEnvValues - Map of varName -> value for active env
  * @param {Object} inactiveEnvInfo - Map of varName -> { envName, value } for inactive envs
  */
-const getVariableStatus = (varName, activeEnvVars, inactiveEnvVars, activeEnvValues = {}, inactiveEnvInfo = {}) => {
-  if (activeEnvVars.has(varName)) {
+const getVariableStatus = (varName, activeEnvVars, inactiveEnvVars, globalVars, activeEnvValues, inactiveEnvInfo, globalValues) => {
+  if (activeEnvVars && activeEnvVars.has(varName)) {
     return {
-      status: 'active', // BLUE
-      color: 'text-blue-400 bg-blue-400/10',
-      borderColor: 'border-blue-400/30',
-      value: activeEnvValues[varName] || '',
-      tooltip: `Value: ${activeEnvValues[varName] || '(empty)'}`
+      status: 'active',
+      color: 'text-blue-400',
+      tooltip: `Value: ${activeEnvValues?.[varName] || '(empty)'}`
     };
   }
-  
-  if (inactiveEnvVars.has(varName)) {
-    const info = inactiveEnvInfo[varName] || {};
+  if (inactiveEnvVars && inactiveEnvVars.has(varName)) {
+    const info = inactiveEnvInfo?.[varName] || {};
     return {
-      status: 'inactive', // YELLOW
-      color: 'text-yellow-400 bg-yellow-400/10',
-      borderColor: 'border-yellow-400/30',
-      value: info.value || '',
+      status: 'inactive',
+      color: 'text-yellow-400',
       tooltip: `Present in "${info.envName || 'another environment'}" which is not active. Please activate first, then use.`
     };
   }
-  
+  if (globalVars && globalVars.has(varName)) {
+    return {
+      status: 'global',
+      color: 'text-purple-400',
+      tooltip: `Global variable: ${globalValues?.[varName] || '(empty)'}`
+    };
+  }
   return {
-    status: 'missing', // RED
-    color: 'text-red-400 bg-red-400/10',
-    borderColor: 'border-red-400/30',
-    value: null,
+    status: 'missing',
+    color: 'text-red-400',
     tooltip: 'No environment variable present with this name.'
   };
 };
+
 
 /**
  * Variable Badge Component - renders a highlighted variable
@@ -88,20 +88,22 @@ const VariableBadge = ({ varName, status, tooltip }) => {
   const spanRef = useRef(null);
 
   const colorClass = {
-    active: 'text-blue-400',
-    inactive: 'text-yellow-400',
-    missing: 'text-red-400'
+    active: 'text-blue-500',
+    inactive: 'text-yellow-500',
+    global: 'text-purple-500',
+    missing: 'text-red-500'
   };
-
   const bgColor = {
     active: 'rgba(96,165,250,0.18)',
     inactive: 'rgba(250,204,21,0.18)',
+    global: 'rgba(168,85,247,0.18)',
     missing: 'rgba(248,113,113,0.18)'
   };
 
   const tooltipBorder = {
     active: 'border-blue-400/30 text-blue-300',
     inactive: 'border-yellow-400/30 text-yellow-300',
+    global: 'border-purple-400/30 text-purple-300',
     missing: 'border-red-400/30 text-red-300'
   };
 
@@ -223,11 +225,13 @@ const VariableHighlightInput = ({
     return segments.map((segment, index) => {
       if (segment.type === 'variable') {
         const varStatus = getVariableStatus(
-          segment.varName,
-          activeEnvVars,
-          inactiveEnvVars,
-          activeEnvValues,
-          inactiveEnvInfo
+    segment.varName,
+    activeEnvVars,
+    inactiveEnvVars,
+    globalVars,
+    activeEnvValues,
+    inactiveEnvInfo,
+    globalValues
         );
         
         return (

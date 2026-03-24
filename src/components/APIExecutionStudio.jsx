@@ -126,6 +126,8 @@ onRunCollectionWithOrder,
   activeEnvValues,
   inactiveEnvInfo,
   onShowChatbot,
+    globalVars,
+  globalValues,
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
@@ -623,6 +625,8 @@ function KeyValueTable({ items }) {
   inactiveEnvVars={inactiveEnvVars}
   activeEnvValues={activeEnvValues}
   inactiveEnvInfo={inactiveEnvInfo}
+      globalVars={globalVars}
+    globalValues={globalValues}
 />
               <button
                 onClick={handleSendClick}
@@ -699,6 +703,8 @@ function KeyValueTable({ items }) {
           inactiveEnvVars={inactiveEnvVars}
           activeEnvValues={activeEnvValues}
           inactiveEnvInfo={inactiveEnvInfo}
+              globalVars={globalVars}
+    globalValues={globalValues}
         />
       </div>
     </div>
@@ -719,6 +725,8 @@ function KeyValueTable({ items }) {
   inactiveEnvVars={inactiveEnvVars}
   activeEnvValues={activeEnvValues}
   inactiveEnvInfo={inactiveEnvInfo}
+  globalVars={globalVars}
+  globalValues={globalValues}
 />
                   </div>
                 </div>
@@ -776,6 +784,8 @@ function KeyValueTable({ items }) {
   inactiveEnvVars={inactiveEnvVars}
   activeEnvValues={activeEnvValues}
   inactiveEnvInfo={inactiveEnvInfo}
+      globalVars={globalVars}
+    globalValues={globalValues}
   className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
   inputClassName="h-full" 
 />

@@ -163,6 +163,8 @@ const VariableBadge = ({ varName, status, tooltip }) => {
  * @param {Set} inactiveEnvVars - Variables in inactive environments  
  * @param {Object} activeEnvValues - Values map for active env
  * @param {Object} inactiveEnvInfo - Info map for inactive envs
+ * @param {Set} globalVars - Variables in global scope
+ * @param {Object} globalValues - Values map for global vars
  * @param {boolean} multiline - Use textarea instead of input
  * @param {Object} ...props - Additional props passed to input
  */
@@ -176,6 +178,8 @@ const VariableHighlightInput = ({
   inactiveEnvVars = new Set(),
   activeEnvValues = {},
   inactiveEnvInfo = {},
+  globalVars = new Set(),      
+  globalValues = {},  
   multiline = false,
   disabled = false,
   ...props

@@ -97,6 +97,11 @@ export default function TestingToolPage({
   onShowChatbot,
    globalVars,
   globalValues,
+  onLoadTestComplete,  
+    workspaceRuns,           
+  loadingRuns,             
+  loadTestRuns,            
+  loadingLoadRuns,         
 }) {
   return (
     <IDEWorkspaceLayout
@@ -192,6 +197,11 @@ export default function TestingToolPage({
       onShowChatbot={onShowChatbot}  
           globalVars={globalVars}
     globalValues={globalValues}
+       workspaceRuns={workspaceRuns}
+  loadingRuns={loadingRuns}
+  loadTestRuns={loadTestRuns}
+  loadingLoadRuns={loadingLoadRuns}
+  onLoadTestComplete={handleLoadTestComplete}
     />
   );
 }

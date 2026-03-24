@@ -69,6 +69,56 @@ const [chatbotError, setChatbotError] = useState(null);
 const [chatbotResponse, setChatbotResponse] = useState(null);
 const [chatbotRequestInfo, setChatbotRequestInfo] = useState(null);
 
+const [workspaceRuns, setWorkspaceRuns] = useState([]);
+const [loadingRuns, setLoadingRuns] = useState(false);
+const [loadTestRuns, setLoadTestRuns] = useState([]);
+const [loadingLoadRuns, setLoadingLoadRuns] = useState(false);
+
+// Fetch collection runs for the active workspace
+useEffect(() => {
+  if (!activeWorkspaceId || !collections.length) return;
+
+  const fetchAllRuns = async () => {
+    setLoadingRuns(true);
+    try {
+      const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
+      const runPromises = workspaceCollections.map(col =>
+        listCollectionRuns(col.id).then(res => res.data)
+      );
+      const runsArrays = await Promise.all(runPromises);
+      const allRuns = runsArrays.flat().sort((a, b) =>
+        new Date(b.startedAt) - new Date(a.startedAt)
+      );
+      setWorkspaceRuns(allRuns);
+    } catch (err) {
+      console.error('Failed to fetch runs:', err);
+    } finally {
+      setLoadingRuns(false);
+    }
+  };
+
+  fetchAllRuns();
+}, [activeWorkspaceId, collections]);
+
+// Fetch load test runs for the active workspace
+useEffect(() => {
+  if (!activeWorkspaceId) return;
+
+  const fetchLoadTestRuns = async () => {
+    setLoadingLoadRuns(true);
+    try {
+      const response = await listWorkspaceLoadTests(activeWorkspaceId);
+      setLoadTestRuns(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch load test runs:', err);
+    } finally {
+      setLoadingLoadRuns(false);
+    }
+  };
+
+  fetchLoadTestRuns();
+}, [activeWorkspaceId]);
+
 const handleShowChatbot = (error, response, requestInfo) => {
   setChatbotError(error);
   setChatbotResponse(response);
@@ -444,7 +494,15 @@ const handleRunCollectionWithOrder = async (collectionId, selected, options, tab
   }
 };
 
-
+const handleLoadTestComplete = async (loadTestId) => {
+  try {
+    const response = await fetchLoadTestRun(loadTestId);
+    const completedRun = response.data;
+    setLoadTestRuns(prev => [completedRun, ...prev]);
+  } catch (err) {
+    console.error('Failed to fetch completed load test run:', err);
+  }
+};
 
 const flattenRequests = (items) => {
   const requests = [];
@@ -512,6 +570,7 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex) => {
     collectionId: runData.collectionId,
   };
 
+
   // Replace the configuration tab at tabIndex with the results tab
   setRequests(prev => {
     const newRequests = [...prev];
@@ -537,6 +596,23 @@ if (tabIndex >= 0 && tabIndex < requests.length) {
     // 👇 Navigate to collections so the new tab becomes visible
     navigate('/workspace/collections');
   }
+
+  const newRun = {
+  runId: runData.runId || runData.id,
+  startedAt: runData.startedAt,
+  collectionName: runData.collectionName,
+  collectionId: runData.collectionId,
+  source: runData.source,
+  options: runData.options,
+  totalRequests: runData.totalRequests,
+  passedRequests: runData.passedRequests,
+  failedRequests: runData.failedRequests,
+  skippedRequests: runData.skippedRequests,
+  totalTimeMs: runData.totalTimeMs,
+  triggeredByUser: runData.triggeredByUser,
+  triggeredBy: runData.triggeredBy,
+};
+setWorkspaceRuns(prev => [newRun, ...prev]);
 
 };
 
@@ -2798,6 +2874,11 @@ inactiveEnvInfo={inactiveEnvInfo}
 onShowChatbot={handleShowChatbot}
   globalVars={globalVars}
   globalValues={globalValues}
+    workspaceRuns={workspaceRuns}
+  loadingRuns={loadingRuns}
+  loadTestRuns={loadTestRuns}
+  loadingLoadRuns={loadingLoadRuns}
+  onLoadTestComplete={handleLoadTestComplete}
               />
             }
           />

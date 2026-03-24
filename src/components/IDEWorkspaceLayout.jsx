@@ -123,12 +123,15 @@ inactiveEnvInfo,
 onShowChatbot,
    globalVars,
   globalValues,
+    workspaceRuns,     
+  loadingRuns,          
+  loadTestRuns,   
+  loadingLoadRuns,   
+  onLoadTestComplete, 
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const globalVariables = globalEnvironment?.variables || [];
-  const [workspaceRuns, setWorkspaceRuns] = useState([]);
-const [loadingRuns, setLoadingRuns] = useState(false);
 const [selectedLoadCollectionId, setSelectedLoadCollectionId] = useState(null);
 const currentRequest = requests[activeRequestIndex];
 const [selectedTestCollectionId, setSelectedTestCollectionId] = useState(null);
@@ -138,7 +141,6 @@ const [loadingSpecs, setLoadingSpecs] = useState(false);
 const [loadingLibrary, setLoadingLibrary] = useState(false);
 const [fileSelectionContext, setFileSelectionContext] = useState({ context: null, selectedFile: null });
 const [historySubTab, setHistorySubTab] = useState('req');
-const [loadTestRuns, setLoadTestRuns] = useState([]);
 
 const handleViewLoadTestResults = (run) => {
   // console.log('🔍 handleViewLoadTestResults called with run:', run);
@@ -175,54 +177,13 @@ const handleViewLoadTestResults = (run) => {
   navigate('/workspace/collections');
 };
 
-useEffect(() => {
-  if (!activeWorkspaceId || !collections.length) return;
 
-  const fetchAllRuns = async () => {
-    setLoadingRuns(true);
-    try {
-      // Get all collections in this workspace
-      const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
-      const runPromises = workspaceCollections.map(col => 
-        listCollectionRuns(col.id).then(res => res.data)
-      );
-      const runsArrays = await Promise.all(runPromises);
-      // Flatten and sort by startedAt (newest first)
-      const allRuns = runsArrays.flat().sort((a, b) => 
-        new Date(b.startedAt) - new Date(a.startedAt)
-      );
-      setWorkspaceRuns(allRuns);
-    } catch (err) {
-      // console.error('Failed to fetch runs:', err);
-      // toast.error('Failed to load run history');
-    } finally {
-      setLoadingRuns(false);
-    }
-  };
-
-  fetchAllRuns();
-}, [activeWorkspaceId, collections]);
 
 const workspaceCollections = useMemo(() => {
   return collections.filter(c => c.project === activeWorkspaceId);
 }, [collections, activeWorkspaceId]);
 
-// Fetch load test runs for the active workspace
-useEffect(() => {
-  if (!activeWorkspaceId) return;
 
-  const fetchLoadTestRuns = async () => {
-    try {
-      const response = await listWorkspaceLoadTests(activeWorkspaceId);
-      setLoadTestRuns(response.data || []);
-    } catch (err) {
-      console.error('Failed to fetch load test runs:', err);
-      toast.error('Could not load load test history');
-    }
-  };
-
-  fetchLoadTestRuns();
-}, [activeWorkspaceId]);
 
 useEffect(() => {
   if (workspaceCollections.length > 0 && !selectedTestCollectionId) {
@@ -1752,6 +1713,7 @@ topMenuActive === 'history' ? (
   onShowChatbot={onShowChatbot}
     globalVars={globalVars}
     globalValues={globalValues}
+    onLoadTestComplete={onLoadTestComplete}
               />
             )}
           </div>

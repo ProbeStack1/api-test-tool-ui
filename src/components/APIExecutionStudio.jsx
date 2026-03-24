@@ -128,6 +128,7 @@ onRunCollectionWithOrder,
   onShowChatbot,
     globalVars,
   globalValues,
+  onLoadTestComplete,
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
@@ -576,20 +577,23 @@ function KeyValueTable({ items }) {
   />
 
 ) : isLoadTestRunning ? (
-  <LoadTestRunningView
-    loadTestId={currentReq.loadTestId}
-    config={currentReq.config}
-    onComplete={(loadTestId) => {
-      onCloseTab(activeRequestIndex);
-      const newTab = {
-        id: `load-test-results-${loadTestId}-${Date.now()}`,
-        type: 'load-test-results',
-        name: `Load Test Results`,
-        loadTestId: loadTestId,
-      };
-      onNewTab(newTab);
-    }}
-  />
+<LoadTestRunningView
+  loadTestId={currentReq.loadTestId}
+  config={currentReq.config}
+  onComplete={(loadTestId) => {
+    // Call the parent's handler to update the runs table
+    if (onLoadTestComplete) onLoadTestComplete(loadTestId);
+    // Existing logic to close the running tab and open results
+    onCloseTab(activeRequestIndex);
+    const newTab = {
+      id: `load-test-results-${loadTestId}-${Date.now()}`,
+      type: 'load-test-results',
+      name: `Load Test Results`,
+      loadTestId: loadTestId,
+    };
+    onNewTab(newTab);
+  }}
+/>
 ) : (
         <>
           {/* Postman-style: Request line — Method + URL + Send */}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronLeft, ChevronRight, Eye, Columns, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Columns, ChevronDown, Clock } from 'lucide-react';
 import clsx from 'clsx';
 
 const STORAGE_KEY = 'probestack_runs_table_columns';
@@ -189,9 +189,15 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
     }
   };
 
-  if (runs.length === 0) {
-    return <div className="text-center py-8 text-gray-500 italic">No runs found</div>;
-  }
+if (runs.length === 0) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6">
+      <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+      <p className="text-gray-400">No functional runs found</p>
+      <p className="text-xs text-gray-500 mt-1">Run a functional test to see results here</p>
+    </div>
+  );
+}
 
   return (
     <div className="bg-dark-800/40 border border-dark-700 rounded-xl overflow-hidden">

@@ -977,13 +977,115 @@ useEffect(() => {
   hasFetchedRef.current = true;
 
   const loadData = async () => {
+    // ------------------------------------------------------------------
+    // 1. Fetch workspaces (projects)
+    // ------------------------------------------------------------------
+    let workspaces = [];
     try {
-      // 1. Fetch workspaces / projects
       const wsRes = await fetchWorkspaces();
-      const workspaces = wsRes.data.map(normalizeWorkspace);
+      workspaces = wsRes.data.map(normalizeWorkspace);
       setProjects(workspaces);
+      console.log('Workspaces loaded:', workspaces.length);
+    } catch (err) {
+      console.error('Failed to load workspaces:', err);
+    }
 
-      // Restore last selected workspace
+    // ------------------------------------------------------------------
+    // 2. If we have workspaces, load collections, folders, requests
+    // ------------------------------------------------------------------
+    if (workspaces.length > 0) {
+      const allCollections = [];
+
+      for (const ws of workspaces) {
+        try {
+          const colRes = await fetchCollections(ws.id);
+          const cols = colRes.data.map(col => normalizeCollection(col, ws));
+
+          for (const col of cols) {
+            let folders = [];
+            try {
+              const folderRes = await fetchFolders(col.id);
+              folders = folderRes.data.map(normalizeFolder);
+            } catch (err) {
+              console.error(`Failed to fetch folders for collection ${col.id}:`, err);
+            }
+
+            const folderMap = new Map();
+            folders.forEach(f => folderMap.set(f.id, f));
+
+            const rootFolders = [];
+            folders.forEach(f => {
+              if (f.parentFolderId) {
+                const parent = folderMap.get(f.parentFolderId);
+                if (parent) {
+                  if (!parent.items) parent.items = [];
+                  parent.items.push(f);
+                } else {
+                  rootFolders.push(f);
+                }
+              } else {
+                rootFolders.push(f);
+              }
+            });
+
+            const sortItems = (items) => {
+              if (!items) return;
+              items.sort((a, b) => {
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+                return (a.orderIndex || 0) - (b.orderIndex || 0);
+              });
+              items.forEach(item => {
+                if (item.items) sortItems(item.items);
+              });
+            };
+            sortItems(rootFolders);
+
+            const items = [...rootFolders];
+
+            try {
+              const reqRes = await fetchRequests({ collectionId: col.id });
+              const requestsInCol = reqRes.data.map(normalizeRequest);
+
+              requestsInCol.forEach(req => {
+                const parentFolderId = req.folderId;
+                if (parentFolderId) {
+                  const parentFolder = folderMap.get(parentFolderId);
+                  if (parentFolder) {
+                    if (!parentFolder.items) parentFolder.items = [];
+                    parentFolder.items.push(req);
+                  } else {
+                    items.push(req);
+                  }
+                } else {
+                  items.push(req);
+                }
+              });
+              sortItems(items);
+            } catch (err) {
+              console.error(`Failed to fetch requests for collection ${col.id}:`, err);
+            }
+
+            allCollections.push({
+              ...col,
+              items,
+            });
+          }
+        } catch (err) {
+          console.error(`Failed to fetch collections for workspace ${ws.id}:`, err);
+        }
+      }
+
+      setCollections(allCollections);
+      console.log('Collections loaded:', allCollections.length);
+    } else {
+      setCollections([]);
+    }
+
+    // ------------------------------------------------------------------
+    // 3. Set active workspace (if any)
+    // ------------------------------------------------------------------
+    if (workspaces.length > 0) {
       const savedWorkspaceId = localStorage.getItem('probestack_active_workspace_id');
       let activeId = null;
       if (savedWorkspaceId && workspaces.some(ws => ws.id === savedWorkspaceId)) {
@@ -992,173 +1094,96 @@ useEffect(() => {
         activeId = workspaces[0].id;
       }
 
-if (activeId) {
-  const workspaceName = workspaces.find(w => w.id === activeId)?.name || activeId;
-  setActiveWorkspaceId(activeId);
-  loadWorkspaceTabsAndData(activeId, workspaceName);
-}
-    const allCollections = [];
-
-    for (const ws of workspaces) {
-      // 2. Fetch collections for this workspace
-      const colRes = await fetchCollections(ws.id);
-      const cols = colRes.data.map(col => normalizeCollection(col, ws));
-
-      for (const col of cols) {
-        // 3. Fetch folders for this collection
-        let folders = [];
-        try {
-          const folderRes = await fetchFolders(col.id);
-          folders = folderRes.data.map(normalizeFolder);
-        } catch (err) {
-        }
-
-        // --- Build folder hierarchy ---
-        // Map folder id to folder object for quick lookup
-        const folderMap = new Map();
-        folders.forEach(f => folderMap.set(f.id, f));
-
-        // Identify root folders (no parent) and build nested structure
-        const rootFolders = [];
-        folders.forEach(f => {
-          if (f.parentFolderId) {
-            const parent = folderMap.get(f.parentFolderId);
-            if (parent) {
-              // Ensure parent has an items array
-              if (!parent.items) parent.items = [];
-              parent.items.push(f);
-            } else {
-              // Parent not found – treat as root
-              rootFolders.push(f);
-            }
-          } else {
-            rootFolders.push(f);
-          }
-        });
-
-        // Recursive sort helper
-        const sortItems = (items) => {
-          if (!items) return;
-          items.sort((a, b) => {
-            if (a.type === 'folder' && b.type !== 'folder') return -1;
-            if (a.type !== 'folder' && b.type === 'folder') return 1;
-            return (a.orderIndex || 0) - (b.orderIndex || 0);
-          });
-          items.forEach(item => {
-            if (item.items) sortItems(item.items);
-          });
-        };
-        sortItems(rootFolders);
-
-        // Start building the collection items with the root folders
-        const items = [...rootFolders];
-
-        // 4. Fetch all requests for this collection
-        let requestsInCol = [];
-        try {
-          const reqRes = await fetchRequests({ collectionId: col.id });
-          requestsInCol = reqRes.data.map(normalizeRequest);
-        } catch (err) {
-        }
-
-        // Place each request under its parent folder (or at root)
-        requestsInCol.forEach(req => {
-          const parentFolderId = req.folderId;
-          if (parentFolderId) {
-            const parentFolder = folderMap.get(parentFolderId);
-            if (parentFolder) {
-              if (!parentFolder.items) parentFolder.items = [];
-              parentFolder.items.push(req);
-            } else {
-              // Parent folder not found – fallback to root
-              items.push(req);
-            }
-          } else {
-            // Root-level request
-            items.push(req);
-          }
-        });
-
-        // Sort items again (folders already sorted, requests appended)
-        sortItems(items);
-
-        allCollections.push({
-          ...col,
-          items,
-        });
+      if (activeId) {
+        const workspaceName = workspaces.find(w => w.id === activeId)?.name || activeId;
+        setActiveWorkspaceId(activeId);
+        loadWorkspaceTabsAndData(activeId, workspaceName);
       }
+    } else {
+      setActiveWorkspaceId(null);
+      setRequests([createEmptyRequest()]);
+      setActiveRequestIndex(0);
     }
 
-    setCollections(allCollections);
+    // ------------------------------------------------------------------
+    // 4. Fetch environments (global + workspace-specific)
+    // ------------------------------------------------------------------
+    try {
+      let allEnvs = [];
+
+      // Global environments (no workspaceId)
+      try {
+        const globalRes = await listEnvironments(undefined, { limit: 100 });
+        const globalEnvs = (globalRes.data.data || globalRes.data).map(normalizeEnvironment);
+        allEnvs.push(...globalEnvs);
+      } catch (err) {
+        console.error('Failed to fetch global environments:', err);
+      }
+
+      // Environments for each workspace
+      for (const ws of workspaces) {
+        try {
+          const wsRes = await listEnvironments(ws.id, { limit: 100 });
+          const wsEnvs = (wsRes.data.data || wsRes.data).map(normalizeEnvironment);
+          allEnvs.push(...wsEnvs);
+        } catch (err) {
+          console.error(`Failed to fetch environments for workspace ${ws.id}:`, err);
+        }
+      }
+
+      const uniqueEnvs = Array.from(new Map(allEnvs.map(env => [env.id, env])).values());
+
+      const globalEnv = uniqueEnvs.find(env => env.environmentType === 'global');
+      setGlobalEnvironment(globalEnv || null);
+
+      setEnvironments([{ id: 'no-env', name: 'No Environment' }, ...uniqueEnvs]);
+
+      if (uniqueEnvs.length > 0) {
+        const activeEnv = uniqueEnvs.find(e => e.isActive) || uniqueEnvs[0];
+        setSelectedEnvironmentId(activeEnv.id);
+        setEnvironmentVariables(activeEnv.variables || []);
+      } else {
+        setSelectedEnvironmentId('no-env');
+        setEnvironmentVariables([]);
+      }
+
+      console.log('Environments loaded:', uniqueEnvs.length);
+    } catch (err) {
+      console.error('Failed to load environments:', err);
+      setEnvironments([{ id: 'no-env', name: 'No Environment' }]);
+      setSelectedEnvironmentId('no-env');
+      setEnvironmentVariables([]);
+    }
+
+    // ------------------------------------------------------------------
     // 5. Fetch global execution history
+    // ------------------------------------------------------------------
     try {
       const historyRes = await fetchGlobalHistory({ limit: 50 });
-
-      // Normalize backend items to frontend shape
       const normalizedHistory = (historyRes.data.data || []).map(item => ({
-        historyId: item.history_id, 
+        historyId: item.history_id,
         url: item.url,
         method: item.method,
         status: item.status_code,
         size: item.response_size_bytes,
         time: item.response_time_ms,
         error: item.error_message ? true : false,
-        date: item.executed_at, // ISO string; can be used directly with new Date(item.date)
+        date: item.executed_at,
       }));
-
       setHistory(normalizedHistory);
+      console.log('History loaded:', normalizedHistory.length);
     } catch (err) {
-      // Optionally fall back to localStorage if you want
+      console.error('Failed to load execution history:', err);
     }
 
-  
-// 6. Fetch environments
-try {
-  // Fetch global environments (no workspaceId)
-  const globalRes = await listEnvironments({ limit: 100 });
-  const globalEnvs = globalRes.data.map(normalizeEnvironment);
-
-  // Fetch workspace environments for each workspace
-  let allEnvs = [...globalEnvs];
-  for (const ws of workspaces) {
-    try {
-      const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
-      const wsEnvs = wsRes.data.map(normalizeEnvironment);
-      allEnvs = [...allEnvs, ...wsEnvs];
-    } catch (err) {
-    }
-  }
-
-  // Remove duplicates by id (just in case)
-  const uniqueEnvs = Array.from(new Map(allEnvs.map(env => [env.id, env])).values());
-
-  //  Extract and store the global environment
-  const globalEnv = uniqueEnvs.find(env => env.environmentType === 'global');
-  setGlobalEnvironment(globalEnv || null);
-
-  setEnvironments([{ id: 'no-env', name: 'No Environment' }, ...uniqueEnvs]);
-
-  if (uniqueEnvs.length > 0) {
-    const activeEnv = uniqueEnvs.find(e => e.isActive) || uniqueEnvs[0];
-    setSelectedEnvironmentId(activeEnv.id);
-    setEnvironmentVariables(activeEnv.variables || []);
-  } else {
-    setEnvironmentVariables([]);
-  }
-} catch (err) {
-  console.error('[App] Failed to load environments:', err);
-  setEnvironments([{ id: 'no-env', name: 'No Environment' }]);
-}
-
-await fetchMockServers();
-
-  } catch (err) {
-  }
-};
+    // ------------------------------------------------------------------
+    // 6. Fetch mock servers
+    // ------------------------------------------------------------------
+    await fetchMockServers();
+  };
 
   loadData();
 }, []);
-
 useEffect(() => {
 }, [collections]);
 

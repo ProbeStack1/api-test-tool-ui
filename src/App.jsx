@@ -1113,7 +1113,7 @@ useEffect(() => {
 
       // Global environments (no workspaceId)
       try {
-        const globalRes = await listEnvironments(undefined, { limit: 100 });
+        const globalRes = await listEnvironments({ limit: 100 });
         const globalEnvs = (globalRes.data.data || globalRes.data).map(normalizeEnvironment);
         allEnvs.push(...globalEnvs);
       } catch (err) {
@@ -1123,7 +1123,7 @@ useEffect(() => {
       // Environments for each workspace
       for (const ws of workspaces) {
         try {
-          const wsRes = await listEnvironments(ws.id, { limit: 100 });
+          const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
           const wsEnvs = (wsRes.data.data || wsRes.data).map(normalizeEnvironment);
           allEnvs.push(...wsEnvs);
         } catch (err) {

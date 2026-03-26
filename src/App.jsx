@@ -1359,53 +1359,22 @@ const handleExecute = async () => {
 
   const currentReq = requests[activeRequestIndex];
 
-  if (currentReq.isMockEndpoint) {
-    try {
-      const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
-      // Apply fallback for empty error bodies
-      if (res.status >= 400) {
-        const isBodyEmpty = 
-          !res.data ||
-          (typeof res.data === 'string' && res.data.trim() === '') ||
-          (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
-          (Array.isArray(res.data) && res.data.length === 0);
-        if (isBodyEmpty) {
-          res.data = `${res.status} ${res.statusText || 'Error'}`;
-        }
-      }
-      setResponse(res);
-      updateCurrentRequestResponse(res);
-      addToHistory(url, method, res.status, res.size, res.time);
-    } catch (err) {
-      const errorMessage = err.message || 'Unknown error';
-      const res = {
-        status: 0,
-        statusText: 'Error',
-        time: 0,
-        size: 0,
-        data: errorMessage,
-        headers: [],
-        testResults: [],
-        testScriptError: null,
-      };
-      setResponse(res);
-      updateCurrentRequestResponse(res);
+  // ----- Build effective variable map (global + current environment) -----
+  let effectiveVariables = {};
+  // Global
+  globalVariables.forEach(v => {
+    if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
+  });
+  // Current environment
+  environmentVariables.forEach(v => {
+    if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
+  });
 
-      addToHistory(url, method, 0, 0, 0, true);
-      if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
-    } finally {
-      setIsLoading(false);
-    }
-    return;
-  }
-
-  // ---------- RUN PRE‑REQUEST SCRIPT ----------
+  // ----- Pre‑request script (if any) -----
+  let scriptResult = null;
   if (currentReq.preRequestScript) {
     const scriptContext = {
-      environment: environmentVariables.reduce((acc, { key, value }) => {
-        acc[key] = value;
-        return acc;
-      }, {}),
+      environment: { ...effectiveVariables }, // pass current state to script
       variables: {},
       url: { path: url, query: {} },
       method: method,
@@ -1415,12 +1384,12 @@ const handleExecute = async () => {
       }, {}),
       body: body,
     };
-
-    const scriptResult = executeScript(currentReq.preRequestScript, scriptContext);
-
-    if (scriptResult.success) {
-      // Merge environment changes back into our state
-      if (scriptResult.environment && Object.keys(scriptResult.environment).length > 0) {
+    scriptResult = executeScript(currentReq.preRequestScript, scriptContext);
+    if (scriptResult.success && scriptResult.environment) {
+      // Merge script changes into our effective map
+      Object.assign(effectiveVariables, scriptResult.environment);
+      // Optionally update the React state later (can be async, not needed for this request)
+      if (Object.keys(scriptResult.environment).length > 0) {
         setEnvironmentVariables(prev => {
           const newVars = [...prev];
           Object.entries(scriptResult.environment).forEach(([key, value]) => {
@@ -1434,14 +1403,58 @@ const handleExecute = async () => {
           return newVars;
         });
       }
-    } else {
+    } else if (!scriptResult.success) {
       console.warn('Pre‑request script error:', scriptResult.error);
       // optional toast
-      // toast.error(`Pre‑request script error: ${scriptResult.error}`);
     }
   }
 
-  // Normal request flow (saved or unsaved)
+  // ----- Local substitution using effectiveVariables -----
+  const substituteLocal = (text) => {
+    if (!text || typeof text !== 'string') return text;
+    return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+      return effectiveVariables[varName] !== undefined ? effectiveVariables[varName] : match;
+    });
+  };
+
+if (currentReq.isMockEndpoint) {
+  try {
+    const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
+    // Apply fallback for empty error bodies
+    if (res.status >= 400) {
+      const isBodyEmpty = 
+        !res.data ||
+        (typeof res.data === 'string' && res.data.trim() === '') ||
+        (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
+        (Array.isArray(res.data) && res.data.length === 0);
+      if (isBodyEmpty) {
+        res.data = `${res.status} ${res.statusText || 'Error'}`;
+      }
+    }
+    setResponse(res);
+    addToHistory(url, method, res.status, res.size, res.time);
+  } catch (err) {
+    const errorMessage = err.message || 'Unknown error';
+    const res = {
+      status: 0,
+      statusText: 'Error',
+      time: 0,
+      size: 0,
+      data: errorMessage,
+      headers: [],
+      testResults: [],
+      testScriptError: null,
+    };
+    setResponse(res);
+    addToHistory(url, method, 0, 0, 0, true);
+    if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+  } finally {
+    setIsLoading(false);
+  }
+  return;
+}
+
+  // ----- Normal request flow -----
   const saved = isSavedRequest(currentReq);
   try {
     let targetRequestId = currentReq.id;
@@ -1463,7 +1476,6 @@ const handleExecute = async () => {
         collection_id: null,
         folder_id: null,
       };
-
       const createRes = await createRequest(payload);
       const savedRequest = normalizeRequest(createRes.data);
       setRequests(prev => prev.map(req => req.id === currentReq.id ? savedRequest : req));
@@ -1471,24 +1483,28 @@ const handleExecute = async () => {
       targetRequestId = savedRequest.id;
     }
 
-    // Build overrides
+    // Build overrides using substituteLocal
     const overrides = {};
-    // Remove query string from URL (backend will add it from query_params)
-    overrides.url = substituteVariables(url).split('?')[0];
-    // Send headers as array of objects (KeyValueEnabled)
-    overrides.headers = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
-    // Send query params as array
-    overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
-
+    overrides.url = substituteLocal(url).split('?')[0];
+    overrides.headers = headers.map(h => ({
+      key: substituteLocal(h.key),
+      value: substituteLocal(h.value),
+      enabled: h.enabled ?? true
+    }));
+    overrides.query_params = queryParams.map(q => ({
+      key: substituteLocal(q.key),
+      value: substituteLocal(q.value),
+      enabled: q.enabled ?? true
+    }));
     if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
-      overrides.body_content = substituteVariables(body);
+      overrides.body_content = substituteLocal(body);
     }
     overrides.path_variables = [];
 
-    // Substitute auth data and include in overrides
+    // Substitute auth data
     const substituteAuthData = (obj) => {
       if (!obj) return obj;
-      if (typeof obj === 'string') return substituteVariables(obj);
+      if (typeof obj === 'string') return substituteLocal(obj);
       if (Array.isArray(obj)) return obj.map(substituteAuthData);
       if (typeof obj === 'object') {
         const result = {};
@@ -1499,10 +1515,8 @@ const handleExecute = async () => {
       }
       return obj;
     };
-
-    const substitutedAuthData = substituteAuthData(authData);
     overrides.auth_type = authType;
-    overrides.auth_config = substitutedAuthData;
+    overrides.auth_config = substituteAuthData(authData);
 
     const axiosResponse = await executeRequest(targetRequestId, { overrides });
     const executionResult = axiosResponse.data;
@@ -1517,7 +1531,6 @@ const handleExecute = async () => {
       }
     }
 
-    // If it's a status 0 error (DNS, timeout, etc.), use the error_message as the body
     if (executionResult.status_code === 0 && executionResult.error_message) {
       parsedBody = executionResult.error_message;
     }
@@ -1533,7 +1546,6 @@ const handleExecute = async () => {
       testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
     };
 
-    // For error responses, replace empty/unhelpful body with status text
     if (res.status >= 400) {
       const isBodyEmpty = 
         !res.data ||
@@ -1546,7 +1558,6 @@ const handleExecute = async () => {
     }
 
     setResponse(res);
-    updateCurrentRequestResponse(res);
     if (res.status >= 400 || res.status === 0) {
       if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
     }
@@ -1554,7 +1565,6 @@ const handleExecute = async () => {
   } catch (err) {
     setError(err);
     addToHistory(url, method, 0, 0, 0, true, null);
-    // Show chatbot on network/exception error
     if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
   } finally {
     setIsLoading(false);

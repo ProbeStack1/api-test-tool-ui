@@ -5,8 +5,7 @@ import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, Bo
 import clsx from 'clsx';
 import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-
-import {listWorkspaceLoadTests, fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
+import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
 import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
@@ -123,12 +122,6 @@ const safeStringify = (obj) => {
     }
     return value;
   });
-};
-
-const ensureBodyString = (body) => {
-  if (typeof body === 'string') return body;
-  if (typeof body === 'object' && body !== null) return JSON.stringify(body, null, 2);
-  return '';
 };
 
 const saveWorkspaceTabs = (workspaceId, tabs, activeIdx) => {
@@ -1659,7 +1652,7 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
         headers: updatedRequest.headers,
         query_params: updatedRequest.queryParams,
         body_type: updatedRequest.bodyType || 'none',
-        body_content: ensureBodyString(updatedRequest.body),
+        body_content: updatedRequest.body,
         auth_type: updatedRequest.authType,
         auth_config: updatedRequest.authData,
         pre_request_script: updatedRequest.preRequestScript,
@@ -1723,7 +1716,7 @@ const handleSaveRequest = async (saveData) => {
       headers: request.headers,
       query_params: request.queryParams,
       body_type: request.bodyType || 'none',
-      body_content: ensureBodyString(request.body),
+      body_content: request.body,
       auth_type: request.authType,
       auth_config: request.authData,
       pre_request_script: request.preRequestScript,

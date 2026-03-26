@@ -1220,6 +1220,8 @@ useEffect(() => {
       try {
         const globalRes = await listEnvironments({ limit: 100 });
         const globalEnvs = (globalRes.data.data || globalRes.data).map(normalizeEnvironment);
+        console.log("global",globalRes);
+        console.log("global",globalEnvs);
         allEnvs.push(...globalEnvs);
       } catch (err) {
         console.error('Failed to fetch global environments:', err);
@@ -1230,6 +1232,8 @@ useEffect(() => {
         try {
           const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
           const wsEnvs = (wsRes.data.data || wsRes.data).map(normalizeEnvironment);
+          console.log(`workspace ${ws.id}`, wsEnvs);
+          
           allEnvs.push(...wsEnvs);
         } catch (err) {
           console.error(`Failed to fetch environments for workspace ${ws.id}:`, err);

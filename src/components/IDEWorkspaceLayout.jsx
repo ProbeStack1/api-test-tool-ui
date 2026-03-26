@@ -322,7 +322,7 @@ useEffect(() => {
     { id: 'collections', label: 'Collections', icon: LayoutGrid },
     { id: 'environments', label: 'Variables', icon: Layers },
     { id: 'testing', label: 'Testing', icon: BarChart3 },
-    { id: 'mock-service', label: 'Mock Service', icon: Layers },
+    { id: 'mock-service', label: 'Mock', icon: Layers },
     { id: 'ai-assisted', label: 'AI-Assisted', icon: Bot },
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   ];
@@ -855,41 +855,77 @@ const handleDeleteGroup = (groupItems) => {
 
 // Tooltip content for request history
 const getRequestTooltipContent = (item) => (
-  <div className="space-y-1">
-    <div className="font-mono text-xs">{item.method} {item.url}</div>
-    <div className="text-xs text-gray-400">Status: {item.status || 'N/A'}</div>
-    <div className="text-xs text-gray-400">Time: {item.time}ms</div>
-    <div className="text-xs text-gray-400">Size: {item.size} B</div>
-    <div className="text-xs text-gray-400">Date: {new Date(item.date).toLocaleString()}</div>
+  <div className="space-y-1 max-w-xs">
+    {/* URL with wrapping */}
+    <div className="text-xs text-gray-300 break-words">
+      {item.url || 'Unknown URL'}
+    </div>
+    {/* Time & Size */}
+    <div className="text-xs text-gray-400">
+      Time: {item.time}ms • Size: {item.size} B
+    </div>
+    {/* Date & Time */}
+    <div className="text-xs text-gray-400">
+      {new Date(item.date).toLocaleString()}
+    </div>
   </div>
 );
 
 // Tooltip content for functional runs
-const getFunctionalTooltipContent = (run) => (
-  <div className="space-y-1">
-    <div className="font-medium text-xs">{run.collectionName}</div>
-    <div className="text-xs text-gray-400">Started: {new Date(run.startedAt).toLocaleString()}</div>
-    <div className="text-xs">Passed: {run.passedRequests} / Failed: {run.failedRequests}</div>
-    <div className="text-xs text-gray-400">Total requests: {run.totalRequests}</div>
-    <div className="text-xs text-gray-400">Duration: {Math.round(run.totalTimeMs)}ms</div>
-    <div className="text-xs text-gray-400">Source: {run.source || 'manual'}</div>
-  </div>
-);
+const getFunctionalTooltipContent = (run) => {
+  // Determine triggered by name
+  let triggeredByName = 'Unknown';
+  if (run.triggeredByUser?.fullName) {
+    triggeredByName = run.triggeredByUser.fullName;
+  } else if (run.triggeredByUser?.username) {
+    triggeredByName = run.triggeredByUser.username;
+  }
+
+  return (
+    <div className="space-y-1 max-w-xs">
+      {/* Started date/time */}
+      <div className="text-xs text-gray-400">
+        {run.startedAt ? new Date(run.startedAt).toLocaleString() : '-'}
+      </div>
+      {/* Total requests & Duration */}
+      <div className="text-xs text-gray-400">
+        Total: {run.totalRequests} requests • Duration: {Math.round(run.totalTimeMs)}ms
+      </div>
+      {/* Triggered by */}
+      <div className="text-xs text-gray-400">
+        Triggered by: {triggeredByName}
+      </div>
+    </div>
+  );
+};
 
 // Tooltip content for load test runs
 const getLoadTooltipContent = (run) => {
   const result = run.result || {};
   const config = run.config || {};
+
+  // Determine triggered by name (full name, then username)
+  let triggeredByName = 'Unknown';
+  if (run.triggeredByUser?.fullName) {
+    triggeredByName = run.triggeredByUser.fullName;
+  } else if (run.triggeredByUser?.username) {
+    triggeredByName = run.triggeredByUser.username;
+  }
+
   return (
-    <div className="space-y-1">
-      <div className="font-medium text-xs">Load Test</div>
-      <div className="text-xs text-gray-400">Started: {new Date(run.startedAt).toLocaleString()}</div>
-      <div className="text-xs">VUsers: {config.concurrency || '-'}</div>
-      <div className="text-xs">Duration: {config.durationSeconds || '-'}s</div>
-      <div className="text-xs">Total requests: {result.totalRequests || 0}</div>
-      <div className="text-xs">Passed: {result.successfulRequests || 0} / Failed: {result.failedRequests || 0}</div>
-      <div className="text-xs">Avg Latency: {result.avgLatencyMs ? Math.round(result.avgLatencyMs) + 'ms' : '-'}</div>
-      <div className="text-xs">Error rate: {result.totalRequests ? ((result.failedRequests / result.totalRequests) * 100).toFixed(1) + '%' : '-'}</div>
+    <div className="space-y-1 max-w-xs">
+      {/* Started date/time */}
+      <div className="text-xs text-gray-400">
+        {run.startedAt ? new Date(run.startedAt).toLocaleString() : '-'}
+      </div>
+      {/* Virtual Users & Duration */}
+      <div className="text-xs text-gray-400">
+        VUsers: {config.concurrency || '-'} • Duration: {config.durationSeconds || '-'}s
+      </div>
+      {/* Triggered by */}
+      <div className="text-xs text-gray-400">
+        Triggered by: {triggeredByName}
+      </div>
     </div>
   );
 };

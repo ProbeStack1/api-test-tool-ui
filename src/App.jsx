@@ -417,7 +417,6 @@ const handleRunCollectionWithOrder = async (collectionId, selected, options, tab
     });
 
     const runId = response.data; // UUID
-    console.log('✅ Run started, ID:', runId);
 
     // Poll for results every 2 seconds
     const pollInterval = setInterval(async () => {
@@ -1090,7 +1089,6 @@ useEffect(() => {
       const wsRes = await fetchWorkspaces();
       workspaces = wsRes.data.map(normalizeWorkspace);
       setProjects(workspaces);
-      console.log('Workspaces loaded:', workspaces.length);
     } catch (err) {
       console.error('Failed to load workspaces:', err);
     }
@@ -1182,7 +1180,6 @@ useEffect(() => {
       }
 
       setCollections(allCollections);
-      console.log('Collections loaded:', allCollections.length);
     } else {
       setCollections([]);
     }
@@ -1220,8 +1217,6 @@ useEffect(() => {
       try {
         const globalRes = await listEnvironments({ limit: 100 });
         const globalEnvs = (globalRes.data.data || globalRes.data).map(normalizeEnvironment);
-        console.log("global",globalRes);
-        console.log("global",globalEnvs);
         allEnvs.push(...globalEnvs);
       } catch (err) {
         console.error('Failed to fetch global environments:', err);
@@ -1232,7 +1227,6 @@ useEffect(() => {
         try {
           const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
           const wsEnvs = (wsRes.data.data || wsRes.data).map(normalizeEnvironment);
-          console.log(`workspace ${ws.id}`, wsEnvs);
           
           allEnvs.push(...wsEnvs);
         } catch (err) {
@@ -1256,7 +1250,6 @@ useEffect(() => {
         setEnvironmentVariables([]);
       }
 
-      console.log('Environments loaded:', uniqueEnvs.length);
     } catch (err) {
       console.error('Failed to load environments:', err);
       setEnvironments([{ id: 'no-env', name: 'No Environment' }]);
@@ -1281,7 +1274,6 @@ useEffect(() => {
         date: item.executed_at,
       }));
       setHistory(normalizedHistory);
-      console.log('History loaded:', normalizedHistory.length);
     } catch (err) {
       console.error('Failed to load execution history:', err);
     }
@@ -1379,10 +1371,6 @@ const handleExecute = async () => {
     });
   }
 
-  console.log('🔍 effectiveVariables after build:', effectiveVariables);
-  console.log('🌍 globalEnvironment:', globalEnvironment);
-  console.log('🔥 activeEnv:', activeEnv);
-
   // ----- Pre‑request script (if any) -----
   let scriptResult = null;
   if (currentReq.preRequestScript) {
@@ -1401,7 +1389,6 @@ const handleExecute = async () => {
     if (scriptResult.success && scriptResult.environment) {
       // Merge script changes into our effective map
       Object.assign(effectiveVariables, scriptResult.environment);
-      console.log('📝 After script merge, effectiveVariables:', effectiveVariables);
       // Optionally update the React state later (can be async, not needed for this request)
       if (Object.keys(scriptResult.environment).length > 0) {
         setEnvironmentVariables(prev => {
@@ -1425,14 +1412,11 @@ const handleExecute = async () => {
 
   // ----- Local substitution using effectiveVariables -----
   const substituteLocal = (text) => {
-    console.log('🔄 substituteLocal called with:', text);
     if (!text || typeof text !== 'string') return text;
     const replaced = text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
       const val = effectiveVariables[varName];
-      console.log(`   🧩 Trying to replace '{{${varName}}}' with`, val);
       return val !== undefined ? val : match;
     });
-    console.log('✅ substituteLocal output:', replaced);
     return replaced;
   };
 
@@ -2486,7 +2470,6 @@ const handleRunCollection = async (collection) => {
     // Call backend
     const environmentOverrides = getEnvironmentOverrides();
     const response = await executeCollection(collection.id, { environmentOverrides });
-    console.log('Collection execution response:', response.data);
     const backendResult = response.data; // CollectionExecutionResult
 
     // Build a map of requestId -> folderPath for the entire collection

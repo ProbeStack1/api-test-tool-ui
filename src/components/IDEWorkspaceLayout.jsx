@@ -803,21 +803,51 @@ const handleHistoryItemClick = async (historyItem) => {
     const response = await onFetchHistoryEntry(historyItem.historyId);
     const fullDetails = response.data;
 
-    // Build a request object from the history details
+    // Parse URL to separate base URL and query params
+    let baseUrl = fullDetails.url || '';
+    let queryParams = [];
+    const queryIndex = baseUrl.indexOf('?');
+    if (queryIndex !== -1) {
+      const queryString = baseUrl.slice(queryIndex + 1);
+      baseUrl = baseUrl.slice(0, queryIndex);
+      // Parse query string into key-value pairs
+      const pairs = queryString.split('&');
+      queryParams = pairs.map(pair => {
+        const [key, value] = pair.split('=');
+        return {
+          key: key ? decodeURIComponent(key) : '',
+          value: value ? decodeURIComponent(value) : '',
+          enabled: true
+        };
+      });
+    }
+
+    // Ensure request body is a string
+    let requestBody = fullDetails.request_body;
+    if (typeof requestBody === 'object' && requestBody !== null) {
+      requestBody = JSON.stringify(requestBody, null, 2);
+    }
+
+    // Ensure headers are in the correct format (array of {key, value, enabled})
+    const headers = (fullDetails.request_headers || []).map(h => ({
+      key: h.key,
+      value: h.value,
+      enabled: true
+    }));
+
     const newRequest = {
-      id: HISTORY_TAB_ID,                       // fixed ID for history tab
+      id: HISTORY_TAB_ID, // Fixed ID to reuse the same tab
       name: `${fullDetails.method} ${fullDetails.url}`,
-      type: 'request',                          // regular request type
+      type: 'request',
       method: fullDetails.method,
-      url: fullDetails.url,
-      queryParams: [],                          // will be parsed from URL automatically
-      headers: fullDetails.request_headers || [],
-      body: fullDetails.request_body || '',
+      url: baseUrl,                       // Base URL without query string
+      queryParams,                        // Extracted query parameters
+      headers,
+      body: requestBody || '',
       authType: 'none',
       authData: {},
       preRequestScript: '',
       tests: '',
-      // Store the historical response inside the tab
       response: {
         status: fullDetails.status_code,
         statusText: fullDetails.status_text,
@@ -1240,7 +1270,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
         <HistoryItemList
           items={workspaceRuns}
           loading={loadingRuns}
-          onItemClick={(run) => onViewRunResults(run)}
+          onItemClick={(run) => onViewRunResults(run, false)} 
           getTooltipContent={getFunctionalTooltipContent}
           groupByDate
         />

@@ -5,7 +5,8 @@ import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, Bo
 import clsx from 'clsx';
 import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
+
+import {listWorkspaceLoadTests, fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
 import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
@@ -122,6 +123,12 @@ const safeStringify = (obj) => {
     }
     return value;
   });
+};
+
+const ensureBodyString = (body) => {
+  if (typeof body === 'string') return body;
+  if (typeof body === 'object' && body !== null) return JSON.stringify(body, null, 2);
+  return '';
 };
 
 const saveWorkspaceTabs = (workspaceId, tabs, activeIdx) => {
@@ -475,7 +482,7 @@ const flattenRequests = (items) => {
   return requests;
 };
 
-const handleOpenCollectionRunResults = (runData, collectionId, tabIndex) => {
+const handleOpenCollectionRunResults = (runData, collectionId, tabIndex,shouldNavigate = true) => {
   if (!runData) {
     console.error('Cannot open results tab – runData is null');
     return;
@@ -526,7 +533,7 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex) => {
   };
 
   // Replace or add the tab
-  if (tabIndex >= 0 && tabIndex < requests.length) {
+   if (tabIndex >= 0 && tabIndex < requests.length) {
     setRequests(prev => {
       const newRequests = [...prev];
       newRequests[tabIndex] = resultsTab;
@@ -536,11 +543,14 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex) => {
     handleNewTab(resultsTab);
   }
 
-  navigate('/workspace/collections');
+  // Navigate only if requested (default true)
+  if (shouldNavigate) {
+    navigate('/workspace/collections');
+  }
   fetchAllRuns(); // Refresh runs list from backend
 };
 
-const handleViewFunctionalRunResults = async (run) => {
+const handleViewFunctionalRunResults = async (run, shouldNavigate = true) => {
   const runId = run.runId || run.id;
   if (!runId) {
     toast.error('Invalid run ID');
@@ -550,7 +560,7 @@ const handleViewFunctionalRunResults = async (run) => {
     const response = await fetchRunResult(runId);
     const runData = response.data;
     // Pass the full run data and use -1 to open a new tab
-    handleOpenCollectionRunResults(runData, runData.collectionId, -1);
+    handleOpenCollectionRunResults(runData, runData.collectionId, -1, shouldNavigate);
   } catch (err) {
     toast.error('Failed to load run details');
   }
@@ -1649,7 +1659,7 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
         headers: updatedRequest.headers,
         query_params: updatedRequest.queryParams,
         body_type: updatedRequest.bodyType || 'none',
-        body_content: updatedRequest.body,
+        body_content: ensureBodyString(updatedRequest.body),
         auth_type: updatedRequest.authType,
         auth_config: updatedRequest.authData,
         pre_request_script: updatedRequest.preRequestScript,
@@ -1713,7 +1723,7 @@ const handleSaveRequest = async (saveData) => {
       headers: request.headers,
       query_params: request.queryParams,
       body_type: request.bodyType || 'none',
-      body_content: request.body,
+      body_content: ensureBodyString(request.body),
       auth_type: request.authType,
       auth_config: request.authData,
       pre_request_script: request.preRequestScript,

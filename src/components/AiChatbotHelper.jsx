@@ -5,7 +5,7 @@
  * Features:
  * - Draggable across the screen (via header, no drag handle icon)
  * - Resizable (small/medium toggle) - stays within viewport bounds
- * - Minimize to floating bubble
+ * - Minimize to floating bubble with smooth fade/scale
  * - Modern, professional design matching the app's color scheme
  * - Analyzes errors and provides helpful responses (dummy data for now - real AI integration later)
  */
@@ -176,7 +176,7 @@ const ChatInputBar = ({ userInput, setUserInput, onSend, isProcessing }) => (
  * Draggable AI Chatbot Helper Component
  * - Draggable by header (no separate drag icon)
  * - Resizable (small/medium)
- * - Minimize to floating bubble at bottom-right
+ * - Minimize to floating bubble at bottom-right with smooth fade/scale
  * 
  * @param {boolean} isVisible - Controls visibility
  * @param {function} onClose - Close handler
@@ -197,7 +197,9 @@ const AIChatbotHelper = ({
   const [chatMessages, setChatMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [hasAcceptedHelp, setHasAcceptedHelp] = useState(false);
-  
+  const [animatingOut, setAnimatingOut] = useState(false);
+  const [animatingIn, setAnimatingIn] = useState(false);
+
   const [position, setPosition] = useState({ x: window.innerWidth - 360, y: window.innerHeight - 480 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
@@ -218,6 +220,8 @@ const AIChatbotHelper = ({
       setHasAcceptedHelp(false);
       setIsProcessing(false);
       setIsMinimized(false);
+      setAnimatingOut(false);
+      setAnimatingIn(false);
       setSize('small');
       setPosition({
         x: window.innerWidth - dimensions.small.width - MARGIN,
@@ -267,15 +271,27 @@ const AIChatbotHelper = ({
     });
   };
 
-  // Minimize to bubble
+  // Minimize to bubble with smooth fade-out
   const handleMinimize = (e) => {
     e.stopPropagation();
-    setIsMinimized(true);
+    if (animatingOut) return;
+    setAnimatingOut(true);
+    setTimeout(() => {
+      setIsMinimized(true);
+      setAnimatingOut(false);
+    }, 200);
   };
 
-  // Expand from bubble
+  // Expand from bubble with smooth fade-in
   const handleExpand = () => {
+    if (animatingIn) return;
     setIsMinimized(false);
+    setAnimatingIn(true);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        setAnimatingIn(false);
+      }, 50);
+    });
     setPosition(prev => clampPosition(prev.x, prev.y, currentSize.width, currentSize.height));
   };
 
@@ -376,12 +392,12 @@ const AIChatbotHelper = ({
 
   if (!isVisible) return null;
 
-  // Minimized state: bubble
+  // Minimized state: bubble with smooth pop-in
   if (isMinimized) {
     return ReactDOM.createPortal(
       <button
         onClick={handleExpand}
-        className="fixed z-[200] w-14 h-14 rounded-full shadow-2xl transition-all bg-gradient-to-br from-primary to-primary/80 hover:scale-110 flex items-center justify-center"
+        className="fixed z-[200] w-14 h-14 rounded-full shadow-2xl transition-all duration-200 hover:scale-110 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center animate-in fade-in zoom-in"
         style={{ bottom: MARGIN, right: MARGIN }}
         data-testid="ai-chatbot-bubble"
       >
@@ -392,15 +408,20 @@ const AIChatbotHelper = ({
     );
   }
 
-  // Expanded panel
+  // Expanded panel with smooth fade-in/out transitions
+  const panelClasses = clsx(
+    "fixed z-[200] flex flex-col rounded-2xl shadow-2xl overflow-hidden",
+    "bg-gradient-to-b from-dark-800 to-dark-900 border border-dark-600/50",
+    isDragging && "cursor-grabbing select-none opacity-90",
+    (animatingOut || animatingIn) && "transition-all duration-200 ease-out",
+    animatingOut && "opacity-0 scale-95",
+    animatingIn && "opacity-0 scale-95"
+  );
+
   return ReactDOM.createPortal(
     <div
       ref={dragRef}
-      className={clsx(
-        "fixed z-[200] flex flex-col rounded-2xl shadow-2xl overflow-hidden",
-        "bg-gradient-to-b from-dark-800 to-dark-900 border border-dark-600/50",
-        isDragging && "cursor-grabbing select-none opacity-90"
-      )}
+      className={panelClasses}
       style={{
         left: position.x,
         top: position.y,

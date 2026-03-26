@@ -1,4 +1,5 @@
 import React, { useEffect, useState,useRef, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {  History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen, Activity } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
@@ -140,7 +141,7 @@ const [libraryItems, setLibraryItems] = useState([]);
 const [loadingSpecs, setLoadingSpecs] = useState(false);
 const [loadingLibrary, setLoadingLibrary] = useState(false);
 const [fileSelectionContext, setFileSelectionContext] = useState({ context: null, selectedFile: null });
-const [historySubTab, setHistorySubTab] = useState('req');
+const [selectedHistoryType, setSelectedHistoryType] = useState('request');
 
 const handleViewLoadTestResults = (run) => {
   // console.log('🔍 handleViewLoadTestResults called with run:', run);
@@ -335,13 +336,7 @@ const testingSubTabs = [
   { id: 'tracing', label: 'Tracing', icon: Activity }, // new tab
 ];
 
-// History sub-tabs
-const historySubTabs = [
-  { id: 'req', label: 'Request', icon: History },
-  { id: 'functional', label: 'Functional', icon: Play },
-  { id: 'load', label: 'Load', icon: BarChart3 },
-  { id: 'tracing', label: 'Tracing', icon: Activity }, // new
-];
+
 
   // Generate Testcases - uploaded test files (CSV/JSON only)
   const [generateTestcasesSearch, setGenerateTestcasesSearch] = useState('');
@@ -798,7 +793,168 @@ const handleDeleteLibraryItem = async (item) => {
   }
 };
 
+// Helper to open a request tab from history
+const handleHistoryItemClick = async (historyItem) => {
+  if (!onFetchHistoryEntry) return;
+  try {
+    const response = await onFetchHistoryEntry(historyItem.historyId);
+    const fullDetails = response.data;
+    // Build a request object from the details
+    const newRequest = {
+      id: `history-${historyItem.historyId}-${Date.now()}`,
+      name: `${historyItem.method} ${historyItem.url}`,
+      method: fullDetails.method || historyItem.method,
+      url: fullDetails.url || historyItem.url,
+      queryParams: fullDetails.request_headers || [],
+      headers: fullDetails.request_headers || [],
+      body: fullDetails.request_body || '',
+      authType: 'none',
+      authData: {},
+      preRequestScript: '',
+      tests: '',
+      type: 'request',
+    };
+    // Check if already open
+    const existingIndex = requests.findIndex(r => r.id === newRequest.id);
+    if (existingIndex !== -1) {
+      onTabSelect(existingIndex);
+    } else {
+      onNewTab(newRequest);
+    }
+    // Optionally set response in the tab? Not needed – the request will be executed later
+  } catch (err) {
+    toast.error('Failed to load request details');
+  }
+};
 
+// Tooltip content for request history
+const getRequestTooltipContent = (item) => (
+  <div className="space-y-1">
+    <div className="font-mono text-xs">{item.method} {item.url}</div>
+    <div className="text-xs text-gray-400">Status: {item.status || 'N/A'}</div>
+    <div className="text-xs text-gray-400">Time: {item.time}ms</div>
+    <div className="text-xs text-gray-400">Size: {item.size} B</div>
+    <div className="text-xs text-gray-400">Date: {new Date(item.date).toLocaleString()}</div>
+  </div>
+);
+
+// Tooltip content for functional runs
+const getFunctionalTooltipContent = (run) => (
+  <div className="space-y-1">
+    <div className="font-medium text-xs">{run.collectionName}</div>
+    <div className="text-xs text-gray-400">Started: {new Date(run.startedAt).toLocaleString()}</div>
+    <div className="text-xs">Passed: {run.passedRequests} / Failed: {run.failedRequests}</div>
+    <div className="text-xs text-gray-400">Total requests: {run.totalRequests}</div>
+    <div className="text-xs text-gray-400">Duration: {Math.round(run.totalTimeMs)}ms</div>
+    <div className="text-xs text-gray-400">Source: {run.source || 'manual'}</div>
+  </div>
+);
+
+// Tooltip content for load test runs
+const getLoadTooltipContent = (run) => {
+  const result = run.result || {};
+  const config = run.config || {};
+  return (
+    <div className="space-y-1">
+      <div className="font-medium text-xs">Load Test</div>
+      <div className="text-xs text-gray-400">Started: {new Date(run.startedAt).toLocaleString()}</div>
+      <div className="text-xs">VUsers: {config.concurrency || '-'}</div>
+      <div className="text-xs">Duration: {config.durationSeconds || '-'}s</div>
+      <div className="text-xs">Total requests: {result.totalRequests || 0}</div>
+      <div className="text-xs">Passed: {result.successfulRequests || 0} / Failed: {result.failedRequests || 0}</div>
+      <div className="text-xs">Avg Latency: {result.avgLatencyMs ? Math.round(result.avgLatencyMs) + 'ms' : '-'}</div>
+      <div className="text-xs">Error rate: {result.totalRequests ? ((result.failedRequests / result.totalRequests) * 100).toFixed(1) + '%' : '-'}</div>
+    </div>
+  );
+};
+
+// HistoryItemList component
+function HistoryItemList({ items, loading, onItemClick, getTooltipContent, groupByDate }) {
+  const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: null });
+
+  const groupedItems = useMemo(() => {
+    if (!groupByDate) return { 'All': items };
+    const groups = {};
+    items.forEach(item => {
+      const date = new Date(item.startedAt || item.date);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      let groupKey;
+      if (date.toDateString() === today.toDateString()) {
+        groupKey = 'Today';
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        groupKey = 'Yesterday';
+      } else {
+        groupKey = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      }
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(item);
+    });
+    return groups;
+  }, [items, groupByDate]);
+
+  const createTooltipHandler = (item) => ({
+    onMouseEnter: (e) => {
+      const content = getTooltipContent(item);
+      if (content) {
+        setTooltip({ show: true, x: e.clientX, y: e.clientY, content });
+      }
+    },
+    onMouseLeave: () => setTooltip({ show: false, content: null }),
+    onMouseMove: (e) => {
+      if (tooltip.show) {
+        setTooltip(prev => ({ ...prev, x: e.clientX, y: e.clientY }));
+      }
+    }
+  });
+
+  if (loading) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
+
+  if (!items || items.length === 0) {
+    return <div className="text-center py-8 text-gray-500 text-xs">No history found</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {Object.entries(groupedItems).map(([groupLabel, groupItems]) => (
+        <div key={groupLabel}>
+          <div className="sticky top-0 bg-dark-800/90 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-dark-700">
+            {groupLabel}
+          </div>
+          <div className="space-y-1 mt-1">
+            {groupItems.map((item, idx) => (
+              <div
+                key={item.historyId || item.runId || item.loadTestId || idx}
+                className="px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
+                onClick={() => onItemClick(item)}
+                {...createTooltipHandler(item)}
+              >
+                <div className="text-xs text-gray-300 truncate">
+                  {item.collectionName || item.url || item.name || 'Untitled'}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-0.5">
+                  {new Date(item.startedAt || item.date).toLocaleTimeString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {tooltip.show && tooltip.content && ReactDOM.createPortal(
+        <div
+          className="fixed z-50 pointer-events-none bg-dark-900 border border-dark-600 rounded-lg shadow-xl p-3 text-sm text-gray-200 max-w-xs"
+          style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
+        >
+          {tooltip.content}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
       {/* project header bar: Search + Environment selector */}
@@ -874,26 +1030,52 @@ const handleDeleteLibraryItem = async (item) => {
 
 {topMenuActive === 'history' && (
   <div className="flex-1 flex flex-col p-4">
-    <div className="space-y-3.5">
-      {historySubTabs.map((tab) => {
-        const Icon = tab.icon;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setHistorySubTab(tab.id)}
-            className={clsx(
-              'w-full flex items-center gap-2 text-left px-5 py-3 rounded-xl text-md font-medium transition-all border border-dark-600',
-              historySubTab === tab.id
-                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-dark-800'
-            )}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            <span>{tab.label}</span>
-          </button>
-        );
-      })}
+    <div className="mb-4">
+      <label className="text-xs font-medium text-gray-400 mb-2 block">History Type</label>
+      <select
+        value={selectedHistoryType}
+        onChange={(e) => setSelectedHistoryType(e.target.value)}
+        className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+      >
+        <option value="request">Request</option>
+        <option value="functional">Functional Test</option>
+        <option value="load">Load Test</option>
+        <option value="tracing">Tracing</option>
+      </select>
+    </div>
+    <div className="flex-1 overflow-y-auto custom-scrollbar">
+      {selectedHistoryType === 'request' && (
+        <HistoryItemList
+          items={history}
+          loading={false}
+          onItemClick={handleHistoryItemClick}
+          getTooltipContent={getRequestTooltipContent}
+          groupByDate
+        />
+      )}
+      {selectedHistoryType === 'functional' && (
+        <HistoryItemList
+          items={workspaceRuns}
+          loading={loadingRuns}
+          onItemClick={(run) => onViewRunResults(run)}
+          getTooltipContent={getFunctionalTooltipContent}
+          groupByDate
+        />
+      )}
+      {selectedHistoryType === 'load' && (
+        <HistoryItemList
+          items={loadTestRuns}
+          loading={loadingLoadRuns}
+          onItemClick={handleViewLoadTestResults}
+          getTooltipContent={getLoadTooltipContent}
+          groupByDate
+        />
+      )}
+      {selectedHistoryType === 'tracing' && (
+        <div className="text-center py-8 text-gray-500 text-xs">
+          Tracing history coming soon.
+        </div>
+      )}
     </div>
   </div>
 )}
@@ -1574,84 +1756,7 @@ topMenuActive === 'testing' ? (
   />
             ) :
 
-topMenuActive === 'history' ? (
-  <>
-    {historySubTab === 'req' && (
-      <RequestHistoryList onFetchHistoryEntry={onFetchHistoryEntry} />
-    )}
-    {historySubTab === 'functional' && (
-      <div className="p-6">
-        <CollectionRunsTable runs={workspaceRuns} onViewDetails={onViewRunResults} />
-      </div>
-    )}
-    {historySubTab === 'load' && (
-      <div className="p-6">
-        <LoadTestRunsTable runs={loadTestRuns} onViewDetails={handleViewLoadTestResults} />
-      </div>
-    )}
-    {historySubTab === 'tracing' && (
-      <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
-        <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">API Execution Trace (History)</h3>
-          {/* Dummy data visualization */}
-          <div className="space-y-4">
-            <div className="bg-dark-900/40 rounded-lg p-4 border border-dark-700">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono text-gray-400">Trace ID: trace_xyz789</span>
-                <span className="text-xs text-green-400">Completed</span>
-              </div>
-              <div className="space-y-3">
-                {/* Dummy request/response steps */}
-                {[
-                  { method: 'GET', path: '/api/users', status: 200, duration: '45ms', timestamp: '10:23:45' },
-                  { method: 'POST', path: '/api/auth', status: 201, duration: '87ms', timestamp: '10:23:46' },
-                  { method: 'PUT', path: '/api/settings', status: 200, duration: '32ms', timestamp: '10:23:47' },
-                ].map((step, idx) => (
-                  <div key={idx} className="flex items-center gap-3 py-2 border-b border-dark-700 last:border-0">
-                    <div className={clsx(
-                      'w-12 text-xs font-bold',
-                      step.method === 'GET' && 'text-green-400',
-                      step.method === 'POST' && 'text-yellow-400',
-                      step.method === 'PUT' && 'text-blue-400',
-                    )}>
-                      {step.method}
-                    </div>
-                    <div className="flex-1 text-sm text-gray-300">{step.path}</div>
-                    <div className="text-xs text-gray-500">{step.duration}</div>
-                    <div className={clsx(
-                      'text-xs font-mono',
-                      step.status >= 200 && step.status < 300 ? 'text-green-400' : 'text-red-400'
-                    )}>
-                      {step.status}
-                    </div>
-                    <div className="text-xs text-gray-500">{step.timestamp}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-dark-900/40 rounded-lg p-4 border border-dark-700">
-              <h4 className="text-xs font-semibold text-gray-400 mb-2">Visualization</h4>
-              <div className="h-32 flex items-end gap-2">
-                {[65, 45, 80, 55, 70].map((height, i) => (
-                  <div key={i} className="flex-1 bg-primary/30 rounded-t" style={{ height: `${height}%` }} />
-                ))}
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-gray-500">
-                <span>GET /users</span>
-                <span>POST /auth</span>
-                <span>PUT /settings</span>
-                <span>GET /profile</span>
-                <span>DELETE /session</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
-  </>
-) 
-
-: (
+ (
               <APIExecutionStudio
                 requests={requests}
                 activeRequestIndex={activeRequestIndex}

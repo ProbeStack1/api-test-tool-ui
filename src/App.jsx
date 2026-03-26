@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info  } from 'lucide-react';
 import clsx from 'clsx';
-// import { sendRequest } from './utils/api';
+import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
 import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
 import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, fetchHistoryEntry  } from './services/requestService';
@@ -569,6 +569,22 @@ if (tabIndex >= 0 && tabIndex < requests.length) {
 };
 setWorkspaceRuns(prev => [newRun, ...prev]);
 
+};
+
+const handleViewFunctionalRunResults = async (run) => {
+  const runId = run.runId || run.id;
+  if (!runId) {
+    toast.error('Invalid run ID');
+    return;
+  }
+  try {
+    const response = await fetchRunResult(runId);
+    const runData = response.data;
+    // Pass the full run data and use -1 to open a new tab
+    handleOpenCollectionRunResults(runData, runData.collectionId, -1);
+  } catch (err) {
+    toast.error('Failed to load run details');
+  }
 };
 
 const handleCreateMockServer = async (mockData) => {
@@ -1372,42 +1388,84 @@ const handleExecute = async () => {
 
   const currentReq = requests[activeRequestIndex];
 
-if (currentReq.isMockEndpoint) {
-  try {
-    const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
-    // Apply fallback for empty error bodies
-    if (res.status >= 400) {
-      const isBodyEmpty = 
-        !res.data ||
-        (typeof res.data === 'string' && res.data.trim() === '') ||
-        (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
-        (Array.isArray(res.data) && res.data.length === 0);
-      if (isBodyEmpty) {
-        res.data = `${res.status} ${res.statusText || 'Error'}`;
+  if (currentReq.isMockEndpoint) {
+    try {
+      const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
+      // Apply fallback for empty error bodies
+      if (res.status >= 400) {
+        const isBodyEmpty = 
+          !res.data ||
+          (typeof res.data === 'string' && res.data.trim() === '') ||
+          (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
+          (Array.isArray(res.data) && res.data.length === 0);
+        if (isBodyEmpty) {
+          res.data = `${res.status} ${res.statusText || 'Error'}`;
+        }
       }
+      setResponse(res);
+      addToHistory(url, method, res.status, res.size, res.time);
+    } catch (err) {
+      const errorMessage = err.message || 'Unknown error';
+      const res = {
+        status: 0,
+        statusText: 'Error',
+        time: 0,
+        size: 0,
+        data: errorMessage,
+        headers: [],
+        testResults: [],
+        testScriptError: null,
+      };
+      setResponse(res);
+      addToHistory(url, method, 0, 0, 0, true);
+      if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+    } finally {
+      setIsLoading(false);
     }
-    setResponse(res);
-    addToHistory(url, method, res.status, res.size, res.time);
-  } catch (err) {
-    const errorMessage = err.message || 'Unknown error';
-    const res = {
-      status: 0,
-      statusText: 'Error',
-      time: 0,
-      size: 0,
-      data: errorMessage,
-      headers: [],
-      testResults: [],
-      testScriptError: null,
-    };
-    setResponse(res);
-    addToHistory(url, method, 0, 0, 0, true);
-    if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
-  } finally {
-    setIsLoading(false);
+    return;
   }
-  return;
-}
+
+  // ---------- RUN PRE‑REQUEST SCRIPT ----------
+  if (currentReq.preRequestScript) {
+    const scriptContext = {
+      environment: environmentVariables.reduce((acc, { key, value }) => {
+        acc[key] = value;
+        return acc;
+      }, {}),
+      variables: {},
+      url: { path: url, query: {} },
+      method: method,
+      headers: headers.reduce((acc, h) => {
+        if (h.enabled && h.key) acc[h.key] = h.value;
+        return acc;
+      }, {}),
+      body: body,
+    };
+
+    const scriptResult = executeScript(currentReq.preRequestScript, scriptContext);
+
+    if (scriptResult.success) {
+      // Merge environment changes back into our state
+      if (scriptResult.environment && Object.keys(scriptResult.environment).length > 0) {
+        setEnvironmentVariables(prev => {
+          const newVars = [...prev];
+          Object.entries(scriptResult.environment).forEach(([key, value]) => {
+            const existing = newVars.find(v => v.key === key);
+            if (existing) {
+              existing.value = value;
+            } else {
+              newVars.push({ key, value, enabled: true });
+            }
+          });
+          return newVars;
+        });
+      }
+    } else {
+      console.warn('Pre‑request script error:', scriptResult.error);
+      // optional toast
+      // toast.error(`Pre‑request script error: ${scriptResult.error}`);
+    }
+  }
 
   // Normal request flow (saved or unsaved)
   const saved = isSavedRequest(currentReq);
@@ -1439,74 +1497,93 @@ if (currentReq.isMockEndpoint) {
       targetRequestId = savedRequest.id;
     }
 
-// Build overrides
-const overrides = {};
-// Remove query string from URL (backend will add it from query_params)
-overrides.url = substituteVariables(url).split('?')[0];
-// Send headers as array of objects (KeyValueEnabled)
-overrides.headers = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
-// Send query params as array
-overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
+    // Build overrides
+    const overrides = {};
+    // Remove query string from URL (backend will add it from query_params)
+    overrides.url = substituteVariables(url).split('?')[0];
+    // Send headers as array of objects (KeyValueEnabled)
+    overrides.headers = headers.map(h => ({ key: substituteVariables(h.key), value: substituteVariables(h.value), enabled: h.enabled ?? true }));
+    // Send query params as array
+    overrides.query_params = queryParams.map(q => ({ key: substituteVariables(q.key), value: substituteVariables(q.value), enabled: q.enabled ?? true }));
 
-if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
-  overrides.body_content = substituteVariables(body);
-}
-overrides.path_variables = [];
+    if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
+      overrides.body_content = substituteVariables(body);
+    }
+    overrides.path_variables = [];
+
+    // Substitute auth data and include in overrides
+    const substituteAuthData = (obj) => {
+      if (!obj) return obj;
+      if (typeof obj === 'string') return substituteVariables(obj);
+      if (Array.isArray(obj)) return obj.map(substituteAuthData);
+      if (typeof obj === 'object') {
+        const result = {};
+        for (const [k, v] of Object.entries(obj)) {
+          result[k] = substituteAuthData(v);
+        }
+        return result;
+      }
+      return obj;
+    };
+
+    const substitutedAuthData = substituteAuthData(authData);
+    overrides.auth_type = authType;
+    overrides.auth_config = substitutedAuthData;
 
     const axiosResponse = await executeRequest(targetRequestId, { overrides });
     const executionResult = axiosResponse.data;
 
-let parsedBody = executionResult.response_body;
-if (typeof parsedBody === 'string') {
-  const trimmed = parsedBody.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      parsedBody = JSON.parse(parsedBody);
-    } catch (e) {}
-  }
-}
+    let parsedBody = executionResult.response_body;
+    if (typeof parsedBody === 'string') {
+      const trimmed = parsedBody.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          parsedBody = JSON.parse(parsedBody);
+        } catch (e) {}
+      }
+    }
 
-// If it's a status 0 error (DNS, timeout, etc.), use the error_message as the body
-if (executionResult.status_code === 0 && executionResult.error_message) {
-  parsedBody = executionResult.error_message;
-}
+    // If it's a status 0 error (DNS, timeout, etc.), use the error_message as the body
+    if (executionResult.status_code === 0 && executionResult.error_message) {
+      parsedBody = executionResult.error_message;
+    }
 
-const res = {
-  status: executionResult.status_code,
-  statusText: executionResult.status_text || '',
-  time: executionResult.response_time_ms || 0,
-  size: executionResult.response_size_bytes || 0,
-  data: parsedBody,
-  headers: executionResult.response_headers || [],
-  testResults: executionResult.test_results || [],
-  testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
-};
+    const res = {
+      status: executionResult.status_code,
+      statusText: executionResult.status_text || '',
+      time: executionResult.response_time_ms || 0,
+      size: executionResult.response_size_bytes || 0,
+      data: parsedBody,
+      headers: executionResult.response_headers || [],
+      testResults: executionResult.test_results || [],
+      testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
+    };
 
-// For error responses, replace empty/unhelpful body with status text
-if (res.status >= 400) {
-  const isBodyEmpty = 
-    !res.data ||
-    (typeof res.data === 'string' && res.data.trim() === '') ||
-    (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
-    (Array.isArray(res.data) && res.data.length === 0);
-  if (isBodyEmpty) {
-    res.data = `${res.status} ${res.statusText || 'Error'}`;
-  }
-}
+    // For error responses, replace empty/unhelpful body with status text
+    if (res.status >= 400) {
+      const isBodyEmpty = 
+        !res.data ||
+        (typeof res.data === 'string' && res.data.trim() === '') ||
+        (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
+        (Array.isArray(res.data) && res.data.length === 0);
+      if (isBodyEmpty) {
+        res.data = `${res.status} ${res.statusText || 'Error'}`;
+      }
+    }
 
     setResponse(res);
-if (res.status >= 400 || res.status === 0) {
-  if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
-}
+    if (res.status >= 400 || res.status === 0) {
+      if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
+    }
     addToHistory(url, method, res.status, res.size, res.time, false, executionResult.history_id);
   } catch (err) {
-  setError(err);
-  addToHistory(url, method, 0, 0, 0, true, null);
-  // Show chatbot on network/exception error
-   if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
-} finally {
-  setIsLoading(false);
-}
+    setError(err);
+    addToHistory(url, method, 0, 0, 0, true, null);
+    // Show chatbot on network/exception error
+    if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+  } finally {
+    setIsLoading(false);
+  }
 };
 
   const addToHistory = (url, method, status, size, time, isError = false,historyId = null) => {
@@ -2866,7 +2943,6 @@ useEffect(() => {
   mockServers={filteredMockServers}
   onOpenCollectionRun={handleOpenCollectionRun}
 onRunCollectionWithOrder={handleRunCollectionWithOrder}
-onViewRunResults={handleOpenCollectionRunResults}
 activeEnvVars={activeEnvVars}
 inactiveEnvVars={inactiveEnvVars}
 activeEnvValues={activeEnvValues}
@@ -2879,6 +2955,7 @@ onShowChatbot={handleShowChatbot}
   loadTestRuns={loadTestRuns}
   loadingLoadRuns={loadingLoadRuns}
   onLoadTestComplete={handleLoadTestComplete}
+   onViewRunResults={handleViewFunctionalRunResults} 
               />
             }
           />

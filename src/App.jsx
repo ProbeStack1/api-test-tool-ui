@@ -1370,6 +1370,10 @@ const handleExecute = async () => {
     if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
   });
 
+  console.log('🔍 effectiveVariables after build:', effectiveVariables);
+console.log('🌍 globalVariables:', globalVariables);
+console.log('🖥️ environmentVariables:', environmentVariables);
+
   // ----- Pre‑request script (if any) -----
   let scriptResult = null;
   if (currentReq.preRequestScript) {
@@ -1388,6 +1392,7 @@ const handleExecute = async () => {
     if (scriptResult.success && scriptResult.environment) {
       // Merge script changes into our effective map
       Object.assign(effectiveVariables, scriptResult.environment);
+      console.log('📝 After script merge, effectiveVariables:', effectiveVariables);
       // Optionally update the React state later (can be async, not needed for this request)
       if (Object.keys(scriptResult.environment).length > 0) {
         setEnvironmentVariables(prev => {
@@ -1410,12 +1415,17 @@ const handleExecute = async () => {
   }
 
   // ----- Local substitution using effectiveVariables -----
-  const substituteLocal = (text) => {
-    if (!text || typeof text !== 'string') return text;
-    return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-      return effectiveVariables[varName] !== undefined ? effectiveVariables[varName] : match;
-    });
-  };
+const substituteLocal = (text) => {
+  console.log('🔄 substituteLocal called with:', text);
+  if (!text || typeof text !== 'string') return text;
+  const replaced = text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+    const val = effectiveVariables[varName];
+    console.log(`   🧩 Trying to replace '{{${varName}}}' with`, val);
+    return val !== undefined ? val : match;
+  });
+  console.log('✅ substituteLocal output:', replaced);
+  return replaced;
+};
 
 if (currentReq.isMockEndpoint) {
   try {

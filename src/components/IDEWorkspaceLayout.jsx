@@ -845,9 +845,10 @@ const handleHistoryItemClick = async (historyItem) => {
 // Delete all items in a date group
 const handleDeleteGroup = (groupItems) => {
   groupItems.forEach(item => {
-    const id = item.historyId || item.id || item.runId || item.loadTestId;
-    if (id) {
-      onDeleteHistoryItem(id);
+    const historyId = item.historyId;
+    const requestId = item.requestId;
+    if (historyId && requestId) {
+      onDeleteHistoryItem({ historyId, requestId });
     }
   });
 };
@@ -1009,44 +1010,57 @@ function HistoryItemList({
                 return (
 <div
   key={itemId || idx}
-  className="relative group-item px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
+  className="relative group px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
   {...createTooltipHandler(item)}
 >
-                    <div className="flex items-start justify-between">
-                      <div
-                        className="flex-1 min-w-0"
-                        onClick={() => onItemClick(item)}
-                      >
-                        <div className="text-xs text-gray-300 truncate">
-                          {item.url || item.collectionName || item.name || 'Untitled'}
-                        </div>
-                        <div className="flex justify-between text-[10px] mt-0.5">
-                          <span className="font-mono text-gray-400">{item.method}</span>
-                          {item.status !== undefined && (
-                            <span className={clsx(
-                              item.status >= 200 && item.status < 300
-                                ? 'text-green-400'
-                                : 'text-red-400'
-                            )}>
-                              {item.status}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-{onDeleteHistoryItem && itemId && (
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      onDeleteHistoryItem(itemId);
-    }}
-    className="opacity-0 group-item-hover:opacity-100 p-1 hover:bg-dark-600 rounded text-gray-400 hover:text-white transition-opacity"
-    title="Delete entry"
-  >
-    <Trash2 className="w-3 h-3" />
-  </button>
-)}
-                    </div>
-                  </div>
+  <div className="flex items-start justify-between">
+    <div
+      className="flex-1 min-w-0 pr-0"
+      onClick={() => onItemClick(item)}
+    >
+      <div className="text-xs text-gray-300 truncate">
+        {item.url || item.collectionName || item.name || 'Untitled'}
+      </div>
+      <div className="flex justify-between text-[10px] mt-0.5">
+        <span className={clsx(
+          'font-mono text-[10px] font-bold',
+          item.method === 'GET' && 'text-green-400',
+          item.method === 'POST' && 'text-yellow-400',
+          item.method === 'PUT' && 'text-blue-400',
+          item.method === 'DELETE' && 'text-red-400',
+          item.method === 'PATCH' && 'text-purple-400',
+          item.method !== 'GET' && item.method !== 'POST' && item.method !== 'PUT' && item.method !== 'DELETE' && item.method !== 'PATCH' && 'text-orange-400'
+        )}>
+          {item.method}
+        </span>
+        {item.status !== undefined && (
+          <span className={clsx(
+            item.status >= 200 && item.status < 300
+              ? 'text-green-400'
+              : 'text-red-400'
+          )}>
+            {item.status}
+          </span>
+        )}
+      </div>
+    </div>
+
+    {onDeleteHistoryItem && itemId && (
+      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeleteHistoryItem({ historyId: itemId, requestId: item.requestId });
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-dark-600 rounded text-gray-400 hover:text-white transition-opacity"
+          title="Delete entry"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    )}
+  </div>
+</div>
                 );
               })}
             </div>

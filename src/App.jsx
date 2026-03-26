@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef,useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info  } from 'lucide-react';
@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
 import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
-import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, fetchHistoryEntry  } from './services/requestService';
+import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
   createEnvironment,
@@ -525,50 +525,19 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex) => {
     collectionId: runData.collectionId,
   };
 
-
-  // Replace the configuration tab at tabIndex with the results tab
-  setRequests(prev => {
-    const newRequests = [...prev];
-    newRequests[tabIndex] = resultsTab;
-    return newRequests;
-  });
-  // Active index stays the same, pointing to the results tab
-
-  navigate('/workspace/collections');
-
-if (tabIndex >= 0 && tabIndex < requests.length) {
-    // Replace existing tab
+  // Replace or add the tab
+  if (tabIndex >= 0 && tabIndex < requests.length) {
     setRequests(prev => {
       const newRequests = [...prev];
       newRequests[tabIndex] = resultsTab;
       return newRequests;
     });
-    // Only navigate if this was a replacement (from Collection Runner)
-    navigate('/workspace/collections');
   } else {
-    // Add as new tab (standalone run from Testing tab)
     handleNewTab(resultsTab);
-    // 👇 Navigate to collections so the new tab becomes visible
-    navigate('/workspace/collections');
   }
 
-  const newRun = {
-  runId: runData.runId || runData.id,
-  startedAt: runData.startedAt,
-  collectionName: runData.collectionName,
-  collectionId: runData.collectionId,
-  source: runData.source,
-  options: runData.options,
-  totalRequests: runData.totalRequests,
-  passedRequests: runData.passedRequests,
-  failedRequests: runData.failedRequests,
-  skippedRequests: runData.skippedRequests,
-  totalTimeMs: runData.totalTimeMs,
-  triggeredByUser: runData.triggeredByUser,
-  triggeredBy: runData.triggeredBy,
-};
-setWorkspaceRuns(prev => [newRun, ...prev]);
-
+  navigate('/workspace/collections');
+  fetchAllRuns(); // Refresh runs list from backend
 };
 
 const handleViewFunctionalRunResults = async (run) => {
@@ -877,31 +846,29 @@ const [requests, setRequests] = useState([createEmptyRequest()]);
   });
 
 // Fetch collection runs for the active workspace
-useEffect(() => {
+const fetchAllRuns = useCallback(async () => {
   if (!activeWorkspaceId || !collections.length) return;
-
-  const fetchAllRuns = async () => {
-    setLoadingRuns(true);
-    try {
-      const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
-      const runPromises = workspaceCollections.map(col =>
-        listCollectionRuns(col.id).then(res => res.data)
-      );
-      const runsArrays = await Promise.all(runPromises);
-      const allRuns = runsArrays.flat().sort((a, b) =>
-        new Date(b.startedAt) - new Date(a.startedAt)
-      );
-      setWorkspaceRuns(allRuns);
-    } catch (err) {
-      console.error('Failed to fetch runs:', err);
-    } finally {
-      setLoadingRuns(false);
-    }
-  };
-
-  fetchAllRuns();
+  setLoadingRuns(true);
+  try {
+    const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
+    const runPromises = workspaceCollections.map(col =>
+      listCollectionRuns(col.id).then(res => res.data)
+    );
+    const runsArrays = await Promise.all(runPromises);
+    const allRuns = runsArrays.flat().sort((a, b) =>
+      new Date(b.startedAt) - new Date(a.startedAt)
+    );
+    setWorkspaceRuns(allRuns);
+  } catch (err) {
+    console.error('Failed to fetch runs:', err);
+  } finally {
+    setLoadingRuns(false);
+  }
 }, [activeWorkspaceId, collections]);
 
+useEffect(() => {
+  fetchAllRuns();
+}, [activeWorkspaceId, collections, fetchAllRuns]);
 // Fetch load test runs for the active workspace
 useEffect(() => {
   if (!activeWorkspaceId) return;
@@ -1297,6 +1264,7 @@ useEffect(() => {
       const historyRes = await fetchGlobalHistory({ limit: 50 });
       const normalizedHistory = (historyRes.data.data || []).map(item => ({
         historyId: item.history_id,
+        requestId: item.request_id, 
         url: item.url,
         method: item.method,
         status: item.status_code,
@@ -2181,9 +2149,25 @@ const handleWorkspaceDelete = (workspaceId) => {
   }
 };
 
-
- const handleDeleteHistoryItem = (historyId) => {
+const handleDeleteHistoryItem = async (param) => {
+  let historyId, requestId;
+  if (typeof param === 'object') {
+    historyId = param.historyId;
+    requestId = param.requestId;
+  } else {
+    historyId = param;
+  }
+  // Remove from local state
   setHistory(prev => prev.filter(item => item.historyId !== historyId));
+  // Call backend API
+  if (requestId && historyId) {
+    try {
+      await deleteHistoryItem(requestId, historyId);
+    } catch (err) {
+      console.error('Failed to delete history entry:', err);
+      // Optionally revert local deletion or show toast
+    }
+  }
 };
 
   // Mock Service handlers

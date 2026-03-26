@@ -1403,6 +1403,7 @@ const handleExecute = async () => {
         }
       }
       setResponse(res);
+      updateCurrentRequestResponse(res);
       addToHistory(url, method, res.status, res.size, res.time);
     } catch (err) {
       const errorMessage = err.message || 'Unknown error';
@@ -1417,6 +1418,8 @@ const handleExecute = async () => {
         testScriptError: null,
       };
       setResponse(res);
+      updateCurrentRequestResponse(res);
+
       addToHistory(url, method, 0, 0, 0, true);
       if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
     } finally {
@@ -1572,6 +1575,7 @@ const handleExecute = async () => {
     }
 
     setResponse(res);
+    updateCurrentRequestResponse(res);
     if (res.status >= 400 || res.status === 0) {
       if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
     }
@@ -2546,6 +2550,17 @@ const handleUpdateTab = (index, newTab) => {
     return newRequests;
   });
   setActiveRequestIndex(index);
+};
+
+const updateCurrentRequestResponse = (responseData) => {
+  setRequests(prev => {
+    const newRequests = [...prev];
+    const idx = activeRequestIndex;
+    if (idx >= 0 && idx < newRequests.length && newRequests[idx]) {
+      newRequests[idx] = { ...newRequests[idx], response: responseData };
+    }
+    return newRequests;
+  });
 };
 
 const filteredEnvironments = useMemo(() => {

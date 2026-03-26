@@ -294,6 +294,7 @@ const handleSendClick = () => {
 };
 
       const currentReq = requests[activeRequestIndex];
+      const effectiveResponse = currentReq?.response || response;
   const isWorkspaceDetails = currentReq?.type === 'workspace-details';
   const isCollectionRun = currentReq?.type === 'collection-run';
     const isMockEndpoint = currentReq?.isMockEndpoint === true;
@@ -301,7 +302,6 @@ const handleSendClick = () => {
   const isCollectionRunResults = currentReq?.type === 'collection-run-results'; 
   const isLoadTestResults = currentReq?.type === 'load-test-results'; 
   const isLoadTestRunning = currentReq?.type === 'load-test-running';
-  const isHistoryDetails = currentReq?.type === 'history-details';
 
 
     const hasUnsavedChanges = useMemo(() => {
@@ -693,13 +693,7 @@ function HistoryDetailsView({ details, onClose }) {
     onNewTab(newTab);
   }}
 />
-) :
- isHistoryDetails ? (
-   <HistoryDetailsView
-     details={currentReq.details}
-     onClose={() => onCloseTab(activeRequestIndex)}
-   />
- ) : (
+) : (
         <>
           {/* Postman-style: Request line — Method + URL + Send */}
           <div className="px-5 py-4 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
@@ -1035,7 +1029,7 @@ function HistoryDetailsView({ details, onClose }) {
       </div>
     ) : (() => {
       // Determine if we should show an error message
-      const hasError = !!error || (response && response.testScriptError);
+       const hasError = !!error || (effectiveResponse && effectiveResponse.testScriptError);
 
       if (hasError) {
         // Build error message from available sources
@@ -1328,65 +1322,65 @@ function HistoryDetailsView({ details, onClose }) {
   </div>
 )}
 
-              {bottomPanelTab === 'validation' && (
-                <div className="space-y-2">
-                  {response ? (
-                    <>
-                      <div className="flex items-center gap-2 text-xs">
-                        {response.status >= 200 && response.status < 300 ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 text-green-400" />
-                            <span className="text-gray-300">Status code validation passed</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="w-4 h-4 text-red-400" />
-                            <span className="text-gray-300">Status code validation failed</span>
-                          </>
-                        )}
-                      </div>
+{bottomPanelTab === 'validation' && (
+  <div className="space-y-2">
+    {effectiveResponse ? (
+      <>
+        <div className="flex items-center gap-2 text-xs">
+          {effectiveResponse.status >= 200 && effectiveResponse.status < 300 ? (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <span className="text-gray-300">Status code validation passed</span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-4 h-4 text-red-400" />
+              <span className="text-gray-300">Status code validation failed</span>
+            </>
+          )}
+        </div>
 
-                      {/* Test Results */}
-                      {response.testResults && response.testResults.length > 0 ? (
-                        <div className="space-y-2 mt-3">
-                          <div className="text-xs font-semibold text-gray-400 mb-2">Test Results:</div>
-                          {response.testResults.map((test, index) => (
-                            <div
-                              key={index}
-                              className={clsx(
-                                "flex items-center gap-2 text-xs p-2 rounded",
-                                test.passed ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
-                              )}
-                            >
-                              {test.passed ? (
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                              ) : (
-                                <XCircle className="w-3.5 h-3.5" />
-                              )}
-                              <span className="flex-1">{test.name}</span>
-                              {!test.passed && test.error && (
-                                <span className="text-[10px] opacity-75">({test.error})</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : tests ? (
-                        <div className="text-xs text-gray-500">No test assertions found. Use pm.test() to add tests.</div>
-                      ) : (
-                        <div className="text-xs text-gray-500">No custom validation tests configured</div>
-                      )}
+        {/* Test Results */}
+        {effectiveResponse.testResults && effectiveResponse.testResults.length > 0 ? (
+          <div className="space-y-2 mt-3">
+            <div className="text-xs font-semibold text-gray-400 mb-2">Test Results:</div>
+            {effectiveResponse.testResults.map((test, index) => (
+              <div
+                key={index}
+                className={clsx(
+                  "flex items-center gap-2 text-xs p-2 rounded",
+                  test.passed ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+                )}
+              >
+                {test.passed ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5" />
+                )}
+                <span className="flex-1">{test.name}</span>
+                {!test.passed && test.error && (
+                  <span className="text-[10px] opacity-75">({test.error})</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : tests ? (
+          <div className="text-xs text-gray-500">No test assertions found. Use pm.test() to add tests.</div>
+        ) : (
+          <div className="text-xs text-gray-500">No custom validation tests configured</div>
+        )}
 
-                      {response.testScriptError && (
-                        <div className="text-xs text-red-400 bg-red-500/10 p-2 rounded mt-2">
-                          Test Script Error: {response.testScriptError}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-xs text-gray-500">Configure validation tests to see results</div>
-                  )}
-                </div>
-              )}
+        {effectiveResponse.testScriptError && (
+          <div className="text-xs text-red-400 bg-red-500/10 p-2 rounded mt-2">
+            Test Script Error: {effectiveResponse.testScriptError}
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="text-xs text-gray-500">Configure validation tests to see results</div>
+    )}
+  </div>
+)}
 
 {/* ========== COLLECTION RUN TAB ========== */}
 {bottomPanelTab === 'collection-run' && (

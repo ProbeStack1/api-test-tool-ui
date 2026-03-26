@@ -794,24 +794,48 @@ const handleDeleteLibraryItem = async (item) => {
   }
 };
 
+const HISTORY_TAB_ID = 'history-details-tab';
+
 // Handle click on a history item
 const handleHistoryItemClick = async (historyItem) => {
   if (!onFetchHistoryEntry) return;
   try {
     const response = await onFetchHistoryEntry(historyItem.historyId);
     const fullDetails = response.data;
-    const historyDetailsTab = {
-      id: `history-details-${historyItem.historyId}-${Date.now()}`,
-      type: 'history-details',
-      name: `${historyItem.method} ${historyItem.url}`,
-      details: fullDetails,
-      historyId: historyItem.historyId,
+
+    // Build a request object from the history details
+    const newRequest = {
+      id: HISTORY_TAB_ID,                       // fixed ID for history tab
+      name: `${fullDetails.method} ${fullDetails.url}`,
+      type: 'request',                          // regular request type
+      method: fullDetails.method,
+      url: fullDetails.url,
+      queryParams: [],                          // will be parsed from URL automatically
+      headers: fullDetails.request_headers || [],
+      body: fullDetails.request_body || '',
+      authType: 'none',
+      authData: {},
+      preRequestScript: '',
+      tests: '',
+      // Store the historical response inside the tab
+      response: {
+        status: fullDetails.status_code,
+        statusText: fullDetails.status_text,
+        time: fullDetails.response_time_ms,
+        size: fullDetails.response_size_bytes,
+        data: fullDetails.response_body,
+        headers: fullDetails.response_headers,
+        testResults: [],
+        testScriptError: null,
+      }
     };
-    const existingIndex = requests.findIndex(r => r.type === 'history-details');
+
+    // Check if the history tab already exists
+    const existingIndex = requests.findIndex(r => r.id === HISTORY_TAB_ID);
     if (existingIndex !== -1) {
-      onUpdateTab(existingIndex, historyDetailsTab);
+      onUpdateTab(existingIndex, newRequest);   // update existing tab
     } else {
-      onNewTab(historyDetailsTab);
+      onNewTab(newRequest);                     // create new tab (first time)
     }
   } catch (err) {
     toast.error('Failed to load request details');
@@ -1043,107 +1067,6 @@ function HistoryItemList({
   );
 }
 
-
-function HistoryDetailsView({ details, onClose }) {
-  const formatBody = (body) => {
-    if (!body) return '';
-    if (typeof body === 'string') {
-      const trimmed = body.trim();
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        try {
-          return JSON.stringify(JSON.parse(body), null, 2);
-        } catch { return body; }
-      }
-      return body;
-    }
-    return JSON.stringify(body, null, 2);
-  };
-
-  return (
-    <div className="flex-1 flex flex-col bg-probestack-bg overflow-auto">
-      <div className="p-5">
-        {/* Request section */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-white">Request</h3>
-            <button
-              onClick={onClose}
-              className="p-1 rounded hover:bg-dark-700 text-gray-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="bg-dark-900/60 rounded-lg p-4 border border-dark-700 space-y-3">
-            <div className="flex gap-2">
-              <span className={clsx(
-                'text-xs font-bold px-2 py-0.5 rounded',
-                details.method === 'GET' && 'text-green-400 bg-green-400/10',
-                details.method === 'POST' && 'text-yellow-400 bg-yellow-400/10',
-                details.method === 'PUT' && 'text-blue-400 bg-blue-400/10',
-                details.method === 'DELETE' && 'text-red-400 bg-red-400/10',
-              )}>
-                {details.method}
-              </span>
-              <span className="text-xs text-gray-300 break-all">{details.url}</span>
-            </div>
-            {details.request_headers && details.request_headers.length > 0 && (
-              <div>
-                <div className="text-xs font-medium text-gray-400 mb-1">Headers</div>
-                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded">
-                  {JSON.stringify(details.request_headers, null, 2)}
-                </pre>
-              </div>
-            )}
-            {details.request_body && (
-              <div>
-                <div className="text-xs font-medium text-gray-400 mb-1">Body</div>
-                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded overflow-auto max-h-64">
-                  {formatBody(details.request_body)}
-                </pre>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Response section */}
-        <div>
-          <h3 className="text-sm font-semibold text-white mb-2">Response</h3>
-          <div className="bg-dark-900/60 rounded-lg p-4 border border-dark-700 space-y-3">
-            <div className="flex gap-4 items-center">
-              <span className={clsx(
-                'text-xs font-bold px-2 py-0.5 rounded',
-                details.status_code >= 200 && details.status_code < 300
-                  ? 'text-green-400 bg-green-400/10'
-                  : 'text-red-400 bg-red-400/10'
-              )}>
-                {details.status_code} {details.status_text}
-              </span>
-              <span className="text-xs text-gray-400">{details.response_time_ms} ms</span>
-              <span className="text-xs text-gray-400">{details.response_size_bytes} B</span>
-            </div>
-            {details.response_headers && details.response_headers.length > 0 && (
-              <div>
-                <div className="text-xs font-medium text-gray-400 mb-1">Headers</div>
-                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded">
-                  {JSON.stringify(details.response_headers, null, 2)}
-                </pre>
-              </div>
-            )}
-            {details.response_body && (
-              <div>
-                <div className="text-xs font-medium text-gray-400 mb-1">Body</div>
-                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded overflow-auto max-h-96">
-                  {formatBody(details.response_body)}
-                </pre>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const HistoryTypeDropdown = ({ value, onChange, options }) => {
   const [isOpen, setIsOpen] = useState(false);

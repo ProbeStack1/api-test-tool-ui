@@ -5,7 +5,7 @@ import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, Bo
 import clsx from 'clsx';
 import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-import { fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
+import { listWorkspaceLoadTests ,fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
 import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
@@ -1359,20 +1359,25 @@ const handleExecute = async () => {
 
   const currentReq = requests[activeRequestIndex];
 
-  // ----- Build effective variable map (global + current environment) -----
+  // ----- Build effective variable map (global + active environment) -----
   let effectiveVariables = {};
-  // Global
-  globalVariables.forEach(v => {
-    if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
-  });
-  // Current environment
-  environmentVariables.forEach(v => {
+
+  // Global variables
+  (globalEnvironment?.variables || []).forEach(v => {
     if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
   });
 
+  // Active environment variables (override global)
+  const activeEnv = environments.find(e => e.isActive);
+  if (activeEnv) {
+    (activeEnv.variables || []).forEach(v => {
+      if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
+    });
+  }
+
   console.log('🔍 effectiveVariables after build:', effectiveVariables);
-console.log('🌍 globalVariables:', globalVariables);
-console.log('🖥️ environmentVariables:', environmentVariables);
+  console.log('🌍 globalEnvironment:', globalEnvironment);
+  console.log('🔥 activeEnv:', activeEnv);
 
   // ----- Pre‑request script (if any) -----
   let scriptResult = null;
@@ -1415,54 +1420,55 @@ console.log('🖥️ environmentVariables:', environmentVariables);
   }
 
   // ----- Local substitution using effectiveVariables -----
-const substituteLocal = (text) => {
-  console.log('🔄 substituteLocal called with:', text);
-  if (!text || typeof text !== 'string') return text;
-  const replaced = text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-    const val = effectiveVariables[varName];
-    console.log(`   🧩 Trying to replace '{{${varName}}}' with`, val);
-    return val !== undefined ? val : match;
-  });
-  console.log('✅ substituteLocal output:', replaced);
-  return replaced;
-};
+  const substituteLocal = (text) => {
+    console.log('🔄 substituteLocal called with:', text);
+    if (!text || typeof text !== 'string') return text;
+    const replaced = text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+      const val = effectiveVariables[varName];
+      console.log(`   🧩 Trying to replace '{{${varName}}}' with`, val);
+      return val !== undefined ? val : match;
+    });
+    console.log('✅ substituteLocal output:', replaced);
+    return replaced;
+  };
 
-if (currentReq.isMockEndpoint) {
-  try {
-    const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
-    // Apply fallback for empty error bodies
-    if (res.status >= 400) {
-      const isBodyEmpty = 
-        !res.data ||
-        (typeof res.data === 'string' && res.data.trim() === '') ||
-        (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
-        (Array.isArray(res.data) && res.data.length === 0);
-      if (isBodyEmpty) {
-        res.data = `${res.status} ${res.statusText || 'Error'}`;
+  // ----- Mock endpoint handling -----
+  if (currentReq.isMockEndpoint) {
+    try {
+      const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
+      // Apply fallback for empty error bodies
+      if (res.status >= 400) {
+        const isBodyEmpty = 
+          !res.data ||
+          (typeof res.data === 'string' && res.data.trim() === '') ||
+          (typeof res.data === 'object' && Object.keys(res.data).length === 0) ||
+          (Array.isArray(res.data) && res.data.length === 0);
+        if (isBodyEmpty) {
+          res.data = `${res.status} ${res.statusText || 'Error'}`;
+        }
       }
+      setResponse(res);
+      addToHistory(url, method, res.status, res.size, res.time);
+    } catch (err) {
+      const errorMessage = err.message || 'Unknown error';
+      const res = {
+        status: 0,
+        statusText: 'Error',
+        time: 0,
+        size: 0,
+        data: errorMessage,
+        headers: [],
+        testResults: [],
+        testScriptError: null,
+      };
+      setResponse(res);
+      addToHistory(url, method, 0, 0, 0, true);
+      if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+    } finally {
+      setIsLoading(false);
     }
-    setResponse(res);
-    addToHistory(url, method, res.status, res.size, res.time);
-  } catch (err) {
-    const errorMessage = err.message || 'Unknown error';
-    const res = {
-      status: 0,
-      statusText: 'Error',
-      time: 0,
-      size: 0,
-      data: errorMessage,
-      headers: [],
-      testResults: [],
-      testScriptError: null,
-    };
-    setResponse(res);
-    addToHistory(url, method, 0, 0, 0, true);
-    if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
-  } finally {
-    setIsLoading(false);
+    return;
   }
-  return;
-}
 
   // ----- Normal request flow -----
   const saved = isSavedRequest(currentReq);

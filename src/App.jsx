@@ -2178,9 +2178,9 @@ const handleWorkspaceDelete = (workspaceId) => {
 };
 
 
-  const handleDeleteHistoryItem = (index) => {
-    setHistory((prev) => prev.filter((_, i) => i !== index));
-  };
+ const handleDeleteHistoryItem = (historyId) => {
+  setHistory(prev => prev.filter(item => item.historyId !== historyId));
+};
 
   // Mock Service handlers
   const handleCreateMock = (collectionOrFolder) => {
@@ -2528,6 +2528,7 @@ const handleRunCollection = async (collection) => {
 const handleMockServerRun = (runData) => {
   setCollectionRunResults(runData);
 };
+
   const isWorkspace = pathname.startsWith('/workspace');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
@@ -2537,6 +2538,15 @@ const [workspaceTabs, setWorkspaceTabs] = useState({});
 const [workspaceActiveIndex, setWorkspaceActiveIndex] = useState({});
 
 const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
+
+const handleUpdateTab = (index, newTab) => {
+  setRequests(prev => {
+    const newRequests = [...prev];
+    newRequests[index] = newTab;
+    return newRequests;
+  });
+  setActiveRequestIndex(index);
+};
 
 const filteredEnvironments = useMemo(() => {
   return environments.filter(env => 
@@ -2901,6 +2911,7 @@ useEffect(() => {
                 onAddProject={handleAddProject}
                 onCollectionsChange={handleCollectionsChange}
                 onDeleteHistoryItem={handleDeleteHistoryItem}
+                onUpdateTab={handleUpdateTab}
                 environmentVariables={environmentVariables}
                 onEnvironmentVariablesChange={handleEnvironmentVariablesChange}
                 onSaveEnvironmentVariables={handleSaveEnvironmentVariables}

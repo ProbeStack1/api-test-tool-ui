@@ -301,6 +301,7 @@ const handleSendClick = () => {
   const isCollectionRunResults = currentReq?.type === 'collection-run-results'; 
   const isLoadTestResults = currentReq?.type === 'load-test-results'; 
   const isLoadTestRunning = currentReq?.type === 'load-test-running';
+  const isHistoryDetails = currentReq?.type === 'history-details';
 
 
     const hasUnsavedChanges = useMemo(() => {
@@ -419,6 +420,104 @@ function KeyValueTable({ items }) {
   );
 }
 
+function HistoryDetailsView({ details, onClose }) {
+  const formatBody = (body) => {
+    if (!body) return '';
+    if (typeof body === 'string') {
+      const trimmed = body.trim();
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          return JSON.stringify(JSON.parse(body), null, 2);
+        } catch { return body; }
+      }
+      return body;
+    }
+    return JSON.stringify(body, null, 2);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col bg-probestack-bg overflow-auto">
+      <div className="p-5">
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-white">Request</h3>
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-dark-700 text-gray-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="bg-dark-900/60 rounded-lg p-4 border border-dark-700 space-y-3">
+            <div className="flex gap-2">
+              <span className={clsx(
+                'text-xs font-bold px-2 py-0.5 rounded',
+                details.method === 'GET' && 'text-green-400 bg-green-400/10',
+                details.method === 'POST' && 'text-yellow-400 bg-yellow-400/10',
+                details.method === 'PUT' && 'text-blue-400 bg-blue-400/10',
+                details.method === 'DELETE' && 'text-red-400 bg-red-400/10',
+              )}>
+                {details.method}
+              </span>
+              <span className="text-xs text-gray-300 break-all">{details.url}</span>
+            </div>
+            {details.request_headers?.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Headers</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded">
+                  {JSON.stringify(details.request_headers, null, 2)}
+                </pre>
+              </div>
+            )}
+            {details.request_body && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Body</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded overflow-auto max-h-64">
+                  {formatBody(details.request_body)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-white mb-2">Response</h3>
+          <div className="bg-dark-900/60 rounded-lg p-4 border border-dark-700 space-y-3">
+            <div className="flex gap-4 items-center">
+              <span className={clsx(
+                'text-xs font-bold px-2 py-0.5 rounded',
+                details.status_code >= 200 && details.status_code < 300
+                  ? 'text-green-400 bg-green-400/10'
+                  : 'text-red-400 bg-red-400/10'
+              )}>
+                {details.status_code} {details.status_text}
+              </span>
+              <span className="text-xs text-gray-400">{details.response_time_ms} ms</span>
+              <span className="text-xs text-gray-400">{details.response_size_bytes} B</span>
+            </div>
+            {details.response_headers?.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Headers</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded">
+                  {JSON.stringify(details.response_headers, null, 2)}
+                </pre>
+              </div>
+            )}
+            {details.response_body && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Body</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded overflow-auto max-h-96">
+                  {formatBody(details.response_body)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
@@ -594,7 +693,13 @@ function KeyValueTable({ items }) {
     onNewTab(newTab);
   }}
 />
-) : (
+) :
+ isHistoryDetails ? (
+   <HistoryDetailsView
+     details={currentReq.details}
+     onClose={() => onCloseTab(activeRequestIndex)}
+   />
+ ) : (
         <>
           {/* Postman-style: Request line — Method + URL + Send */}
           <div className="px-5 py-4 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">

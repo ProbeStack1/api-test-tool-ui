@@ -45,6 +45,7 @@ export default function TestingToolPage({
   onAddProject,
   onCollectionsChange,
   onDeleteHistoryItem,
+    onUpdateTab,
   environmentVariables,
   onEnvironmentVariablesChange,
   onSaveEnvironmentVariables,
@@ -145,6 +146,7 @@ export default function TestingToolPage({
       onAddProject={onAddProject}
       onCollectionsChange={onCollectionsChange}
       onDeleteHistoryItem={onDeleteHistoryItem}
+      onUpdateTab={onUpdateTab}
       environmentVariables={environmentVariables}
       onEnvironmentVariablesChange={onEnvironmentVariablesChange}
       onSaveEnvironmentVariables={onSaveEnvironmentVariables}

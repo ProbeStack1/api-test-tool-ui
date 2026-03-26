@@ -72,6 +72,7 @@ export default function IDEWorkspaceLayout({
   onAddProject,
   onCollectionsChange,
   onDeleteHistoryItem,
+  onUpdateTab,
   environmentVariables,
   onEnvironmentVariablesChange,
   onSaveEnvironmentVariables,
@@ -793,38 +794,38 @@ const handleDeleteLibraryItem = async (item) => {
   }
 };
 
-// Helper to open a request tab from history
+// Handle click on a history item
 const handleHistoryItemClick = async (historyItem) => {
   if (!onFetchHistoryEntry) return;
   try {
     const response = await onFetchHistoryEntry(historyItem.historyId);
     const fullDetails = response.data;
-    // Build a request object from the details
-    const newRequest = {
-      id: `history-${historyItem.historyId}-${Date.now()}`,
+    const historyDetailsTab = {
+      id: `history-details-${historyItem.historyId}-${Date.now()}`,
+      type: 'history-details',
       name: `${historyItem.method} ${historyItem.url}`,
-      method: fullDetails.method || historyItem.method,
-      url: fullDetails.url || historyItem.url,
-      queryParams: fullDetails.request_headers || [],
-      headers: fullDetails.request_headers || [],
-      body: fullDetails.request_body || '',
-      authType: 'none',
-      authData: {},
-      preRequestScript: '',
-      tests: '',
-      type: 'request',
+      details: fullDetails,
+      historyId: historyItem.historyId,
     };
-    // Check if already open
-    const existingIndex = requests.findIndex(r => r.id === newRequest.id);
+    const existingIndex = requests.findIndex(r => r.type === 'history-details');
     if (existingIndex !== -1) {
-      onTabSelect(existingIndex);
+      onUpdateTab(existingIndex, historyDetailsTab);
     } else {
-      onNewTab(newRequest);
+      onNewTab(historyDetailsTab);
     }
-    // Optionally set response in the tab? Not needed – the request will be executed later
   } catch (err) {
     toast.error('Failed to load request details');
   }
+};
+
+// Delete all items in a date group
+const handleDeleteGroup = (groupItems) => {
+  groupItems.forEach(item => {
+    const id = item.historyId || item.id || item.runId || item.loadTestId;
+    if (id) {
+      onDeleteHistoryItem(id);
+    }
+  });
 };
 
 // Tooltip content for request history
@@ -868,9 +869,17 @@ const getLoadTooltipContent = (run) => {
   );
 };
 
-// HistoryItemList component
-function HistoryItemList({ items, loading, onItemClick, getTooltipContent, groupByDate }) {
+function HistoryItemList({
+  items,
+  loading,
+  onItemClick,
+  getTooltipContent,
+  groupByDate,
+  onDeleteHistoryItem,
+  onDeleteGroup,
+}) {
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: null });
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   const groupedItems = useMemo(() => {
     if (!groupByDate) return { 'All': items };
@@ -894,9 +903,25 @@ function HistoryItemList({ items, loading, onItemClick, getTooltipContent, group
     return groups;
   }, [items, groupByDate]);
 
+  // Automatically expand groups on first load and when new groups appear
+  useEffect(() => {
+    const newGroupKeys = Object.keys(groupedItems);
+    setExpandedGroups(prev => {
+      const newState = { ...prev };
+      newGroupKeys.forEach(key => {
+        if (!(key in newState)) newState[key] = true;
+      });
+      return newState;
+    });
+  }, [groupedItems]);
+
+  const toggleGroup = (groupKey) => {
+    setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
   const createTooltipHandler = (item) => ({
     onMouseEnter: (e) => {
-      const content = getTooltipContent(item);
+      const content = getTooltipContent?.(item);
       if (content) {
         setTooltip({ show: true, x: e.clientX, y: e.clientY, content });
       }
@@ -917,32 +942,94 @@ function HistoryItemList({ items, loading, onItemClick, getTooltipContent, group
     return <div className="text-center py-8 text-gray-500 text-xs">No history found</div>;
   }
 
+  // Helper to get a reliable ID from the item
+  const getItemId = (item) => item.historyId || item.id || item.runId || item.loadTestId;
+
   return (
     <div className="space-y-4">
       {Object.entries(groupedItems).map(([groupLabel, groupItems]) => (
-        <div key={groupLabel}>
-          <div className="sticky top-0 bg-dark-800/90 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-dark-700">
-            {groupLabel}
-          </div>
-          <div className="space-y-1 mt-1">
-            {groupItems.map((item, idx) => (
-              <div
-                key={item.historyId || item.runId || item.loadTestId || idx}
-                className="px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
-                onClick={() => onItemClick(item)}
-                {...createTooltipHandler(item)}
+        <div key={groupLabel} className="group">
+          {/* Group header */}
+          <div className="sticky top-0 bg-dark-800/90 py-2 flex items-center justify-between border-b border-dark-700">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleGroup(groupLabel)}
+                className="text-gray-500 hover:text-white transition-colors"
               >
-                <div className="text-xs text-gray-300 truncate">
-                  {item.collectionName || item.url || item.name || 'Untitled'}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">
-                  {new Date(item.startedAt || item.date).toLocaleTimeString()}
-                </div>
-              </div>
-            ))}
+                {expandedGroups[groupLabel] ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+              </button>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {groupLabel}
+              </span>
+            </div>
+            {onDeleteGroup && (
+              <button
+                onClick={() => onDeleteGroup(groupItems)}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-dark-600 rounded text-gray-400 hover:text-white transition-opacity"
+                title="Delete all entries in this group"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
           </div>
+
+          {/* Group items */}
+          {expandedGroups[groupLabel] && (
+            <div className="space-y-1 mt-1">
+              {groupItems.map((item, idx) => {
+                const itemId = getItemId(item);
+                return (
+                  <div
+                    key={itemId || idx}
+                    className="relative group px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
+                    {...createTooltipHandler(item)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div
+                        className="flex-1 min-w-0"
+                        onClick={() => onItemClick(item)}
+                      >
+                        <div className="text-xs text-gray-300 truncate">
+                          {item.url || item.collectionName || item.name || 'Untitled'}
+                        </div>
+                        <div className="flex justify-between text-[10px] mt-0.5">
+                          <span className="font-mono text-gray-400">{item.method}</span>
+                          {item.status !== undefined && (
+                            <span className={clsx(
+                              item.status >= 200 && item.status < 300
+                                ? 'text-green-400'
+                                : 'text-red-400'
+                            )}>
+                              {item.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {onDeleteHistoryItem && itemId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteHistoryItem(itemId);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-dark-600 rounded text-gray-400 hover:text-white transition-opacity"
+                          title="Delete entry"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ))}
+
       {tooltip.show && tooltip.content && ReactDOM.createPortal(
         <div
           className="fixed z-50 pointer-events-none bg-dark-900 border border-dark-600 rounded-lg shadow-xl p-3 text-sm text-gray-200 max-w-xs"
@@ -955,6 +1042,162 @@ function HistoryItemList({ items, loading, onItemClick, getTooltipContent, group
     </div>
   );
 }
+
+
+function HistoryDetailsView({ details, onClose }) {
+  const formatBody = (body) => {
+    if (!body) return '';
+    if (typeof body === 'string') {
+      const trimmed = body.trim();
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          return JSON.stringify(JSON.parse(body), null, 2);
+        } catch { return body; }
+      }
+      return body;
+    }
+    return JSON.stringify(body, null, 2);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col bg-probestack-bg overflow-auto">
+      <div className="p-5">
+        {/* Request section */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-white">Request</h3>
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-dark-700 text-gray-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="bg-dark-900/60 rounded-lg p-4 border border-dark-700 space-y-3">
+            <div className="flex gap-2">
+              <span className={clsx(
+                'text-xs font-bold px-2 py-0.5 rounded',
+                details.method === 'GET' && 'text-green-400 bg-green-400/10',
+                details.method === 'POST' && 'text-yellow-400 bg-yellow-400/10',
+                details.method === 'PUT' && 'text-blue-400 bg-blue-400/10',
+                details.method === 'DELETE' && 'text-red-400 bg-red-400/10',
+              )}>
+                {details.method}
+              </span>
+              <span className="text-xs text-gray-300 break-all">{details.url}</span>
+            </div>
+            {details.request_headers && details.request_headers.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Headers</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded">
+                  {JSON.stringify(details.request_headers, null, 2)}
+                </pre>
+              </div>
+            )}
+            {details.request_body && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Body</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded overflow-auto max-h-64">
+                  {formatBody(details.request_body)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Response section */}
+        <div>
+          <h3 className="text-sm font-semibold text-white mb-2">Response</h3>
+          <div className="bg-dark-900/60 rounded-lg p-4 border border-dark-700 space-y-3">
+            <div className="flex gap-4 items-center">
+              <span className={clsx(
+                'text-xs font-bold px-2 py-0.5 rounded',
+                details.status_code >= 200 && details.status_code < 300
+                  ? 'text-green-400 bg-green-400/10'
+                  : 'text-red-400 bg-red-400/10'
+              )}>
+                {details.status_code} {details.status_text}
+              </span>
+              <span className="text-xs text-gray-400">{details.response_time_ms} ms</span>
+              <span className="text-xs text-gray-400">{details.response_size_bytes} B</span>
+            </div>
+            {details.response_headers && details.response_headers.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Headers</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded">
+                  {JSON.stringify(details.response_headers, null, 2)}
+                </pre>
+              </div>
+            )}
+            {details.response_body && (
+              <div>
+                <div className="text-xs font-medium text-gray-400 mb-1">Body</div>
+                <pre className="text-xs text-gray-300 font-mono bg-dark-800 p-2 rounded overflow-auto max-h-96">
+                  {formatBody(details.response_body)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const HistoryTypeDropdown = ({ value, onChange, options }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(opt => opt.id === value) || options[0];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-medium text-white py-2 px-3 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center"
+      >
+        <span className="truncate">{selectedOption.label}</span>
+        <ChevronDown className="w-4 h-4 text-gray-500 ml-auto" />
+      </button>
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+          {options.map(opt => (
+            <div
+              key={opt.id}
+              onClick={() => {
+                setIsOpen(false);
+                onChange(opt.id);
+              }}
+              className={clsx(
+                'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
+                value === opt.id ? 'text-primary bg-primary/10' : 'text-gray-300'
+              )}
+            >
+              <div className="w-3.5 h-3.5 flex items-center justify-center">
+                {value === opt.id && <Check className="w-3.5 h-3.5 text-primary" />}
+              </div>
+              <span className="flex-1 truncate">{opt.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
       {/* project header bar: Search + Environment selector */}
@@ -1030,19 +1273,20 @@ function HistoryItemList({ items, loading, onItemClick, getTooltipContent, group
 
 {topMenuActive === 'history' && (
   <div className="flex-1 flex flex-col p-4">
-    <div className="mb-4">
-      <label className="text-xs font-medium text-gray-400 mb-2 block">History Type</label>
-      <select
+    {/* Sticky dropdown */}
+    <div className="sticky top-0 z-10 mb-4 bg-dark-800/90 backdrop-blur-sm rounded-lg">
+      <HistoryTypeDropdown
         value={selectedHistoryType}
-        onChange={(e) => setSelectedHistoryType(e.target.value)}
-        className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-      >
-        <option value="request">Request</option>
-        <option value="functional">Functional Test</option>
-        <option value="load">Load Test</option>
-        <option value="tracing">Tracing</option>
-      </select>
+        onChange={setSelectedHistoryType}
+        options={[
+          { id: 'request', label: 'Request' },
+          { id: 'functional', label: 'Functional Test' },
+          { id: 'load', label: 'Load Test' },
+          { id: 'tracing', label: 'Tracing' },
+        ]}
+      />
     </div>
+    {/* Scrollable history items */}
     <div className="flex-1 overflow-y-auto custom-scrollbar">
       {selectedHistoryType === 'request' && (
         <HistoryItemList
@@ -1051,6 +1295,8 @@ function HistoryItemList({ items, loading, onItemClick, getTooltipContent, group
           onItemClick={handleHistoryItemClick}
           getTooltipContent={getRequestTooltipContent}
           groupByDate
+          onDeleteHistoryItem={onDeleteHistoryItem}
+          onDeleteGroup={handleDeleteGroup}
         />
       )}
       {selectedHistoryType === 'functional' && (

@@ -3,31 +3,24 @@
  * 
  * A draggable AI chatbot popup that appears when API errors occur (4xx/5xx/network errors).
  * Features:
- * - Draggable across the screen
+ * - Draggable across the screen (via header, no drag handle icon)
  * - Resizable (small/medium toggle) - stays within viewport bounds
- * - Minimize/Collapse snaps to bottom-right corner
+ * - Minimize to floating bubble
  * - Modern, professional design matching the app's color scheme
  * - Analyzes errors and provides helpful responses (dummy data for now - real AI integration later)
- * 
- * Position Options (one active, two commented for testing):
- * 1. Bottom-right corner (draggable) - ACTIVE
- * 2. Right side panel (slide-in) - COMMENTED (full code, just uncomment)
- * 3. Floating bubble that expands - COMMENTED (full code, just uncomment)
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { 
   Bot, X, Minimize2, Maximize2, Send, AlertCircle, 
-  Loader2, Move, MessageSquare, Sparkles,
-  ChevronDown, ChevronUp
+  Loader2, MessageSquare, Sparkles,
+  ChevronDown
 } from 'lucide-react';
 import clsx from 'clsx';
 
-
 // ============================================================================
 // Shared helper: generates dummy AI analysis from error details
-// Used by all 3 position options
 // ============================================================================
 const generateErrorAnalysis = (response, error, requestInfo) => {
   const statusCode = response?.status || error?.status || 0;
@@ -175,14 +168,15 @@ const ChatInputBar = ({ userInput, setUserInput, onSend, isProcessing }) => (
   </div>
 );
 
-
 // ============================================================================
-// POSITION OPTION 1: Bottom-right corner (draggable) - ACTIVE
+// MAIN COMPONENT: Bottom-right corner (draggable) - ACTIVE
 // ============================================================================
 
 /**
  * Draggable AI Chatbot Helper Component
- * This is the ACTIVE position option - bottom-right draggable
+ * - Draggable by header (no separate drag icon)
+ * - Resizable (small/medium)
+ * - Minimize to floating bubble at bottom-right
  * 
  * @param {boolean} isVisible - Controls visibility
  * @param {function} onClose - Close handler
@@ -190,7 +184,6 @@ const ChatInputBar = ({ userInput, setUserInput, onSend, isProcessing }) => (
  * @param {object} response - Response object from request
  * @param {object} requestInfo - Request details (url, method, etc.)
  */
-
 const AIChatbotHelper = ({
   isVisible,
   onClose,
@@ -198,7 +191,6 @@ const AIChatbotHelper = ({
   response,
   requestInfo
 }) => {
-  // Size toggle state - small (320x420) or medium (420x540)
   const [size, setSize] = useState('small');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -206,18 +198,15 @@ const AIChatbotHelper = ({
   const [userInput, setUserInput] = useState('');
   const [hasAcceptedHelp, setHasAcceptedHelp] = useState(false);
   
-  // Dragging state
   const [position, setPosition] = useState({ x: window.innerWidth - 360, y: window.innerHeight - 480 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef(null);
   const offsetRef = useRef({ x: 0, y: 0 });
 
-  // Size dimensions
   const dimensions = {
     small: { width: 320, height: 420 },
     medium: { width: 420, height: 540 }
   };
-
   const currentSize = dimensions[size];
   const HEADER_HEIGHT = 56;
   const MARGIN = 20;
@@ -230,7 +219,6 @@ const AIChatbotHelper = ({
       setIsProcessing(false);
       setIsMinimized(false);
       setSize('small');
-      // Reset position to bottom-right
       setPosition({
         x: window.innerWidth - dimensions.small.width - MARGIN,
         y: window.innerHeight - dimensions.small.height - MARGIN
@@ -238,7 +226,7 @@ const AIChatbotHelper = ({
     }
   }, [isVisible]);
 
-  // Reset chat when error changes (but only when visible)
+  // Reset chat when error changes
   useEffect(() => {
     if (error && isVisible) {
       setChatMessages([]);
@@ -255,51 +243,45 @@ const AIChatbotHelper = ({
     };
   }, []);
 
-  // Handle window resize - keep chatbot in viewport
+  // Handle window resize
   useEffect(() => {
     const handleResize = () => {
-      const h = isMinimized ? HEADER_HEIGHT : currentSize.height;
-      setPosition(prev => clampPosition(prev.x, prev.y, currentSize.width, h));
+      if (!isMinimized) {
+        setPosition(prev => clampPosition(prev.x, prev.y, currentSize.width, currentSize.height));
+      }
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [currentSize, isMinimized, clampPosition]);
 
-  // Handle size toggle - maintain right-edge alignment when resizing
+  // Handle size toggle (only when expanded)
   const handleSizeToggle = (e) => {
     e.stopPropagation();
     const newSize = size === 'small' ? 'medium' : 'small';
     const newDims = dimensions[newSize];
     const oldWidth = currentSize.width;
     setSize(newSize);
-    // Shift x to keep the right edge in the same place, then clamp
     setPosition(prev => {
       const adjustedX = prev.x + (oldWidth - newDims.width);
       return clampPosition(adjustedX, prev.y, newDims.width, newDims.height);
     });
   };
 
-  // Handle minimize toggle - snap to bottom-right when minimizing
-  const handleMinimizeToggle = (e) => {
+  // Minimize to bubble
+  const handleMinimize = (e) => {
     e.stopPropagation();
-    const willMinimize = !isMinimized;
-    setIsMinimized(willMinimize);
+    setIsMinimized(true);
+  };
 
-    if (willMinimize) {
-      // Snap to bottom-right corner when minimizing
-      setPosition({
-        x: window.innerWidth - currentSize.width - MARGIN,
-        y: window.innerHeight - HEADER_HEIGHT - MARGIN
-      });
-    } else {
-      // When expanding back, place so the full panel fits on screen
-      setPosition(prev => clampPosition(prev.x, prev.y, currentSize.width, currentSize.height));
-    }
+  // Expand from bubble
+  const handleExpand = () => {
+    setIsMinimized(false);
+    setPosition(prev => clampPosition(prev.x, prev.y, currentSize.width, currentSize.height));
   };
 
   // Dragging handlers
   const handleMouseDown = useCallback((e) => {
-    if (e.target.closest('.chatbot-drag-handle')) {
+    if (e.target.closest('.chatbot-drag-handle') && !e.target.closest('button')) {
       setIsDragging(true);
       offsetRef.current = {
         x: e.clientX - position.x,
@@ -311,16 +293,15 @@ const AIChatbotHelper = ({
 
   const handleMouseMove = useCallback((e) => {
     if (isDragging) {
-      const h = isMinimized ? HEADER_HEIGHT : currentSize.height;
       const clamped = clampPosition(
         e.clientX - offsetRef.current.x,
         e.clientY - offsetRef.current.y,
         currentSize.width,
-        h
+        currentSize.height
       );
       setPosition(clamped);
     }
-  }, [isDragging, currentSize, isMinimized, clampPosition]);
+  }, [isDragging, currentSize, clampPosition]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -337,7 +318,7 @@ const AIChatbotHelper = ({
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Analyze error and generate helpful response (dummy implementation - real AI later)
+  // AI analysis (dummy)
   const analyzeError = useCallback(async () => {
     setIsProcessing(true);
     setChatMessages(prev => [...prev, {
@@ -346,12 +327,10 @@ const AIChatbotHelper = ({
       isLoading: true
     }]);
 
-    // Simulate AI processing delay
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const analysis = generateErrorAnalysis(response, error, requestInfo);
 
-    // Replace loading message with analysis
     setChatMessages(prev => {
       const updated = [...prev];
       updated[updated.length - 1] = {
@@ -365,7 +344,6 @@ const AIChatbotHelper = ({
     setIsProcessing(false);
   }, [error, response, requestInfo]);
 
-  // Handle user accepting help
   const handleAcceptHelp = () => {
     setHasAcceptedHelp(true);
     setChatMessages([{
@@ -375,7 +353,6 @@ const AIChatbotHelper = ({
     analyzeError();
   };
 
-  // Handle user sending a follow-up message
   const handleSendMessage = () => {
     if (!userInput.trim() || isProcessing) return;
     
@@ -388,7 +365,6 @@ const AIChatbotHelper = ({
     setUserInput('');
     setIsProcessing(true);
     
-    // Simulate bot response (dummy - real AI later)
     setTimeout(() => {
       setChatMessages(prev => [...prev, {
         type: 'bot',
@@ -400,6 +376,23 @@ const AIChatbotHelper = ({
 
   if (!isVisible) return null;
 
+  // Minimized state: bubble
+  if (isMinimized) {
+    return ReactDOM.createPortal(
+      <button
+        onClick={handleExpand}
+        className="fixed z-[200] w-14 h-14 rounded-full shadow-2xl transition-all bg-gradient-to-br from-primary to-primary/80 hover:scale-110 flex items-center justify-center"
+        style={{ bottom: MARGIN, right: MARGIN }}
+        data-testid="ai-chatbot-bubble"
+      >
+        <Bot className="w-6 h-6 text-white" />
+        {error && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center animate-pulse font-bold">!</span>}
+      </button>,
+      document.body
+    );
+  }
+
+  // Expanded panel
   return ReactDOM.createPortal(
     <div
       ref={dragRef}
@@ -412,8 +405,7 @@ const AIChatbotHelper = ({
         left: position.x,
         top: position.y,
         width: currentSize.width,
-        height: isMinimized ? HEADER_HEIGHT : currentSize.height,
-        // Smooth transition for collapse/expand/resize but NOT during drag
+        height: currentSize.height,
         transition: isDragging
           ? 'none'
           : 'left 350ms cubic-bezier(0.4, 0, 0.2, 1), top 350ms cubic-bezier(0.4, 0, 0.2, 1), width 250ms ease-out, height 250ms ease-out',
@@ -428,7 +420,6 @@ const AIChatbotHelper = ({
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20">
               <Bot className="w-5 h-5 text-primary" />
             </div>
-            {/* Animated pulse indicator */}
             <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full animate-pulse shadow-lg shadow-primary/50" />
           </div>
           <div>
@@ -438,9 +429,6 @@ const AIChatbotHelper = ({
         </div>
         
         <div className="flex items-center gap-1">
-          {/* Drag indicator */}
-          <Move className="w-4 h-4 text-gray-500 mr-2" />
-          
           {/* Size toggle */}
           <button
             onClick={handleSizeToggle}
@@ -451,14 +439,14 @@ const AIChatbotHelper = ({
             {size === 'small' ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
           </button>
           
-          {/* Minimize/Collapse toggle */}
+          {/* Minimize to bubble */}
           <button
-            onClick={handleMinimizeToggle}
+            onClick={handleMinimize}
             className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-            title={isMinimized ? 'Expand' : 'Minimize'}
+            title="Minimize to bubble"
             data-testid="chatbot-minimize-toggle"
           >
-            {isMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <ChevronDown className="w-4 h-4" />
           </button>
           
           {/* Close button */}
@@ -473,179 +461,7 @@ const AIChatbotHelper = ({
         </div>
       </div>
 
-      {/* Content - only show when not minimized */}
-      {!isMinimized && (
-        <>
-          {/* Chat area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            {!hasAcceptedHelp ? (
-              <HelpOfferScreen
-                response={response}
-                error={error}
-                requestInfo={requestInfo}
-                onAccept={handleAcceptHelp}
-                onClose={onClose}
-              />
-            ) : (
-              <>
-                {chatMessages.map((msg, index) => (
-                  <ChatMessage key={index} msg={msg} index={index} />
-                ))}
-                {/* Typing indicator */}
-                {isProcessing && chatMessages.length > 0 && !chatMessages[chatMessages.length - 1]?.isLoading && (
-                  <TypingIndicator />
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Input area - only show after accepting help */}
-          {hasAcceptedHelp && (
-            <ChatInputBar
-              userInput={userInput}
-              setUserInput={setUserInput}
-              onSend={handleSendMessage}
-              isProcessing={isProcessing}
-            />
-          )}
-        </>
-      )}
-    </div>,
-    document.body
-  );
-};
-
-
-// ============================================================================
-// POSITION OPTION 2: Right side panel (slide-in) - COMMENTED
-// To test: Uncomment this block, comment out Option 1's export at the bottom,
-// and change the default export to AIChatbotHelperSidePanel
-// ============================================================================
-
-
-const AIChatbotHelperSidePanel = ({
-  isVisible,
-  onClose,
-  error,
-  response,
-  requestInfo
-}) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [userInput, setUserInput] = useState('');
-  const [hasAcceptedHelp, setHasAcceptedHelp] = useState(false);
-
-  // Reset everything when hidden
-  useEffect(() => {
-    if (!isVisible) {
-      setChatMessages([]);
-      setHasAcceptedHelp(false);
-      setIsProcessing(false);
-    }
-  }, [isVisible]);
-
-  // Reset when error changes
-  useEffect(() => {
-    if (error && isVisible) {
-      setChatMessages([]);
-      setHasAcceptedHelp(false);
-      setIsProcessing(false);
-    }
-  }, [error, isVisible]);
-
-  // Analyze error with dummy AI response
-  const analyzeError = useCallback(async () => {
-    setIsProcessing(true);
-    setChatMessages(prev => [...prev, {
-      type: 'bot',
-      content: 'Analyzing your error...',
-      isLoading: true
-    }]);
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const analysis = generateErrorAnalysis(response, error, requestInfo);
-
-    setChatMessages(prev => {
-      const updated = [...prev];
-      updated[updated.length - 1] = {
-        type: 'bot',
-        content: analysis,
-        isLoading: false
-      };
-      return updated;
-    });
-
-    setIsProcessing(false);
-  }, [error, response, requestInfo]);
-
-  // User clicks "Yes, help me out!"
-  const handleAcceptHelp = () => {
-    setHasAcceptedHelp(true);
-    setChatMessages([{
-      type: 'user',
-      content: 'Yes, please help me understand this error.'
-    }]);
-    analyzeError();
-  };
-
-  // User sends a follow-up message
-  const handleSendMessage = () => {
-    if (!userInput.trim() || isProcessing) return;
-
-    const message = userInput.trim();
-    setChatMessages(prev => [...prev, {
-      type: 'user',
-      content: message
-    }]);
-
-    setUserInput('');
-    setIsProcessing(true);
-
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, {
-        type: 'bot',
-        content: "I understand your concern. Based on the error analysis above, I recommend:\n\n1️⃣ Double-check your request configuration\n2️⃣ Verify all required parameters\n3️⃣ Test with a simpler request first\n\n💡 **Pro tip:** Try using the environment variables feature to manage your API keys securely.\n\nWould you like me to generate a sample request?"
-      }]);
-      setIsProcessing(false);
-    }, 1500);
-  };
-
-  if (!isVisible) return null;
-
-  return ReactDOM.createPortal(
-    <div
-      className={clsx(
-        "fixed top-0 right-0 h-full z-[200] flex flex-col",
-        "bg-gradient-to-b from-dark-800 to-dark-900 border-l border-dark-600/50",
-        "transition-transform duration-300 ease-out shadow-2xl",
-        isVisible ? "translate-x-0" : "translate-x-full"
-      )}
-      style={{ width: 400 }}
-      data-testid="ai-chatbot-sidepanel"
-    >
-      <div className="flex items-center justify-between px-4 py-3 bg-dark-800/90 border-b border-dark-700 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20">
-              <Bot className="w-5 h-5 text-primary" />
-            </div>
-            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full animate-pulse shadow-lg shadow-primary/50" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-white">AI Assistant</h3>
-            <p className="text-[10px] text-gray-400">Error Analysis Helper</p>
-          </div>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-          title="Close"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
+      {/* Chat area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {!hasAcceptedHelp ? (
           <HelpOfferScreen
@@ -667,6 +483,7 @@ const AIChatbotHelperSidePanel = ({
         )}
       </div>
 
+      {/* Input area */}
       {hasAcceptedHelp && (
         <ChatInputBar
           userInput={userInput}
@@ -679,260 +496,6 @@ const AIChatbotHelperSidePanel = ({
     document.body
   );
 };
-
-
-
-// ============================================================================
-// POSITION OPTION 3: Floating bubble that expands - COMMENTED
-// To test: Uncomment this block, comment out Option 1's export at the bottom,
-// and change the default export to AIChatbotHelperBubble
-// ============================================================================
-
-
-const AIChatbotHelperBubble = ({
-  isVisible,
-  onClose,
-  error,
-  response,
-  requestInfo
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [position, setPosition] = useState({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
-  const [isDragging, setIsDragging] = useState(false);
-  const offsetRef = useRef({ x: 0, y: 0 });
-
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [userInput, setUserInput] = useState('');
-  const [hasAcceptedHelp, setHasAcceptedHelp] = useState(false);
-
-  const PANEL_WIDTH = 360;
-  const PANEL_HEIGHT = 480;
-
-  // Reset everything when hidden
-  useEffect(() => {
-    if (!isVisible) {
-      setChatMessages([]);
-      setHasAcceptedHelp(false);
-      setIsProcessing(false);
-      setIsExpanded(false);
-      setPosition({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
-    }
-  }, [isVisible]);
-
-  // Reset when error changes
-  useEffect(() => {
-    if (error && isVisible) {
-      setChatMessages([]);
-      setHasAcceptedHelp(false);
-      setIsProcessing(false);
-      setIsExpanded(false);
-    }
-  }, [error, isVisible]);
-
-  // Dragging handlers for the collapsed bubble
-  const handleBubbleMouseDown = useCallback((e) => {
-    setIsDragging(true);
-    offsetRef.current = {
-      x: e.clientX - position.x,
-      y: e.clientY - position.y
-    };
-    e.preventDefault();
-  }, [position]);
-
-  const handleMouseMove = useCallback((e) => {
-    if (isDragging) {
-      const newX = Math.max(0, Math.min(window.innerWidth - 60, e.clientX - offsetRef.current.x));
-      const newY = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - offsetRef.current.y));
-      setPosition({ x: newX, y: newY });
-    }
-  }, [isDragging]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
-
-  // Analyze error with dummy AI response
-  const analyzeError = useCallback(async () => {
-    setIsProcessing(true);
-    setChatMessages(prev => [...prev, {
-      type: 'bot',
-      content: 'Analyzing your error...',
-      isLoading: true
-    }]);
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const analysis = generateErrorAnalysis(response, error, requestInfo);
-
-    setChatMessages(prev => {
-      const updated = [...prev];
-      updated[updated.length - 1] = {
-        type: 'bot',
-        content: analysis,
-        isLoading: false
-      };
-      return updated;
-    });
-
-    setIsProcessing(false);
-  }, [error, response, requestInfo]);
-
-  // User clicks "Yes, help me out!"
-  const handleAcceptHelp = () => {
-    setHasAcceptedHelp(true);
-    setChatMessages([{
-      type: 'user',
-      content: 'Yes, please help me understand this error.'
-    }]);
-    analyzeError();
-  };
-
-  // User sends a follow-up message
-  const handleSendMessage = () => {
-    if (!userInput.trim() || isProcessing) return;
-
-    const message = userInput.trim();
-    setChatMessages(prev => [...prev, {
-      type: 'user',
-      content: message
-    }]);
-
-    setUserInput('');
-    setIsProcessing(true);
-
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, {
-        type: 'bot',
-        content: "I understand your concern. Based on the error analysis above, I recommend:\n\n1️⃣ Double-check your request configuration\n2️⃣ Verify all required parameters\n3️⃣ Test with a simpler request first\n\n💡 **Pro tip:** Try using the environment variables feature to manage your API keys securely.\n\nWould you like me to generate a sample request?"
-      }]);
-      setIsProcessing(false);
-    }, 1500);
-  };
-
-  // Calculate panel position based on bubble position (keep within viewport)
-  const getPanelPosition = () => {
-    let left = position.x - PANEL_WIDTH + 56;
-    let top = position.y - PANEL_HEIGHT;
-
-    // Keep within viewport bounds
-    if (left < 10) left = 10;
-    if (left + PANEL_WIDTH > window.innerWidth - 10) left = window.innerWidth - PANEL_WIDTH - 10;
-    if (top < 10) top = 10;
-    if (top + PANEL_HEIGHT > window.innerHeight - 10) top = window.innerHeight - PANEL_HEIGHT - 10;
-
-    return { left, top };
-  };
-
-  if (!isVisible) return null;
-
-  const panelPos = getPanelPosition();
-
-  return ReactDOM.createPortal(
-    <>
-      {!isExpanded && (
-        <button
-          onClick={() => setIsExpanded(true)}
-          onMouseDown={handleBubbleMouseDown}
-          className={clsx(
-            "fixed z-[200] w-14 h-14 rounded-full shadow-2xl transition-all",
-            "bg-gradient-to-br from-primary to-primary/80 hover:scale-110",
-            "flex items-center justify-center",
-            isDragging && "cursor-grabbing"
-          )}
-          style={{ left: position.x, top: position.y }}
-          data-testid="ai-chatbot-bubble"
-        >
-          <Bot className="w-6 h-6 text-white" />
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center animate-pulse font-bold">!</span>
-        </button>
-      )}
-
-      {isExpanded && (
-        <div
-          className="fixed z-[200] flex flex-col rounded-2xl shadow-2xl overflow-hidden bg-gradient-to-b from-dark-800 to-dark-900 border border-dark-600/50"
-          style={{ left: panelPos.left, top: panelPos.top, width: PANEL_WIDTH, height: PANEL_HEIGHT }}
-          data-testid="ai-chatbot-bubble-expanded"
-        >
-          <div className="flex items-center justify-between px-4 py-3 bg-dark-800/90 border-b border-dark-700 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20">
-                  <Bot className="w-5 h-5 text-primary" />
-                </div>
-                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full animate-pulse shadow-lg shadow-primary/50" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-white">AI Assistant</h3>
-                <p className="text-[10px] text-gray-400">Error Analysis Helper</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setIsExpanded(false)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-                title="Collapse to bubble"
-              >
-                <Minimize2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-            {!hasAcceptedHelp ? (
-              <HelpOfferScreen
-                response={response}
-                error={error}
-                requestInfo={requestInfo}
-                onAccept={handleAcceptHelp}
-                onClose={onClose}
-              />
-            ) : (
-              <>
-                {chatMessages.map((msg, index) => (
-                  <ChatMessage key={index} msg={msg} index={index} />
-                ))}
-                {isProcessing && chatMessages.length > 0 && !chatMessages[chatMessages.length - 1]?.isLoading && (
-                  <TypingIndicator />
-                )}
-              </>
-            )}
-          </div>
-
-          {hasAcceptedHelp && (
-            <ChatInputBar
-              userInput={userInput}
-              setUserInput={setUserInput}
-              onSend={handleSendMessage}
-              isProcessing={isProcessing}
-            />
-          )}
-        </div>
-      )}
-    </>,
-    document.body
-  );
-};
-
-
 
 // ============================================================================
 // Helper hook to determine if chatbot should show
@@ -957,7 +520,6 @@ export const useShouldShowChatbot = (response, error) => {
     const isNetworkError = hasError && !statusCode;
 
     if (is4xxError || is5xxError || isNetworkError) {
-      // Small delay to let response render first
       const timer = setTimeout(() => setShouldShow(true), 500);
       return () => clearTimeout(timer);
     } else {

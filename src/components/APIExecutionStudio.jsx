@@ -1028,19 +1028,17 @@ function HistoryDetailsView({ details, onClose }) {
         <span>Executing request...</span>
       </div>
     ) : (() => {
-      // Determine if we should show an error message
-       const hasError = !!error || (effectiveResponse && effectiveResponse.testScriptError);
+      const hasError = !!error || (effectiveResponse && effectiveResponse.testScriptError);
 
       if (hasError) {
-        // Build error message from available sources
         let errorMessage = '';
         if (error) {
           errorMessage = error.message || JSON.stringify(error, null, 2);
-        } else if (response && response.testScriptError) {
-          errorMessage = response.testScriptError;
-        } else if (response && response.status >= 400) {
-          errorMessage = `${response.status} ${response.statusText || 'Error'}`;
-        } else if (response && response.status === 0) {
+        } else if (effectiveResponse && effectiveResponse.testScriptError) {
+          errorMessage = effectiveResponse.testScriptError;
+        } else if (effectiveResponse && effectiveResponse.status >= 400) {
+          errorMessage = `${effectiveResponse.status} ${effectiveResponse.statusText || 'Error'}`;
+        } else if (effectiveResponse && effectiveResponse.status === 0) {
           errorMessage = 'Network error – no response received';
         } else {
           errorMessage = 'Request failed – unknown error';
@@ -1059,11 +1057,9 @@ function HistoryDetailsView({ details, onClose }) {
         );
       }
 
-      if (response) {
-        // Normal success response (status 2xx)
+      if (effectiveResponse) {
         return (
           <div className="space-y-3">
-            {/* Existing response display code */}
             <div className="mt-2">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-6">
@@ -1071,9 +1067,7 @@ function HistoryDetailsView({ details, onClose }) {
                     onClick={() => setResponseTab('body')}
                     className={clsx(
                       'text-sm font-medium transition-colors',
-                      responseTab === 'body'
-                        ? 'text-primary'
-                        : 'text-gray-400 hover:text-gray-200'
+                      responseTab === 'body' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
                     )}
                   >
                     Body
@@ -1082,36 +1076,36 @@ function HistoryDetailsView({ details, onClose }) {
                     onClick={() => setResponseTab('headers')}
                     className={clsx(
                       'text-sm font-medium transition-colors',
-                      responseTab === 'headers'
-                        ? 'text-primary'
-                        : 'text-gray-400 hover:text-gray-200'
+                      responseTab === 'headers' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
                     )}
                   >
-                    Headers ({response.headers?.length || 0})
+                    Headers ({effectiveResponse.headers?.length || 0})
                   </button>
                 </div>
 
                 <div className="flex items-center gap-5 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500">Status:</span>
-                    <span className={clsx(
-                      "font-bold px-2 py-0.5 rounded",
-                      response.status >= 200 && response.status < 300
-                        ? "text-green-400 bg-green-400/10"
-                        : "text-red-400 bg-red-400/10"
-                    )}>
-                      {response.status} {response.statusText}
+                    <span
+                      className={clsx(
+                        'font-bold px-2 py-0.5 rounded',
+                        effectiveResponse.status >= 200 && effectiveResponse.status < 300
+                          ? 'text-green-400 bg-green-400/10'
+                          : 'text-red-400 bg-red-400/10'
+                      )}
+                    >
+                      {effectiveResponse.status} {effectiveResponse.statusText}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3 h-3 text-gray-500" />
-                    <span className="text-gray-400 font-medium">{response.time}ms</span>
+                    <span className="text-gray-400 font-medium">{effectiveResponse.time}ms</span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     <Database className="w-3 h-3 text-gray-500" />
-                    <span className="text-gray-400 font-medium">{response.size} B</span>
+                    <span className="text-gray-400 font-medium">{effectiveResponse.size} B</span>
                   </div>
                 </div>
               </div>
@@ -1119,12 +1113,12 @@ function HistoryDetailsView({ details, onClose }) {
               {responseTab === 'body' ? (
                 <div className="bg-dark-900/60 rounded-lg p-4 font-mono text-sm overflow-auto max-h-96 border border-dark-700">
                   <pre className="text-gray-300 whitespace-pre-wrap break-all">
-                    {formatResponseBody(response.data)}
+                    {formatResponseBody(effectiveResponse.data)}
                   </pre>
                 </div>
               ) : (
                 <div className="bg-dark-900/60 rounded-lg p-4 overflow-auto max-h-96 border border-dark-700">
-                  {response.headers && response.headers.length > 0 ? (
+                  {effectiveResponse.headers && effectiveResponse.headers.length > 0 ? (
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="text-gray-400 border-b border-dark-700">
@@ -1133,7 +1127,7 @@ function HistoryDetailsView({ details, onClose }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {response.headers.map((h, idx) => (
+                        {effectiveResponse.headers.map((h, idx) => (
                           <tr key={idx} className="border-b border-dark-700/50 last:border-0">
                             <td className="py-2 text-gray-300 font-mono">{h.key}</td>
                             <td className="py-2 text-gray-400 font-mono break-all">{h.value}</td>
@@ -1151,7 +1145,6 @@ function HistoryDetailsView({ details, onClose }) {
         );
       }
 
-      // No response yet
       return (
         <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
           <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">

@@ -1007,11 +1007,11 @@ function HistoryItemList({
               {groupItems.map((item, idx) => {
                 const itemId = getItemId(item);
                 return (
-                  <div
-                    key={itemId || idx}
-                    className="relative group px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
-                    {...createTooltipHandler(item)}
-                  >
+<div
+  key={itemId || idx}
+  className="relative group-item px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
+  {...createTooltipHandler(item)}
+>
                     <div className="flex items-start justify-between">
                       <div
                         className="flex-1 min-w-0"
@@ -1033,18 +1033,18 @@ function HistoryItemList({
                           )}
                         </div>
                       </div>
-                      {onDeleteHistoryItem && itemId && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteHistoryItem(itemId);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-dark-600 rounded text-gray-400 hover:text-white transition-opacity"
-                          title="Delete entry"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
+{onDeleteHistoryItem && itemId && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      onDeleteHistoryItem(itemId);
+    }}
+    className="opacity-0 group-item-hover:opacity-100 p-1 hover:bg-dark-600 rounded text-gray-400 hover:text-white transition-opacity"
+    title="Delete entry"
+  >
+    <Trash2 className="w-3 h-3" />
+  </button>
+)}
                     </div>
                   </div>
                 );

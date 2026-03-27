@@ -101,7 +101,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
           </div>
         );
       case 'source':
-        // Safely convert to string
         const sourceStr = typeof run.source === 'string'
           ? run.source
           : (run.source ? JSON.stringify(run.source) : 'manual');
@@ -115,12 +114,15 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
           </div>
         );
       case 'iterations':
+        const envString = options.environment
+          ? JSON.stringify(options.environment, null, 2)
+          : null;
         return (
           <div>
             <div>Iterations: {options.iterations || 1}</div>
             <div>Delay: {options.delayMs || 0}ms</div>
             <div>Timeout: {options.timeoutMs || 30000}ms</div>
-            {options.environment && <div>Environment: {options.environment}</div>}
+            {envString && <div>Environment: <pre className="text-xs mt-1 whitespace-pre-wrap">{envString}</pre></div>}
             {options.dataFile && <div>Data File: {options.dataFile}</div>}
             {options.bail && <div>Bail on failure: Yes</div>}
           </div>
@@ -186,7 +188,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
             </div>
           );
         }
-        // If run.triggeredBy is an object, stringify it
         const triggeredByStr = typeof run.triggeredBy === 'string'
           ? run.triggeredBy
           : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
@@ -294,7 +295,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                   }
                 });
 
-                // Safely convert source and triggeredBy to strings for display
                 const sourceDisplay = typeof run.source === 'string'
                   ? run.source
                   : (run.source ? JSON.stringify(run.source) : 'manual');
@@ -305,7 +305,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                 } else if (typeof run.triggeredBy === 'string') {
                   triggeredByDisplay = run.triggeredBy.length > 8 ? run.triggeredBy.slice(0, 8) + '…' : run.triggeredBy;
                 } else if (run.triggeredBy) {
-                  // If it's an object, stringify and truncate
                   const str = JSON.stringify(run.triggeredBy);
                   triggeredByDisplay = str.length > 8 ? str.slice(0, 8) + '…' : str;
                 }

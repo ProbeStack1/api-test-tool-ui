@@ -1184,7 +1184,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
               placeholder="Search project..."
               value={workspaceSearch}
               onChange={(e) => setWorkspaceSearch(e.target.value)}
-              className="w-full bg-dark-800 border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
+              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
             />
           </div>
           <div className="flex-1 flex justify-end">
@@ -1352,7 +1352,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
 <button
   type="button"
   onClick={() => setShowCreateMockServiceModal(true)}
-  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
 >
   <Plus className="w-4 h-4" />
   Create Mock Service
@@ -1368,7 +1368,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
           placeholder="Search mock servers..."
           value={mockSearch}
           onChange={(e) => setMockSearch(e.target.value)}
-          className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+          className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         />
       </div>
     </div>
@@ -1636,7 +1636,7 @@ topMenuActive === 'testing' ? (
           <select
             value={selectedTestCollectionId || ''}
             onChange={(e) => setSelectedTestCollectionId(e.target.value)}
-            className="mt-1 w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            className="mt-1 w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
           >
             <option value="">Select a collection</option>
             {workspaceCollections.map(col => (
@@ -1686,7 +1686,7 @@ topMenuActive === 'testing' ? (
                     min={1}
                     value={functionalIterations}
                     onChange={(e) => setFunctionalIterations(Number(e.target.value) || 1)}
-                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
                 <div>
@@ -1696,7 +1696,7 @@ topMenuActive === 'testing' ? (
                     min={0}
                     value={functionalDelay}
                     onChange={(e) => setFunctionalDelay(Number(e.target.value) || 0)}
-                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
               </div>
@@ -1760,7 +1760,7 @@ topMenuActive === 'testing' ? (
           <select
             value={selectedTestCollectionId || ''}
             onChange={(e) => setSelectedTestCollectionId(e.target.value)}
-            className="mt-1 w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            className="mt-1 w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
           >
             <option value="">Select a collection</option>
             {workspaceCollections.map(col => (
@@ -1779,7 +1779,7 @@ topMenuActive === 'testing' ? (
                   <select
                     value={loadProfile}
                     onChange={(e) => setLoadProfile(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                   >
                     <option value="fixed">Fixed</option>
                     <option value="ramp">Ramp up</option>
@@ -1793,7 +1793,7 @@ topMenuActive === 'testing' ? (
                       min={1}
                       value={loadVirtualUsers}
                       onChange={(e) => setLoadVirtualUsers(Number(e.target.value) || 1)}
-                      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
                   </div>
                   <div className="flex gap-2 items-end">
@@ -1804,13 +1804,13 @@ topMenuActive === 'testing' ? (
                         min={1}
                         value={loadDuration}
                         onChange={(e) => setLoadDuration(Number(e.target.value) || 1)}
-                        className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                       />
                     </div>
                     <select
                       value={loadDurationUnit}
                       onChange={(e) => setLoadDurationUnit(e.target.value)}
-                      className="bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+                      className="bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
                     >
                       <option value="mins">mins</option>
                       <option value="secs">secs</option>

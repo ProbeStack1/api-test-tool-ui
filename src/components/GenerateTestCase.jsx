@@ -320,8 +320,8 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0B1120]">
-      <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[var(--color-input-bg)]">
+      <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Generate Test Cases</h2>
           <p className="text-sm text-gray-400">Create and manage JSON test case specifications</p>
@@ -336,7 +336,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
       </div>
 
       <div className="flex-1 flex min-h-0">
-        <aside className="w-72 border-r border-dark-700 bg-dark-800/30 flex flex-col">
+        <aside className="w-72 border-r border-dark-700 bg-[var(--color-card-bg)] flex flex-col">
           <div className="p-4 border-b border-dark-700">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -345,7 +345,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                 placeholder="Search specs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
           </div>
@@ -423,7 +423,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col min-h-0 bg-[#0B1120]">
+        <main className="flex-1 flex flex-col min-h-0 bg-[var(--color-card-bg)]">
           <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between bg-dark-800/20">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-white">
@@ -489,7 +489,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
-          <div className="relative bg-dark-800 border border-dark-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
+          <div className="relative bg-[var(--color-input-bg)] border border-dark-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-dark-700 flex items-center justify-between bg-dark-800/50">
               <div>
@@ -514,7 +514,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                   value={newSpecName}
                   onChange={(e) => setNewSpecName(e.target.value)}
                   placeholder="Enter test case name"
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
 
@@ -658,7 +658,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                             value={importUrl}
                             onChange={(e) => setImportUrl(e.target.value)}
                             placeholder="https://example.com/api-spec.json"
-                            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                            className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                           />
                         </div>
                       )}
@@ -668,7 +668,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-dark-700 bg-dark-800/50 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-dark-700 bg-[var(--color-card-bg)] flex justify-end gap-3">
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="px-4 py-2 rounded-lg border border-dark-600 text-gray-300 hover:bg-dark-700 hover:text-white transition-colors text-sm font-medium"

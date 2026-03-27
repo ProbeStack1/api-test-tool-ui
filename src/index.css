@@ -17,6 +17,20 @@
   /* ProbeStack Primary Orange - matches parent site */
   /* Tool background */
   --color-probestack-bg: #0e172a;
+
+
+  /*==================================================================*/
+
+--color-input-bg: #0f172a80; /* dark mode input bg */
+--color-card-bg: #161b30; 
+
+
+
+
+
+
+/*=====================================================================*/
+
 }
 
 /* Light theme: override Tailwind theme variables so all components update */
@@ -29,6 +43,18 @@
   --color-dark-600: #cfd6e8;
   --color-dark-500: #5a617a;
   --color-dark-400: #5a617a;
+
+
+
+  /*======================================================================*/
+--color-input-bg: #ffffffd5; /* light mode input bg */
+--color-card-bg: #f0f2f5; /* white card */
+
+
+
+
+
+  /*======================================================================*/
 }
 
 /* Light theme: make text and UI elements black so they are visible */

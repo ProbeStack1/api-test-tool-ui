@@ -523,12 +523,12 @@ function HistoryDetailsView({ details, onClose }) {
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Tab bar */}
-        <div className="flex items-center border-b border-dark-700 bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
+        <div className="flex items-center border-b border-dark-700 bg-[var(--color-card-bg)] flex-shrink-0 min-h-11 overflow-hidden">
           {!hideNewButton && (
             <button
               type="button"
               onClick={onNewTab}
-              className="flex items-center justify-center gap-1.5 px-3 h-11 shrink-0 text-gray-400 hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
+              className="flex items-center justify-center gap-1.5 px-3 h-11 shrink-0 text-gray-400 bg-[var(--color-card-bg)] cursor-pointer hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
               title="New request"
             >
               <Plus className="w-4 h-4" />
@@ -536,11 +536,11 @@ function HistoryDetailsView({ details, onClose }) {
             </button>
           )}
           {/* Scrollable container */}
-  <div
-    ref={tabsContainerRef}
-    className="flex items-center overflow-x-auto overflow-y-hidden min-w-0"
-    style={{ marginBottom: '-8px' }}
-  >
+<div
+  ref={tabsContainerRef}
+  className="flex items-center overflow-x-auto overflow-y-hidden min-w-0 thin-horizontal-scrollbar"
+   style={{ marginBottom: '-6px' }}
+>
             {requests.map((req, index) => {
               const isActive = index === activeRequestIndex;
               const label = getTabLabel(req);
@@ -696,7 +696,7 @@ function HistoryDetailsView({ details, onClose }) {
 ) : (
         <>
           {/* Postman-style: Request line — Method + URL + Send */}
-          <div className="px-5 py-4 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
+          <div className="px-5 py-3 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
             <div className="flex gap-3 flex-wrap items-center">
               <div className="relative w-[110px] flex-shrink-0">
                 <select
@@ -755,7 +755,7 @@ function HistoryDetailsView({ details, onClose }) {
                   disabled={isSavedRequest(currentReq) && !hasUnsavedChanges}
                   title={getSaveTooltip()}
                   className={clsx(
-                    'bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
+                    'bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
                     (isSavedRequest(currentReq) && !hasUnsavedChanges) && 'opacity-50 cursor-not-allowed'
                   )}
                 >
@@ -767,14 +767,14 @@ function HistoryDetailsView({ details, onClose }) {
           </div>
 
           {/* Postman-style: Tabs below request line — Params, Headers, Body, Auth, Pre-request Script, Tests */}
-          <div className="border-b border-dark-700 px-5 flex items-center justify-between flex-shrink-0 bg-dark-900/30 gap-2 min-h-0">
-            <div className="flex items-center gap-0 overflow-x-auto min-w-0 flex-1 scrollbar-thin">
+          <div className="border-b border-dark-700 px-5 flex items-center justify-between flex-shrink-0 bg-[var(--color-card-bg)] gap-2 min-h-0">
+            <div className="flex items-center gap-0 overflow-y-hidden min-w-0 flex-1">
               {sections.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={clsx(
-                    'px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-all -mb-px flex-shrink-0 border-b-2',
+                    'px-4 py-3.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-all -mb-px flex-shrink-0 border-b-2',
                     activeSection === section.id
                       ? 'border-primary text-primary bg-transparent'
                       : 'border-transparent text-gray-400 hover:text-white'
@@ -794,8 +794,8 @@ function HistoryDetailsView({ details, onClose }) {
             {/* Tab-specific content */}
 {activeSection === 'params' && (
   <div className="p-5">
-    <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+    <div className="rounded-lg border border-dark-700  overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
         Query parameters for the request URL
       </div>
       <div className="p-4">
@@ -816,8 +816,8 @@ function HistoryDetailsView({ details, onClose }) {
 
             {activeSection === 'headers' && (
               <div className="p-5">
-                <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+                <div className="rounded-lg border border-dark-700 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
                     Request headers (e.g. Content-Type, Authorization)
                   </div>
                   <div className="p-4">
@@ -866,7 +866,7 @@ function HistoryDetailsView({ details, onClose }) {
                         <select
                           value={rawBodyFormat}
                           onChange={(e) => setRawBodyFormat(e.target.value)}
-                          className="ml-2 bg-dark-800 border border-dark-700 rounded-md text-xs text-gray-300 py-2 px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
+                          className="ml-2 bg-[var(--color-card-bg)] border border-dark-700 rounded-md text-xs text-gray-300 py-2 px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
                         >
                           <option value="json">JSON</option>
                           <option value="text">Text</option>
@@ -913,8 +913,8 @@ function HistoryDetailsView({ details, onClose }) {
 
             {activeSection === 'auth' && (
               <div className="p-5">
-                <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 text-xs text-gray-400 font-medium">
+                <div className="rounded-lg border border-dark-700">
+                  <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
                     Authentication type and credentials for the request
                   </div>
                   <div className="p-4">
@@ -932,7 +932,7 @@ function HistoryDetailsView({ details, onClose }) {
             {activeSection === 'pre-request' && (
               <div className="p-5">
                 <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+                  <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
                     <span className="text-xs text-gray-400 font-medium">Pre-request Script</span>
                     <span className="text-[10px] text-gray-500">Runs before the request is sent</span>
                   </div>
@@ -950,7 +950,7 @@ function HistoryDetailsView({ details, onClose }) {
             {activeSection === 'tests' && (
               <div className="p-5">
                 <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
-                  <div className="px-4 py-2.5 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+                  <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
                     <span className="text-xs text-gray-400 font-medium">Tests</span>
                     <span className="text-[10px] text-gray-500">Runs after the response is received</span>
                   </div>
@@ -982,16 +982,16 @@ function HistoryDetailsView({ details, onClose }) {
           {/* </ResizableBottomPanel> */}
 
           {/* Forgeq-style Panel Header */}
-          <div className="h-12 px-5 flex items-center justify-between border-b border-dark-700 bg-probestack-bg/80 shrink-0 gap-2 min-w-0">
-            <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-thin">
+          <div className="h-12 px-5 flex items-center justify-between border-b border-dark-700 bg-[var(--color-card-bg)] shrink-0 gap-2 min-w-0">
+            <div className="flex items-center gap-1  min-w-0 flex-1 ">
               {['response', 'logs', 'validation', 'collection-run'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setBottomPanelTab(tab)}
                   className={clsx(
-                    'px-4 py-3 text-sm font-medium -mb-px transition-colors rounded-t capitalize whitespace-nowrap flex-shrink-0',
+                    'px-4 py-3 text-sm font-medium -mb-px cursor-pointer transition-colors rounded-t capitalize whitespace-nowrap flex-shrink-0',
                     bottomPanelTab === tab
-                      ? 'border-b-2 border-primary text-primary font-semibold bg-dark-800'
+                      ? 'border-b-2 border-primary text-primary'
                       : 'text-gray-400 hover:text-white'
                   )}
                 >
@@ -1002,15 +1002,16 @@ function HistoryDetailsView({ details, onClose }) {
             </div>
             <button
               onClick={() => setBottomPanelCollapsed(!bottomPanelCollapsed)}
-              className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+              className="p-4 text-gray-500 hover:text-gray-200 transition-colors border-l border-dark-700 -mr-4"
             >
               {bottomPanelCollapsed ? (
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                 </svg>
+                
               ) : (
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               )}
             </button>

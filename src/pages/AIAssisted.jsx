@@ -138,13 +138,13 @@ const AIAssisted = () => {
                       handleSend(e);
                     }
                   }}
-                  className="w-full bg-dark-900/50 border border-dark-600 rounded-2xl p-4 pr-16 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all placeholder-gray-500 resize-none"
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-600 rounded-2xl p-4 pr-16 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all placeholder-gray-500 resize-none"
                   placeholder="Describe your API test requirements (e.g., 'Create tests for user authentication endpoints' or 'Generate assertions for JSON response validation')..."
                   rows="2"
                 />
                 <button
                   type="submit"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-primary hover:bg-primary/90 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-primary/30 group-hover:scale-105 active:scale-95"
+                  className="absolute cursor-pointer right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-primary hover:bg-primary/90 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-primary/30 group-hover:scale-105 active:scale-95"
                 >
                   <Send className="w-5 h-5" />
                 </button>

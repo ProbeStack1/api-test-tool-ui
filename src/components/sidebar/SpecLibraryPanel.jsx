@@ -170,9 +170,9 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#0B1120]">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[var(--color-input-bg)]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">Specification Library</h2>
           <p className="text-sm text-gray-400">Shared organization specifications</p>
@@ -189,7 +189,7 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
         {/* Left Sidebar */}
-        <aside className="w-72 border-r border-dark-700 bg-dark-800/30 flex flex-col">
+        <aside className="w-72 border-r border-dark-700 bg-[var(--color-card-bg)] flex flex-col">
           {/* Search */}
           <div className="p-4 border-b border-dark-700">
             <div className="relative">
@@ -199,7 +199,7 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
                 placeholder="Search library..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
           </div>
@@ -267,11 +267,11 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
         </aside>
 
         {/* Right Main Area */}
-        <main className="flex-1 flex flex-col min-h-0 bg-[#0B1120]">
+        <main className="flex-1 flex flex-col min-h-0">
           {selectedItem ? (
             <>
               {/* Header */}
-              <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/20">
+              <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-input-bg)]">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-white">{selectedItem.name}</h3>
@@ -423,8 +423,9 @@ function LibraryItemModal({ item, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+      <div className="bg-[var(--color-input-bg)] border border-dark-600 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+        {/* Header */}
+        <div className="bg-[var(--color-card-bg)] flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 z-10">
           <h3 className="text-base font-semibold text-white">
             {isEditing ? 'Edit Library Item' : 'Create Library Item'}
           </h3>
@@ -432,48 +433,57 @@ function LibraryItemModal({ item, onClose, onSave }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
-            />
-          </div>
-          {!isEditing && (
+
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="p-5 space-y-4 flex-1">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Content (JSON) *</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
+              <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
-                rows={8}
-                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white font-mono"
+                placeholder="Enter item name"
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500"
               />
             </div>
-          )}
-          <div className="flex justify-end gap-2 pt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                placeholder="Optional description"
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g., API, Database, etc."
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500"
+              />
+            </div>
+            {!isEditing && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Content (JSON) *</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  required
+                  rows={8}
+                  placeholder='{\n  "key": "value"\n}'
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder:text-gray-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Footer – matches header style */}
+          <div className="bg-[var(--color-card-bg)] flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
             <button
               type="button"
               onClick={onClose}

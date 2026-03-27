@@ -286,7 +286,7 @@ export default function CreateMockServiceModal({
                   value={mockServiceName}
                   onChange={(e) => setMockServiceName(e.target.value)}
                   placeholder="e.g., Payment API Mock, User Service v2"
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30"
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30"
                 />
               </div>
 
@@ -298,7 +298,7 @@ export default function CreateMockServiceModal({
                     <label className="flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all bg-dark-900/40 hover:bg-dark-800/60"
                       style={{
                         borderColor: creationType === 'scratch' ? '#3b82f6' : '#374151',
-                        backgroundColor: creationType === 'scratch' ? 'rgba(59, 130, 246, 0.1)' : undefined,
+                        backgroundColor: creationType === 'scratch' ? 'rgba(59, 130, 246, 0.1)' : "bg-[var(--color-input-bg)]",
                       }}
                     >
                       <input
@@ -313,7 +313,7 @@ export default function CreateMockServiceModal({
                     <label className="flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all bg-dark-900/40 hover:bg-dark-800/60"
                       style={{
                         borderColor: creationType === 'collection' ? '#3b82f6' : '#374151',
-                        backgroundColor: creationType === 'collection' ? 'rgba(59, 130, 246, 0.1)' : undefined,
+                        backgroundColor: creationType === 'collection' ? 'rgb(59, 131, 246)' : "bg-[var(--color-input-bg)]",
                       }}
                     >
                       <input
@@ -338,7 +338,7 @@ export default function CreateMockServiceModal({
       <button
         type="button"
         onClick={() => setIsCollectionDropdownOpen(!isCollectionDropdownOpen)}
-        className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-medium text-white py-2.5 px-3 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center"
+        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg text-sm font-medium text-white py-2.5 px-3 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center"
       >
         <span className="truncate">
           {selectedCollectionId
@@ -348,7 +348,7 @@ export default function CreateMockServiceModal({
         <ChevronDown className="w-4 h-4 text-gray-500 ml-auto" />
       </button>
       {isCollectionDropdownOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
           {collections.map(col => (
             <div
               key={col.id}
@@ -394,7 +394,7 @@ export default function CreateMockServiceModal({
                   {endpoints.map((ep, index) => (
                     <div
                       key={ep.id}
-                      className="p-4 rounded-lg border border-dark-700 bg-dark-900/40 space-y-3"
+                      className="p-4 rounded-lg border border-dark-700 bg-[var(--color-input-bg)] space-y-3"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500 font-medium">
@@ -414,7 +414,7 @@ export default function CreateMockServiceModal({
                         <select
                           value={ep.method}
                           onChange={(e) => updateEndpoint(ep.id, 'method', e.target.value)}
-                          className="bg-dark-900 border border-dark-700 rounded px-2 py-1.5 text-sm text-white"
+                          className="bg-[var(--color-input-bg)] border border-dark-700 rounded px-2 py-1.5 text-sm text-white"
                         >
                           <option>GET</option>
                           <option>POST</option>
@@ -431,7 +431,7 @@ export default function CreateMockServiceModal({
                           onChange={(e) =>
                             updateEndpoint(ep.id, 'statusCode', Number(e.target.value) || 200)
                           }
-                          className="bg-dark-900 border border-dark-700 rounded px-2 py-1.5 text-sm text-white text-center"
+                          className="bg-[var(--color-input-bg)] border border-dark-700 rounded px-2 py-1.5 text-sm text-white text-center"
                           placeholder="200"
                         />
 
@@ -440,7 +440,7 @@ export default function CreateMockServiceModal({
                           placeholder="/users/profile"
                           value={ep.path}
                           onChange={(e) => updateEndpoint(ep.id, 'path', e.target.value)}
-                          className="bg-dark-900 border border-dark-700 rounded px-3 py-1.5 text-sm text-white placeholder:text-gray-600"
+                          className="bg-[var(--color-input-bg)] border border-dark-700 rounded px-3 py-1.5 text-sm text-white placeholder:text-gray-600"
                         />
                       </div>
 
@@ -449,7 +449,7 @@ export default function CreateMockServiceModal({
                         value={ep.responseBody}
                         onChange={(e) => updateEndpoint(ep.id, 'responseBody', e.target.value)}
                         rows={4}
-                        className="w-full bg-dark-900 border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-gray-600 resize-y min-h-[80px]"
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white placeholder:text-gray-600 resize-y min-h-[80px]"
                       />
                     </div>
                   ))}
@@ -463,7 +463,7 @@ export default function CreateMockServiceModal({
                   {collectionEndpoints.map((ep, idx) => (
                     <div
                       key={ep.id}
-                      className="p-4 rounded-lg border border-dark-700 bg-dark-900/40 space-y-3"
+                      className="p-4 rounded-lg border border-dark-700 bg-[var(--color-input-bg)] space-y-3"
                     >
                       <div className="flex items-center gap-3">
                         <span
@@ -489,7 +489,7 @@ export default function CreateMockServiceModal({
                           onChange={(e) =>
                             updateCollectionEndpoint(ep.id, 'statusCode', Number(e.target.value) || 200)
                           }
-                          className="bg-dark-900 border border-dark-700 rounded px-2 py-1.5 text-sm text-white text-center"
+                          className="bg-[var(--color-input-bg)] border border-dark-700 rounded px-2 py-1.5 text-sm text-white text-center"
                         />
                         <textarea
                           placeholder="Mock response (JSON)"
@@ -536,7 +536,7 @@ export default function CreateMockServiceModal({
                         <select
                           value={delayOption}
                           onChange={(e) => setDelayOption(e.target.value)}
-                          className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/60 min-w-[160px]"
+                          className="bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/60 min-w-[160px]"
                         >
                           <option value="none">No delay</option>
                           <option value="200">200ms</option>
@@ -552,7 +552,7 @@ export default function CreateMockServiceModal({
                               step="50"
                               value={customDelayMs}
                               onChange={(e) => setCustomDelayMs(e.target.value)}
-                              className="w-20 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white text-center focus:outline-none focus:border-primary/60"
+                              className="w-20 bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white text-center focus:outline-none focus:border-primary/60"
                             />
                             <span className="text-sm text-gray-400">ms</span>
                           </div>

@@ -251,19 +251,19 @@ export default function KeyValueEditor({
 const hasEnvData = activeEnvVars.size > 0 || inactiveEnvVars.size > 0 || globalVars.size > 0;
 
   return (
-    <div className="border border-dark-700 rounded overflow-hidden bg-dark-900/30" data-testid="key-value-editor">
+    <div className="border border-dark-700 rounded overflow-hidden " data-testid="key-value-editor">
       {/* Header */}
-      <div className="flex bg-dark-800/50 border-b border-dark-700 text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
+      <div className="flex bg-[var(--color-card-bg)] border-b border-dark-700 text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
         <div className="flex-1 px-3 py-1.5 border-r border-dark-700">Key</div>
         <div className="flex-1 px-3 py-1.5 border-r border-dark-700">Value</div>
         <div className="w-10"></div>
       </div>
 
       {/* Add Button */}
-      <div className="px-3 py-2 border-b border-dark-700/50 bg-dark-800/30">
+      <div className="px-3 py-2 border-b border-dark-700/50 bg-[var(--color-input-bg)]">
         <button
           onClick={handleAdd}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded hover:bg-dark-700/50"
+          className="flex items-center cursor-pointer gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-2 py-1 rounded hover:bg-dark-700/50"
           data-testid="kv-add-btn"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -272,14 +272,14 @@ const hasEnvData = activeEnvVars.size > 0 || inactiveEnvVars.size > 0 || globalV
       </div>
 
       {/* Rows */}
-      <div className="bg-dark-900/20">
+      <div className="bg-[var(--color-input-bg)]">
         {pairs.map((pair, index) => (
           <div
             key={index}
-            className="flex border-b border-dark-700/30 last:border-0 group hover:bg-dark-800/40 transition-colors"
+            className="flex border-b border-dark-700/30 last:border-0 group  transition-colors"
           >
             {/* Key field - with variable highlighting */}
-            <div className="flex-1 border-r border-dark-700/30">
+            <div className="flex-1 border border-dark-700/30 hover:border-primary/80 focus-within:border-primary/80">
               {hasEnvData ? (
 <HighlightedInput
   value={pair.key}
@@ -298,35 +298,35 @@ const hasEnvData = activeEnvVars.size > 0 || inactiveEnvVars.size > 0 || globalV
                   placeholder="Key"
                   value={pair.key}
                   onChange={(e) => handleChange(index, "key", e.target.value)}
-                  className="w-full bg-transparent px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:bg-dark-900/30 placeholder:text-dark-500 font-mono transition-colors"
+                  className="w-full bg-transparent px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary/80 placeholder:text-dark-500 font-mono "
                 />
               )}
             </div>
 
             {/* Value field - with variable highlighting */}
-            <div className="flex-1 border-r border-dark-700/30">
-              {hasEnvData ? (
-                <HighlightedInput
-                  value={pair.value}
-                  onChange={(val) => handleChange(index, "value", val)}
-                  placeholder="Value"
-                  activeEnvVars={activeEnvVars}
-                  inactiveEnvVars={inactiveEnvVars}
-                  activeEnvValues={activeEnvValues}
-                  inactiveEnvInfo={inactiveEnvInfo}
-                  globalVars={globalVars}
-                  globalValues={globalValues}
-                />
-              ) : (
-                <input
-                  type="text"
-                  placeholder="Value"
-                  value={pair.value}
-                  onChange={(e) => handleChange(index, "value", e.target.value)}
-                  className="w-full bg-transparent px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:bg-dark-900/30 placeholder:text-dark-500 font-mono transition-colors"
-                />
-              )}
-            </div>
+<div className="flex-1 border border-dark-700/30 hover:border-primary/80 focus-within:border-primary/80">
+  {hasEnvData ? (
+    <HighlightedInput
+      value={pair.value}
+      onChange={(val) => handleChange(index, "value", val)}
+      placeholder="Value"
+      activeEnvVars={activeEnvVars}
+      inactiveEnvVars={inactiveEnvVars}
+      activeEnvValues={activeEnvValues}
+      inactiveEnvInfo={inactiveEnvInfo}
+      globalVars={globalVars}
+      globalValues={globalValues}
+    />
+  ) : (
+    <input
+      type="text"
+      placeholder="Value"
+      value={pair.value}
+      onChange={(e) => handleChange(index, "value", e.target.value)}
+      className="w-full bg-transparent px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-primary/80 placeholder:text-dark-500 font-mono "
+    />
+  )}
+</div>
 
             {/* Delete button */}
             <div className="w-10 flex items-center justify-center">

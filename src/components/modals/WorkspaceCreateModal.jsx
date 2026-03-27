@@ -128,7 +128,7 @@ export default function WorkspaceCreateModal({ isOpen, onClose, onCreate, worksp
               }}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               placeholder="Enter project name"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               autoFocus
             />
             {validationError && <p className="mt-2 text-xs text-red-400">{validationError}</p>}
@@ -144,7 +144,7 @@ export default function WorkspaceCreateModal({ isOpen, onClose, onCreate, worksp
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the purpose of this project"
               rows="3"
-              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
             />
           </div>
 
@@ -193,7 +193,7 @@ export default function WorkspaceCreateModal({ isOpen, onClose, onCreate, worksp
               <button
                 type="button"
                 onClick={handleImportClick}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-dark-600 bg-dark-900/40 text-gray-400 hover:text-gray-300 hover:border-primary/50 hover:bg-dark-900/60 transition-all"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-dark-600 bg-[var(--color-input-bg)] text-gray-400 hover:text-gray-300 hover:border-primary/50 hover:bg-dark-900/60 transition-all"
               >
                 <Upload className="w-4 h-4" />
                 <span className="text-sm">Import JSON Collection</span>

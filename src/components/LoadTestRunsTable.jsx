@@ -188,21 +188,25 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
             </div>
           );
         }
-        return <div>ID: {run.triggeredBy || '-'}</div>;
+        // If run.triggeredBy is an object, convert to string; else use as is
+        const triggeredByStr = typeof run.triggeredBy === 'string'
+          ? run.triggeredBy
+          : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
+        return <div>ID: {triggeredByStr}</div>;
       default:
         return null;
     }
   };
 
-if (runs.length === 0) {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6">
-      <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-      <p className="text-gray-400">No load test runs found</p>
-      <p className="text-xs text-gray-500 mt-1">Run a load test to see results here</p>
-    </div>
-  );
-}
+  if (runs.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+        <p className="text-gray-400">No load test runs found</p>
+        <p className="text-xs text-gray-500 mt-1">Run a load test to see results here</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-dark-800/40 border border-dark-700 rounded-xl overflow-hidden">
@@ -267,7 +271,7 @@ if (runs.length === 0) {
                 {visibleColumns.errorRate && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Error %</th>}
                 {visibleColumns.triggeredBy && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Triggered By</th>}
                 <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Actions</th>
-              </tr>
+               </tr>
             </thead>
             <tbody className="divide-y divide-dark-700">
               {paginatedRuns.map((run) => {
@@ -279,7 +283,6 @@ if (runs.length === 0) {
                 const p99 = result.percentiles?.['p99'] ? result.percentiles['p99'] + 'ms' : '-';
                 const errorRate = result.totalRequests ? ((result.failedRequests / result.totalRequests) * 100).toFixed(1) + '%' : '-';
 
-                // Reusable tooltip handler for any column
                 const createTooltipHandler = (colKey) => ({
                   onMouseEnter: (e) => {
                     const content = getTooltipContent(colKey, run);
@@ -386,9 +389,9 @@ if (runs.length === 0) {
                             ? (run.triggeredByUser.fullName.length > 7
                               ? run.triggeredByUser.fullName.slice(0, 7) + '…'
                               : run.triggeredByUser.fullName)
-                            : run.triggeredBy
-                              ? run.triggeredBy.slice(0, 8) + '…'
-                              : '-'}
+                            : (typeof run.triggeredBy === 'string'
+                                ? (run.triggeredBy.length > 8 ? run.triggeredBy.slice(0, 8) + '…' : run.triggeredBy)
+                                : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-'))}
                         </span>
                       </td>
                     )}

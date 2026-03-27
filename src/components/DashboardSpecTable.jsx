@@ -230,19 +230,22 @@ export default function DashboardSpecTable({
   }, [dashboardData]);
 
   // Transform specs into row format
-  const tableRows = useMemo(() => {
-    return specs.map((spec) => ({
-      id: spec.id,
-      organization: 'ProbeStack',
-      projectName: spec.workspaceName || 'Unknown',
-      appId: spec.id.slice(0, 13).toUpperCase(),
-      specificationName: spec.name,
-      version: spec.updatedAt ? new Date(spec.updatedAt).toLocaleDateString() : 'N/A',
-      testCases: 0,
-      collectionDetails: spec.source || 'manual',
-      requestStatus: 'success',
-    }));
-  }, [specs]);
+const tableRows = useMemo(() => {
+  return specs.map((spec) => ({
+    id: spec.id,
+    organization: 'ProbeStack',
+    projectName: spec.workspaceName || 'Unknown',
+    appId: spec.id.slice(0, 13).toUpperCase(),
+    specificationName: spec.name,
+    version: spec.updatedAt ? new Date(spec.updatedAt).toLocaleDateString() : 'N/A',
+    testCases: 0,
+    // ✅ Convert object to JSON string, else use string or fallback
+    collectionDetails: typeof spec.source === 'object'
+      ? JSON.stringify(spec.source)
+      : (spec.source || 'manual'),
+    requestStatus: 'success',
+  }));
+}, [specs]);
 
   const filteredData = useMemo(() => {
     return tableRows.filter((item) =>

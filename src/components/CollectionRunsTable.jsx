@@ -101,7 +101,11 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
           </div>
         );
       case 'source':
-        return <div>Source: {run.source || 'manual'}</div>;
+        // Safely convert to string
+        const sourceStr = typeof run.source === 'string'
+          ? run.source
+          : (run.source ? JSON.stringify(run.source) : 'manual');
+        return <div>Source: {sourceStr}</div>;
       case 'collectionName':
         return (
           <div>
@@ -150,7 +154,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
       case 'skipped':
         return <div>Skipped: {run.skippedRequests || 0}</div>;
       case 'errors':
-        // Collect errors from results
         const errors = (run.results || []).filter(r => !r.passed && r.error);
         if (errors.length === 0) return <div>No errors</div>;
         return (
@@ -183,21 +186,25 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
             </div>
           );
         }
-        return <div>Triggered By: {run.triggeredBy || '-'}</div>;
+        // If run.triggeredBy is an object, stringify it
+        const triggeredByStr = typeof run.triggeredBy === 'string'
+          ? run.triggeredBy
+          : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
+        return <div>Triggered By: {triggeredByStr}</div>;
       default:
         return null;
     }
   };
 
-if (runs.length === 0) {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6">
-      <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-      <p className="text-gray-400">No functional runs found</p>
-      <p className="text-xs text-gray-500 mt-1">Run a functional test to see results here</p>
-    </div>
-  );
-}
+  if (runs.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+        <p className="text-gray-400">No functional runs found</p>
+        <p className="text-xs text-gray-500 mt-1">Run a functional test to see results here</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-dark-800/40 border border-dark-700 rounded-xl overflow-hidden">
@@ -267,7 +274,6 @@ if (runs.length === 0) {
             </thead>
             <tbody className="divide-y divide-dark-700">
               {paginatedRuns.map((run) => {
-                // Reusable tooltip handler
                 const createTooltipHandler = (colKey) => ({
                   onMouseEnter: (e) => {
                     const content = getTooltipContent(colKey, run);
@@ -288,6 +294,22 @@ if (runs.length === 0) {
                   }
                 });
 
+                // Safely convert source and triggeredBy to strings for display
+                const sourceDisplay = typeof run.source === 'string'
+                  ? run.source
+                  : (run.source ? JSON.stringify(run.source) : 'manual');
+                
+                let triggeredByDisplay = '-';
+                if (run.triggeredByUser?.fullName) {
+                  triggeredByDisplay = run.triggeredByUser.fullName;
+                } else if (typeof run.triggeredBy === 'string') {
+                  triggeredByDisplay = run.triggeredBy.length > 8 ? run.triggeredBy.slice(0, 8) + '…' : run.triggeredBy;
+                } else if (run.triggeredBy) {
+                  // If it's an object, stringify and truncate
+                  const str = JSON.stringify(run.triggeredBy);
+                  triggeredByDisplay = str.length > 8 ? str.slice(0, 8) + '…' : str;
+                }
+
                 return (
                   <tr key={run.runId} className="hover:bg-dark-800/30">
                     {visibleColumns.startedAt && (
@@ -303,7 +325,7 @@ if (runs.length === 0) {
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('source')}
                       >
-                        {run.source || 'manual'}
+                        {sourceDisplay}
                       </td>
                     )}
                     {visibleColumns.collectionName && (
@@ -377,15 +399,7 @@ if (runs.length === 0) {
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('triggeredBy')}
                       >
-                        <span>
-                          {run.triggeredByUser?.fullName
-                            ? (run.triggeredByUser.fullName.length > 7
-                              ? run.triggeredByUser.fullName.slice(0, 7) + '…'
-                              : run.triggeredByUser.fullName)
-                            : run.triggeredBy
-                              ? run.triggeredBy.slice(0, 8) + '…'
-                              : '-'}
-                        </span>
+                        <span>{triggeredByDisplay}</span>
                       </td>
                     )}
                     <td className="px-4 py-3 whitespace-nowrap">

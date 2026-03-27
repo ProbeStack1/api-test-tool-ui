@@ -474,7 +474,7 @@ const flattenRequests = (items) => {
   return requests;
 };
 
-const handleOpenCollectionRunResults = (runData, collectionId, tabIndex,shouldNavigate = true) => {
+const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldNavigate = true, refresh = true) => {
   if (!runData) {
     console.error('Cannot open results tab – runData is null');
     return;
@@ -525,7 +525,7 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex,shouldNa
   };
 
   // Replace or add the tab
-   if (tabIndex >= 0 && tabIndex < requests.length) {
+  if (tabIndex >= 0 && tabIndex < requests.length) {
     setRequests(prev => {
       const newRequests = [...prev];
       newRequests[tabIndex] = resultsTab;
@@ -535,11 +535,14 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex,shouldNa
     handleNewTab(resultsTab);
   }
 
-  // Navigate only if requested (default true)
   if (shouldNavigate) {
     navigate('/workspace/collections');
   }
-  fetchAllRuns(); // Refresh runs list from backend
+
+  // Only refresh the runs list if requested (e.g., for a new run)
+  if (refresh) {
+    fetchAllRuns();
+  }
 };
 
 const handleViewFunctionalRunResults = async (run, shouldNavigate = true) => {
@@ -551,8 +554,8 @@ const handleViewFunctionalRunResults = async (run, shouldNavigate = true) => {
   try {
     const response = await fetchRunResult(runId);
     const runData = response.data;
-    // Pass the full run data and use -1 to open a new tab
-    handleOpenCollectionRunResults(runData, runData.collectionId, -1, shouldNavigate);
+    // Pass refresh=false to avoid refreshing the runs list when viewing history
+    handleOpenCollectionRunResults(runData, runData.collectionId, -1, shouldNavigate, false);
   } catch (err) {
     toast.error('Failed to load run details');
   }

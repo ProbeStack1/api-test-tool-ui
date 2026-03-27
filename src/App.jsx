@@ -1374,44 +1374,64 @@ const handleExecute = async () => {
     });
   }
 
-  // ----- Pre‑request script (if any) -----
-  let scriptResult = null;
-  if (currentReq.preRequestScript) {
-    const scriptContext = {
-      environment: { ...effectiveVariables }, // pass current state to script
-      variables: {},
-      url: { path: url, query: {} },
-      method: method,
-      headers: headers.reduce((acc, h) => {
-        if (h.enabled && h.key) acc[h.key] = h.value;
-        return acc;
-      }, {}),
-      body: body,
-    };
-    scriptResult = executeScript(currentReq.preRequestScript, scriptContext);
-    if (scriptResult.success && scriptResult.environment) {
-      // Merge script changes into our effective map
-      Object.assign(effectiveVariables, scriptResult.environment);
-      // Optionally update the React state later (can be async, not needed for this request)
-      if (Object.keys(scriptResult.environment).length > 0) {
-        setEnvironmentVariables(prev => {
-          const newVars = [...prev];
-          Object.entries(scriptResult.environment).forEach(([key, value]) => {
-            const existing = newVars.find(v => v.key === key);
-            if (existing) {
-              existing.value = value;
-            } else {
-              newVars.push({ key, value, enabled: true });
-            }
+// ----- Pre‑request script (if any) -----
+let scriptResult = null;
+if (currentReq.preRequestScript) {
+  const scriptContext = {
+    environment: { ...effectiveVariables }, // pass current state to script
+    variables: {},
+    url: { path: url, query: {} },
+    method: method,
+    headers: headers.reduce((acc, h) => {
+      if (h.enabled && h.key) acc[h.key] = h.value;
+      return acc;
+    }, {}),
+    body: body,
+  };
+  scriptResult = executeScript(currentReq.preRequestScript, scriptContext);
+  if (scriptResult.success && scriptResult.environment) {
+    // Merge script changes into our effective map
+    Object.assign(effectiveVariables, scriptResult.environment);
+    // Update the UI state **and persist to backend**
+    if (Object.keys(scriptResult.environment).length > 0) {
+      // Build the new variables array
+      const newVars = [...environmentVariables];
+      Object.entries(scriptResult.environment).forEach(([key, value]) => {
+        const existing = newVars.find(v => v.key === key);
+        if (existing) {
+          existing.value = value;
+        } else {
+          newVars.push({ key, value, enabled: true });
+        }
+      });
+      // Update the local state
+      setEnvironmentVariables(newVars);
+      // If there is an active environment, persist to backend
+      if (selectedEnvironmentId !== 'no-env') {
+        updateEnvironment(selectedEnvironmentId, { variables: newVars })
+          .then(() => {
+            // Update the environments list to reflect the saved variables
+            setEnvironments(prev =>
+              prev.map(env =>
+                env.id === selectedEnvironmentId
+                  ? { ...env, variables: newVars }
+                  : env
+              )
+            );
+            setEnvironmentVariablesDirty(false);
+            toast.success('Environment variables saved from script');
+          })
+          .catch(err => {
+            console.error('Failed to save script variables:', err);
+            toast.error('Failed to save script variables');
           });
-          return newVars;
-        });
       }
-    } else if (!scriptResult.success) {
-      console.warn('Pre‑request script error:', scriptResult.error);
-      // optional toast
     }
+  } else if (!scriptResult.success) {
+    console.warn('Pre‑request script error:', scriptResult.error);
+    // optional toast
   }
+}
 
   // ----- Local substitution using effectiveVariables -----
   const substituteLocal = (text) => {
@@ -2595,7 +2615,7 @@ const filteredMockServers = useMemo(() => {
     { id: 'collections', label: 'Collections', path: '/workspace/collections', icon: LayoutGrid },
     { id: 'environments', label: 'Variables', path: '/workspace/variables', icon: Layers },
     { id: 'testing', label: 'Testing', path: '/workspace/testing', icon: BarChart3 },
-    { id: 'mock-service', label: 'Mock Service', path: '/workspace/mock-service', icon: Layers },
+    { id: 'mock-service', label: 'Mock', path: '/workspace/mock-service', icon: Layers },
     { id: 'ai-assisted', label: 'AI-Assisted', path: '/workspace/ai-assisted', icon: Bot },
     { id: 'dashboard', label: 'Dashboard', path: '/workspace/dashboard', icon: BarChart3 },
   ];

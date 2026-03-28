@@ -130,6 +130,7 @@ onShowChatbot,
   loadTestRuns,   
   loadingLoadRuns,   
   onLoadTestComplete, 
+   onBodyTypeChange,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -2038,6 +2039,7 @@ topMenuActive === 'testing' ? (
     globalVars={globalVars}
     globalValues={globalValues}
     onLoadTestComplete={onLoadTestComplete}
+     onBodyTypeChange={onBodyTypeChange}
               />
             )}
           </div>

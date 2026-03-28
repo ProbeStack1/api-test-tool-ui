@@ -833,6 +833,7 @@ const createEmptyRequest = () => ({
   queryParams: [],         
   headers: [],                
   body: '{\n  \n}',
+   bodyType: 'raw',
   authType: 'none',
   authData: {},
   preRequestScript: '',
@@ -1496,7 +1497,7 @@ if (currentReq.preRequestScript) {
         url,
         headers,
         query_params: queryParams,
-        body_type: 'raw',
+        body_type: currentReq.bodyType || 'raw', 
         body_content: body,
         auth_type: authType,
         auth_config: authData,
@@ -3007,6 +3008,7 @@ onShowChatbot={handleShowChatbot}
   loadingLoadRuns={loadingLoadRuns}
   onLoadTestComplete={handleLoadTestComplete}
    onViewRunResults={handleViewFunctionalRunResults} 
+   onBodyTypeChange={(v) => updateActiveRequest('bodyType', v)}
               />
             }
           />

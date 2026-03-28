@@ -102,7 +102,8 @@ export default function TestingToolPage({
     workspaceRuns,           
   loadingRuns,             
   loadTestRuns,            
-  loadingLoadRuns,         
+  loadingLoadRuns,  
+  onBodyTypeChange,       
 }) {
   return (
     <IDEWorkspaceLayout
@@ -204,6 +205,7 @@ export default function TestingToolPage({
   loadTestRuns={loadTestRuns}
   loadingLoadRuns={loadingLoadRuns}
   onLoadTestComplete={onLoadTestComplete}
+   onBodyTypeChange={onBodyTypeChange}
     />
   );
 }

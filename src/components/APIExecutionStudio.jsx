@@ -129,6 +129,7 @@ onRunCollectionWithOrder,
     globalVars,
   globalValues,
   onLoadTestComplete,
+  onBodyTypeChange,
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
@@ -149,6 +150,7 @@ onRunCollectionWithOrder,
 const syncSource = useRef(null);
 
 const tabsContainerRef = useRef(null);
+
 
   // Scroll active tab into view when active index or tab count changes
   useEffect(() => {
@@ -304,11 +306,21 @@ const handleSendClick = () => {
   const isLoadTestRunning = currentReq?.type === 'load-test-running';
 
 
+  useEffect(() => {
+  const reqBodyType = currentReq?.bodyType;
+  if (reqBodyType && ['none', 'form-data', 'x-www-form-urlencoded', 'raw'].includes(reqBodyType)) {
+    setBodyType(reqBodyType);
+  } else if (reqBodyType === undefined) {
+    // fallback for old saved requests that don't have bodyType
+    setBodyType('raw');
+  }
+}, [currentReq?.bodyType]);
+
     const hasUnsavedChanges = useMemo(() => {
     if (!pristine || !isSavedRequest(currentReq)) {
       return false;
     }
-    const fieldsToCompare = ['method', 'url', 'queryParams', 'headers', 'body', 'authType', 'authData', 'preRequestScript', 'tests', 'name'];
+    const fieldsToCompare = ['method', 'url', 'queryParams', 'headers', 'body', 'authType', 'authData', 'preRequestScript', 'tests', 'name', 'bodyType'];
     for (const field of fieldsToCompare) {
       const current = currentReq[field];
       const original = pristine[field];
@@ -842,26 +854,21 @@ function HistoryDetailsView({ details, onClose }) {
                   <>
                     {/* Postman-style body type: none | form-data | x-www-form-urlencoded | raw */}
                     <div className="flex items-center gap-1 mb-3 flex-wrap">
-                      {['none', 'form-data', 'x-www-form-urlencoded', 'raw'].map((type) => (
-                        <label
-                          key={type}
-                          className={clsx(
-                            'inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium cursor-pointer transition-colors',
-                            bodyType === type
-                              ? 'bg-primary/20 text-primary border border-primary/40'
-                              : 'text-gray-400 hover:text-gray-200 border border-transparent'
-                          )}
-                        >
-                          <input
-                            type="radio"
-                            name="bodyType"
-                            checked={bodyType === type}
-                            onChange={() => setBodyType(type)}
-                            className="sr-only"
-                          />
-                          {type === 'x-www-form-urlencoded' ? 'x-www-form-urlencoded' : type.charAt(0).toUpperCase() + type.slice(1)}
-                        </label>
-                      ))}
+{['none', 'form-data', 'x-www-form-urlencoded', 'raw'].map((type) => (
+  <label key={type}>
+    <input
+      type="radio"
+      name="bodyType"
+      checked={bodyType === type}
+      onChange={() => {
+        setBodyType(type);
+        if (onBodyTypeChange) onBodyTypeChange(type);  
+      }}
+      className="sr-only"
+    />
+    {type === 'x-www-form-urlencoded' ? 'x-www-form-urlencoded' : type.charAt(0).toUpperCase() + type.slice(1)}
+  </label>
+))}
                       {bodyType === 'raw' && (
                         <select
                           value={rawBodyFormat}

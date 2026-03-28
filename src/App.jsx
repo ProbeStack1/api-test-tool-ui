@@ -310,7 +310,7 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
     maxErrorRatePct: config.maxErrorRatePct,
     maxP99LatencyMs: config.maxP99LatencyMs,
     maxAvgLatencyMs: config.maxAvgLatencyMs,
-    environmentOverrides,
+    // environmentOverrides,
   };
   console.log("loadtest",loadConfig);
   

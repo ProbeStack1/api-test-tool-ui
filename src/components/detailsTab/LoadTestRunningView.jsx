@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { 
   Clock, Users, Gauge, Zap, Activity, Server, Wifi,
-  XCircle, BarChart3, TrendingUp, Timer, Target, AlertTriangle, CheckCircle
+  XCircle, BarChart3, TrendingUp, Timer, Target, AlertTriangle, CheckCircle, Loader2
 } from "lucide-react";
 import clsx from "clsx";
 import { fetchLoadTestRun, stopLoadTest } from "../../services/collectionService";
 import { toast } from "sonner";
 
 /* ─── Shared Sub‑Components (unchanged) ───────────────────────────────── */
-function StatCard({ label, value, icon: Icon, color = "text-white" }) {
+function StatCard({ label, value, icon: Icon, color = "text-white", placeholder = "—" }) {
+  const displayValue = value !== null && value !== undefined ? value : placeholder;
   return (
     <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-3 hover:border-primary/30 transition-all duration-300 group">
       <div className="flex items-center gap-1.5 mb-1">
@@ -19,12 +20,39 @@ function StatCard({ label, value, icon: Icon, color = "text-white" }) {
         )}
         <span className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">{label}</span>
       </div>
-      <p className={clsx("text-xl font-bold font-mono", color)}>{value}</p>
+      <p className={clsx("text-xl font-bold font-mono", color)}>{displayValue}</p>
     </div>
   );
 }
 
-function SuccessRateGauge({ total, passed, failed }) {
+function SuccessRateGauge({ total, passed, failed, noData }) {
+  if (noData) {
+    return (
+      <div className="flex flex-col items-center">
+        <div className="relative">
+          <svg width="110" height="110" className="-rotate-90">
+            <circle cx="55" cy="55" r={44} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="9" />
+            <circle cx="55" cy="55" r={44} fill="none" stroke="#4b5563" strokeWidth="9" strokeDasharray="276" strokeDashoffset="276" />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-gray-500">—</span>
+            <span className="text-[9px] text-gray-500 uppercase tracking-wide">Success</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 mt-2">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-gray-500" />
+            <span className="text-[10px] text-gray-500">— passed</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-gray-500" />
+            <span className="text-[10px] text-gray-500">— failed</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const rate = total > 0 ? Math.round((passed / total) * 100) : 0;
   const radius = 44;
   const circumference = 2 * Math.PI * radius;
@@ -65,7 +93,15 @@ function SuccessRateGauge({ total, passed, failed }) {
   );
 }
 
-function LatencyDistribution({ percentiles }) {
+function LatencyDistribution({ percentiles, noData }) {
+  if (noData) {
+    return (
+      <div className="flex items-center justify-center h-16 text-gray-500 text-xs">
+        Awaiting latency data...
+      </div>
+    );
+  }
+
   if (!percentiles || Object.keys(percentiles).length === 0) return null;
   const entries = Object.entries(percentiles);
   const maxVal = Math.max(...entries.map(([, v]) => v), 1);
@@ -91,7 +127,15 @@ function LatencyDistribution({ percentiles }) {
   );
 }
 
-function RpsSparkline({ avgRps }) {
+function RpsSparkline({ avgRps, noData }) {
+  if (noData) {
+    return (
+      <div className="h-[44px] w-full bg-gray-700/20 rounded flex items-center justify-center text-gray-500 text-xs">
+        Waiting for data...
+      </div>
+    );
+  }
+
   const fakeData = Array.from({ length: 20 }, (_, i) => {
     const base = avgRps || 100;
     return Math.max(0, base + (Math.sin(i * 0.6) * base * 0.1) + (Math.random() - 0.5) * base * 0.05);
@@ -131,7 +175,7 @@ function RpsSparkline({ avgRps }) {
   );
 }
 
-/* ─── Skeleton Loader Component ───────────────────────────────────────── */
+/* ─── Skeleton Loader Component (unchanged) ───────────────────────────── */
 function SkeletonLoader() {
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm">
@@ -252,7 +296,7 @@ export default function LoadTestRunningView({ loadTestId, config, onComplete }) 
   const [timeRemaining, setTimeRemaining] = useState(config?.durationSeconds || 0);
   const [pollingError, setPollingError] = useState(null);
 
-  // Timer based on config duration (independent of run data)
+  // Timer based on config duration
   useEffect(() => {
     if (!config?.durationSeconds) return;
     const startTime = Date.now();
@@ -273,12 +317,19 @@ export default function LoadTestRunningView({ loadTestId, config, onComplete }) 
       try {
         const res = await fetchLoadTestRun(loadTestId);
         const data = res.data;
+        console.log("📊 [LoadTestRunningView] Fetched run data:", {
+          status: data.status,
+          hasResult: !!data.result,
+          totalRequests: data.result?.totalRequests,
+          rps: data.result?.actualRps,
+        });
         setRun(data);
         if (data.status !== "running") {
+          console.log("🏁 [LoadTestRunningView] Test completed/stopped, calling onComplete");
           onComplete(loadTestId);
         }
       } catch (err) {
-        console.error("Polling error:", err);
+        console.error("❌ [LoadTestRunningView] Polling error:", err);
         setPollingError(err.message);
       }
     };
@@ -299,21 +350,32 @@ export default function LoadTestRunningView({ loadTestId, config, onComplete }) 
     ? ((config.durationSeconds - timeRemaining) / config.durationSeconds) * 100
     : 0;
 
-  // Extract metrics from run.result
-  const result = run?.result || {};
-  const totalRequests = result.totalRequests ?? 0;
-  const passedRequests = result.successfulRequests ?? 0;
-  const failedRequests = result.failedRequests ?? 0;
-  const avgLatency = result.avgLatencyMs ?? 0;
-  const p95Latency = result.percentiles?.p95 ?? 0;
-  const p99Latency = result.percentiles?.p99 ?? 0;
-  const currentRps = result.actualRps ?? 0;
+  // Extract metrics – if result is null, set everything to null
+  const result = run.result;
+  const hasData = result !== null;
+
+  const totalRequests = result?.totalRequests ?? null;
+  const passedRequests = result?.successfulRequests ?? null;
+  const failedRequests = result?.failedRequests ?? null;
+  const avgLatency = result?.avgLatencyMs ?? null;
+  const p95Latency = result?.percentiles?.p95 ?? null;
+  const p99Latency = result?.percentiles?.p99 ?? null;
+  const currentRps = result?.actualRps ?? null;
+
+  console.log("🎨 [LoadTestRunningView] Rendering with data:", {
+    hasData,
+    totalRequests,
+    currentRps,
+    avgLatency,
+    p95Latency,
+    status: run.status
+  });
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm">
       <div className="max-w-5xl mx-auto space-y-5">
 
-        {/* Header */}
+        {/* Header with status indicator */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -327,20 +389,60 @@ export default function LoadTestRunningView({ loadTestId, config, onComplete }) 
               </p>
             </div>
           </div>
+          {!hasData && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Collecting first metrics...</span>
+            </div>
+          )}
         </div>
 
         {/* Row 1: Success Gauge + Key Metrics */}
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-3 rounded-xl bg-dark-900/40 border border-dark-700 p-4 flex flex-col items-center justify-center">
-            <SuccessRateGauge total={totalRequests} passed={passedRequests} failed={failedRequests} />
+            <SuccessRateGauge
+              total={totalRequests}
+              passed={passedRequests}
+              failed={failedRequests}
+              noData={!hasData}
+            />
           </div>
           <div className="col-span-9 grid grid-cols-3 gap-3">
-            <StatCard label="Total Requests" value={totalRequests.toLocaleString()} icon={BarChart3} />
-            <StatCard label="Current RPS" value={currentRps.toFixed(1)} icon={Wifi} color="text-green-400" />
-            <StatCard label="Errors" value={failedRequests.toLocaleString()} icon={XCircle} color="text-red-400" />
-            <StatCard label="Avg Latency" value={`${avgLatency.toFixed(0)}ms`} icon={Timer} color="text-blue-400" />
-            <StatCard label="P95 Latency" value={`${p95Latency}ms`} icon={Target} color="text-yellow-400" />
-            <StatCard label="P99 Latency" value={`${p99Latency}ms`} icon={Target} color="text-orange-400" />
+            <StatCard 
+              label="Total Requests" 
+              value={totalRequests !== null ? totalRequests.toLocaleString() : null} 
+              icon={BarChart3} 
+            />
+            <StatCard 
+              label="Current RPS" 
+              value={currentRps !== null ? currentRps.toFixed(1) : null} 
+              icon={Wifi} 
+              color="text-green-400" 
+            />
+            <StatCard 
+              label="Errors" 
+              value={failedRequests !== null ? failedRequests.toLocaleString() : null} 
+              icon={XCircle} 
+              color="text-red-400" 
+            />
+            <StatCard 
+              label="Avg Latency" 
+              value={avgLatency !== null ? `${avgLatency.toFixed(0)}ms` : null} 
+              icon={Timer} 
+              color="text-blue-400" 
+            />
+            <StatCard 
+              label="P95 Latency" 
+              value={p95Latency !== null ? `${p95Latency}ms` : null} 
+              icon={Target} 
+              color="text-yellow-400" 
+            />
+            <StatCard 
+              label="P99 Latency" 
+              value={p99Latency !== null ? `${p99Latency}ms` : null} 
+              icon={Target} 
+              color="text-orange-400" 
+            />
           </div>
         </div>
 
@@ -352,9 +454,11 @@ export default function LoadTestRunningView({ loadTestId, config, onComplete }) 
                 <TrendingUp className="w-3.5 h-3.5 text-primary" />
                 <span className="text-[10px] text-gray-500 uppercase tracking-wide">Throughput Trend</span>
               </div>
-              <span className="text-xs font-mono text-primary">{currentRps.toFixed(1)} req/s</span>
+              <span className="text-xs font-mono text-primary">
+                {currentRps !== null ? `${currentRps.toFixed(1)} req/s` : '—'}
+              </span>
             </div>
-            <RpsSparkline avgRps={currentRps} />
+            <RpsSparkline avgRps={currentRps} noData={!hasData} />
           </div>
           <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
             <div className="flex items-center justify-between mb-3">
@@ -364,7 +468,7 @@ export default function LoadTestRunningView({ loadTestId, config, onComplete }) 
               </div>
               <span className="text-xs font-mono text-gray-400">ms</span>
             </div>
-            <LatencyDistribution percentiles={result.percentiles} />
+            <LatencyDistribution percentiles={result?.percentiles} noData={!hasData} />
           </div>
         </div>
 

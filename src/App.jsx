@@ -1528,6 +1528,9 @@ if (currentReq.preRequestScript) {
     }));
     if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
       overrides.body_content = substituteLocal(body);
+      if (currentReq.bodyType) {
+  overrides.body_type = currentReq.bodyType;
+}
     }
     overrides.path_variables = [];
 

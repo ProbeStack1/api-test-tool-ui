@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  Loader2, StopCircle, ChevronDown, ChevronRight, X, Clock, Users, Gauge, Zap, Activity,
-  CheckCircle, XCircle, BarChart3, TrendingUp, Timer, Target, AlertTriangle, Server, Wifi
+import React, { useState, useEffect } from "react";
+import { 
+  Clock, Users, Gauge, Zap, Activity, Server, Wifi,
+  XCircle, BarChart3, TrendingUp, Timer, Target, AlertTriangle, CheckCircle
 } from "lucide-react";
 import clsx from "clsx";
 import { fetchLoadTestRun, stopLoadTest } from "../../services/collectionService";
 import { toast } from "sonner";
 
-/* ─── Shared Sub‑Components (same as before) ──────────────────────────── */
-
+/* ─── Shared Sub‑Components (unchanged) ───────────────────────────────── */
 function StatCard({ label, value, icon: Icon, color = "text-white" }) {
-  const displayValue = value !== undefined && value !== null ? value : "—";
   return (
     <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-3 hover:border-primary/30 transition-all duration-300 group">
       <div className="flex items-center gap-1.5 mb-1">
@@ -21,7 +19,7 @@ function StatCard({ label, value, icon: Icon, color = "text-white" }) {
         )}
         <span className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">{label}</span>
       </div>
-      <p className={clsx("text-xl font-bold font-mono", color)}>{displayValue}</p>
+      <p className={clsx("text-xl font-bold font-mono", color)}>{value}</p>
     </div>
   );
 }
@@ -93,88 +91,10 @@ function LatencyDistribution({ percentiles }) {
   );
 }
 
-function PercentilesChart({ percentiles }) {
-  if (!percentiles || Object.keys(percentiles).length === 0) return null;
-  const entries = Object.entries(percentiles);
-  const maxVal = Math.max(...entries.map(([, v]) => v), 1);
-  const barColors = ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444'];
-
-  return (
-    <div className="space-y-3">
-      {entries.map(([label, value], i) => (
-        <div key={label} className="flex items-center gap-3">
-          <span className="text-xs text-gray-400 w-10 text-right font-mono">{label}</span>
-          <div className="flex-1 h-6 bg-dark-700/50 rounded-lg overflow-hidden relative">
-            <div
-              className="h-full rounded-lg transition-all duration-700 ease-out flex items-center justify-end pr-2"
-              style={{
-                width: `${Math.max(8, (value / maxVal) * 100)}%`,
-                backgroundColor: barColors[i % barColors.length],
-                opacity: 0.85,
-              }}
-            >
-              <span className="text-[10px] font-bold text-white drop-shadow">{value}ms</span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatusCodeChart({ statusCodes }) {
-  if (!statusCodes || Object.keys(statusCodes).length === 0) return null;
-  const entries = Object.entries(statusCodes);
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
-
-  const getCodeColor = (code) => {
-    const c = parseInt(code);
-    if (c >= 200 && c < 300) return { bg: 'bg-green-500', text: 'text-green-400', border: 'border-green-500/30' };
-    if (c >= 300 && c < 400) return { bg: 'bg-blue-500', text: 'text-blue-400', border: 'border-blue-500/30' };
-    if (c >= 400 && c < 500) return { bg: 'bg-yellow-500', text: 'text-yellow-400', border: 'border-yellow-500/30' };
-    if (c >= 500) return { bg: 'bg-red-500', text: 'text-red-400', border: 'border-red-500/30' };
-    return { bg: 'bg-gray-500', text: 'text-gray-400', border: 'border-gray-500/30' };
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="h-8 rounded-lg overflow-hidden flex">
-        {entries.map(([code, count]) => {
-          const pct = (count / total) * 100;
-          const colors = getCodeColor(code);
-          return (
-            <div
-              key={code}
-              className={clsx("h-full flex items-center justify-center transition-all", colors.bg)}
-              style={{ width: `${Math.max(pct, 3)}%`, opacity: 0.85 }}
-              title={`${code}: ${count} (${pct.toFixed(1)}%)`}
-            >
-              {pct > 10 && <span className="text-[10px] font-bold text-white">{code}</span>}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {entries.map(([code, count]) => {
-          const colors = getCodeColor(code);
-          const pct = ((count / total) * 100).toFixed(1);
-          return (
-            <div key={code} className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-dark-900/40", colors.border)}>
-              <span className={clsx("w-2 h-2 rounded-full", colors.bg)} />
-              <span className={clsx("text-xs font-medium", colors.text)}>{code}</span>
-              <span className="text-xs text-gray-500">{count} ({pct}%)</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function RpsSparkline({ avgRps }) {
   const fakeData = Array.from({ length: 20 }, (_, i) => {
     const base = avgRps || 100;
-    return Math.max(0, base + (Math.sin(i * 0.6) * base * 0.3) + (Math.random() - 0.5) * base * 0.2);
+    return Math.max(0, base + (Math.sin(i * 0.6) * base * 0.1) + (Math.random() - 0.5) * base * 0.05);
   });
   const max = Math.max(...fakeData, 1);
   const min = Math.min(...fakeData, 0);
@@ -211,367 +131,309 @@ function RpsSparkline({ avgRps }) {
   );
 }
 
-function TabButton({ active, onClick, children, icon: Icon }) {
+/* ─── Skeleton Loader Component ───────────────────────────────────────── */
+function SkeletonLoader() {
   return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        'flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
-        active ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-white'
-      )}
-    >
-      {Icon && <Icon className="w-3.5 h-3.5" />}
-      {children}
-    </button>
-  );
-}
+    <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm">
+      <div className="max-w-5xl mx-auto space-y-5 animate-pulse">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-3 h-3 bg-gray-700 rounded-full" />
+            <div>
+              <div className="h-6 w-48 bg-gray-700 rounded" />
+              <div className="h-4 w-32 bg-gray-700 rounded mt-1" />
+            </div>
+          </div>
+        </div>
 
-function DetailItem({ label, value, valueClassName = "text-white", icon: Icon }) {
-  const displayValue = value !== undefined && value !== null ? value : "—";
-  return (
-    <div className="p-3 rounded-xl bg-dark-900/40 border border-dark-700 hover:border-primary/20 transition-all">
-      <div className="flex items-center gap-1.5 mb-1">
-        {Icon && <Icon className="w-3 h-3 text-gray-500" />}
-        <p className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</p>
+        {/* Row 1 skeleton: Success Gauge + Key Metrics */}
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-3 rounded-xl bg-dark-900/40 border border-dark-700 p-4 flex flex-col items-center justify-center">
+            <div className="w-[110px] h-[110px] rounded-full bg-gray-700/60" />
+            <div className="flex gap-4 mt-2">
+              <div className="w-12 h-2 bg-gray-700 rounded" />
+              <div className="w-12 h-2 bg-gray-700 rounded" />
+            </div>
+          </div>
+          <div className="col-span-9 grid grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="rounded-xl bg-dark-900/40 border border-dark-700 p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className="w-7 h-7 rounded-lg bg-gray-700" />
+                  <div className="h-3 w-16 bg-gray-700 rounded" />
+                </div>
+                <div className="h-6 w-20 bg-gray-700 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2 skeleton: Throughput Trend + Latency Distribution */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 bg-gray-700 rounded" />
+                <div className="h-3 w-24 bg-gray-700 rounded" />
+              </div>
+              <div className="h-4 w-16 bg-gray-700 rounded" />
+            </div>
+            <div className="h-[44px] w-full bg-gray-700/40 rounded" />
+          </div>
+          <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 bg-gray-700 rounded" />
+                <div className="h-3 w-24 bg-gray-700 rounded" />
+              </div>
+              <div className="h-4 w-12 bg-gray-700 rounded" />
+            </div>
+            <div className="h-16 flex items-end gap-2">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="h-3 w-8 bg-gray-700 rounded" />
+                  <div className="w-full h-10 bg-gray-700/60 rounded-t" />
+                  <div className="h-2 w-6 bg-gray-700 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Timer & Progress Bar skeleton */}
+        <div className="rounded-xl border border-dark-700 bg-gradient-to-b from-dark-800/60 to-dark-900/60 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-gray-700 rounded" />
+              <div className="h-4 w-40 bg-gray-700 rounded" />
+            </div>
+            <div className="h-8 w-24 bg-gray-700 rounded" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex justify-between">
+              <div className="h-3 w-16 bg-gray-700 rounded" />
+              <div className="h-3 w-12 bg-gray-700 rounded" />
+            </div>
+            <div className="h-2.5 bg-dark-700/80 rounded-full overflow-hidden">
+              <div className="h-full w-0 bg-primary rounded-full" />
+            </div>
+          </div>
+        </div>
+
+        {/* Config stat cards skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="rounded-xl bg-dark-900/40 border border-dark-700 p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-7 h-7 rounded-lg bg-gray-700" />
+                <div className="h-3 w-16 bg-gray-700 rounded" />
+              </div>
+              <div className="h-6 w-20 bg-gray-700 rounded" />
+            </div>
+          ))}
+        </div>
+
+        {/* Status footer skeleton */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dark-900/40">
+            <div className="w-2 h-2 bg-gray-700 rounded-full" />
+            <div className="h-3 w-40 bg-gray-700 rounded" />
+          </div>
+        </div>
       </div>
-      <p className={clsx("text-base font-bold font-mono", valueClassName)}>{displayValue}</p>
     </div>
   );
 }
 
-/* ─── Main Component ────────────────────────────────────────────────────── */
-
-export default function LoadTestResultsView({ loadTestId, onClose }) {
+/* ─── Main Component ─────────────────────────────────────────────────── */
+export default function LoadTestRunningView({ loadTestId, config, onComplete }) {
   const [run, setRun] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('summary');
-  const hasRunData = useRef(false);
+  const [timeRemaining, setTimeRemaining] = useState(config?.durationSeconds || 0);
+  const [pollingError, setPollingError] = useState(null);
 
+  // Timer based on config duration (independent of run data)
   useEffect(() => {
-    console.log('LoadTestResultsView mounted with loadTestId:', loadTestId);
-  }, [loadTestId]);
+    if (!config?.durationSeconds) return;
+    const startTime = Date.now();
+    const durationMs = config.durationSeconds * 1000;
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, durationMs - elapsed);
+      setTimeRemaining(Math.floor(remaining / 1000));
+    }, 100);
+    return () => clearInterval(timer);
+  }, [config?.durationSeconds]);
 
+  // Poll for real‑time run data
   useEffect(() => {
-    // If we already have a completed run, we don't need to fetch again
-    if (run && run.status !== 'running') {
-      setLoading(false);
-      return;
-    }
-
-    if (!loadTestId) {
-      // No ID and we haven't fetched yet
-      if (!run) {
-        setLoading(false);
-        setError('Invalid load test ID');
-      }
-      return;
-    }
-
+    if (!loadTestId) return;
     let interval;
-    const fetchData = async () => {
-      console.log('[LoadTestResultsView] Fetching load test run:', loadTestId);
+    const poll = async () => {
       try {
         const res = await fetchLoadTestRun(loadTestId);
-        console.log('[LoadTestResultsView] Fetch response:', res);
         const data = res.data;
-        console.log('[LoadTestResultsView] Fetched run data:', {
-          status: data.status,
-          hasResult: !!data.result,
-          totalRequests: data.result?.totalRequests,
-          rps: data.result?.actualRps,
-        });
         setRun(data);
-        setLoading(false);
-        if (data.status !== 'running') {
-          clearInterval(interval);
+        if (data.status !== "running") {
+          onComplete(loadTestId);
         }
       } catch (err) {
-        console.error('[LoadTestResultsView] Polling error:', err);
-        setError(err.message);
-        clearInterval(interval);
+        console.error("Polling error:", err);
+        setPollingError(err.message);
       }
     };
+    poll();
+    interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [loadTestId, onComplete]);
 
-    fetchData();
-    interval = setInterval(fetchData, 2000);
-    return () => {
-      console.log('[LoadTestResultsView] Cleanup, clearing interval');
-      clearInterval(interval);
-    };
-  }, [loadTestId, run]); // run added to dependencies so we don't refetch if we already have a completed run
-
-  // If still loading, show spinner
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-dark-800/80">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2 text-gray-300">Loading test details...</span>
-      </div>
-    );
+  // Show skeleton while waiting for first run data
+  if (!run) {
+    return <SkeletonLoader />;
   }
 
-  // If error and no run data, show error
-  if (error && !run) {
-    return (
-      <div className="flex-1 p-8 bg-dark-800/80">
-        <div className="max-w-4xl mx-auto bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-          <p className="text-red-400">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  const minutes = Math.floor(timeRemaining / 60);
+  const seconds = timeRemaining % 60;
+  const timeDisplay = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  const progress = config?.durationSeconds
+    ? ((config.durationSeconds - timeRemaining) / config.durationSeconds) * 100
+    : 0;
 
-  // If we have run data, proceed
-  if (run) {
-    const config = run.config || {};
-    const result = run.result || {};
+  // Extract metrics from run.result
+  const result = run?.result || {};
+  const totalRequests = result.totalRequests ?? 0;
+  const passedRequests = result.successfulRequests ?? 0;
+  const failedRequests = result.failedRequests ?? 0;
+  const avgLatency = result.avgLatencyMs ?? 0;
+  const p95Latency = result.percentiles?.p95 ?? 0;
+  const p99Latency = result.percentiles?.p99 ?? 0;
+  const currentRps = result.actualRps ?? 0;
 
-    // Completed state
-    if (run.status === 'completed' && result) {
-      const total = result.totalRequests || 0;
-      const passed = result.successfulRequests || 0;
-      const failed = result.failedRequests || 0;
+  return (
+    <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm">
+      <div className="max-w-5xl mx-auto space-y-5">
 
-      return (
-        <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm">
-          <div className="max-w-5xl mx-auto space-y-5">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-3 h-3 bg-green-400 rounded-full" />
-                  <div className="absolute inset-0 w-3 h-3 bg-green-400/40 rounded-full animate-ping" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Load Test Results</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Test ID: <span className="font-mono text-gray-400">{loadTestId}</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+              <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping" />
             </div>
-
-            {/* Row 1: Success Gauge + Key Metrics */}
-            <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-3 rounded-xl bg-dark-900/40 border border-dark-700 p-4 flex flex-col items-center justify-center">
-                <SuccessRateGauge total={total} passed={passed} failed={failed} />
-              </div>
-              <div className="col-span-9 grid grid-cols-3 gap-3">
-                <StatCard label="Total Requests" value={total.toLocaleString()} icon={BarChart3} />
-                <StatCard label="Avg RPS" value={result.actualRps?.toFixed(1)} icon={Wifi} color="text-green-400" />
-                <StatCard label="Errors" value={failed.toLocaleString()} icon={XCircle} color="text-red-400" />
-                <StatCard label="Avg Latency" value={`${result.avgLatencyMs?.toFixed(0)}ms`} icon={Timer} color="text-blue-400" />
-                <StatCard label="P95 Latency" value={`${result.percentiles?.p95}ms`} icon={Target} color="text-yellow-400" />
-                <StatCard label="P99 Latency" value={`${result.percentiles?.p99}ms`} icon={Target} color="text-orange-400" />
-              </div>
-            </div>
-
-            {/* Row 2: RPS Trend + Latency Distribution */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wide">Throughput Overview</span>
-                  </div>
-                  <span className="text-xs font-mono text-primary">{result.actualRps?.toFixed(1)} req/s</span>
-                </div>
-                <RpsSparkline avgRps={result.actualRps || 100} />
-              </div>
-              <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <BarChart3 className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wide">Latency Percentiles</span>
-                  </div>
-                  <span className="text-xs font-mono text-gray-400">ms</span>
-                </div>
-                <LatencyDistribution percentiles={result.percentiles} />
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="border-b border-dark-700 flex gap-1">
-              <TabButton active={activeTab === 'summary'} onClick={() => setActiveTab('summary')} icon={BarChart3}>Summary</TabButton>
-              <TabButton active={activeTab === 'details'} onClick={() => setActiveTab('details')} icon={Server}>Details</TabButton>
-              <TabButton active={activeTab === 'errors'} onClick={() => setActiveTab('errors')} icon={AlertTriangle}>Errors</TabButton>
-            </div>
-
-            {/* Tab Content */}
             <div>
-              {activeTab === 'summary' && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <DetailItem label="Total Requests" value={total.toLocaleString()} icon={BarChart3} />
-                  <DetailItem label="Successful" value={passed.toLocaleString()} valueClassName="text-green-400" icon={CheckCircle} />
-                  <DetailItem label="Failed" value={failed.toLocaleString()} valueClassName="text-red-400" icon={XCircle} />
-                  <DetailItem label="Network Errors" value={result.networkErrors} icon={Wifi} />
-                  <DetailItem label="Timeouts" value={result.timeoutErrors} icon={Clock} />
-                  <DetailItem label="RPS Achieved" value={result.actualRps?.toFixed(1)} icon={TrendingUp} />
-                  <DetailItem label="Success RPS" value={result.successRps?.toFixed(1)} icon={Zap} />
-                  <DetailItem label="Std Dev" value={`${result.stdDevLatencyMs?.toFixed(1)}ms`} icon={Activity} />
-                  <DetailItem label="Avg Latency" value={`${result.avgLatencyMs?.toFixed(0)}ms`} icon={Timer} valueClassName="text-blue-400" />
-                  <DetailItem label="Min Latency" value={`${result.minLatencyMs}ms`} icon={TrendingUp} valueClassName="text-green-400" />
-                  <DetailItem label="Max Latency" value={`${result.maxLatencyMs}ms`} icon={Target} valueClassName="text-red-400" />
-                  <DetailItem label="Duration" value={`${config.durationSeconds}s`} icon={Clock} />
-                </div>
-              )}
-
-              {activeTab === 'details' && (
-                <div className="space-y-5">
-                  {result.percentiles && Object.keys(result.percentiles).length > 0 && (
-                    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Target className="w-4 h-4 text-primary" />
-                        <h3 className="text-sm font-medium text-white">Latency Percentiles</h3>
-                      </div>
-                      <PercentilesChart percentiles={result.percentiles} />
-                    </div>
-                  )}
-
-                  {result.statusCodes && Object.keys(result.statusCodes).length > 0 && (
-                    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <BarChart3 className="w-4 h-4 text-primary" />
-                        <h3 className="text-sm font-medium text-white">Status Code Distribution</h3>
-                      </div>
-                      <StatusCodeChart statusCodes={result.statusCodes} />
-                    </div>
-                  )}
-
-                  <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Gauge className="w-4 h-4 text-primary" />
-                      <h3 className="text-sm font-medium text-white">Test Configuration</h3>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="p-3 rounded-lg bg-dark-900/40 border border-dark-700">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Virtual Users</p>
-                        <p className="text-sm font-bold text-white">{config.concurrency || 'N/A'}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-dark-900/40 border border-dark-700">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Duration</p>
-                        <p className="text-sm font-bold text-white">{config.durationSeconds || 'N/A'}s</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-dark-900/40 border border-dark-700">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Load Profile</p>
-                        <p className="text-sm font-bold text-white">{config.rampUpSeconds > 0 ? 'Ramp-up' : 'Fixed'}</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-dark-900/40 border border-dark-700">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Target RPS</p>
-                        <p className="text-sm font-bold text-white">{config.targetRps > 0 ? config.targetRps : 'Unlimited'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'errors' && (
-                <div>
-                  {result.errorTypes && Object.keys(result.errorTypes).length > 0 ? (
-                    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <AlertTriangle className="w-4 h-4 text-red-400" />
-                        <h3 className="text-sm font-medium text-white">Error Breakdown</h3>
-                      </div>
-                      <div className="space-y-2">
-                        {Object.entries(result.errorTypes).map(([type, count]) => {
-                          const errTotal = Object.values(result.errorTypes).reduce((s, c) => s + c, 0);
-                          const pct = ((count / errTotal) * 100).toFixed(1);
-                          return (
-                            <div key={type} className="flex items-center gap-3 p-3 bg-dark-900/40 rounded-xl border border-dark-700">
-                              <XCircle className="w-4 h-4 text-red-400 shrink-0" />
-                              <span className="text-sm text-gray-300 flex-1 truncate">{type}</span>
-                              <div className="flex items-center gap-3">
-                                <div className="w-24 h-2 bg-dark-700 rounded-full overflow-hidden">
-                                  <div className="h-full bg-red-500/70 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                                </div>
-                                <span className="text-sm font-mono font-bold text-red-400 w-12 text-right">{count}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-8 text-center">
-                      <CheckCircle className="w-12 h-12 text-green-400/30 mx-auto mb-3" />
-                      <p className="text-gray-400 text-sm">No errors recorded</p>
-                      <p className="text-gray-600 text-xs mt-1">All requests completed successfully</p>
-                    </div>
-                  )}
-                </div>
-              )}
+              <h2 className="text-xl font-bold text-white">Load Test in Progress</h2>
+              <p className="text-sm text-gray-400 mt-0.5">
+                Test ID: <span className="font-mono text-gray-300">{loadTestId}</span>
+              </p>
             </div>
           </div>
         </div>
-      );
-    }
 
-    // Other states (failed, stopped, etc.)
-    if (run.status === 'failed') {
-      return (
-        <div className="flex-1 p-8 bg-dark-800/80">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Load Test Failed</h2>
-              <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
-                <XCircle className="w-6 h-6 text-red-400" />
+        {/* Row 1: Success Gauge + Key Metrics */}
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-3 rounded-xl bg-dark-900/40 border border-dark-700 p-4 flex flex-col items-center justify-center">
+            <SuccessRateGauge total={totalRequests} passed={passedRequests} failed={failedRequests} />
+          </div>
+          <div className="col-span-9 grid grid-cols-3 gap-3">
+            <StatCard label="Total Requests" value={totalRequests.toLocaleString()} icon={BarChart3} />
+            <StatCard label="Current RPS" value={currentRps.toFixed(1)} icon={Wifi} color="text-green-400" />
+            <StatCard label="Errors" value={failedRequests.toLocaleString()} icon={XCircle} color="text-red-400" />
+            <StatCard label="Avg Latency" value={`${avgLatency.toFixed(0)}ms`} icon={Timer} color="text-blue-400" />
+            <StatCard label="P95 Latency" value={`${p95Latency}ms`} icon={Target} color="text-yellow-400" />
+            <StatCard label="P99 Latency" value={`${p99Latency}ms`} icon={Target} color="text-orange-400" />
+          </div>
+        </div>
+
+        {/* Row 2: Throughput Trend + Latency Distribution */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] text-gray-500 uppercase tracking-wide">Throughput Trend</span>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-red-400 mb-1">Test Execution Failed</h3>
-                <p className="text-sm text-gray-400">{run.errorMessage || 'An unknown error occurred during test execution.'}</p>
+              <span className="text-xs font-mono text-primary">{currentRps.toFixed(1)} req/s</span>
+            </div>
+            <RpsSparkline avgRps={currentRps} />
+          </div>
+          <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <BarChart3 className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] text-gray-500 uppercase tracking-wide">Latency Percentiles</span>
+              </div>
+              <span className="text-xs font-mono text-gray-400">ms</span>
+            </div>
+            <LatencyDistribution percentiles={result.percentiles} />
+          </div>
+        </div>
+
+        {/* Timer & Progress Bar */}
+        <div className="rounded-xl border border-dark-700 bg-gradient-to-b from-dark-800/60 to-dark-900/60 p-5 relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium text-gray-300">Estimated Time Remaining</span>
+              </div>
+              <span className="text-3xl font-mono font-bold text-primary tracking-wider">
+                {timeDisplay}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Progress</span>
+                <span className="text-primary font-medium">{Math.round(progress)}%</span>
+              </div>
+              <div className="h-2.5 bg-dark-700/80 rounded-full overflow-hidden shadow-inner">
+                <div
+                  className="h-full rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                  style={{
+                    width: `${Math.max(progress, 2)}%`,
+                    background: 'linear-gradient(90deg, var(--color-primary) 0%, #ff8c1f 50%, var(--color-primary) 100%)',
+                    backgroundSize: '200% 100%',
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                    style={{ animation: 'ltrvShine 2s ease-in-out infinite' }}
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      );
-    }
 
-    if (run.status === 'stopped') {
-      return (
-        <div className="flex-1 p-8 bg-dark-800/80">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Load Test Stopped</h2>
-              <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-6 flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center shrink-0">
-                <StopCircle className="w-6 h-6 text-yellow-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-yellow-400 mb-1">Test Stopped by User</h3>
-                <p className="text-sm text-gray-400">The load test was manually stopped before completion.</p>
-              </div>
-            </div>
-          </div>
+        {/* Config stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Virtual Users" value={config?.concurrency || 0} icon={Users} />
+          <StatCard label="Load Profile" value={config?.rampUpSeconds > 0 ? "Ramp-up" : "Fixed"} icon={Gauge} />
+          <StatCard label="Target RPS" value={config?.targetRps > 0 ? config.targetRps : "Unlimited"} icon={Zap} />
+          <StatCard label="Think Time" value={`${config?.thinkTimeMs || 0}ms`} icon={Clock} />
         </div>
-      );
-    }
 
-    // Running state (shouldn't happen in results view)
-    return (
-      <div className="flex-1 flex items-center justify-center bg-dark-800/80">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2 text-gray-300">Test still running...</span>
+        {/* Polling error */}
+        {pollingError && (
+          <div className="text-sm text-red-400 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+            Error fetching test status: {pollingError}
+          </div>
+        )}
+
+        {/* Status footer */}
+        <div className="text-center">
+          <span className="inline-flex items-center gap-2 text-xs text-gray-500 bg-dark-900/40 px-4 py-2 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            Test running. Results will appear automatically when complete.
+          </span>
+        </div>
       </div>
-    );
-  }
 
-  // Fallback (should not reach)
-  return null;
+      <style>{`
+        @keyframes ltrvShine {
+          0% { transform: translateX(-100%); }
+          50%, 100% { transform: translateX(100%); }
+        }
+      `}</style>
+    </div>
+  );
 }

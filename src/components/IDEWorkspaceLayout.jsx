@@ -1352,7 +1352,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
 <button
   type="button"
   onClick={() => setShowCreateMockServiceModal(true)}
-  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
 >
   <Plus className="w-4 h-4" />
   Create Mock Service

@@ -1826,7 +1826,7 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
           <button
             type="button"
             onClick={() => setShowNewCollectionModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Create 
@@ -1834,7 +1834,7 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
           <button
             type="button"
             onClick={handleImportClick}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-dark-700/80 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
             title="Import Collections"
           >
             Import

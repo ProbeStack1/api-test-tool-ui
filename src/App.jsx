@@ -300,18 +300,20 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
     const environmentOverrides = getEnvironmentOverrides();
 
   const loadConfig = {
-    concurrency: config.concurrency || 20,
-    durationSeconds: config.durationUnit === 'mins' ? config.duration * 60 : config.duration,
-    rampUpSeconds: config.rampUp || 0,
-    targetRps: config.targetRps || 0,
-    timeoutMs: config.timeoutMs || 30000,
-    thinkTimeMs: config.delay || 0,
-    insecure: config.insecure || false,
-    maxErrorRatePct: config.maxErrorRatePct || 5,
-    maxP99LatencyMs: config.maxP99LatencyMs || 5000,
-    maxAvgLatencyMs: config.maxAvgLatencyMs || 2000,
-    environmentOverrides,                            // <-- add this
+    concurrency: config.concurrency,
+    durationSeconds: config.durationSeconds,
+    rampUpSeconds: config.rampUpSeconds,
+    targetRps: config.targetRps,
+    timeoutMs: config.timeoutMs,
+    thinkTimeMs: config.thinkTimeMs,
+    insecure: config.insecure,
+    maxErrorRatePct: config.maxErrorRatePct,
+    maxP99LatencyMs: config.maxP99LatencyMs,
+    maxAvgLatencyMs: config.maxAvgLatencyMs,
+    environmentOverrides,
   };
+  console.log("loadtest",loadConfig);
+  
 
   const runningTab = {
     id: `load-test-running-${Date.now()}-${Math.random().toString(36).slice(2)}`,

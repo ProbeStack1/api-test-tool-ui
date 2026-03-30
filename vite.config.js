@@ -20,6 +20,14 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_COLLECTION_SERVICE_URL || 'http://localhost:8082',
           changeOrigin: true,
         },
+        '/api/v1/functional-tests': {
+          target: env.VITE_FUNCTIONAL_TEST_SERVICE_URL || 'http://localhost:8083',
+          changeOrigin: true,
+        },
+        '/api/v1/load-tests': {
+          target: env.VITE_LOAD_TEST_SERVICE_URL || 'http://localhost:8084',
+          changeOrigin: true,
+        },
       },
     },
   }

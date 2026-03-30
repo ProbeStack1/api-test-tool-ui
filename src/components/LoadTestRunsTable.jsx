@@ -275,13 +275,17 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
             </thead>
             <tbody className="divide-y divide-dark-700">
               {paginatedRuns.map((run) => {
-                const result = run.result || {};
-                const config = run.config || {};
-                const durationSec = config.durationSeconds || 0;
+                // Normalise: supports both old nested shape {result:{}, config:{}} and new flat LoadTestHistoryItem
+                const result = run.result ?? run;
+                const config = run.config ?? {};
+                const durationSec = config.durationSeconds ?? run.durationSeconds ?? 0;
                 const avgRps = result.actualRps ? result.actualRps.toFixed(1) : '-';
                 const avgLatency = result.avgLatencyMs ? Math.round(result.avgLatencyMs) + 'ms' : '-';
-                const p99 = result.percentiles?.['p99'] ? result.percentiles['p99'] + 'ms' : '-';
-                const errorRate = result.totalRequests ? ((result.failedRequests / result.totalRequests) * 100).toFixed(1) + '%' : '-';
+                const p99 = result.p99Ms ?? result.percentiles?.['p99'];
+                const p99Display = p99 != null ? p99 + 'ms' : '-';
+                const errorRate = result.totalRequests
+                  ? ((result.failedRequests / result.totalRequests) * 100).toFixed(1) + '%'
+                  : (result.errorRatePct != null ? result.errorRatePct.toFixed(1) + '%' : '-');
 
                 const createTooltipHandler = (colKey) => ({
                   onMouseEnter: (e) => {
@@ -304,7 +308,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
                 });
 
                 return (
-                  <tr key={run.loadTestId} className="hover:bg-dark-800/30">
+                  <tr key={run.testId ?? run.loadTestId} className="hover:bg-dark-800/30">
                     {visibleColumns.startedAt && (
                       <td
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
@@ -358,7 +362,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('p99Latency')}
                       >
-                        {p99}
+                        {p99Display}
                       </td>
                     )}
                     {visibleColumns.passedFailed && (

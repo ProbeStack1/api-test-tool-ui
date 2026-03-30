@@ -120,6 +120,12 @@ export default function CollectionRunView({
   const [functionalIterations, setFunctionalIterations] = useState(1);
   const [functionalDelay, setFunctionalDelay] = useState(0);
   const [functionalSelectedFile, setFunctionalSelectedFile] = useState(null);
+  // Functional advanced options
+  const [functionalTimeoutMs, setFunctionalTimeoutMs] = useState(30000);
+  const [functionalBail, setFunctionalBail] = useState(false);
+  const [functionalInsecure, setFunctionalInsecure] = useState(false);
+  const [functionalFolder, setFunctionalFolder] = useState('');
+  const [functionalEnvironmentPath, setFunctionalEnvironmentPath] = useState('');
 
   // Load test configuration
   const [loadProfile, setLoadProfile] = useState('fixed');
@@ -128,6 +134,15 @@ export default function CollectionRunView({
   const [loadDurationUnit, setLoadDurationUnit] = useState('mins');
   const [loadRunMode, setLoadRunMode] = useState('app');
   const [loadSelectedFile, setLoadSelectedFile] = useState(null);
+  // Load test advanced options
+  const [loadRampUpSeconds, setLoadRampUpSeconds] = useState(0);
+  const [loadTargetRps, setLoadTargetRps] = useState(0);
+  const [loadThinkTimeMs, setLoadThinkTimeMs] = useState(0);
+  const [loadTimeoutMs, setLoadTimeoutMs] = useState(30000);
+  // SLA thresholds
+  const [loadMaxErrorRatePct, setLoadMaxErrorRatePct] = useState(5);
+  const [loadMaxP99LatencyMs, setLoadMaxP99LatencyMs] = useState(5000);
+  const [loadMaxAvgLatencyMs, setLoadMaxAvgLatencyMs] = useState(2000);
 
   // Shared file selection modal
   const [showFileSelectionModal, setShowFileSelectionModal] = useState(false);
@@ -223,11 +238,22 @@ export default function CollectionRunView({
         type: activeTab,
         iterations: functionalIterations,
         delay: functionalDelay,
+        timeoutMs: activeTab === 'functional' ? functionalTimeoutMs : loadTimeoutMs,
+        bail: functionalBail,
+        insecure: activeTab === 'functional' ? functionalInsecure : false,
+        folderFilter: functionalFolder || null,
+        environmentPath: functionalEnvironmentPath || null,
         testFile: activeTab === 'functional' ? functionalSelectedFile : loadSelectedFile,
         profile: loadProfile,
         virtualUsers: loadVirtualUsers,
         duration: loadDuration,
         durationUnit: loadDurationUnit,
+        rampUp: loadRampUpSeconds,
+        targetRps: loadTargetRps,
+        thinkTimeMs: loadThinkTimeMs,
+        maxErrorRatePct: loadMaxErrorRatePct,
+        maxP99LatencyMs: loadMaxP99LatencyMs,
+        maxAvgLatencyMs: loadMaxAvgLatencyMs,
         runMode: loadRunMode,
       };
       await onRunCollection(collection.id, selected, options, tabIndex);
@@ -372,8 +398,59 @@ export default function CollectionRunView({
                       <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none flex items-center gap-1">
                         Advanced settings
                       </summary>
-                      <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">
-                        Additional options can be added here.
+                      <div className="mt-3 pt-3 border-t border-dark-700 space-y-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Timeout (ms)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={functionalTimeoutMs}
+                              onChange={(e) => setFunctionalTimeoutMs(Number(e.target.value) || 30000)}
+                              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Folder filter</label>
+                            <input
+                              type="text"
+                              value={functionalFolder}
+                              onChange={(e) => setFunctionalFolder(e.target.value)}
+                              placeholder="e.g. Auth Tests"
+                              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Environment file path</label>
+                          <input
+                            type="text"
+                            value={functionalEnvironmentPath}
+                            onChange={(e) => setFunctionalEnvironmentPath(e.target.value)}
+                            placeholder="/path/to/environment.json"
+                            className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          />
+                        </div>
+                        <div className="flex items-center gap-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={functionalBail}
+                              onChange={(e) => setFunctionalBail(e.target.checked)}
+                              className="rounded text-primary"
+                            />
+                            <span className="text-sm text-gray-300">Bail on first failure</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={functionalInsecure}
+                              onChange={(e) => setFunctionalInsecure(e.target.checked)}
+                              className="rounded text-primary"
+                            />
+                            <span className="text-sm text-gray-300">Insecure (skip SSL)</span>
+                          </label>
+                        </div>
                       </div>
                     </details>
                   </>
@@ -447,12 +524,86 @@ export default function CollectionRunView({
                             )}
                           </div>
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Ramp-up (secs)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={loadRampUpSeconds}
+                              onChange={(e) => setLoadRampUpSeconds(Number(e.target.value) || 0)}
+                              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Target RPS (0 = unlimited)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={loadTargetRps}
+                              onChange={(e) => setLoadTargetRps(Number(e.target.value) || 0)}
+                              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Think time (ms)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={loadThinkTimeMs}
+                              onChange={(e) => setLoadThinkTimeMs(Number(e.target.value) || 0)}
+                              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Request timeout (ms)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={loadTimeoutMs}
+                              onChange={(e) => setLoadTimeoutMs(Number(e.target.value) || 30000)}
+                              className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                        </div>
+
                         <details className="group">
                           <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none">
-                            Pass test if...
+                            SLA thresholds (Pass test if...)
                           </summary>
-                          <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">
-                            Configure pass/fail conditions.
+                          <div className="mt-3 pt-3 border-t border-dark-700 grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Max error rate (%)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={loadMaxErrorRatePct}
+                                onChange={(e) => setLoadMaxErrorRatePct(Number(e.target.value))}
+                                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Max P99 latency (ms)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={loadMaxP99LatencyMs}
+                                onChange={(e) => setLoadMaxP99LatencyMs(Number(e.target.value))}
+                                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Max avg latency (ms)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={loadMaxAvgLatencyMs}
+                                onChange={(e) => setLoadMaxAvgLatencyMs(Number(e.target.value))}
+                                className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              />
+                            </div>
                           </div>
                         </details>
                       </div>

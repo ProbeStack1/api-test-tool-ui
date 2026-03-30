@@ -5,7 +5,9 @@ import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, Bo
 import clsx from 'clsx';
 import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-import { listWorkspaceLoadTests ,fetchCollections, normalizeCollection,fetchFolders,normalizeFolder,createCollection,  runCollection, fetchRunResult,listCollectionRuns,startLoadTest, fetchLoadTestRun, stopLoadTest  } from './services/collectionService';
+import { fetchCollections, normalizeCollection, fetchFolders, normalizeFolder, createCollection, listCollectionRuns } from './services/collectionService';
+import { startFunctionalRun, pollRunUntilDone, getRunHistoryDetail, listRunHistory } from './services/functionalTestService';
+import { startLoadTest as startLoadTestApi, getLoadTestReport } from './services/loadTestService';
 import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
@@ -44,6 +46,19 @@ import WorkspaceCreateModal from './components/modals/WorkspaceCreateModal';
 import { useVariableMaps } from './components/VariableHighlightInput';
 import RunModal from './components/modals/RunModal';
 import AIChatbotHelper from './components/AiChatbotHelper';
+
+// Flatten all request items recursively from a collection tree
+const flattenCollectionRequests = (items = []) => {
+  const requests = [];
+  const traverse = (list) => {
+    list.forEach(item => {
+      if (item.type === 'request') requests.push(item);
+      else if (item.items) traverse(item.items);
+    });
+  };
+  traverse(items);
+  return requests;
+};
 
 function App() {
   const navigate = useNavigate();
@@ -338,8 +353,12 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
   }
 
   try {
-    const response = await startLoadTest(collectionId, loadConfig);
-    const realId = response.data;
+    const response = await startLoadTestApi({
+      ...loadConfig,
+      // Use override path (from upload) if set, otherwise use collectionId (workspace path)
+      collectionPath: loadConfig.collectionPathOverride ?? collectionId,
+    });
+    const realId = response.data?.testId ?? response.data;
 
     // Update the running tab with the real ID
     if (configTabIndex >= 0 && configTabIndex < requests.length) {
@@ -354,7 +373,6 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
         return newRequests;
       });
     } else {
-      // Find the running tab by its unique ID and update it
       setRequests(prev =>
         prev.map(tab =>
           tab.id === runningTab.id ? { ...tab, loadTestId: realId } : tab
@@ -362,13 +380,15 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
       );
     }
 
-    // Optional: only navigate if it was a replace (not standalone)
     if (configTabIndex >= 0) {
       navigate('/workspace/collections');
     }
+
+    // Load test is now running asynchronously — clear the starting flag
+    setIsRunningLoadTest(false);
+
   } catch (error) {
     toast.error(`Failed to start load test: ${error.message}`);
-    // Remove the running tab on error
     if (configTabIndex >= 0 && configTabIndex < requests.length) {
       handleCloseTab(configTabIndex);
     } else {
@@ -388,63 +408,67 @@ const handleRunCollectionWithOrder = async (collectionId, selected, options, tab
       rampUpSeconds: options.rampUp || 0,
       targetRps: options.targetRps || 0,
       timeoutMs: options.timeoutMs || 30000,
-      thinkTimeMs: options.delay || 0,
+      thinkTimeMs: options.thinkTimeMs ?? options.delay ?? 0,
       insecure: options.insecure || false,
       maxErrorRatePct: options.maxErrorRatePct || 5,
       maxP99LatencyMs: options.maxP99LatencyMs || 5000,
       maxAvgLatencyMs: options.maxAvgLatencyMs || 2000,
+      collectionPathOverride: options.collectionPathOverride ?? null,
     };
     await handleRunLoadTest(collectionId, loadConfig, tabIndex);
     return;
   }
-  setIsRunningCollection(true); // ✅ use the correct setter
+  setIsRunningCollection(true);
 
   try {
     const environmentOverrides = getEnvironmentOverrides();
-    // Start the run – returns a run ID
-    const response = await runCollection(collectionId, {
-      iterations: options.iterations || 1,
-      delayMs: options.delay || 0,
-      timeoutMs: options.timeoutMs || 30000,
-      environmentOverrides,
-      dataFile: options.dataFile,
-      folderFilter: options.folderFilter,
-      requestFilters: options.requestFilters,
-      bail: options.bail || false,
-      insecure: options.insecure || false,
-      followRedirects: options.followRedirects !== false,
-      proxyHost: options.proxyHost,
-      proxyPort: options.proxyPort,
-      source: options.source || 'manual'
+
+    // Resolve collection path: use collectionPathOverride (from upload), then collectionPath field, then fall back to collectionId
+    const collection = collections.find(c => c.id === collectionId);
+    const collectionPath = options.collectionPathOverride
+      ?? (collection?.collectionPath ?? collectionId);
+
+    // Map selected request IDs → request names for requestFilter
+    const allRequests = flattenCollectionRequests(collection?.items || []);
+    const requestFilter = selected && selected.length > 0
+      ? allRequests.filter(r => selected.includes(r.id)).map(r => r.name)
+      : [];
+
+    // Start the run — returns { runId, status, startedAt, collectionName }
+    const response = await startFunctionalRun(collectionPath, {
+      iterations:    options.iterations    || 1,
+      delayMs:       options.delay         || 0,
+      timeoutMs:     options.timeoutMs     || 30000,
+      dataFile:      options.dataFile      ?? options.testFile ?? null,
+      folder:        options.folderFilter  ?? null,
+      requestFilter,
+      bail:          options.bail          || false,
+      insecure:      options.insecure      || false,
+      environmentPath: options.environmentPath ?? null,
+      globalsPath:     options.globalsPath     ?? null,
+      envVars: environmentOverrides
+        ? Object.entries(environmentOverrides).map(([k, v]) => `${k}=${v}`)
+        : [],
     });
 
-    const runId = response.data; // UUID
+    const runId = response.data?.runId ?? response.data;
 
-    // Poll for results every 2 seconds
-    const pollInterval = setInterval(async () => {
-      try {
-        const resultResponse = await fetchRunResult(runId);
-        const runData = resultResponse.data;
+    // Poll until DONE or FAILED
+    const finalData = await pollRunUntilDone(runId, 2000);
 
-        if (runData.status === 'completed' || runData.status === 'failed') {
-          clearInterval(pollInterval);
+    // Normalise to the shape expected by CollectionRunResultsView
+    const runData = {
+      ...finalData,
+      status: finalData.status === 'DONE' ? 'completed' : 'failed',
+      collectionId,
+      ...(finalData.result || {}),
+    };
 
-          // Open a new results tab
-          handleOpenCollectionRunResults(runData, collectionId, tabIndex);
-
-          // Close the configuration tab
-          setIsRunningCollection(false);
-        }
-      } catch (pollError) {
-        console.error('Polling error:', pollError);
-        clearInterval(pollInterval);
-        setIsRunningCollection(false);
-        toast.error('Failed to fetch run results');
-      }
-    }, 2000);
+    handleOpenCollectionRunResults(runData, collectionId, tabIndex);
+    setIsRunningCollection(false);
 
   } catch (error) {
-    console.error('🔥 Error starting collection run:', error);
+    console.error('Error starting functional run:', error);
     toast.error(`Run failed: ${error.message}`);
     setIsRunningCollection(false);
   }
@@ -452,11 +476,11 @@ const handleRunCollectionWithOrder = async (collectionId, selected, options, tab
 
 const handleLoadTestComplete = async (loadTestId) => {
   try {
-    const response = await fetchLoadTestRun(loadTestId);
+    const response = await getLoadTestReport(loadTestId);
     const completedRun = response.data;
     setLoadTestRuns(prev => [completedRun, ...prev]);
   } catch (err) {
-    console.error('Failed to fetch completed load test run:', err);
+    console.error('Failed to fetch completed load test report:', err);
   }
 };
 
@@ -496,11 +520,16 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     totalRequests: runData.totalRequests,
     passed: runData.passedRequests,
     failed: runData.failedRequests,
+    skipped: runData.skippedRequests ?? 0,
     errors: runData.failedRequests,
     avgResponseTime: avgTime,
+    totalAssertions: runData.totalAssertions ?? 0,
+    passedAssertions: runData.passedAssertions ?? 0,
+    failedAssertions: runData.failedAssertions ?? 0,
+    errorMessage: runData.errorMessage ?? null,
     results: (runData.results || []).map(r => ({
       requestId: r.requestId,
-      requestName: r.requestName,
+      requestName: r.itemName ?? r.requestName,
       method: r.method,
       url: r.url,
       status: r.statusCode,
@@ -509,6 +538,8 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
       size: r.responseSizeBytes,
       success: r.passed,
       error: r.error,
+      skipped: r.skipped,
+      assertions: r.assertions ?? [],
       fullDetails: {
         request_headers: r.requestHeaders,
         request_body: r.requestBody,
@@ -554,9 +585,8 @@ const handleViewFunctionalRunResults = async (run, shouldNavigate = true) => {
     return;
   }
   try {
-    const response = await fetchRunResult(runId);
+    const response = await getRunHistoryDetail(runId);
     const runData = response.data;
-    // Pass refresh=false to avoid refreshing the runs list when viewing history
     handleOpenCollectionRunResults(runData, runData.collectionId, -1, shouldNavigate, false);
   } catch (err) {
     toast.error('Failed to load run details');
@@ -853,30 +883,27 @@ const [requests, setRequests] = useState([createEmptyRequest()]);
     return [];
   });
 
-// Fetch collection runs for the active workspace
+// Fetch functional run history from forgeq-functional-test-svc
 const fetchAllRuns = useCallback(async () => {
-  if (!activeWorkspaceId || !collections.length) return;
+  if (!activeWorkspaceId) return;
   setLoadingRuns(true);
   try {
-    const workspaceCollections = collections.filter(c => c.project === activeWorkspaceId);
-    const runPromises = workspaceCollections.map(col =>
-      listCollectionRuns(col.id).then(res => res.data)
+    const res = await listRunHistory(0, 50);
+    const runs = Array.isArray(res.data) ? res.data : (res.data?.content ?? []);
+    const sorted = [...runs].sort((a, b) =>
+      new Date(b.startedAt ?? b.createdAt ?? 0) - new Date(a.startedAt ?? a.createdAt ?? 0)
     );
-    const runsArrays = await Promise.all(runPromises);
-    const allRuns = runsArrays.flat().sort((a, b) =>
-      new Date(b.startedAt) - new Date(a.startedAt)
-    );
-    setWorkspaceRuns(allRuns);
+    setWorkspaceRuns(sorted);
   } catch (err) {
-    console.error('Failed to fetch runs:', err);
+    console.error('Failed to fetch functional run history:', err);
   } finally {
     setLoadingRuns(false);
   }
-}, [activeWorkspaceId, collections]);
+}, [activeWorkspaceId]);
 
 useEffect(() => {
   fetchAllRuns();
-}, [activeWorkspaceId, collections, fetchAllRuns]);
+}, [activeWorkspaceId, fetchAllRuns]);
 // Fetch load test runs for the active workspace
 useEffect(() => {
   if (!activeWorkspaceId) return;

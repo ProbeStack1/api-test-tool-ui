@@ -15,6 +15,7 @@ import {
   XCircle, BarChart3, TrendingUp, Timer, Target
 } from "lucide-react";
 import clsx from "clsx";
+import { openMetricsStream } from "../../services/loadTestService";
 
 /* Stat card with animated entrance */
 function StatCard({ label, value, icon: Icon, delay = 0 }) {
@@ -182,47 +183,23 @@ function ThroughputSparkline({ data }) {
   );
 }
 
-/* Full analytics dashboard metrics panel */
-function AnalyticsDashboard({ isRunning }) {
-  const [totalRequests, setTotalRequests] = useState(0);
-  const [successRate, setSuccessRate] = useState(100);
-  const [avgLatency, setAvgLatency] = useState(0);
-  const [p95Latency, setP95Latency] = useState(0);
-  const [p99Latency, setP99Latency] = useState(0);
-  const [rps, setRps] = useState(0);
-  const [errorCount, setErrorCount] = useState(0);
-  const [throughputHistory, setThroughputHistory] = useState([]);
-  const [latencyDist, setLatencyDist] = useState([
-    { label: '<50', count: 0, color: '#22c55e' },
-    { label: '50-100', count: 0, color: '#84cc16' },
-    { label: '100-200', count: 0, color: '#eab308' },
-    { label: '200-500', count: 0, color: '#f97316' },
-    { label: '500+', count: 0, color: '#ef4444' },
-  ]);
+/* Full analytics dashboard metrics panel — accepts live props from SSE */
+function AnalyticsDashboard({ metrics }) {
+  const {
+    totalRequests = 0,
+    successfulRequests = 0,
+    failedRequests: errorCount = 0,
+    errorRatePct = 0,
+    currentRps: rps = 0,
+    avgLatencyMs: avgLatency = 0,
+    p95Ms: p95Latency = 0,
+    p99Ms: p99Latency = 0,
+    throughputHistory = [],
+  } = metrics || {};
 
-  // Simulate growing metrics
-  useEffect(() => {
-    if (!isRunning) return;
-    const interval = setInterval(() => {
-      const newRps = Math.floor(80 + Math.random() * 150);
-      setRps(newRps);
-      setTotalRequests(prev => prev + Math.floor(newRps * 1.5));
-      setAvgLatency(Math.floor(30 + Math.random() * 80));
-      setP95Latency(Math.floor(100 + Math.random() * 200));
-      setP99Latency(Math.floor(200 + Math.random() * 350));
-      setSuccessRate(Math.floor(95 + Math.random() * 5));
-      setErrorCount(prev => prev + Math.floor(Math.random() * 2));
-      setThroughputHistory(prev => [...prev.slice(-19), newRps]);
-      setLatencyDist([
-        { label: '<50', count: Math.floor(30 + Math.random() * 40), color: '#22c55e' },
-        { label: '50-100', count: Math.floor(20 + Math.random() * 30), color: '#84cc16' },
-        { label: '100-200', count: Math.floor(10 + Math.random() * 20), color: '#eab308' },
-        { label: '200-500', count: Math.floor(3 + Math.random() * 8), color: '#f97316' },
-        { label: '500+', count: Math.floor(Math.random() * 3), color: '#ef4444' },
-      ]);
-    }, 1500);
-    return () => clearInterval(interval);
-  }, [isRunning]);
+  const successRate = totalRequests > 0
+    ? Math.round((successfulRequests / totalRequests) * 100)
+    : 100;
 
   return (
     <div className="space-y-4" data-testid="analytics-dashboard">
@@ -281,28 +258,16 @@ function AnalyticsDashboard({ isRunning }) {
         </div>
       </div>
 
-      {/* Row 2: Throughput Trend + Latency Distribution */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-primary" />
-              <span className="text-[10px] text-gray-500 uppercase tracking-wide">Throughput Trend</span>
-            </div>
-            <span className="text-xs font-mono text-primary">{rps} req/s</span>
+      {/* Row 2: Throughput Trend */}
+      <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[10px] text-gray-500 uppercase tracking-wide">Throughput Trend</span>
           </div>
-          <ThroughputSparkline data={throughputHistory} />
+          <span className="text-xs font-mono text-primary">{rps} req/s</span>
         </div>
-        <div className="rounded-xl bg-dark-900/40 border border-dark-700 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5">
-              <BarChart3 className="w-3.5 h-3.5 text-primary" />
-              <span className="text-[10px] text-gray-500 uppercase tracking-wide">Latency Distribution</span>
-            </div>
-            <span className="text-xs font-mono text-gray-400">ms</span>
-          </div>
-          <LatencyDistribution data={latencyDist} />
-        </div>
+        <ThroughputSparkline data={throughputHistory} />
       </div>
     </div>
   );
@@ -316,12 +281,13 @@ export default function LoadTestRunningView({
 }) {
   const [timeRemaining, setTimeRemaining] = useState(config?.durationSeconds || 0);
   const [progress, setProgress] = useState(0);
-  const [pollingError, setPollingError] = useState(null);
+  const [liveMetrics, setLiveMetrics] = useState({});
+  const [throughputHistory, setThroughputHistory] = useState([]);
 
   // Determine if test is actively running (has ID) or still initializing
   const isInitializing = !loadTestId;
 
-  // Local timer based on config (runs immediately regardless of loadTestId)
+  // Local timer based on config
   useEffect(() => {
     if (!config?.durationSeconds) return;
     const startTime = Date.now();
@@ -335,26 +301,21 @@ export default function LoadTestRunningView({
     return () => clearInterval(timer);
   }, [config?.durationSeconds]);
 
-  // Poll for real status when loadTestId becomes available
+  // Open SSE stream when loadTestId becomes available
   useEffect(() => {
     if (!loadTestId) return;
-    let interval;
-    const poll = async () => {
-      try {
-        const { fetchLoadTestRun } = await import("../../services/collectionService");
-        const res = await fetchLoadTestRun(loadTestId);
-        const data = res.data;
-        if (data.status !== "running") {
-          onComplete(loadTestId);
-        }
-      } catch (err) {
-        console.error("Polling error:", err);
-        setPollingError(err.message);
-      }
-    };
-    poll();
-    interval = setInterval(poll, 2000);
-    return () => clearInterval(interval);
+    const es = openMetricsStream(
+      loadTestId,
+      (snapshot) => {
+        setLiveMetrics(snapshot);
+        setThroughputHistory(prev => [...prev.slice(-29), snapshot.currentRps ?? 0]);
+      },
+      (lastSnapshot) => {
+        if (lastSnapshot) setLiveMetrics(lastSnapshot);
+        onComplete(loadTestId);
+      },
+    );
+    return () => es.close();
   }, [loadTestId, onComplete]);
 
   const minutes = Math.floor(timeRemaining / 60);
@@ -391,8 +352,8 @@ export default function LoadTestRunningView({
           </div>
         </div>
 
-        {/* Analytics Dashboard - ALWAYS visible, starts simulating immediately */}
-        <AnalyticsDashboard isRunning={true} />
+        {/* Analytics Dashboard - real SSE data when running, zeros when initializing */}
+        <AnalyticsDashboard metrics={{ ...liveMetrics, throughputHistory }} />
 
         {/* Timer & Progress - always visible */}
         <div className="rounded-xl border border-dark-700 bg-gradient-to-b from-dark-800/60 to-dark-900/60 p-5 relative overflow-hidden">
@@ -443,13 +404,6 @@ export default function LoadTestRunningView({
           <StatCard label="Target RPS" value={config?.targetRps > 0 ? config.targetRps : "Unlimited"} icon={Zap} delay={200} />
           <StatCard label="Think Time" value={`${config?.thinkTimeMs || 0}ms`} icon={Clock} delay={300} />
         </div>
-
-        {/* Polling error */}
-        {pollingError && (
-          <div className="text-sm text-red-400 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
-            Error fetching test status: {pollingError}
-          </div>
-        )}
 
         {/* Status footer */}
         <div className="text-center">

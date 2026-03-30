@@ -73,3 +73,16 @@ export const dashboardApi = axios.create({
   baseURL: "https://prod.forgeq.probestack.io/api/v1/dashboard"
 });
 addUserIdInterceptor(dashboardApi);
+
+// Relative-URL clients — routed via Vite dev proxy (or nginx in prod)
+export const functionalTestApi = axios.create({
+  baseURL: '/api/v1/functional-tests',
+  headers: { 'Content-Type': 'application/json' }
+});
+addUserIdInterceptor(functionalTestApi);
+
+export const loadTestApi = axios.create({
+  baseURL: '/api/v1/load-tests',
+  headers: { 'Content-Type': 'application/json' }
+});
+addUserIdInterceptor(loadTestApi);

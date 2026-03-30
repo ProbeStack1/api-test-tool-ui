@@ -346,7 +346,7 @@ import {
   CheckCircle, XCircle, BarChart3, TrendingUp, Timer, Target, Wifi, AlertTriangle, Server
 } from 'lucide-react';
 import clsx from 'clsx';
-import { fetchLoadTestRun, stopLoadTest } from '../../services/collectionService';
+import { getLoadTestReport } from '../../services/loadTestService';
 import { toast } from 'sonner';
 
 
@@ -607,30 +607,34 @@ export default function LoadTestResultsView({ loadTestId, onClose }) {
     let interval;
     const fetchData = async () => {
       try {
-        const res = await fetchLoadTestRun(loadTestId);
-        setRun(res.data);
+        const res = await getLoadTestReport(loadTestId);
+        const data = res.data;
+        setRun(data);
         setLoading(false);
-        if (res.data.status !== 'running') {
-          clearInterval(interval);
+        const status = String(data.status ?? (data.passed !== undefined ? 'DONE' : 'RUNNING')).toUpperCase();
+        if (status !== 'RUNNING') {
+          if (interval) clearInterval(interval);
         }
       } catch (err) {
-        console.error('Error fetching load test run:', err);
+        console.error('Error fetching load test report:', err);
         setError(err.message);
-        clearInterval(interval);
+        if (interval) clearInterval(interval);
       }
     };
 
-    fetchData();
+    // Start interval before first call so `interval` is always defined inside fetchData
     interval = setInterval(fetchData, 2000);
+    fetchData();
     return () => clearInterval(interval);
   }, [loadTestId]);
 
   useEffect(() => {
-    if (!run || run.status !== 'running') return;
+    if (!run || run.status !== 'RUNNING') return;
     if (!run.config?.durationSeconds) return;
 
     const updateTimer = () => {
-      const elapsed = (Date.now() - new Date(run.startedAt).getTime()) / 1000;
+      const startedAt = run.startedAt ?? run.startTime;
+      const elapsed = (Date.now() - new Date(startedAt).getTime()) / 1000;
       const remaining = Math.max(0, run.config.durationSeconds - elapsed);
       setTimeRemaining(remaining);
     };
@@ -642,8 +646,8 @@ export default function LoadTestResultsView({ loadTestId, onClose }) {
 
   const handleStop = async () => {
     try {
-      await stopLoadTest(loadTestId);
-      toast.info('Stop requested');
+      // Stop is not exposed on this service endpoint; inform user
+      toast.info('Stop is not available for this test');
     } catch (err) {
       toast.error('Failed to stop test');
     }
@@ -671,10 +675,64 @@ export default function LoadTestResultsView({ loadTestId, onClose }) {
   if (!run) return null;
 
   const config = run.config || {};
-  const result = run.result || {};
+  // Normalise: /report returns RunResult (in-memory, no status field) or LoadTestRunDocument (from DB)
+  const result = run;
+  const runStatusRaw = run.status ?? (run.passed !== undefined ? 'DONE' : 'RUNNING');
+  const runStatus = String(runStatusRaw).toUpperCase();
+  const isCompleted = ['DONE', 'FAILED', 'STOPPED'].includes(runStatus);
 
-  /* ─── Completed State: Analytics Dashboard ──────────────────────────── */
-  if (run.status === 'completed' && result) {
+  /* ─── Failed State (must be before generic completed) ──────────────── */
+  if (runStatus === 'FAILED') {
+    return (
+      <div className="flex-1 p-8 bg-dark-800/80" data-testid="results-failed">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-white">Load Test Failed</h2>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+              <XCircle className="w-6 h-6 text-red-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-red-400 mb-1">Test Execution Failed</h3>
+              <p className="text-sm text-gray-400">{run.errorMessage || 'An unknown error occurred during test execution.'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Stopped State (must be before generic completed) ─────────────── */
+  if (runStatus === 'STOPPED') {
+    return (
+      <div className="flex-1 p-8 bg-dark-800/80" data-testid="results-stopped">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-white">Load Test Stopped</h2>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-6 flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center shrink-0">
+              <StopCircle className="w-6 h-6 text-yellow-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-yellow-400 mb-1">Test Stopped by User</h3>
+              <p className="text-sm text-gray-400">The load test was manually stopped before completion.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Completed State (DONE only): Analytics Dashboard ─────────────── */
+  if (isCompleted && result) {
     const total = result.totalRequests || 0;
     const passed = result.successfulRequests || 0;
     const failed = result.failedRequests || 0;
@@ -860,56 +918,6 @@ export default function LoadTestResultsView({ loadTestId, onClose }) {
                 )}
               </div>
             )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ─── Failed State ──────────────────────────────────────────────────── */
-  if (run.status === 'failed') {
-    return (
-      <div className="flex-1 p-8 bg-dark-800/80" data-testid="results-failed">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white">Load Test Failed</h2>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
-              <XCircle className="w-6 h-6 text-red-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-red-400 mb-1">Test Execution Failed</h3>
-              <p className="text-sm text-gray-400">{run.errorMessage || 'An unknown error occurred during test execution.'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ─── Stopped State ─────────────────────────────────────────────────── */
-  if (run.status === 'stopped') {
-    return (
-      <div className="flex-1 p-8 bg-dark-800/80" data-testid="results-stopped">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white">Load Test Stopped</h2>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-6 flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center shrink-0">
-              <StopCircle className="w-6 h-6 text-yellow-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-yellow-400 mb-1">Test Stopped by User</h3>
-              <p className="text-sm text-gray-400">The load test was manually stopped before completion.</p>
-            </div>
           </div>
         </div>
       </div>

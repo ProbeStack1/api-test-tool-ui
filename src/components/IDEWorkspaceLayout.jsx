@@ -20,6 +20,8 @@ import { listCollectionRuns } from '../services/collectionService';
 import {listTestFiles,uploadTestFile,deleteTestFile,} from '../services/testFileService';
 import { listTestSpecs } from '../services/testSpecificationService';
 import { listLibraryItems ,updateLibraryItem, deleteLibraryItem } from '../services/specLibraryService';
+import { uploadCollection as uploadFunctionalCollection } from '../services/functionalTestService';
+import { uploadCollection as uploadLoadCollection } from '../services/loadTestService';
 import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
 import CollectionRunsTable from './CollectionRunsTable';
 import LoadTestRunningView from './detailsTab/LoadTestRunningView';
@@ -465,6 +467,16 @@ const handleRunMockServer = async (mockServer) => {
   const [showFileSelectionModal, setShowFileSelectionModal] = useState(false);
   const [functionalRunResults, setFunctionalRunResults] = useState(null);
   const [isRunningFunctional, setIsRunningFunctional] = useState(false);
+  // Functional advanced options
+  const [functionalTimeoutMs, setFunctionalTimeoutMs] = useState(30000);
+  const [functionalBail, setFunctionalBail] = useState(false);
+  const [functionalInsecure, setFunctionalInsecure] = useState(false);
+  const [functionalFolder, setFunctionalFolder] = useState('');
+  const [functionalEnvironmentPath, setFunctionalEnvironmentPath] = useState('');
+  // Functional collection source ('workspace' | 'upload')
+  const [functionalCollectionSource, setFunctionalCollectionSource] = useState('workspace');
+  const [functionalCollectionPath, setFunctionalCollectionPath] = useState('');
+  const [functionalCollectionUploading, setFunctionalCollectionUploading] = useState(false);
 
   // Load Testing states
   const [loadProfile, setLoadProfile] = useState('fixed');
@@ -475,6 +487,18 @@ const handleRunMockServer = async (mockServer) => {
   const [loadTestResults, setLoadTestResults] = useState(null);
   const [isRunningLoadTest, setIsRunningLoadTest] = useState(false);
   const [loadTestCountdown, setLoadTestCountdown] = useState(0);
+  // Load advanced options
+  const [loadRampUpSeconds, setLoadRampUpSeconds] = useState(0);
+  const [loadTargetRps, setLoadTargetRps] = useState(0);
+  const [loadThinkTimeMs, setLoadThinkTimeMs] = useState(0);
+  const [loadTimeoutMs, setLoadTimeoutMs] = useState(30000);
+  const [loadMaxErrorRatePct, setLoadMaxErrorRatePct] = useState(5);
+  const [loadMaxP99LatencyMs, setLoadMaxP99LatencyMs] = useState(5000);
+  const [loadMaxAvgLatencyMs, setLoadMaxAvgLatencyMs] = useState(2000);
+  // Load collection source ('workspace' | 'upload')
+  const [loadCollectionSource, setLoadCollectionSource] = useState('workspace');
+  const [loadCollectionPath, setLoadCollectionPath] = useState('');
+  const [loadCollectionUploading, setLoadCollectionUploading] = useState(false);
 
   // Mock Service states
   const [showMockModal, setShowMockModal] = useState(false);
@@ -1632,22 +1656,78 @@ topMenuActive === 'testing' ? (
     {/* Functional Testing */}
     {testingSubTab === 'functional' && (
       <div className="space-y-4">
+        {/* Collection source panel — always visible */}
         <div>
-          <label className="text-sm font-medium text-gray-300">Select Collection</label>
-          <select
-            value={selectedTestCollectionId || ''}
-            onChange={(e) => setSelectedTestCollectionId(e.target.value)}
-            className="mt-1 w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
-          >
-            <option value="">Select a collection</option>
-            {workspaceCollections.map(col => (
-              <option key={col.id} value={col.id}>{col.name}</option>
-            ))}
-          </select>
+          <label className="text-sm font-medium text-gray-300 block mb-2">Collection source</label>
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setFunctionalCollectionSource('workspace')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${functionalCollectionSource === 'workspace' ? 'bg-primary text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
+            >
+              From workspace
+            </button>
+            <button
+              type="button"
+              onClick={() => setFunctionalCollectionSource('upload')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${functionalCollectionSource === 'upload' ? 'bg-primary text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
+            >
+              Upload file
+            </button>
+          </div>
+
+          {functionalCollectionSource === 'workspace' ? (
+            <select
+              value={selectedTestCollectionId || ''}
+              onChange={(e) => setSelectedTestCollectionId(e.target.value)}
+              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Select a collection</option>
+              {workspaceCollections.map(col => (
+                <option key={col.id} value={col.id}>{col.name}</option>
+              ))}
+            </select>
+          ) : (
+            <div className="flex items-center gap-3">
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm cursor-pointer">
+                {functionalCollectionUploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}
+                Choose .json file
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setFunctionalCollectionUploading(true);
+                    setFunctionalCollectionPath('');
+                    try {
+                      const { data } = await uploadFunctionalCollection(file);
+                      setFunctionalCollectionPath(data.collectionPath);
+                      toast.success('Collection uploaded');
+                    } catch {
+                      toast.error('Upload failed');
+                    } finally {
+                      setFunctionalCollectionUploading(false);
+                    }
+                  }}
+                />
+              </label>
+              {functionalCollectionPath && (
+                <span className="flex items-center gap-1 text-sm text-green-400">
+                  <Check size={14} /> ready
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        {selectedTestCollectionId && (
-          <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+        {/* Form body — always visible */}
+        <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
             {/* Functional config UI – copied from CollectionRunView */}
             <div>
               <h3 className="text-sm font-medium text-white mb-3">Choose how to run your collection</h3>
@@ -1724,23 +1804,85 @@ topMenuActive === 'testing' ? (
               <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none flex items-center gap-1">
                 Advanced settings
               </summary>
-              <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">
-                Additional options can be added here.
+              <div className="mt-3 pt-3 border-t border-dark-700 space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Timeout (ms)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={functionalTimeoutMs}
+                      onChange={(e) => setFunctionalTimeoutMs(Number(e.target.value) || 30000)}
+                      className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Folder filter</label>
+                    <input
+                      type="text"
+                      value={functionalFolder}
+                      onChange={(e) => setFunctionalFolder(e.target.value)}
+                      placeholder="e.g. Auth Tests"
+                      className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Environment file path</label>
+                  <input
+                    type="text"
+                    value={functionalEnvironmentPath}
+                    onChange={(e) => setFunctionalEnvironmentPath(e.target.value)}
+                    placeholder="/path/to/environment.json"
+                    className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={functionalBail}
+                      onChange={(e) => setFunctionalBail(e.target.checked)}
+                      className="rounded text-primary"
+                    />
+                    <span className="text-sm text-gray-300">Bail on first failure</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={functionalInsecure}
+                      onChange={(e) => setFunctionalInsecure(e.target.checked)}
+                      className="rounded text-primary"
+                    />
+                    <span className="text-sm text-gray-300">Insecure (skip SSL)</span>
+                  </label>
+                </div>
               </div>
             </details>
 
             <button
               type="button"
               onClick={async () => {
-                if (!selectedTestCollectionId) {
+                const resolvedCollectionPath = functionalCollectionSource === 'upload' ? functionalCollectionPath : null;
+                if (functionalCollectionSource === 'workspace' && !selectedTestCollectionId) {
                   toast.error('Please select a collection');
+                  return;
+                }
+                if (functionalCollectionSource === 'upload' && !functionalCollectionPath) {
+                  toast.error('Please upload a collection file first');
                   return;
                 }
                 const options = {
                   type: 'functional',
+                  collectionPathOverride: resolvedCollectionPath,
                   iterations: functionalIterations,
                   delay: functionalDelay,
                   testFile: functionalSelectedFile,
+                  timeoutMs: functionalTimeoutMs,
+                  bail: functionalBail,
+                  insecure: functionalInsecure,
+                  folderFilter: functionalFolder || null,
+                  environmentPath: functionalEnvironmentPath || null,
                 };
                 onRunCollectionWithOrder(selectedTestCollectionId, [], options, -1);
               }}
@@ -1749,29 +1891,84 @@ topMenuActive === 'testing' ? (
               Run Functional Test
             </button>
           </div>
-        )}
       </div>
     )}
 
     {/* Load Testing */}
     {testingSubTab === 'load' && (
       <div className="space-y-4">
+        {/* Collection source panel — always visible */}
         <div>
-          <label className="text-sm font-medium text-gray-300">Select Collection</label>
-          <select
-            value={selectedTestCollectionId || ''}
-            onChange={(e) => setSelectedTestCollectionId(e.target.value)}
-            className="mt-1 w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
-          >
-            <option value="">Select a collection</option>
-            {workspaceCollections.map(col => (
-              <option key={col.id} value={col.id}>{col.name}</option>
-            ))}
-          </select>
+          <label className="text-sm font-medium text-gray-300 block mb-2">Collection source</label>
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setLoadCollectionSource('workspace')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${loadCollectionSource === 'workspace' ? 'bg-primary text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
+            >
+              From workspace
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoadCollectionSource('upload')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${loadCollectionSource === 'upload' ? 'bg-primary text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
+            >
+              Upload file
+            </button>
+          </div>
+
+          {loadCollectionSource === 'workspace' ? (
+            <select
+              value={selectedTestCollectionId || ''}
+              onChange={(e) => setSelectedTestCollectionId(e.target.value)}
+              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Select a collection</option>
+              {workspaceCollections.map(col => (
+                <option key={col.id} value={col.id}>{col.name}</option>
+              ))}
+            </select>
+          ) : (
+            <div className="flex items-center gap-3">
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700 text-sm cursor-pointer">
+                {loadCollectionUploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}
+                Choose .json file
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setLoadCollectionUploading(true);
+                    setLoadCollectionPath('');
+                    try {
+                      const { data } = await uploadLoadCollection(file);
+                      setLoadCollectionPath(data.collectionPath);
+                      toast.success('Collection uploaded');
+                    } catch {
+                      toast.error('Upload failed');
+                    } finally {
+                      setLoadCollectionUploading(false);
+                    }
+                  }}
+                />
+              </label>
+              {loadCollectionPath && (
+                <span className="flex items-center gap-1 text-sm text-green-400">
+                  <Check size={14} /> ready
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        {selectedTestCollectionId && (
-          <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
+        {/* Form body — always visible */}
+        <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 space-y-5">
             <div>
               <h3 className="text-sm font-medium text-white mb-3">Set up your performance test</h3>
               <div className="space-y-4">
@@ -1842,10 +2039,87 @@ topMenuActive === 'testing' ? (
                 </div>
                 <details className="group">
                   <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none">
-                    Pass test if...
+                    Advanced options
                   </summary>
-                  <div className="mt-3 pt-3 border-t border-dark-700 text-xs text-gray-500">
-                    Configure pass/fail conditions.
+                  <div className="mt-3 pt-3 border-t border-dark-700 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Ramp-up (secs)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={loadRampUpSeconds}
+                        onChange={(e) => setLoadRampUpSeconds(Number(e.target.value) || 0)}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Target RPS (0 = unlimited)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={loadTargetRps}
+                        onChange={(e) => setLoadTargetRps(Number(e.target.value) || 0)}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Think time (ms)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={loadThinkTimeMs}
+                        onChange={(e) => setLoadThinkTimeMs(Number(e.target.value) || 0)}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Request timeout (ms)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={loadTimeoutMs}
+                        onChange={(e) => setLoadTimeoutMs(Number(e.target.value) || 30000)}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                  </div>
+                </details>
+                <details className="group">
+                  <summary className="text-sm font-medium text-gray-400 cursor-pointer list-none">
+                    SLA thresholds (Pass test if...)
+                  </summary>
+                  <div className="mt-3 pt-3 border-t border-dark-700 grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Max error rate (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={loadMaxErrorRatePct}
+                        onChange={(e) => setLoadMaxErrorRatePct(Number(e.target.value))}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Max P99 latency (ms)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={loadMaxP99LatencyMs}
+                        onChange={(e) => setLoadMaxP99LatencyMs(Number(e.target.value))}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Max avg latency (ms)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={loadMaxAvgLatencyMs}
+                        onChange={(e) => setLoadMaxAvgLatencyMs(Number(e.target.value))}
+                        className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
                   </div>
                 </details>
               </div>
@@ -1880,16 +2154,28 @@ topMenuActive === 'testing' ? (
             <button
               type="button"
               onClick={async () => {
-                if (!selectedTestCollectionId) {
+                const resolvedCollectionPath = loadCollectionSource === 'upload' ? loadCollectionPath : null;
+                if (loadCollectionSource === 'workspace' && !selectedTestCollectionId) {
                   toast.error('Please select a collection');
+                  return;
+                }
+                if (loadCollectionSource === 'upload' && !loadCollectionPath) {
+                  toast.error('Please upload a collection file first');
                   return;
                 }
                 const options = {
                   type: 'load',
+                  collectionPathOverride: resolvedCollectionPath,
                   virtualUsers: loadVirtualUsers,
                   duration: loadDuration,
                   durationUnit: loadDurationUnit,
-                  delay: functionalDelay, // think time
+                  rampUp: loadRampUpSeconds,
+                  targetRps: loadTargetRps,
+                  thinkTimeMs: loadThinkTimeMs,
+                  timeoutMs: loadTimeoutMs,
+                  maxErrorRatePct: loadMaxErrorRatePct,
+                  maxP99LatencyMs: loadMaxP99LatencyMs,
+                  maxAvgLatencyMs: loadMaxAvgLatencyMs,
                 };
                 onRunCollectionWithOrder(selectedTestCollectionId, [], options, -1);
               }}
@@ -1898,7 +2184,6 @@ topMenuActive === 'testing' ? (
               Run performance test
             </button>
           </div>
-        )}
       </div>
     )}
 

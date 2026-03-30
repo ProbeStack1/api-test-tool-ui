@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { toast } from 'sonner';
 import { listTestSpecs } from '../services/testSpecificationService';
 import { getDashboardSummary, getTotalCollections, getTotalRequests, getModuleCount, getTotalEnvironments } from '../services/deshboardService';
-import { listWorkspaceLoadTests } from '../services/collectionService'; // ✅ correct import
+import { listLoadTestHistory } from '../services/loadTestService';
 import CollectionRunsTable from './CollectionRunsTable';
 import LoadTestRunsTable from './LoadTestRunsTable';
 
@@ -98,36 +98,23 @@ export default function DashboardSpecTable({
     fetchAllSpecs();
   }, [projects]);
 
-  // Fetch load test runs from all workspaces
+  // Fetch load test history from the load test service
   useEffect(() => {
-    if (!projects || projects.length === 0) return;
-    const fetchAllLoadTestRuns = async () => {
+    const fetchLoadTestHistory = async () => {
       setLoadingLoadRuns(true);
       try {
-        const allRuns = [];
-        for (const project of projects) {
-          try {
-            const res = await listWorkspaceLoadTests(project.id); // ✅ correct API
-            const runsWithWorkspace = (res.data || []).map(run => ({
-              ...run,
-              workspaceName: project.name,
-            }));
-            allRuns.push(...runsWithWorkspace);
-          } catch (err) {
-            console.error(`Failed to fetch load test runs for workspace ${project.name}:`, err);
-          }
-        }
-        // Sort by startedAt descending (newest first)
-        allRuns.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-        setLoadTestRuns(allRuns);
+        const res = await listLoadTestHistory(0, 50);
+        const runs = Array.isArray(res.data) ? res.data : (res.data?.content ?? []);
+        runs.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+        setLoadTestRuns(runs);
       } catch (err) {
         toast.error('Failed to load test runs');
       } finally {
         setLoadingLoadRuns(false);
       }
     };
-    fetchAllLoadTestRuns();
-  }, [projects]);
+    fetchLoadTestHistory();
+  }, []);
 
   // Column dropdown handlers (unchanged)
   useEffect(() => {

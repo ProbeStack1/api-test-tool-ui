@@ -86,8 +86,13 @@ export default function CollectionRunResultsView({ results, onClose }) {
     totalRequests,
     passed,
     failed,
+    skipped = 0,
     errors,
     avgResponseTime,
+    totalAssertions = 0,
+    passedAssertions = 0,
+    failedAssertions = 0,
+    errorMessage = null,
     results: requestResults,
   } = results;
 
@@ -113,7 +118,7 @@ export default function CollectionRunResultsView({ results, onClose }) {
               </span>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             <div className="p-4 rounded-lg bg-dark-900/40 border border-dark-700">
               <p className="text-xs text-gray-500 mb-1">Iterations</p>
               <p className="text-2xl font-semibold text-white">{iterations}</p>
@@ -127,19 +132,35 @@ export default function CollectionRunResultsView({ results, onClose }) {
               <p className="text-2xl font-semibold text-white">{totalRequests}</p>
             </div>
             <div className="p-4 rounded-lg bg-dark-900/40 border border-dark-700">
-              <p className="text-xs text-gray-500 mb-1">Passed / Failed</p>
+              <p className="text-xs text-gray-500 mb-1">Passed / Failed / Skipped</p>
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-semibold text-green-400">{passed}</span>
+                <span className="text-xl font-semibold text-green-400">{passed}</span>
                 <span className="text-gray-500">/</span>
-                <span className="text-2xl font-semibold text-red-400">{failed}</span>
+                <span className="text-xl font-semibold text-red-400">{failed}</span>
+                <span className="text-gray-500">/</span>
+                <span className="text-xl font-semibold text-yellow-400">{skipped}</span>
               </div>
             </div>
             <div className="p-4 rounded-lg bg-dark-900/40 border border-dark-700">
               <p className="text-xs text-gray-500 mb-1">Avg Response</p>
               <p className="text-2xl font-semibold text-white">{avgResponseTime}ms</p>
             </div>
+            <div className="p-4 rounded-lg bg-dark-900/40 border border-dark-700">
+              <p className="text-xs text-gray-500 mb-1">Assertions</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-semibold text-green-400">{passedAssertions}</span>
+                <span className="text-gray-500">/</span>
+                <span className="text-xl font-semibold text-red-400">{failedAssertions}</span>
+                <span className="text-xs text-gray-500 ml-1">of {totalAssertions}</span>
+              </div>
+            </div>
           </div>
-          {errors > 0 && (
+          {errorMessage && (
+            <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="text-sm text-red-400">{errorMessage}</p>
+            </div>
+          )}
+          {errors > 0 && !errorMessage && (
             <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
               <p className="text-sm text-red-400">{errors} errors occurred</p>
             </div>
@@ -211,6 +232,20 @@ export default function CollectionRunResultsView({ results, onClose }) {
 
                 {result.error && (
                   <div className="pl-[88px] pr-4 pb-2 text-xs text-red-400">{result.error}</div>
+                )}
+
+                {/* Assertions summary line */}
+                {result.assertions && result.assertions.length > 0 && (
+                  <div className="pl-[88px] pr-4 pb-2 flex gap-3">
+                    {result.assertions.map((a, i) => (
+                      <span key={i} className={clsx(
+                        'text-[10px] px-2 py-0.5 rounded-full',
+                        a.passed ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                      )}>
+                        {a.passed ? '✓' : '✗'} {a.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
 
                 {/* Expanded details */}

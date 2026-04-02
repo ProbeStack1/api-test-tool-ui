@@ -62,7 +62,7 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
         if (!stillExists) setSelectedItem(null);
       }
     } catch (err) {
-      toast.error('Failed to load library');
+      // toast.error('Failed to load library');
     } finally {
       setLoading(false);
     }

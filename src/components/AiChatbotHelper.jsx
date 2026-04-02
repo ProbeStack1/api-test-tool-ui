@@ -14,8 +14,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { 
   Bot, X, Minimize2, Maximize2, Send, AlertCircle, 
-  Loader2, MessageSquare, Sparkles,
-  ChevronDown
+  Loader2, MessageSquare, Sparkles
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -179,7 +178,7 @@ const ChatInputBar = ({ userInput, setUserInput, onSend, isProcessing }) => (
  * - Minimize to floating bubble at bottom-right with smooth fade/scale
  * 
  * @param {boolean} isVisible - Controls visibility
- * @param {function} onClose - Close handler
+ * @param {function} onClose - Close handler (still passed but not used in header)
  * @param {object} error - Error object from request
  * @param {object} response - Response object from request
  * @param {object} requestInfo - Request details (url, method, etc.)
@@ -273,7 +272,7 @@ const AIChatbotHelper = ({
 
   // Minimize to bubble with smooth fade-out
   const handleMinimize = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (animatingOut) return;
     setAnimatingOut(true);
     setTimeout(() => {
@@ -460,22 +459,12 @@ const AIChatbotHelper = ({
             {size === 'small' ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
           </button>
           
-          {/* Minimize to bubble */}
+          {/* Close button now minimizes instead of closing */}
           <button
-            onClick={handleMinimize}
+            onClick={(e) => { e.stopPropagation(); handleMinimize(e); }}
             className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
             title="Minimize to bubble"
-            data-testid="chatbot-minimize-toggle"
-          >
-            <ChevronDown className="w-4 h-4" />
-          </button>
-          
-          {/* Close button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-            title="Close"
-            data-testid="chatbot-close-btn"
+            data-testid="chatbot-minimize-btn"
           >
             <X className="w-4 h-4" />
           </button>

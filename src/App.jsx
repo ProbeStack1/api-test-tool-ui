@@ -284,7 +284,7 @@ const fetchMockServers = async () => {
     );
     setMockServers(mocksWithEndpoints);
   } catch (error) {
-    toast.error('Could not load mock servers');
+    // toast.error('Could not load mock servers');
   } finally {
     setIsLoadingMocks(false);
   }

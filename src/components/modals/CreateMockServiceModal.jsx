@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, Plus, Upload, Loader2, ChevronDown } from 'lucide-react';
+import { X, Check, Plus, Upload, Loader2, ChevronDown, FileText, FolderOpen, Code } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 import { fetchRequests } from '../../services/requestService';
 import { getLatestExecution } from '../../services/mockServerService';
-import { uploadCollection as uploadFunctionalCollection } from '../../services/functionalTestService'; // reuse for JSON import
+import { uploadCollection as uploadFunctionalCollection } from '../../services/functionalTestService';
 
 export default function CreateMockServiceModal({
   onClose,
-  onConfigure,        // new callback with config data
-  mockServer,         // if editing, we pass existing mock server data
-  collections = [],   // list of collections in current workspace
+  onConfigure,
+  mockServer,
+  collections = [],
   activeWorkspaceId,
 }) {
   const isEditMode = !!mockServer;
@@ -28,12 +28,9 @@ export default function CreateMockServiceModal({
   const collectionDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // For edit mode: we need to fetch endpoints? But in edit mode we should open editor directly.
-  // For simplicity, if editing, we just close modal and open editor with existing mock server data.
   useEffect(() => {
     if (isEditMode) {
-      // This modal is used for edit? Actually we might have a separate edit flow.
-      // For now, we can treat it as a configurator; for edit, we can skip and open editor directly.
+      // Edit mode handling
     }
   }, [isEditMode]);
 
@@ -41,8 +38,7 @@ export default function CreateMockServiceModal({
     setSelectedCollectionId(collectionId);
     setLoadingCollection(true);
     try {
-      // We don't need to fetch endpoints here; we'll just store the collectionId
-      // The editor will fetch when opened.
+      // Collection selection logic
     } catch (err) {
       toast.error('Failed to load collection');
     } finally {
@@ -68,7 +64,7 @@ export default function CreateMockServiceModal({
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // reset input
+    event.target.value = '';
   };
 
   const handleConfigure = () => {
@@ -99,20 +95,13 @@ export default function CreateMockServiceModal({
     onClose();
   };
 
-  const getDelayMs = () => {
-    if (delayOption === 'none') return 0;
-    if (delayOption === '200') return 200;
-    if (delayOption === '300') return 300;
-    return Number(customDelayMs) || 0;
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
@@ -139,22 +128,23 @@ export default function CreateMockServiceModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Payment API Mock"
-              className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+              className="w-full  border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             />
           </div>
 
-          {/* Creation Type */}
+          {/* Creation Type - Icons above text */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Create from
             </label>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              {/* From Scratch */}
               <label
                 className={clsx(
-                  'flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all',
+                  'flex flex-col items-center justify-center gap-2 py-3 px-2 rounded-lg border cursor-pointer transition-all text-center',
                   creationType === 'scratch'
                     ? 'bg-primary/15 border-primary/40 text-primary'
-                    : 'bg-dark-900/40 border-dark-700 text-gray-300'
+                    : ' border-dark-700 text-gray-300 hover:bg-dark-800/60'
                 )}
               >
                 <input
@@ -164,14 +154,17 @@ export default function CreateMockServiceModal({
                   onChange={() => setCreationType('scratch')}
                   className="sr-only"
                 />
-                <span>From Scratch</span>
+                <Plus className="w-5 h-5" />
+                <span className="text-xs font-medium">From Scratch</span>
               </label>
+
+              {/* Existing Collection */}
               <label
                 className={clsx(
-                  'flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all',
+                  'flex flex-col items-center justify-center gap-2 py-3 px-2 rounded-lg border cursor-pointer transition-all text-center',
                   creationType === 'collection'
                     ? 'bg-primary/15 border-primary/40 text-primary'
-                    : 'bg-dark-900/40 border-dark-700 text-gray-300'
+                    : ' border-dark-700 text-gray-300 hover:bg-dark-800/60'
                 )}
               >
                 <input
@@ -181,14 +174,17 @@ export default function CreateMockServiceModal({
                   onChange={() => setCreationType('collection')}
                   className="sr-only"
                 />
-                <span>Existing Collection</span>
+                <FolderOpen className="w-5 h-5" />
+                <span className="text-xs font-medium">Collection</span>
               </label>
+
+              {/* Import JSON */}
               <label
                 className={clsx(
-                  'flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all',
+                  'flex flex-col items-center justify-center gap-2 py-3 px-2 rounded-lg border cursor-pointer transition-all text-center',
                   creationType === 'import'
                     ? 'bg-primary/15 border-primary/40 text-primary'
-                    : 'bg-dark-900/40 border-dark-700 text-gray-300'
+                    : ' border-dark-700 text-gray-300 hover:bg-dark-800/60'
                 )}
               >
                 <input
@@ -198,7 +194,8 @@ export default function CreateMockServiceModal({
                   onChange={() => setCreationType('import')}
                   className="sr-only"
                 />
-                <span>Import JSON</span>
+                <Upload className="w-5 h-5" />
+                <span className="text-xs font-medium">Import JSON</span>
               </label>
             </div>
           </div>
@@ -213,7 +210,7 @@ export default function CreateMockServiceModal({
                 <button
                   type="button"
                   onClick={() => setIsCollectionDropdownOpen(!isCollectionDropdownOpen)}
-                  className="w-full bg-dark-900 border border-dark-700 rounded-lg text-sm font-medium text-white py-2 px-3 flex items-center justify-between"
+                  className="w-full border border-dark-700 rounded-lg text-sm font-medium text-white py-2 px-3 flex items-center justify-between hover:bg-dark-800 transition-colors"
                 >
                   <span className="truncate">
                     {selectedCollectionId
@@ -232,7 +229,7 @@ export default function CreateMockServiceModal({
                           setIsCollectionDropdownOpen(false);
                         }}
                         className={clsx(
-                          'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
+                          'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-dark-700 transition-colors',
                           selectedCollectionId === col.id ? 'text-primary bg-primary/10' : 'text-gray-300'
                         )}
                       >
@@ -248,20 +245,22 @@ export default function CreateMockServiceModal({
             </div>
           )}
 
-          {/* Import File */}
+          {/* Import File - Improved upload button (no Postman reference) */}
           {creationType === 'import' && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Import Postman Collection <span className="text-red-400">*</span>
+                Import Collection JSON <span className="text-red-400">*</span>
               </label>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current.click()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dark-600 bg-dark-800 text-gray-400 hover:bg-dark-700"
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-dark-600  text-gray-300 hover:border-primary hover:bg-dark-800/50 hover:text-primary transition-all group"
                 >
-                  <Upload size={16} />
-                  Choose File
+                  <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium">
+                    {importFileName ? 'Change File' : 'Click to upload JSON file'}
+                  </span>
                 </button>
                 <input
                   ref={fileInputRef}
@@ -271,14 +270,27 @@ export default function CreateMockServiceModal({
                   className="hidden"
                 />
                 {importFileName && (
-                  <span className="text-sm text-primary truncate">{importFileName}</span>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/30 text-primary text-sm">
+                    <FileText className="w-4 h-4" />
+                    <span className="flex-1 truncate">{importFileName}</span>
+                    <button
+                      onClick={() => {
+                        setImportFileContent(null);
+                        setImportFileName('');
+                      }}
+                      className="p-1 hover:bg-primary/20 rounded"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 )}
+                <p className="text-xs text-gray-500">Supports standard API collection JSON format</p>
               </div>
             </div>
           )}
 
           {/* Private Toggle */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pt-2">
             <div>
               <div className="text-sm font-medium text-gray-200">Make this mock server private</div>
               <div className="text-xs text-gray-500">Only people with access can call this mock server</div>
@@ -290,7 +302,7 @@ export default function CreateMockServiceModal({
                 onChange={(e) => setIsPrivate(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-dark-700 rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+              <div className="w-11 h-6 rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
             </label>
           </div>
 
@@ -303,7 +315,7 @@ export default function CreateMockServiceModal({
               <select
                 value={delayOption}
                 onChange={(e) => setDelayOption(e.target.value)}
-                className="flex-1 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white"
+                className="flex-1 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
                 <option value="none">No delay</option>
                 <option value="200">200ms</option>
@@ -318,7 +330,7 @@ export default function CreateMockServiceModal({
                     step="50"
                     value={customDelayMs}
                     onChange={(e) => setCustomDelayMs(e.target.value)}
-                    className="w-20 bg-dark-900 border border-dark-700 rounded-lg px-2 py-2 text-sm text-white text-center"
+                    className="w-20  border border-dark-700 rounded-lg px-2 py-2 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <span className="text-sm text-gray-400">ms</span>
                 </div>
@@ -327,18 +339,18 @@ export default function CreateMockServiceModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700 ">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleConfigure}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors"
           >
             Configure
           </button>

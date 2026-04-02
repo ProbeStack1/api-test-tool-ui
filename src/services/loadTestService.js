@@ -10,7 +10,7 @@ import { loadTestApi } from '../lib/apiClient';
  * @returns {Promise<{ testId, status, startedAt, streamUrl }>}
  */
 export const startLoadTest = (config) =>
-  loadTestApi.post('/', {
+  loadTestApi.post('', {
     collectionPath:    config.collectionPath    ?? null,
     url:               config.url              ?? null,
     method:            config.method           ?? 'GET',
@@ -70,7 +70,9 @@ export const getLoadTestReport = (testId) =>
  * @returns {EventSource}        - caller must call es.close() on component unmount
  */
 export const openMetricsStream = (testId, onSnapshot, onDone) => {
-  const es = new EventSource(`/api/v1/load-tests/${testId}/stream`);
+   const base = loadTestApi.defaults.baseURL; 
+  const url = `${base}/${testId}/stream`;
+  const es = new EventSource(url);
 
   es.onmessage = (event) => {
     try {

@@ -215,3 +215,12 @@ export const listCollectionLoadTests = (collectionId) =>
  */
 export const listWorkspaceLoadTests = (workspaceId) =>
   collectionApi.get(`${COLLECTIONS_BASE}/loadtests`, { params: { workspaceId } });
+
+/**
+ * GET /api/v1/collections/{collectionId}/export
+ * Exports a collection as Postman JSON.
+ * @param {string} collectionId
+ * @returns {Promise<AxiosResponse<string>>} - the raw JSON string
+ */
+export const exportCollection = (collectionId) =>
+  collectionApi.get(`${COLLECTIONS_BASE}/${collectionId}/export`, { responseType: 'text' });

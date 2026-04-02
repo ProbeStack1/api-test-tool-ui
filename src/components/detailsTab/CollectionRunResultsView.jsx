@@ -10,7 +10,7 @@ function DetailSection({ title, sectionKey, requestId, expandedSections, setExpa
   }));
 
   return (
-    <div className="border border-dark-700 rounded-lg ">
+    <div className="border border-dark-700 rounded-lg">
       <div
         className="flex items-center gap-1 px-4 py-2 cursor-pointer hover:bg-dark-700/30 rounded-t-lg"
         onClick={toggle}
@@ -54,7 +54,7 @@ function formatResponseBody(data) {
   if (!data) return '';
   if (typeof data === 'string') {
     const trimmed = data.trim();
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
         (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       try {
         const parsed = JSON.parse(data);
@@ -78,6 +78,7 @@ export default function CollectionRunResultsView({ results, onClose }) {
 
   if (!results) return null;
 
+  // Destructure safely
   const {
     collectionName,
     source,
@@ -93,15 +94,25 @@ export default function CollectionRunResultsView({ results, onClose }) {
     passedAssertions = 0,
     failedAssertions = 0,
     errorMessage = null,
-    results: requestResults,
+    results: requestResults = [],
   } = results;
 
+  // Debug: log the structure if needed (uncomment to inspect)
+  // console.log('Request results sample:', requestResults[0]);
+
   const filteredResults = requestResults.filter(result => {
+    // Determine if request passed: prefer result.success, fallback to result.passed, or check status
+    const isPassed = result.success === true || result.passed === true ||
+      (result.status >= 200 && result.status < 300 && !result.error);
+    const isSkipped = result.skipped === true;
+    const isFailed = !isPassed && !isSkipped;
+    const hasError = !!result.error && !isSkipped;
+
     if (statusFilter === 'all') return true;
-    if (statusFilter === 'passed') return result.success === true && !result.skipped;
-    if (statusFilter === 'failed') return result.success === false && !result.skipped;
-    if (statusFilter === 'skipped') return result.skipped === true;
-    if (statusFilter === 'error') return result.error && !result.skipped;
+    if (statusFilter === 'passed') return isPassed;
+    if (statusFilter === 'failed') return isFailed;
+    if (statusFilter === 'skipped') return isSkipped;
+    if (statusFilter === 'error') return hasError;
     return true;
   });
 
@@ -213,7 +224,7 @@ export default function CollectionRunResultsView({ results, onClose }) {
                   {result.status > 0 ? (
                     <span className={clsx(
                       'text-xs font-bold px-2 py-1 rounded',
-                      result.success ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+                      (result.success === true || result.passed === true) ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
                     )}>
                       {result.status}
                     </span>

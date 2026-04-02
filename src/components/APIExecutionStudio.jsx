@@ -12,6 +12,7 @@ import clsx from 'clsx';
 import LoadTestResultsView from './detailsTab/LoadTestResultsView';
 import LoadTestRunningView from './detailsTab/LoadTestRunningView';
 import VariableHighlightInput from '../components/VariableHighlightInput';
+import MockServerEditor from './detailsTab/MockServerEditor';
 
 function getTabLabel(request) {
   if (request.type === 'workspace-details') {
@@ -130,12 +131,16 @@ onRunCollectionWithOrder,
   globalValues,
   onLoadTestComplete,
   onBodyTypeChange,
+  onCreateMockServer,
+  onUpdateMockServer,
+  onFetchRequestHistory,
+  onFetchMockEndpointHistory,
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
   const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(true);
-  const [bodyType, setBodyType] = useState('raw'); // none | form-data | x-www-form-urlencoded | raw
-  const [rawBodyFormat, setRawBodyFormat] = useState('json'); // json, text, etc.
+  const [bodyType, setBodyType] = useState('raw');
+  const [rawBodyFormat, setRawBodyFormat] = useState('json');
   const [editingTabIndex, setEditingTabIndex] = useState(null);
   const [editingTabName, setEditingTabName] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -147,10 +152,30 @@ onRunCollectionWithOrder,
   const [expandedLogSections, setExpandedLogSections] = useState({});
   const [logDetails, setLogDetails] = useState({});
   const [loadingLogDetails, setLoadingLogDetails] = useState({});
-const syncSource = useRef(null);
+  const [requestHistory, setRequestHistory] = useState([]); 
+  const [mockRequestHistory, setMockRequestHistory] = useState([]);
+  const syncSource = useRef(null);
+  const tabsContainerRef = useRef(null);
+  const [bodyJsonError, setBodyJsonError] = useState('');
 
-const tabsContainerRef = useRef(null);
-
+const validateRequestBodyJson = (value) => {
+  if (rawBodyFormat !== 'json') {
+    setBodyJsonError('');
+    return true;
+  }
+  if (!value.trim()) {
+    setBodyJsonError('');
+    return true;
+  }
+  try {
+    JSON.parse(value);
+    setBodyJsonError('');
+    return true;
+  } catch (e) {
+    setBodyJsonError('Invalid JSON format');
+    return false;
+  }
+};
 
   // Scroll active tab into view when active index or tab count changes
   useEffect(() => {
@@ -162,33 +187,34 @@ const tabsContainerRef = useRef(null);
     }
   }, [activeRequestIndex, requests.length]);
 
-// Group executionHistory by date for logs tab
-const groupedLogs = useMemo(() => {
-  const groups = {};
-  if (!executionHistory) return groups;
-
-  executionHistory.forEach(item => {
-    const date = new Date(item.date);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    let groupKey;
-    if (date.toDateString() === today.toDateString()) {
-      groupKey = 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      groupKey = 'Yesterday';
-    } else {
-      groupKey = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-    if (!groups[groupKey]) groups[groupKey] = [];
-    groups[groupKey].push(item);
-  });
-  return groups;
-}, [executionHistory]);
-
 const fetchLogDetails = async (historyId) => {
-  console.log('fetchLogDetails called for', historyId);
+  // console.log('fetchLogDetails called for', historyId);
+  if (isMockEndpoint) {
+    // For mock endpoints, details are already stored in logDetails from the initial load
+    if (logDetails[historyId]) return;
+    // If not found, try to find in mockRequestHistory and store
+    const found = mockRequestHistory.find(item => item.historyId === historyId);
+    if (found) {
+      const details = {
+        request_body: found.requestBody,
+        response_body: found.responseBody,
+        request_headers: found.requestHeaders,
+        response_headers: found.responseHeaders,
+        method: found.method,
+        url: found.url,
+        status_code: found.status,
+        status_text: found.status >= 400 ? 'Error' : 'OK',
+        response_time_ms: found.time,
+        response_size_bytes: found.size,
+      };
+      setLogDetails(prev => ({ ...prev, [historyId]: details }));
+    } else {
+      toast.error('Mock log details not available');
+    }
+    return;
+  }
+
+  // Regular request history
   if (!onFetchHistoryEntry) {
     toast.error('History fetch function not available');
     return;
@@ -197,7 +223,7 @@ const fetchLogDetails = async (historyId) => {
   setLoadingLogDetails(prev => ({ ...prev, [historyId]: true }));
   try {
     const response = await onFetchHistoryEntry(historyId);
-    console.log('fetchLogDetails response', response);
+    // console.log('fetchLogDetails response', response);
     setLogDetails(prev => ({ ...prev, [historyId]: response.data }));
   } catch (error) {
     console.error('fetchLogDetails error', error);
@@ -295,7 +321,7 @@ const handleSendClick = () => {
     onExecute();
 };
 
-      const currentReq = requests[activeRequestIndex];
+const currentReq = requests[activeRequestIndex];
       const effectiveResponse = currentReq?.response || response;
   const isWorkspaceDetails = currentReq?.type === 'workspace-details';
   const isCollectionRun = currentReq?.type === 'collection-run';
@@ -304,7 +330,210 @@ const handleSendClick = () => {
   const isCollectionRunResults = currentReq?.type === 'collection-run-results'; 
   const isLoadTestResults = currentReq?.type === 'load-test-results'; 
   const isLoadTestRunning = currentReq?.type === 'load-test-running';
+  const isMockEditor = currentReq?.type === 'mock-editor';
 
+// ----- GROUPED LOGS (must be after isMockEndpoint) -----
+const historyToUse = isMockEndpoint ? mockRequestHistory : requestHistory;
+const groupedLogs = useMemo(() => {
+  const groups = {};
+  if (!historyToUse) return groups;
+  historyToUse.forEach(item => {
+    const date = new Date(item.date);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    let groupKey;
+    if (date.toDateString() === today.toDateString()) {
+      groupKey = 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      groupKey = 'Yesterday';
+    } else {
+      groupKey = date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(item);
+  });
+  return groups;
+}, [historyToUse]);
+
+// ----- LOAD MOCK HISTORY (initial load) -----
+useEffect(() => {
+  // console.log('[MockHistory] Loading, isMockEndpoint:', isMockEndpoint);
+  if (!isMockEndpoint) {
+    setMockRequestHistory([]);
+    return;
+  }
+  const endpointId = currentReq?.mockEndpoint?.id || currentReq?.mockEndpointId;
+  // console.log('[MockHistory] endpointId:', endpointId);
+  if (endpointId && onFetchMockEndpointHistory) {
+    onFetchMockEndpointHistory(endpointId)
+      .then(res => {
+        let items = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        const normalized = items.map(item => ({
+          historyId: item.id,
+          date: item.timestamp,
+          method: item.method,
+          url: item.path,
+          status: item.responseStatus,
+          time: item.responseTimeMs,
+          size: 0,
+          error: item.responseStatus >= 400,
+          requestBody: item.requestBody,
+          responseBody: item.responseBody,
+          requestHeaders: item.requestHeaders,
+          responseHeaders: item.responseHeaders,
+        }));
+        setMockRequestHistory(normalized);
+        // Store full details for each history entry
+        const detailsMap = {};
+        normalized.forEach(item => {
+          detailsMap[item.historyId] = {
+            request_body: item.requestBody,
+            response_body: item.responseBody,
+            request_headers: item.requestHeaders,
+            response_headers: item.responseHeaders,
+            method: item.method,
+            url: item.url,
+            status_code: item.status,
+            status_text: item.status >= 400 ? 'Error' : 'OK',
+            response_time_ms: item.time,
+            response_size_bytes: item.size,
+          };
+        });
+        setLogDetails(prev => ({ ...prev, ...detailsMap }));
+      })
+      .catch(err => {
+        console.error('[MockHistory] Fetch failed:', err);
+        setMockRequestHistory([]);
+      });
+  } else {
+    console.warn('[MockHistory] Missing endpointId or onFetchMockEndpointHistory');
+    setMockRequestHistory([]);
+  }
+}, [isMockEndpoint, currentReq?.mockEndpoint?.id, currentReq?.mockEndpointId, onFetchMockEndpointHistory]);
+
+// ----- LOAD REQUEST HISTORY (must be after currentReq) -----
+useEffect(() => {
+  const requestId = currentReq?.id;
+  if (!requestId) {
+    setRequestHistory([]);
+    return;
+  }
+  const isSaved = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId);
+  if (isSaved && onFetchRequestHistory) {
+    onFetchRequestHistory(requestId)
+      .then(res => {
+        let rawData = res.data || res;
+        let items = [];
+        if (rawData && typeof rawData === 'object' && Array.isArray(rawData.data)) {
+          items = rawData.data;
+        } else if (Array.isArray(rawData)) {
+          items = rawData;
+        }
+        const normalized = items.map(item => ({
+          historyId: item.history_id,
+          date: item.executed_at,
+          method: item.method,
+          url: item.url,
+          status: item.status_code,
+          time: item.response_time_ms,
+          size: item.response_size_bytes,
+          error: !!item.error_message,
+          ...item
+        }));
+        setRequestHistory(normalized);
+      })
+      .catch(err => {
+        console.error('Failed to fetch request history:', err);
+        setRequestHistory([]);
+      });
+  } else {
+    setRequestHistory([]);
+  }
+}, [currentReq?.id, onFetchRequestHistory]);
+
+// ----- AUTO‑REFRESH REQUEST HISTORY AFTER EXECUTION -----
+const prevIsLoadingRef = useRef(isLoading);
+useEffect(() => {
+  if (prevIsLoadingRef.current === true && isLoading === false) {
+    const requestId = currentReq?.id;
+    const isSaved = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId);
+    if (isSaved && onFetchRequestHistory) {
+      onFetchRequestHistory(requestId)
+        .then(res => {
+          let rawData = res.data || res;
+          let items = [];
+          if (rawData && typeof rawData === 'object' && Array.isArray(rawData.data)) {
+            items = rawData.data;
+          } else if (Array.isArray(rawData)) {
+            items = rawData;
+          }
+          const normalized = items.map(item => ({
+            historyId: item.history_id,
+            date: item.executed_at,
+            method: item.method,
+            url: item.url,
+            status: item.status_code,
+            time: item.response_time_ms,
+            size: item.response_size_bytes,
+            error: !!item.error_message,
+            ...item
+          }));
+          setRequestHistory(normalized);
+        })
+        .catch(err => console.error('Failed to refresh request history:', err));
+    }
+  }
+  prevIsLoadingRef.current = isLoading;
+}, [isLoading, currentReq?.id, onFetchRequestHistory]);
+
+// ----- AUTO‑REFRESH MOCK HISTORY AFTER EXECUTION -----
+const prevMockIsLoadingRef = useRef(isLoading);
+useEffect(() => {
+  if (prevMockIsLoadingRef.current === true && isLoading === false && isMockEndpoint) {
+    const endpointId = currentReq?.mockEndpoint?.id;
+    if (endpointId && onFetchMockEndpointHistory) {
+      onFetchMockEndpointHistory(endpointId)
+        .then(res => {
+          let items = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+          const normalized = items.map(item => ({
+            historyId: item.id,
+            date: item.timestamp,
+            method: item.method,
+            url: item.path,
+            status: item.responseStatus,
+            time: item.responseTimeMs,
+            size: 0,
+            error: item.responseStatus >= 400,
+            requestBody: item.requestBody,
+            responseBody: item.responseBody,
+            requestHeaders: item.requestHeaders,
+            responseHeaders: item.responseHeaders,
+          }));
+          setMockRequestHistory(normalized);
+          // Update logDetails with new entries
+          const detailsMap = {};
+          normalized.forEach(item => {
+            detailsMap[item.historyId] = {
+              request_body: item.requestBody,
+              response_body: item.responseBody,
+              request_headers: item.requestHeaders,
+              response_headers: item.responseHeaders,
+              method: item.method,
+              url: item.url,
+              status_code: item.status,
+              status_text: item.status >= 400 ? 'Error' : 'OK',
+              response_time_ms: item.time,
+              response_size_bytes: item.size,
+            };
+          });
+          setLogDetails(prev => ({ ...prev, ...detailsMap }));
+        })
+        .catch(err => console.error('Failed to refresh mock history:', err));
+    }
+  }
+  prevMockIsLoadingRef.current = isLoading;
+}, [isLoading, isMockEndpoint, currentReq?.mockEndpoint?.id, onFetchMockEndpointHistory]);
 
   useEffect(() => {
   const reqBodyType = currentReq?.bodyType;
@@ -705,7 +934,19 @@ function HistoryDetailsView({ details, onClose }) {
     onNewTab(newTab);
   }}
 />
-) : (
+) :
+ isMockEditor ? (
+   <MockServerEditor
+    config={currentReq.mockConfig}
+    mockServer={currentReq.mockServer}
+    isEdit={currentReq.isEdit}
+    onSave={onCreateMockServer}
+    onUpdate={onUpdateMockServer}
+    onClose={() => onCloseTab(activeRequestIndex)}
+    collections={collections}
+    activeWorkspaceId={activeWorkspaceId}
+   />
+ ) : (
         <>
           {/* Postman-style: Request line — Method + URL + Send */}
           <div className="px-5 py-3 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
@@ -887,7 +1128,11 @@ function HistoryDetailsView({ details, onClose }) {
                         </div>
 <VariableHighlightInput
   value={body}
-  onChange={onBodyChange}
+    onChange={(val) => {
+    onBodyChange(val);
+    validateRequestBodyJson(val); // optional real-time
+  }}
+  onBlur={() => validateRequestBodyJson(body)}
   placeholder={rawBodyFormat === 'json' ? '{\n  "key": "value"\n}' : 'Enter request body...'}
   multiline
   activeEnvVars={activeEnvVars}
@@ -899,6 +1144,12 @@ function HistoryDetailsView({ details, onClose }) {
   className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
   inputClassName="h-full" 
 />
+  {bodyJsonError && (
+  <div className="text-red-400 text-xs mt-1 flex items-center gap-1">
+    <AlertCircle className="w-3 h-3" />
+    {bodyJsonError}
+  </div>
+)}
                       </div>
                     ) : bodyType === 'none' ? (
                       <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
@@ -977,7 +1228,7 @@ function HistoryDetailsView({ details, onClose }) {
     </div> {/* closes the inner flex-col div */}
 
     {/* Bottom Panel & Save Modal – only for request tabs */}
-    {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults &&  (
+    {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults && !isMockEditor && (
       <>
         <ResizableBottomPanel
           defaultHeight={380}
@@ -1168,13 +1419,13 @@ function HistoryDetailsView({ details, onClose }) {
 
 {bottomPanelTab === 'logs' && (
   <div className="space-y-4">
-    {executionHistory && executionHistory.length > 0 ? (
+    {historyToUse && historyToUse.length > 0 ? (
       Object.entries(groupedLogs).map(([groupLabel, items]) => (
         <div key={groupLabel}>
           {/* Group header */}
-          <div className="sticky top-0 bg-probestack-bg py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-dark-700">
-            {groupLabel}
-          </div>
+<div className="sticky top-0 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+  <span className="border-b border-dark-700 pb-0.5">{groupLabel}</span>
+</div>
           {/* Items in group */}
           <div className="space-y-2 mt-2">
             {items.map((item) => {
@@ -1268,7 +1519,7 @@ function HistoryDetailsView({ details, onClose }) {
                             setExpandedSections={setExpandedLogSections}
                           >
                             {fullDetails.request_body ? (
-                              <pre className="text-xs text-gray-300 font-mono bg-dark-900/60 p-2 rounded overflow-auto max-h-40">
+                              <pre className="text-xs text-gray-300 font-mono p-2 rounded overflow-auto max-h-40">
                                 {formatResponseBody(fullDetails.request_body)}
                               </pre>
                             ) : (
@@ -1298,7 +1549,7 @@ function HistoryDetailsView({ details, onClose }) {
                             setExpandedSections={setExpandedLogSections}
                           >
                             {fullDetails.response_body ? (
-                              <pre className="text-xs text-gray-300 font-mono bg-dark-900/60 p-2 rounded overflow-auto max-h-40">
+                              <pre className="text-xs text-gray-300 font-mono p-2 rounded overflow-auto max-h-40">
                                 {formatResponseBody(fullDetails.response_body)}
                               </pre>
                             ) : (
@@ -1543,7 +1794,7 @@ function HistoryDetailsView({ details, onClose }) {
                         setExpandedSections={setExpandedRunSections}
                       >
                         {result.fullDetails.request_body ? (
-                          <pre className="text-xs text-gray-300 font-mono bg-dark-900/60 p-2 rounded overflow-auto max-h-40">
+                          <pre className="text-xs text-gray-300 font-mono p-2 rounded overflow-auto max-h-40">
                             {formatResponseBody(result.fullDetails.request_body)}
                           </pre>
                         ) : (
@@ -1575,7 +1826,7 @@ function HistoryDetailsView({ details, onClose }) {
                         setExpandedSections={setExpandedRunSections}
                       >
                         {result.fullDetails.response_body ? (
-                          <pre className="text-xs text-gray-300 font-mono bg-dark-900/60 p-2 rounded overflow-auto max-h-40">
+                          <pre className="text-xs text-gray-300 font-mono p-2 rounded overflow-auto max-h-40">
                             {formatResponseBody(result.fullDetails.response_body)}
                           </pre>
                         ) : (

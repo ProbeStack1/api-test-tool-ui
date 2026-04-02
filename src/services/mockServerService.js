@@ -121,66 +121,91 @@ export const deleteEndpoint = (endpointId) =>
 
 /**
  * Execute an HTTP request against a mock server endpoint.
- * These endpoints are publicly accessible via the mock's URL.
  * 
  * @param {string} method - HTTP method (GET, POST, PUT, DELETE, PATCH)
- * @param {string} mockUrl - The mock server's unique URL identifier (e.g., subdomain or slug)
- * @param {string} path - The endpoint path (may include slashes)
+ * @param {string} fullUrl - The full URL including the mock base and path
  * @param {Object} [data] - Request body (for POST, PUT, PATCH)
  * @param {Object} [headers] - Optional headers to send
  */
-const executeMockRequest = (method, mockUrl, path, data = null, headers = {}) => {
-  // Combine mockUrl and path, ensuring no double slashes
-  const fullPath = `${BASE}/${mockUrl}/${path}`.replace(/([^:]\/)\/+/g, '$1');
+const executeMockRequest = (method, fullUrl, data = null, headers = {}) => {
   const config = { headers };
-
   switch (method.toUpperCase()) {
     case 'GET':
-      return mockserverApi.get(fullPath, config);
+      return mockserverApi.get(fullUrl, config);
     case 'POST':
-      return mockserverApi.post(fullPath, data, config);
+      return mockserverApi.post(fullUrl, data, config);
     case 'PUT':
-      return mockserverApi.put(fullPath, data, config);
+      return mockserverApi.put(fullUrl, data, config);
     case 'DELETE':
-      return mockserverApi.delete(fullPath, config);
+      return mockserverApi.delete(fullUrl, config);
     case 'PATCH':
-      return mockserverApi.patch(fullPath, data, config);
+      return mockserverApi.patch(fullUrl, data, config);
     default:
       throw new Error(`Unsupported HTTP method: ${method}`);
   }
 };
 
+
+
+
+
+
+
+
+
 /**
  * POST /api/v1/mocks/{mockUrl}/{path}
  * Execute a POST request on a mock endpoint
  */
-export const executePostOnMock = (mockUrl, path, data, headers) =>
-  executeMockRequest('POST', mockUrl, path, data, headers);
+export const executePostOnMock = (fullUrl, data, headers) =>
+  executeMockRequest('POST', fullUrl, data, headers);
 
 /**
  * GET /api/v1/mocks/{mockUrl}/{path}
  * Execute a GET request on a mock endpoint
  */
-export const executeGetOnMock = (mockUrl, path, headers) =>
-  executeMockRequest('GET', mockUrl, path, null, headers);
-
+export const executeGetOnMock = (fullUrl, headers) =>
+  executeMockRequest('GET', fullUrl, null, headers);
 /**
  * PUT /api/v1/mocks/{mockUrl}/{path}
  * Execute a PUT request on a mock endpoint
  */
-export const executePutOnMock = (mockUrl, path, data, headers) =>
-  executeMockRequest('PUT', mockUrl, path, data, headers);
+export const executePutOnMock = (fullUrl, data, headers) =>
+  executeMockRequest('PUT', fullUrl, data, headers);
 
 /**
  * DELETE /api/v1/mocks/{mockUrl}/{path}
  * Execute a DELETE request on a mock endpoint
  */
-export const executeDeleteOnMock = (mockUrl, path, headers) =>
-  executeMockRequest('DELETE', mockUrl, path, null, headers);
+
+export const executeDeleteOnMock = (fullUrl, headers) =>
+  executeMockRequest('DELETE', fullUrl, null, headers);
 
 /**
  * PATCH /api/v1/mocks/{mockUrl}/{path}
  * Execute a PATCH request on a mock endpoint
  */
-export const executePatchOnMock = (mockUrl, path, data, headers) =>
-  executeMockRequest('PATCH', mockUrl, path, data, headers);
+export const executePatchOnMock = (fullUrl, data, headers) =>
+  executeMockRequest('PATCH', fullUrl, data, headers);
+
+
+/**
+ * GET /api/v1/mocks/executions/latest?requestId={requestId}
+ * Fetch latest execution result for a request
+ */
+export const getLatestExecution = (requestId) =>
+  mockserverApi.get(`${BASE}/executions/latest`, {
+    params: { requestId }
+  });
+
+  /**
+ * GET /api/v1/mocks/endpoints/{endpointId}/logs
+ * Fetch execution history for a specific mock endpoint
+ * @param {string} endpointId - UUID of the mock endpoint
+ * @param {number} limit - Max results (default 50)
+ * @param {number} offset - Pagination offset
+ */
+export const getMockEndpointHistory = (endpointId, limit = 500, offset = 0) => {
+  const query = new URLSearchParams({ limit, offset }).toString();
+  return mockserverApi.get(`${BASE}/endpoints/${endpointId}/logs?${query}`);
+};

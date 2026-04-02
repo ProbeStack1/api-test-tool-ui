@@ -3,11 +3,12 @@ import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info  } from 'lucide-react';
 import clsx from 'clsx';
+import { USER_ID } from '././lib/apiClient';
 import { executeScript } from './utils/scriptExecutor';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
-import { fetchCollections, normalizeCollection, fetchFolders, normalizeFolder, createCollection, listCollectionRuns } from './services/collectionService';
+import { fetchCollections, normalizeCollection, fetchFolders, normalizeFolder, createCollection, listCollectionRuns,listWorkspaceLoadTests  } from './services/collectionService';
 import { startFunctionalRun, pollRunUntilDone, getRunHistoryDetail, listRunHistory } from './services/functionalTestService';
-import { startLoadTest as startLoadTestApi, getLoadTestReport } from './services/loadTestService';
+import { startLoadTest as startLoadTestApi, getLoadTestReport, listLoadTestHistory } from './services/loadTestService';
 import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
 import {
   listEnvironments,
@@ -29,6 +30,7 @@ import {
   executePutOnMock,
   executeDeleteOnMock,
   executePatchOnMock,
+  updateEndpoint,
   createEndpoint,
   getEndpoints,
 } from './services/mockServerService'; ;
@@ -64,7 +66,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
-const currentUserId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
+const currentUserId = USER_ID;
   const [environmentVariablesDirty, setEnvironmentVariablesDirty] = useState(false);
   const [globalEnvironment, setGlobalEnvironment] = useState(null);
 const [globalVariablesDirty, setGlobalVariablesDirty] = useState(false);
@@ -313,7 +315,7 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
   setLoadTestResults(null);
 
     const environmentOverrides = getEnvironmentOverrides();
-
+  // console.log('[loadTest] handleRunLoadTest called with collectionId:', collectionId, 'config:', config);
   const loadConfig = {
     concurrency: config.concurrency,
     durationSeconds: config.durationSeconds,
@@ -325,9 +327,10 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
     maxErrorRatePct: config.maxErrorRatePct,
     maxP99LatencyMs: config.maxP99LatencyMs,
     maxAvgLatencyMs: config.maxAvgLatencyMs,
+    collectionPathOverride: config.collectionPathOverride,
     // environmentOverrides,
   };
-  console.log("loadtest",loadConfig);
+  //  console.log('[loadTest] Sending to startLoadTestApi:', loadConfig);
   
 
   const runningTab = {
@@ -358,6 +361,7 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
       // Use override path (from upload) if set, otherwise use collectionId (workspace path)
       collectionPath: loadConfig.collectionPathOverride ?? collectionId,
     });
+    // console.log('[loadTest] startLoadTestApi response:', response.data);
     const realId = response.data?.testId ?? response.data;
 
     // Update the running tab with the real ID
@@ -388,6 +392,7 @@ if (configTabIndex >= 0 && configTabIndex < requests.length) {
     setIsRunningLoadTest(false);
 
   } catch (error) {
+     console.error('[loadTest] startLoadTestApi error:', error.response?.data || error.message);
     toast.error(`Failed to start load test: ${error.message}`);
     if (configTabIndex >= 0 && configTabIndex < requests.length) {
       handleCloseTab(configTabIndex);
@@ -457,12 +462,13 @@ const handleRunCollectionWithOrder = async (collectionId, selected, options, tab
     const finalData = await pollRunUntilDone(runId, 2000);
 
     // Normalise to the shape expected by CollectionRunResultsView
-    const runData = {
-      ...finalData,
-      status: finalData.status === 'DONE' ? 'completed' : 'failed',
-      collectionId,
-      ...(finalData.result || {}),
-    };
+const runData = {
+  ...finalData,
+  status: finalData.status === 'DONE' ? 'completed' : 'failed',
+  collectionId,
+  iterations: options.iterations ?? 1,
+  ...(finalData.result || {}),
+};
 
     handleOpenCollectionRunResults(runData, collectionId, tabIndex);
     setIsRunningCollection(false);
@@ -511,11 +517,14 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     ? Math.round(runData.totalTimeMs / runData.totalRequests) 
     : 0;
 
+  // Use runData.requests (functional test) or fallback to runData.results (collection run)
+  const sourceResults = runData.requests || runData.results || [];
+
   const mappedResults = {
     collectionName: runData.collectionName || collection?.name || 'Collection',
     source: runData.source || 'manual',
     environment: runData.options?.environment ? 'provided' : 'No Environment',
-    iterations: runData.options?.iterations || 1,
+    iterations: runData.iterations ?? runData.options?.iterations ?? 1,
     duration: runData.totalTimeMs,
     totalRequests: runData.totalRequests,
     passed: runData.passedRequests,
@@ -527,13 +536,13 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     passedAssertions: runData.passedAssertions ?? 0,
     failedAssertions: runData.failedAssertions ?? 0,
     errorMessage: runData.errorMessage ?? null,
-    results: (runData.results || []).map(r => ({
-      requestId: r.requestId,
-      requestName: r.itemName ?? r.requestName,
+    results: sourceResults.map((r, idx) => ({
+      requestId: r.requestId || `req-${idx}`,
+      requestName: r.itemName ?? r.requestName ?? r.name,
       method: r.method,
       url: r.url,
       status: r.statusCode,
-      statusText: r.statusText,
+      statusText: r.statusText || '',
       time: r.responseTimeMs,
       size: r.responseSizeBytes,
       success: r.passed,
@@ -617,14 +626,17 @@ const handleCreateMockServer = async (mockData) => {
   // Step 2: Create endpoints
   const createdEndpoints = [];
   for (const ep of endpoints) {
-    const endpointPayload = {
-      method: ep.method,
-      path: ep.path,
-      responseStatus: ep.statusCode,
-      responseBody: ep.responseBody,
-      responseHeaders: {}, // optional, can be added later
-      delayMs: delay,
-    };
+const endpointPayload = {
+  method: ep.method,
+  path: ep.path,
+  responseStatus: ep.statusCode,
+  responseBody: ep.responseBody,
+  responseHeaders: {},
+  delayMs: delay,
+  requestBodySample: ep.requestBodySample,   // ✅ add this
+  validationMode: ep.validationMode,          // ✅ add this
+  validateMethod: ep.validateMethod !== false, // ✅ add this (default true)
+};
     try {
       const epResponse = await createEndpoint(newMock.id, endpointPayload);
       createdEndpoints.push(epResponse.data);
@@ -676,56 +688,66 @@ const handleToggleVisibility = async (mockId) => {
 const handleExecuteMockRequest = async (mockServer, endpoint, requestOverrides = {}) => {
   try {
     const { mockUrl } = mockServer;
-    const { method, path } = endpoint;
-    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    let fullUrl = requestOverrides.url;
+    if (!fullUrl) {
+      const { path } = endpoint;
+      const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+      fullUrl = `/api/v1/mocks/${mockUrl}/${cleanPath}`;
+    } else {
+      if (!fullUrl.startsWith('/api/v1/mocks/')) {
+        fullUrl = `/api/v1/mocks/${mockUrl}${fullUrl.startsWith('/') ? fullUrl : '/' + fullUrl}`;
+      }
+    }
+    const method = requestOverrides.method || endpoint.method;
     const headers = requestOverrides.headers || {};
     const body = requestOverrides.body || null;
 
     let response;
     switch (method.toUpperCase()) {
       case 'GET':
-        response = await executeGetOnMock(mockUrl, cleanPath, headers);
+        response = await executeGetOnMock(fullUrl, headers);
         break;
       case 'POST':
-        response = await executePostOnMock(mockUrl, cleanPath, body, headers);
+        response = await executePostOnMock(fullUrl, body, headers);
         break;
       case 'PUT':
-        response = await executePutOnMock(mockUrl, cleanPath, body, headers);
+        response = await executePutOnMock(fullUrl, body, headers);
         break;
       case 'DELETE':
-        response = await executeDeleteOnMock(mockUrl, cleanPath, headers);
+        response = await executeDeleteOnMock(fullUrl, headers);
         break;
       case 'PATCH':
-        response = await executePatchOnMock(mockUrl, cleanPath, body, headers);
+        response = await executePatchOnMock(fullUrl, body, headers);
         break;
       default:
         throw new Error(`Unsupported method: ${method}`);
     }
+
+    // Return the stored delay (from database) as the response time
+    const delayMs = endpoint.delayMs || 0;
+
     return {
       status: response.status,
       statusText: response.statusText,
       data: response.data,
       headers: response.headers,
-      time: response.duration || 0,
+      time: delayMs,   // ✅ use stored delay instead of measured time
     };
   } catch (error) {
-    // If the error contains a response (axios error with a non‑2xx status),
-    // treat it as the intended mock response.
     if (error.response) {
       return {
         status: error.response.status,
         statusText: error.response.statusText,
         data: error.response.data,
         headers: error.response.headers,
-        time: 0, // Optionally compute duration if you have a start timestamp
+        time: 0,
       };
     }
-    // Otherwise, re‑throw the error (network failure, etc.)
     throw error;
   }
 };
 
-const handleUpdateMockServer = async (mockId, updatedData, newEndpoints) => {
+const handleUpdateMockServer = async (mockId, updatedData, endpoints) => {
   try {
     // Update mock server metadata
     const { name, visibility, delay } = updatedData;
@@ -735,29 +757,43 @@ const handleUpdateMockServer = async (mockId, updatedData, newEndpoints) => {
       delayMs: delay,
     });
 
-    // Create new endpoints
-    const createdEndpoints = [];
-    for (const ep of newEndpoints) {
+    // Process each endpoint: update existing, create new
+    const updatedEndpoints = [];
+    for (const ep of endpoints) {
       const endpointPayload = {
         method: ep.method,
-        path: ep.path,
+        path: ep.path.startsWith('/') ? ep.path : `/${ep.path}`,
         responseStatus: ep.statusCode,
-        responseBody: ep.responseBody,
+        responseBody: ep.responseBody || '{}',
         responseHeaders: {},
-        delayMs: delay,
+        delayMs: ep.delayMs || 0,
+        requestBodySample: ep.requestBodySample,
+        validationMode: ep.validationMode,
+        validateMethod: ep.validateMethod !== false,
       };
-      const epResponse = await createEndpoint(mockId, endpointPayload);
-      createdEndpoints.push(epResponse.data);
+
+      // Check if it's an existing endpoint (UUID) or a new one (number)
+      const isExisting = typeof ep.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ep.id);
+      if (isExisting) {
+        // Update existing endpoint
+        const epResponse = await updateEndpoint(ep.id, endpointPayload);
+        updatedEndpoints.push(epResponse.data);
+      } else {
+        // Create new endpoint
+        const epResponse = await createEndpoint(mockId, endpointPayload);
+        updatedEndpoints.push(epResponse.data);
+      }
     }
 
-    // Update local state
+    // Update local state: replace the mock server's endpoints with the new ones
     setMockServers(prev => prev.map(mock =>
       mock.id === mockId
-        ? { ...mock, name, isPrivate: visibility === 'private', delayMs: delay, endpoints: [...mock.endpoints, ...createdEndpoints] }
+        ? { ...mock, name, isPrivate: visibility === 'private', delayMs: delay, endpoints: updatedEndpoints }
         : mock
     ));
     toast.success('Mock server updated');
   } catch (error) {
+    console.error('Update failed:', error);
     toast.error('Update failed');
   }
 };
@@ -904,24 +940,23 @@ const fetchAllRuns = useCallback(async () => {
 useEffect(() => {
   fetchAllRuns();
 }, [activeWorkspaceId, fetchAllRuns]);
-// Fetch load test runs for the active workspace
+// Fetch load test runs from the load test service (global history)
 useEffect(() => {
-  if (!activeWorkspaceId) return;
-
   const fetchLoadTestRuns = async () => {
     setLoadingLoadRuns(true);
     try {
-      const response = await listWorkspaceLoadTests(activeWorkspaceId);
-      setLoadTestRuns(response.data || []);
+      const response = await listLoadTestHistory(0, 100); // get up to 100 recent runs
+      const runs = Array.isArray(response.data) ? response.data : (response.data?.content ?? []);
+      runs.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+      setLoadTestRuns(runs);
     } catch (err) {
       console.error('Failed to fetch load test runs:', err);
     } finally {
       setLoadingLoadRuns(false);
     }
   };
-
   fetchLoadTestRuns();
-}, [activeWorkspaceId]);
+}, []); // runs once on mount
 
  
 const [activeRequestIndex, setActiveRequestIndex] = useState(0);
@@ -1108,7 +1143,7 @@ const [isRunningLoadTest, setIsRunningLoadTest] = useState(false);
 // Guard to ensure initial fetch runs only once
 // Load Workspaces + Collections + Folders + Requests from Backend on Mount
 useEffect(() => {
-  const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
+  const userId = USER_ID;
   if (!userId || hasFetchedRef.current) return;
 
   hasFetchedRef.current = true;
@@ -1361,6 +1396,7 @@ const handleEnvironmentChange = (envId) => {
 const handleSelectMockEndpoint = (mockServer, endpoint) => {
   const endpointRequest = {
     id: `mock-endpoint-${endpoint.id}`,
+    mockEndpointId: endpoint.id,  
     name: `${mockServer.name} - ${endpoint.method} ${endpoint.path}`,
     method: endpoint.method,
     url: `/api/v1/mocks/${mockServer.mockUrl}${endpoint.path}`,
@@ -1369,7 +1405,7 @@ const handleSelectMockEndpoint = (mockServer, endpoint) => {
     isMockEndpoint: true,
     queryParams: [],
     headers: [],
-    body: '',
+    body: endpoint.requestBodySample || '',
     authType: 'none',
     authData: {},
     preRequestScript: '',
@@ -1475,8 +1511,18 @@ if (currentReq.preRequestScript) {
 
   // ----- Mock endpoint handling -----
   if (currentReq.isMockEndpoint) {
+    
+    //  console.log('Executing mock endpoint - method:', currentReq.method, 'url:', currentReq.url, 'body:', currentReq.body);
     try {
-      const res = await handleExecuteMockRequest(currentReq.mockServer, currentReq.mockEndpoint);
+   const res = await handleExecuteMockRequest(
+      currentReq.mockServer,
+      currentReq.mockEndpoint,
+      {
+        method: currentReq.method,   // use tab's method
+        body: currentReq.body,       // use tab's body
+        url: currentReq.url,         // use tab's full URL
+      }
+    );
       // Apply fallback for empty error bodies
       if (res.status >= 400) {
         const isBodyEmpty = 
@@ -1661,16 +1707,18 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
   if (endpoint.id) {
     const existingTabIndex = requests.findIndex((req) => req.id === endpoint.id);
     if (existingTabIndex !== -1) {
-      // Update existing tab
+      // ✅ Merge: keep existing custom fields (like mockEndpointId, mockServer, etc.)
       setRequests((prev) => {
         const next = [...prev];
-        next[existingTabIndex] = endpoint;
+        const existing = next[existingTabIndex];
+        next[existingTabIndex] = { ...existing, ...endpoint };
         return next;
       });
       setActiveRequestIndex(existingTabIndex);
+      // Also update pristine copy (optional but good)
       setPristineRequests((prev) => ({
         ...prev,
-        [endpoint.id]: JSON.parse(JSON.stringify(endpoint)),
+        [endpoint.id]: JSON.parse(JSON.stringify({ ...requests[existingTabIndex], ...endpoint })),
       }));
     } else {
       // Add as new tab
@@ -2144,7 +2192,7 @@ const handleAddProject = (workspaceData) => {
     setCollections((prev) => [...prev, parsedCollection]);
   }
 
-  const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
+  const userId = USER_ID;
   if (!userId) {
     // Offline mode: set active immediately
     setActiveWorkspaceId(tempId);
@@ -2971,7 +3019,10 @@ useEffect(() => {
                 onUrlChange={(v) => updateActiveRequest('url', v)}
                 onQueryParamsChange={(v) => updateActiveRequest('queryParams', v)}
                 onHeadersChange={(v) => updateActiveRequest('headers', v)}
-                onBodyChange={(v) => updateActiveRequest('body', v)}
+                  onBodyChange={(v) => {
+    // console.log('📝 onBodyChange called with:', v);
+    updateActiveRequest('body', v);
+  }}
                 onAuthTypeChange={(v) => updateActiveRequest('authType', v)}
                 onAuthDataChange={(v) => updateActiveRequest('authData', v)}
                 onPreRequestScriptChange={(v) => updateActiveRequest('preRequestScript', v)}
@@ -3038,7 +3089,8 @@ onShowChatbot={handleShowChatbot}
   loadingLoadRuns={loadingLoadRuns}
   onLoadTestComplete={handleLoadTestComplete}
    onViewRunResults={handleViewFunctionalRunResults} 
-   onBodyTypeChange={(v) => updateActiveRequest('bodyType', v)}
+   onBodyTypeChange={(v) => 
+    updateActiveRequest('bodyType', v)}
               />
             }
           />

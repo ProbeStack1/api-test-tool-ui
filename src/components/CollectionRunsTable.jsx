@@ -12,11 +12,11 @@ const columnDefinitions = [
   { key: 'iterations', label: 'Iterations' },
   { key: 'totalRequests', label: 'Total' },
   { key: 'passedFailed', label: 'Passed/Failed' },
-  { key: 'skipped', label: 'Skipped' },
+  // { key: 'skipped', label: 'Skipped' }, // Commented out
   { key: 'errors', label: 'Errors' },
   { key: 'totalTime', label: 'Total Time' },
   { key: 'avgTime', label: 'Avg Time' },
-  { key: 'triggeredBy', label: 'Triggered By' },
+  // { key: 'triggeredBy', label: 'Triggered By' }, // Commented out
 ];
 
 export default function CollectionRunsTable({ runs = [], onViewDetails }) {
@@ -40,11 +40,11 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
       iterations: true,
       totalRequests: false,
       passedFailed: true,
-      skipped: true,
+      // skipped: true, // Commented out
       errors: false,
       totalTime: true,
       avgTime: true,
-      triggeredBy: false,
+      // triggeredBy: false, // Commented out
     };
   });
 
@@ -133,7 +133,7 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
             <div>Total: {run.totalRequests || 0}</div>
             <div>Passed: {run.passedRequests || 0}</div>
             <div>Failed: {run.failedRequests || 0}</div>
-            <div>Skipped: {run.skippedRequests || 0}</div>
+            {/* <div>Skipped: {run.skippedRequests || 0}</div> */}
             {run.totalAssertions > 0 && (
               <>
                 <div>Total Assertions: {run.totalAssertions}</div>
@@ -153,8 +153,8 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
             <div>Pass Rate: {passRate}%</div>
           </div>
         );
-      case 'skipped':
-        return <div>Skipped: {run.skippedRequests || 0}</div>;
+      // case 'skipped':
+      //   return <div>Skipped: {run.skippedRequests || 0}</div>;
       case 'errors':
         const errors = (run.results || []).filter(r => !r.passed && r.error);
         if (errors.length === 0) return <div>No errors</div>;
@@ -177,21 +177,21 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
       case 'avgTime':
         const avg = run.totalRequests > 0 ? (run.totalTimeMs / run.totalRequests).toFixed(1) : 0;
         return <div>Avg Time per Request: {avg}ms</div>;
-      case 'triggeredBy':
-        const user = run.triggeredByUser;
-        if (user) {
-          return (
-            <div className="space-y-1">
-              <div><span className="font-medium">Username:</span> {user.username}</div>
-              <div><span className="font-medium">Full Name:</span> {user.fullName}</div>
-              <div><span className="font-medium">Email:</span> {user.email}</div>
-            </div>
-          );
-        }
-        const triggeredByStr = typeof run.triggeredBy === 'string'
-          ? run.triggeredBy
-          : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
-        return <div>Triggered By: {triggeredByStr}</div>;
+      // case 'triggeredBy':
+      //   const user = run.triggeredByUser;
+      //   if (user) {
+      //     return (
+      //       <div className="space-y-1">
+      //         <div><span className="font-medium">Username:</span> {user.username}</div>
+      //         <div><span className="font-medium">Full Name:</span> {user.fullName}</div>
+      //         <div><span className="font-medium">Email:</span> {user.email}</div>
+      //       </div>
+      //     );
+      //   }
+      //   const triggeredByStr = typeof run.triggeredBy === 'string'
+      //     ? run.triggeredBy
+      //     : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
+      //   return <div>Triggered By: {triggeredByStr}</div>;
       default:
         return null;
     }
@@ -265,11 +265,11 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                 {visibleColumns.iterations && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Iterations</th>}
                 {visibleColumns.totalRequests && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Total</th>}
                 {visibleColumns.passedFailed && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Passed/Failed</th>}
-                {visibleColumns.skipped && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Skipped</th>}
+                {/* {visibleColumns.skipped && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Skipped</th>} */}
                 {visibleColumns.errors && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Errors</th>}
                 {visibleColumns.totalTime && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Total Time</th>}
                 {visibleColumns.avgTime && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Avg Time</th>}
-                {visibleColumns.triggeredBy && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Triggered By</th>}
+                {/* {visibleColumns.triggeredBy && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Triggered By</th>} */}
                 <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -299,15 +299,16 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                   ? run.source
                   : (run.source ? JSON.stringify(run.source) : 'manual');
                 
-                let triggeredByDisplay = '-';
-                if (run.triggeredByUser?.fullName) {
-                  triggeredByDisplay = run.triggeredByUser.fullName;
-                } else if (typeof run.triggeredBy === 'string') {
-                  triggeredByDisplay = run.triggeredBy.length > 8 ? run.triggeredBy.slice(0, 8) + '…' : run.triggeredBy;
-                } else if (run.triggeredBy) {
-                  const str = JSON.stringify(run.triggeredBy);
-                  triggeredByDisplay = str.length > 8 ? str.slice(0, 8) + '…' : str;
-                }
+                // Triggered By display is not used because column is hidden, but kept for completeness
+                // let triggeredByDisplay = '-';
+                // if (run.triggeredByUser?.fullName) {
+                //   triggeredByDisplay = run.triggeredByUser.fullName;
+                // } else if (typeof run.triggeredBy === 'string') {
+                //   triggeredByDisplay = run.triggeredBy.length > 8 ? run.triggeredBy.slice(0, 8) + '…' : run.triggeredBy;
+                // } else if (run.triggeredBy) {
+                //   const str = JSON.stringify(run.triggeredBy);
+                //   triggeredByDisplay = str.length > 8 ? str.slice(0, 8) + '…' : str;
+                // }
 
                 return (
                   <tr key={run.runId} className="hover:bg-dark-800/30">
@@ -361,14 +362,14 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                         <span className="text-red-400">{run.failedRequests}</span>
                       </td>
                     )}
-                    {visibleColumns.skipped && (
+                    {/* {visibleColumns.skipped && (
                       <td
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('skipped')}
                       >
                         {run.skippedRequests}
                       </td>
-                    )}
+                    )} */}
                     {visibleColumns.errors && (
                       <td
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
@@ -393,14 +394,14 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                         {run.totalRequests > 0 ? `${Math.round(run.totalTimeMs / run.totalRequests)}ms` : '-'}
                       </td>
                     )}
-                    {visibleColumns.triggeredBy && (
+                    {/* {visibleColumns.triggeredBy && (
                       <td
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('triggeredBy')}
                       >
                         <span>{triggeredByDisplay}</span>
                       </td>
-                    )}
+                    )} */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <button
                         onClick={() => onViewDetails(run)}

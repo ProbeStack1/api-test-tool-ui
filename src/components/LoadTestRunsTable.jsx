@@ -87,8 +87,9 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
 
   // Helper to generate tooltip content for a given column and run
   const getTooltipContent = (colKey, run) => {
-    const result = run.result || {};
-    const config = run.config || {};
+    // Extract data from both old nested shape and new flat shape
+    const result = run.result ?? run;
+    const config = run.config ?? {};
 
     switch (colKey) {
       case 'startedAt':
@@ -102,71 +103,89 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
       case 'virtualUsers':
         return (
           <div>
-            Virtual Users: {config.concurrency || 0}
-            {config.rampUpSeconds > 0 && <div>Ramp-up: {config.rampUpSeconds}s</div>}
+            Virtual Users: {config.concurrency ?? run.concurrency ?? 0}
+            {(config.rampUpSeconds ?? run.rampUpSeconds ?? 0) > 0 && 
+              <div>Ramp-up: {config.rampUpSeconds ?? run.rampUpSeconds}s</div>}
           </div>
         );
       case 'duration':
         return (
           <div>
-            Duration: {config.durationSeconds || 0}s
-            {config.totalRequests > 0 && <div>Request limit: {config.totalRequests}</div>}
+            Duration: {config.durationSeconds ?? run.durationSeconds ?? 0}s
+            {(config.totalRequests ?? run.totalRequests ?? -1) > 0 && 
+              <div>Request limit: {config.totalRequests ?? run.totalRequests}</div>}
           </div>
         );
       case 'totalRequests':
         return (
           <div>
-            Total: {result.totalRequests || 0}
-            <div>Successful: {result.successfulRequests || 0}</div>
-            <div>Failed: {result.failedRequests || 0}</div>
-            {result.networkErrors > 0 && <div>Network Errors: {result.networkErrors}</div>}
-            {result.timeoutErrors > 0 && <div>Timeout Errors: {result.timeoutErrors}</div>}
+            Total: {result.totalRequests ?? 0}
+            <div>Successful: {result.successfulRequests ?? 0}</div>
+            <div>Failed: {result.failedRequests ?? 0}</div>
+            {(result.networkErrors ?? 0) > 0 && <div>Network Errors: {result.networkErrors}</div>}
+            {(result.timeoutErrors ?? 0) > 0 && <div>Timeout Errors: {result.timeoutErrors}</div>}
           </div>
         );
       case 'avgRps':
+        const rps = result.actualRps ?? run.actualRps;
+        const successRps = result.successRps ?? run.successRps;
         return (
           <div>
-            Avg RPS: {result.actualRps ? result.actualRps.toFixed(2) : '-'}
-            {result.successRps && <div>Success RPS: {result.successRps.toFixed(2)}</div>}
+            Avg RPS: {rps ? rps.toFixed(2) : '-'}
+            {successRps && <div>Success RPS: {successRps.toFixed(2)}</div>}
           </div>
         );
       case 'avgLatency':
+        const avg = result.avgLatencyMs ?? run.avgLatencyMs;
+        // const min = result.minLatencyMs ?? run.minLatencyMs;
+        // const max = result.maxLatencyMs ?? run.maxLatencyMs;
+        // const std = result.stdDevLatencyMs ?? run.stdDevLatencyMs;
         return (
           <div>
-            Avg: {result.avgLatencyMs ? Math.round(result.avgLatencyMs) + 'ms' : '-'}
-            <div>Min: {result.minLatencyMs ? result.minLatencyMs + 'ms' : '-'}</div>
-            <div>Max: {result.maxLatencyMs ? result.maxLatencyMs + 'ms' : '-'}</div>
-            <div>Std Dev: {result.stdDevLatencyMs ? result.stdDevLatencyMs.toFixed(1) + 'ms' : '-'}</div>
+            Avg: {avg ? Math.round(avg) + 'ms' : '-'}
+            {/* <div>Min: {min ? min + 'ms' : '-'}</div>
+            <div>Max: {max ? max + 'ms' : '-'}</div>
+            <div>Std Dev: {std ? std.toFixed(1) + 'ms' : '-'}</div> */}
           </div>
         );
       case 'p99Latency':
-        const p = result.percentiles || {};
+        const p = result.percentiles ?? {};
+        // Also check top-level p99Ms (used in history items)
+        const p99 = result.p99Ms ?? run.p99Ms ?? p.p99;
+        const p50 = result.p50Ms ?? run.p50Ms ?? p.p50;
+        const p90 = result.p90Ms ?? run.p90Ms ?? p.p90;
+        const p95 = result.p95Ms ?? run.p95Ms ?? p.p95;
+        const p99_9 = result.p99_9Ms ?? run.p99_9Ms ?? p.p99_9;
         return (
           <div>
-            p50: {p.p50 ? p.p50 + 'ms' : '-'}
-            <div>p90: {p.p90 ? p.p90 + 'ms' : '-'}</div>
-            <div>p95: {p.p95 ? p.p95 + 'ms' : '-'}</div>
-            <div>p99: {p.p99 ? p.p99 + 'ms' : '-'}</div>
-            <div>p99.9: {p.p99_9 ? p.p99_9 + 'ms' : '-'}</div>
+            {/* p50: {p50 ? p50 + 'ms' : '-'} */}
+            {/* <div>p90: {p90 ? p90 + 'ms' : '-'}</div> */}
+            {/* <div>p95: {p95 ? p95 + 'ms' : '-'}</div> */}
+            <div>p99: {p99 ? p99 + 'ms' : '-'}</div>
+            {/* <div>p99.9: {p99_9 ? p99_9 + 'ms' : '-'}</div> */}
           </div>
         );
       case 'passedFailed':
+        const passed = result.successfulRequests ?? run.successfulRequests ?? 0;
+        const failed = result.failedRequests ?? run.failedRequests ?? 0;
+        const total = result.totalRequests ?? run.totalRequests ?? 0;
         return (
           <div>
-            Passed: {result.successfulRequests || 0}
-            <div>Failed: {result.failedRequests || 0}</div>
-            {result.totalRequests > 0 && (
-              <div>Pass Rate: {((result.successfulRequests / result.totalRequests) * 100).toFixed(1)}%</div>
+            Passed: {passed}
+            <div>Failed: {failed}</div>
+            {total > 0 && (
+              <div>Pass Rate: {((passed / total) * 100).toFixed(1)}%</div>
             )}
           </div>
         );
       case 'errorRate':
-        const errorCount = result.failedRequests || 0;
-        const total = result.totalRequests || 0;
-        const errorTypes = result.errorTypes || {};
+        const errorCount = result.failedRequests ?? run.failedRequests ?? 0;
+        const totalReqs = result.totalRequests ?? run.totalRequests ?? 0;
+        const errorTypes = result.errorTypes ?? run.errorTypes ?? {};
+        const rate = totalReqs > 0 ? ((errorCount / totalReqs) * 100).toFixed(2) : (result.errorRatePct ?? run.errorRatePct);
         return (
           <div>
-            Error Rate: {total > 0 ? ((errorCount / total) * 100).toFixed(2) + '%' : '-'}
+            Error Rate: {rate !== undefined ? rate + '%' : '-'}
             {Object.keys(errorTypes).length > 0 && (
               <div className="mt-1">
                 <div className="font-medium">Errors by type:</div>
@@ -188,7 +207,6 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
             </div>
           );
         }
-        // If run.triggeredBy is an object, convert to string; else use as is
         const triggeredByStr = typeof run.triggeredBy === 'string'
           ? run.triggeredBy
           : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
@@ -210,7 +228,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
 
   return (
     <div className="bg-dark-800/40 border border-dark-700 rounded-xl overflow-hidden">
-      {/* Header (unchanged) */}
+      {/* Header */}
       <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">Load Test Runs</h3>
         <div className="relative" ref={columnVisibilityRef}>
@@ -271,21 +289,24 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
                 {visibleColumns.errorRate && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Error %</th>}
                 {visibleColumns.triggeredBy && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Triggered By</th>}
                 <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Actions</th>
-               </tr>
+              </tr>
             </thead>
             <tbody className="divide-y divide-dark-700">
               {paginatedRuns.map((run) => {
-                // Normalise: supports both old nested shape {result:{}, config:{}} and new flat LoadTestHistoryItem
+                // Extract data from both old nested shape and new flat shape
                 const result = run.result ?? run;
                 const config = run.config ?? {};
+
+                // Use top-level fields if available, else fallback to nested
+                const concurrency = config.concurrency ?? run.concurrency ?? 0;
                 const durationSec = config.durationSeconds ?? run.durationSeconds ?? 0;
-                const avgRps = result.actualRps ? result.actualRps.toFixed(1) : '-';
-                const avgLatency = result.avgLatencyMs ? Math.round(result.avgLatencyMs) + 'ms' : '-';
-                const p99 = result.p99Ms ?? result.percentiles?.['p99'];
+                const avgRps = result.actualRps ? result.actualRps.toFixed(1) : (run.actualRps ? run.actualRps.toFixed(1) : '-');
+                const avgLatency = result.avgLatencyMs ? Math.round(result.avgLatencyMs) + 'ms' : (run.avgLatencyMs ? Math.round(run.avgLatencyMs) + 'ms' : '-');
+                const p99 = result.p99Ms ?? run.p99Ms ?? result.percentiles?.['p99'];
                 const p99Display = p99 != null ? p99 + 'ms' : '-';
                 const errorRate = result.totalRequests
                   ? ((result.failedRequests / result.totalRequests) * 100).toFixed(1) + '%'
-                  : (result.errorRatePct != null ? result.errorRatePct.toFixed(1) + '%' : '-');
+                  : (result.errorRatePct != null ? result.errorRatePct.toFixed(1) + '%' : (run.errorRatePct != null ? run.errorRatePct.toFixed(1) + '%' : '-'));
 
                 const createTooltipHandler = (colKey) => ({
                   onMouseEnter: (e) => {
@@ -322,7 +343,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('virtualUsers')}
                       >
-                        {config.concurrency || '-'}
+                        {concurrency}
                       </td>
                     )}
                     {visibleColumns.duration && (
@@ -338,7 +359,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('totalRequests')}
                       >
-                        {result.totalRequests || 0}
+                        {result.totalRequests ?? 0}
                       </td>
                     )}
                     {visibleColumns.avgRps && (
@@ -370,9 +391,9 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
                         className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
                         {...createTooltipHandler('passedFailed')}
                       >
-                        <span className="text-green-400">{result.successfulRequests || 0}</span>
+                        <span className="text-green-400">{result.successfulRequests ?? 0}</span>
                         <span className="text-gray-500 mx-1">/</span>
-                        <span className="text-red-400">{result.failedRequests || 0}</span>
+                        <span className="text-red-400">{result.failedRequests ?? 0}</span>
                       </td>
                     )}
                     {visibleColumns.errorRate && (
@@ -418,7 +439,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
         <div className="p-12 text-center text-gray-500 italic">No columns selected.</div>
       )}
 
-      {/* Pagination (unchanged) */}
+      {/* Pagination */}
       <div className="px-4 py-3 border-t border-dark-700 flex items-center justify-between">
         <p className="text-xs text-gray-500">
           Showing {paginatedRuns.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, runs.length)} of {runs.length}

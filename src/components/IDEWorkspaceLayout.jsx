@@ -6,7 +6,6 @@ import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
 import CollectionsPanel from './CollectionsPanel';
-import SaveRequestModal from './modals/SaveRequestModal';
 import VariablesEditor from './VariablesEditor';
 import DashboardSpecTable from './DashboardSpecTable';
 import GenerateTestCase from './GenerateTestCase';
@@ -15,23 +14,16 @@ import clsx from 'clsx';
 import EnvironmentList from './sidebar/EnvironmentList';
 import EnvironmentDropdown from './sidebar/EnvironmentDropdown';
 import CreateMockServiceModal from '../components/modals/CreateMockServiceModal';
-import { runMockServer } from '../services/mockServerService';
-import { listCollectionRuns } from '../services/collectionService';
+import { runMockServer,getMockEndpointHistory } from '../services/mockServerService';
+import { listCollectionRuns,exportCollection  } from '../services/collectionService';
 import {listTestFiles,uploadTestFile,deleteTestFile,} from '../services/testFileService';
 import { listTestSpecs } from '../services/testSpecificationService';
 import { listLibraryItems ,updateLibraryItem, deleteLibraryItem } from '../services/specLibraryService';
 import { uploadCollection as uploadFunctionalCollection } from '../services/functionalTestService';
 import { uploadCollection as uploadLoadCollection } from '../services/loadTestService';
 import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
-import CollectionRunsTable from './CollectionRunsTable';
-import LoadTestRunningView from './detailsTab/LoadTestRunningView';
-import LoadTestResultsView from './detailsTab/LoadTestResultsView';
-import {
-  listWorkspaceLoadTests, 
-} from '../services/collectionService';
+import { fetchRequestHistory } from '../services/requestService';
 import { toast } from 'sonner';
-import LoadTestRunsTable from './LoadTestRunsTable';
-import RequestHistoryList from './RequestHistoryList';
 
 export default function IDEWorkspaceLayout({
   history,
@@ -146,15 +138,41 @@ const [loadingSpecs, setLoadingSpecs] = useState(false);
 const [loadingLibrary, setLoadingLibrary] = useState(false);
 const [fileSelectionContext, setFileSelectionContext] = useState({ context: null, selectedFile: null });
 const [selectedHistoryType, setSelectedHistoryType] = useState('request');
+const [isPreparingCollection, setIsPreparingCollection] = useState(false);
+const [isPreparingLoadCollection, setIsPreparingLoadCollection] = useState(false);
+
+const handleOpenMockEditor = (config) => {
+  const newTab = {
+    id: `mock-editor-${Date.now()}`,
+    type: 'mock-editor',
+    name: `Mock: ${config.name}`,
+    mockConfig: config,
+  };
+  onNewTab(newTab);
+};
+
+const handleOpenMockEditorForExisting = (mockServer) => {
+  // Check if a tab with this mock server already exists
+  const existingTabIndex = requests.findIndex(tab => tab.type === 'mock-editor' && tab.mockServer?.id === mockServer.id);
+  if (existingTabIndex !== -1) {
+    onTabSelect(existingTabIndex);
+    return;
+  }
+
+  const newTab = {
+    id: `mock-editor-${mockServer.id}`,
+    type: 'mock-editor',
+    name: `Mock: ${mockServer.name}`,
+    mockServer: mockServer,
+    isEdit: true,
+  };
+  onNewTab(newTab);
+};
 
 const handleViewLoadTestResults = (run) => {
-  // console.log('🔍 handleViewLoadTestResults called with run:', run);
-
-  // Get the ID – fallback to run.id if run.loadTestId is missing
-  const loadTestId = run.loadTestId || run.id;
+  const loadTestId = run.testId || run.loadTestId || run.id;
   if (!loadTestId) {
-    // console.error('No load test ID found in run:', run);
-    // toast.error('Cannot open results: missing load test ID');
+    toast.error('Cannot open results please try again later');
     return;
   }
 
@@ -165,8 +183,6 @@ const handleViewLoadTestResults = (run) => {
   if (existingTabIndex !== -1) {
     // Already exists – switch to it
     onTabSelect(existingTabIndex);
-    // Navigate to collections to show the tab
-    navigate('/workspace/collections');
     return;
   }
 
@@ -174,12 +190,11 @@ const handleViewLoadTestResults = (run) => {
   const resultsTab = {
     id: `load-test-results-${loadTestId}-${Date.now()}`,
     type: 'load-test-results',
-    name: `Load Test Results: ${run.collectionName || 'Load Test'}`,
+    name: `Load Test Results: ${run.collectionName || run.testName || 'Load Test'}`,
     loadTestId: loadTestId,
   };
   onNewTab(resultsTab);
-  // After adding the tab, navigate to collections to show the APIExecutionStudio
-  navigate('/workspace/collections');
+  // The tab is automatically activated by onNewTab, so no extra action needed.
 };
 
 
@@ -667,6 +682,145 @@ useEffect(() => {
     }, 500); // 500ms per iteration for visual effect
   };
 
+  const runFunctionalTest = async () => {
+  if (functionalCollectionSource === 'workspace') {
+    if (!selectedTestCollectionId) {
+      toast.error('Please select a collection');
+      return;
+    }
+
+    setIsPreparingCollection(true);
+    try {
+      // 1. Export the collection
+      const exportRes = await exportCollection(selectedTestCollectionId);
+      const postmanJson = exportRes.data; // raw JSON string
+
+      // 2. Create a File object from the JSON
+      const file = new File([postmanJson], 'exported_collection.json', {
+        type: 'application/json',
+      });
+
+      // 3. Upload to functional test service
+      const uploadRes = await uploadFunctionalCollection(file);
+      const collectionPath = uploadRes.data.collectionPath;
+
+      // 4. Prepare options with the uploaded path
+      const options = {
+        type: 'functional',
+        collectionPathOverride: collectionPath,
+        iterations: functionalIterations,
+        delay: functionalDelay,
+        dataFile: functionalSelectedFile,
+        timeoutMs: functionalTimeoutMs,
+        bail: functionalBail,
+        insecure: functionalInsecure,
+        folderFilter: functionalFolder || null,
+        environmentPath: functionalEnvironmentPath || null,
+      };
+
+      // 5. Run the test
+      onRunCollectionWithOrder(null, [], options, -1);
+    } catch (err) {
+      console.error('Failed to prepare workspace collection:', err);
+      toast.error('Failed to prepare collection: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsPreparingCollection(false);
+    }
+  } else if (functionalCollectionSource === 'upload') {
+    if (!functionalCollectionPath) {
+      toast.error('Please upload a collection file first');
+      return;
+    }
+
+    const options = {
+      type: 'functional',
+      collectionPathOverride: functionalCollectionPath,
+      iterations: functionalIterations,
+      delay: functionalDelay,
+      dataFile: functionalSelectedFile,
+      timeoutMs: functionalTimeoutMs,
+      bail: functionalBail,
+      insecure: functionalInsecure,
+      folderFilter: functionalFolder || null,
+      environmentPath: functionalEnvironmentPath || null,
+    };
+    onRunCollectionWithOrder(null, [], options, -1);
+  }
+};
+
+const runLoadTest = async () => {
+  if (loadCollectionSource === 'workspace') {
+    if (!selectedTestCollectionId) {
+      toast.error('Please select a collection');
+      return;
+    }
+
+    setIsPreparingLoadCollection(true);
+    try {
+      // 1. Export the collection
+      const exportRes = await exportCollection(selectedTestCollectionId);
+      // console.log('[loadTest] Export response:', exportRes.data); 
+      const postmanJson = exportRes.data;
+// console.log('[loadTest] Exported JSON length:', postmanJson?.length);
+      // 2. Create a File object
+      const file = new File([postmanJson], 'exported_collection.json', {
+        type: 'application/json',
+      });
+
+      // 3. Upload to load test service
+      const uploadRes = await uploadLoadCollection(file);
+      // console.log('[loadTest] Upload response:', uploadRes.data); 
+      const collectionPath = uploadRes.data.collectionPath;
+
+      // 4. Build load test options using the uploaded path
+      const options = {
+        type: 'load',
+        collectionPathOverride: collectionPath,
+        virtualUsers: loadVirtualUsers,
+        duration: loadDuration,
+        durationUnit: loadDurationUnit,
+        rampUp: loadRampUpSeconds,
+        targetRps: loadTargetRps,
+        thinkTimeMs: loadThinkTimeMs,
+        timeoutMs: loadTimeoutMs,
+        maxErrorRatePct: loadMaxErrorRatePct,
+        maxP99LatencyMs: loadMaxP99LatencyMs,
+        maxAvgLatencyMs: loadMaxAvgLatencyMs,
+      };
+
+      // console.log('[loadTest] Starting with options:', options);
+      // 5. Run the test
+      onRunCollectionWithOrder(null, [], options, -1);
+    } catch (err) {
+      console.error('[loadTest] Error:', err);
+      console.error('Failed to prepare workspace collection for load test:', err);
+      toast.error('Failed to prepare collection: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsPreparingLoadCollection(false);
+    }
+  } else if (loadCollectionSource === 'upload') {
+    if (!loadCollectionPath) {
+      toast.error('Please upload a collection file first');
+      return;
+    }
+
+    const options = {
+      type: 'load',
+      collectionPathOverride: loadCollectionPath,
+      virtualUsers: loadVirtualUsers,
+      duration: loadDuration,
+      durationUnit: loadDurationUnit,
+      rampUp: loadRampUpSeconds,
+      targetRps: loadTargetRps,
+      thinkTimeMs: loadThinkTimeMs,
+      timeoutMs: loadTimeoutMs,
+      maxErrorRatePct: loadMaxErrorRatePct,
+      maxP99LatencyMs: loadMaxP99LatencyMs,
+      maxAvgLatencyMs: loadMaxAvgLatencyMs,
+    };
+    onRunCollectionWithOrder(null, [], options, -1);
+  }
+};
 
   const loadHistoryItem = (item) => {
     onUrlChange(item.url);
@@ -929,7 +1083,6 @@ const getLoadTooltipContent = (run) => {
   const result = run.result || {};
   const config = run.config || {};
 
-  // Determine triggered by name (full name, then username)
   let triggeredByName = 'Unknown';
   if (run.triggeredByUser?.fullName) {
     triggeredByName = run.triggeredByUser.fullName;
@@ -939,15 +1092,12 @@ const getLoadTooltipContent = (run) => {
 
   return (
     <div className="space-y-1 max-w-xs">
-      {/* Started date/time */}
       <div className="text-xs text-gray-400">
         {run.startedAt ? new Date(run.startedAt).toLocaleString() : '-'}
       </div>
-      {/* Virtual Users & Duration */}
       <div className="text-xs text-gray-400">
-        VUsers: {config.concurrency || '-'} • Duration: {config.durationSeconds || '-'}s
+        VUsers: {config.concurrency ?? run.concurrency ?? '-'} • Duration: {config.durationSeconds ?? run.durationSeconds ?? '-'}s
       </div>
-      {/* Triggered by */}
       <div className="text-xs text-gray-400">
         Triggered by: {triggeredByName}
       </div>
@@ -1079,9 +1229,9 @@ function HistoryItemList({
       className="flex-1 min-w-0 pr-0"
       onClick={() => onItemClick(item)}
     >
-      <div className="text-xs text-gray-300 truncate">
-        {item.url || item.collectionName || item.name || 'Untitled'}
-      </div>
+<div className="text-xs text-gray-300 truncate">
+  {item.url || item.collectionName || item.name || item.testName || 'Untitled'}
+</div>
       <div className="flex justify-between text-[10px] mt-0.5">
         <span className={clsx(
           'font-mono text-[10px] font-bold',
@@ -1547,18 +1697,17 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
           <Edit3 className="w-4 h-4" />
           Rename
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedMockRequest(mockMenu.mock);
-            setShowCreateMockServiceModal(true);
-            setMockMenu(null);
-          }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Edit / Add endpoints
-        </button>
+<button
+  type="button"
+  onClick={() => {
+    handleOpenMockEditorForExisting(mockMenu.mock);
+    setMockMenu(null);
+  }}
+  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+>
+  <Plus className="w-4 h-4" />
+  Edit / Add endpoints
+</button>
         <button
           type="button"
           onClick={() => {
@@ -1633,6 +1782,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
         {/* Center + Right: Request builder and Execution Insights side by side */}
         <section className="flex-1 flex min-h-0 overflow-hidden min-w-0">
           <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
+            
             {topMenuActive === 'environments' ? (
               <VariablesEditor
                 pairs={variablesScope === 'environment-scope' ? environmentVariables : globalVariables}
@@ -1860,36 +2010,17 @@ topMenuActive === 'testing' ? (
               </div>
             </details>
 
-            <button
-              type="button"
-              onClick={async () => {
-                const resolvedCollectionPath = functionalCollectionSource === 'upload' ? functionalCollectionPath : null;
-                if (functionalCollectionSource === 'workspace' && !selectedTestCollectionId) {
-                  toast.error('Please select a collection');
-                  return;
-                }
-                if (functionalCollectionSource === 'upload' && !functionalCollectionPath) {
-                  toast.error('Please upload a collection file first');
-                  return;
-                }
-                const options = {
-                  type: 'functional',
-                  collectionPathOverride: resolvedCollectionPath,
-                  iterations: functionalIterations,
-                  delay: functionalDelay,
-                  testFile: functionalSelectedFile,
-                  timeoutMs: functionalTimeoutMs,
-                  bail: functionalBail,
-                  insecure: functionalInsecure,
-                  folderFilter: functionalFolder || null,
-                  environmentPath: functionalEnvironmentPath || null,
-                };
-                onRunCollectionWithOrder(selectedTestCollectionId, [], options, -1);
-              }}
-              className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm"
-            >
-              Run Functional Test
-            </button>
+<button
+  type="button"
+  onClick={runFunctionalTest}
+  disabled={isPreparingCollection}
+  className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {isPreparingCollection ? (
+    <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+  ) : null}
+  Run Functional Test
+</button>
           </div>
       </div>
     )}
@@ -2151,38 +2282,17 @@ topMenuActive === 'testing' ? (
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={async () => {
-                const resolvedCollectionPath = loadCollectionSource === 'upload' ? loadCollectionPath : null;
-                if (loadCollectionSource === 'workspace' && !selectedTestCollectionId) {
-                  toast.error('Please select a collection');
-                  return;
-                }
-                if (loadCollectionSource === 'upload' && !loadCollectionPath) {
-                  toast.error('Please upload a collection file first');
-                  return;
-                }
-                const options = {
-                  type: 'load',
-                  collectionPathOverride: resolvedCollectionPath,
-                  virtualUsers: loadVirtualUsers,
-                  duration: loadDuration,
-                  durationUnit: loadDurationUnit,
-                  rampUp: loadRampUpSeconds,
-                  targetRps: loadTargetRps,
-                  thinkTimeMs: loadThinkTimeMs,
-                  timeoutMs: loadTimeoutMs,
-                  maxErrorRatePct: loadMaxErrorRatePct,
-                  maxP99LatencyMs: loadMaxP99LatencyMs,
-                  maxAvgLatencyMs: loadMaxAvgLatencyMs,
-                };
-                onRunCollectionWithOrder(selectedTestCollectionId, [], options, -1);
-              }}
-              className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm"
-            >
-              Run performance test
-            </button>
+<button
+  type="button"
+  onClick={runLoadTest}
+  disabled={isPreparingLoadCollection}
+  className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {isPreparingLoadCollection ? (
+    <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+  ) : null}
+  Run performance test
+</button>
           </div>
       </div>
     )}
@@ -2258,6 +2368,7 @@ topMenuActive === 'testing' ? (
     workspaceRuns={workspaceRuns}
     loadingRuns={loadingRuns}
     onViewRunResults={onViewRunResults}
+    onViewLoadTestRun={handleViewLoadTestResults} 
   />
             ) :
 
@@ -2325,6 +2436,10 @@ topMenuActive === 'testing' ? (
     globalValues={globalValues}
     onLoadTestComplete={onLoadTestComplete}
      onBodyTypeChange={onBodyTypeChange}
+     onCreateMockServer={onCreateMockServer}
+     onUpdateMockServer={onUpdateMockServer}
+     onFetchRequestHistory={fetchRequestHistory} 
+     onFetchMockEndpointHistory={getMockEndpointHistory}
               />
             )}
           </div>
@@ -2669,8 +2784,9 @@ topMenuActive === 'testing' ? (
 <CreateMockServiceModal
   onClose={() => {
     setShowCreateMockServiceModal(false);
-    setSelectedMockRequest(null); // ← Add this line
+    setSelectedMockRequest(null);
   }}
+  onConfigure={handleOpenMockEditor}
   onCreateMockServer={onCreateMockServer} 
   onUpdateMockServer={onUpdateMockServer} 
   mockServer={selectedMockRequest} 

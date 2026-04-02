@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import {
   Plus, Upload, X, Edit2, Trash2,
@@ -14,6 +14,7 @@ import {
   deleteTestSpec,
   generateTestCases,
   listTestCases,
+  getTestSpec,                        // <-- NEW import
 } from '../services/testSpecificationService';
 import { listLibraryItems } from '../services/specLibraryService';
 
@@ -307,11 +308,23 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
 
   const activeSpec = useMemo(() => specs.find(s => s.id === activeSpecId) || null, [specs, activeSpecId]);
 
-  // ── Sync editor content with active spec ─────────────────────────────────────
+  // ─── NEW: Fetch full spec when content is missing ────────────────────────────
+  useEffect(() => {
+    const spec = specs.find(s => s.id === activeSpecId);
+    if (spec && !spec.content) {
+      getTestSpec(activeSpecId)
+        .then(fullSpec => {
+          setSpecs(prev => prev.map(s => s.id === activeSpecId ? fullSpec : s));
+        })
+        .catch(() => toast.error('Failed to load test spec content'));
+    }
+  }, [activeSpecId, specs]);
+
+  // ─── Sync editor content with active spec (depends on activeSpec, not activeSpecId) ───
   useEffect(() => {
     setEditorContent(activeSpec ? activeSpec.content || '' : JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2));
     setIsEditorDirty(false);
-  }, [activeSpecId]);
+  }, [activeSpec]);
 
   // ── JSON validation ───────────────────────────────────────────────────────────
   useEffect(() => {

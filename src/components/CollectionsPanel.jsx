@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { USER_ID } from '../lib/apiClient';
 import {
   ChevronRight,
   ChevronDown,
@@ -562,30 +563,76 @@ function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProjec
           </button>
         </div>
 
-<div className="p-5 space-y-4">
-  {/* Collection Name */}
-  <div>
-    <label className="block text-sm font-medium text-gray-300 mb-2">
-      Collection Name
-    </label>
-    <input
-      type="text"
-      value={collectionName}
-      onChange={(e) => {
-        setCollectionName(e.target.value);
-        setValidationError('');
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && !isAddingNewWorkspace) handleCreate();
-      }}
-      placeholder="Enter collection name"
-      className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-    />
-    {validationError && (
-      <p className="mt-2 text-xs text-red-400">{validationError}</p>
-    )}
-  </div>
-</div>
+        <div className="p-5 space-y-4">
+          {fileName && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                File
+              </label>
+              <div className="text-sm text-gray-400 bg-dark-800/60 p-2 rounded border border-dark-700 truncate">
+                {fileName}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Import to Project
+            </label>
+            {!isAddingNewWorkspace ? (
+              <div className="space-y-2">
+                <select
+                  value={selectedWorkspace}
+                  onChange={(e) => setSelectedWorkspace(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  {projects.map((ws) => (
+                    <option key={ws.id} value={ws.id}>
+                      {ws.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingNewWorkspace(true)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  + Create new project
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => setNewWorkspaceName(e.target.value)}
+                  placeholder="New project name"
+                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddNewWorkspace();
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddNewWorkspace}
+                    className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90"
+                  >
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingNewWorkspace(false)}
+                    className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
           <button
@@ -1112,7 +1159,7 @@ if (actionId === 'run-collection') {
     removeItemById(newCollections, item.id);
     setCollections(newCollections);
 
-    const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
+    const userId = USER_ID;
     if (!userId) return;
 
     let apiCall;
@@ -1182,7 +1229,7 @@ if (actionId === 'run-collection') {
   };
 
 const handleCreateCollection = async (name, description, workspaceId, workspaceName) => {
-  console.log('Creating collection with workspaceId:', workspaceId); // Debug log
+  // console.log('Creating collection with workspaceId:', workspaceId); 
   if (!workspaceId) {
     toast.error('No active project selected. Please select a project first.');
     return;
@@ -1283,7 +1330,7 @@ const handleCreateCollection = async (name, description, workspaceId, workspaceN
     item.name = newName;
     setCollections(newCollections);
 
-    const userId = "d9eb4239-0604-47f2-b990-efd3a6513b99";
+    const userId = USER_ID;
     if (!userId) return;
 
     let apiCall;
@@ -1425,6 +1472,34 @@ const handleCreateCollection = async (name, description, workspaceId, workspaceN
     setDragOverItem(null);
   };
 
+  // Convert custom format { requests: [...] } to standard Postman collection
+const convertToPostmanFormat = (data) => {
+  // Already in standard format
+  if (data.info && data.item && Array.isArray(data.item)) {
+    return data;
+  }
+  // Custom format: { requests: [...] }
+  if (data.requests && Array.isArray(data.requests)) {
+    const items = data.requests.map(req => ({
+      name: req.name || 'Untitled Request',
+      request: {
+        method: req.method || 'GET',
+        url: req.url || '',
+        header: req.headers || [],
+        body: req.body ? { mode: 'raw', raw: req.body } : undefined,
+      }
+    }));
+    return {
+      info: {
+        name: 'Imported Collection',
+        schema: 'https://schema.getpostman.com/collection/v2.1.0/collection.json'
+      },
+      item: items
+    };
+  }
+  return null;
+};
+
   // Parse Postman collection
 const parsePostmanCollection = (postmanJson, workspaceId, workspaceName) => {
   const parseUrl = (urlObj) => {
@@ -1540,18 +1615,16 @@ const handleFileImport = (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
 
-  // Check file extension
   if (!file.name.endsWith('.json')) {
     toast.error('Please select a valid JSON file');
-    event.target.value = ''; // reset input
+    event.target.value = '';
     return;
   }
 
-  // Check file size (max 5 MB)
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
   if (file.size > MAX_FILE_SIZE) {
     toast.error('File size exceeds 5 MB limit. Please choose a smaller file.');
-    event.target.value = ''; // reset input
+    event.target.value = '';
     return;
   }
 
@@ -1559,22 +1632,22 @@ const handleFileImport = (event) => {
   reader.onload = (e) => {
     try {
       const jsonContent = JSON.parse(e.target.result);
-      if (!jsonContent.info || !jsonContent.item) {
-        toast.error('Invalid Postman collection format');
-        event.target.value = ''; // reset input
+      const converted = convertToPostmanFormat(jsonContent);
+      if (!converted) {
+        toast.error('Invalid JSON format. Expected a valid Postman collection or a simple requests array.');
+        event.target.value = '';
         return;
       }
-      // Store both content and file name
       setImportFileData({
-        content: jsonContent,
+        content: converted,
         fileName: file.name
       });
       setShowImportWorkspaceModal(true);
-      event.target.value = ''; // reset input
+      event.target.value = '';
     } catch (error) {
       console.error('Error parsing JSON:', error);
-      toast.error('Failed to parse JSON file. Please ensure it\'s a valid Postman collection.');
-      event.target.value = ''; // reset input
+      toast.error('Failed to parse JSON file. Please ensure it\'s a valid JSON file.');
+      event.target.value = '';
     }
   };
   reader.readAsText(file);

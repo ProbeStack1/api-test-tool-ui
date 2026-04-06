@@ -193,3 +193,53 @@ export const updateExample = (requestId, exampleId, data) =>
  */
 export const deleteExample = (requestId, exampleId) =>
   requestApi.delete(`${BASE}/${requestId}/examples/${exampleId}`);
+
+/**
+ * Execute a request with real‑time trace streaming (SSE)
+ * @param {string} requestId - UUID of the request to execute
+ * @param {Object} overrides - same as executeRequest overrides (optional)
+ * @param {Function} onStep - callback for each trace step event
+ * @param {Function} onResult - callback for final ExecutionResult
+ * @param {Function} onError - callback for any error
+ * @returns {EventSource} the EventSource instance (call .close() to stop)
+ */
+export const executeRequestStream = (requestId, overrides, onStep, onResult, onError) => {
+  // If overrides has an 'overrides' property, unwrap it (for compatibility)
+  const payload = overrides?.overrides ? overrides.overrides : overrides;
+  const params = new URLSearchParams();
+  if (payload) {
+    params.append('overrides', JSON.stringify({ overrides: payload }));
+  }
+  const baseURL = requestApi.defaults?.baseURL || '';
+  const url = `${baseURL}/api/v1/requests/${requestId}/execute-stream?${params.toString()}`;
+  
+  const eventSource = new EventSource(url, { withCredentials: true });
+  
+  eventSource.addEventListener('step', (event) => {
+    try {
+      const step = JSON.parse(event.data);
+      onStep?.(step);
+    } catch (e) {
+      console.error('Failed to parse step event', e);
+    }
+  });
+  
+  eventSource.addEventListener('result', (event) => {
+    try {
+      const result = JSON.parse(event.data);
+      onResult?.(result);
+      eventSource.close();
+    } catch (e) {
+      console.error('Failed to parse result event', e);
+      onError?.(e);
+    }
+  });
+  
+  eventSource.onerror = (err) => {
+    console.error('SSE error', err);
+    onError?.(err);
+    eventSource.close();
+  };
+  
+  return eventSource;
+};

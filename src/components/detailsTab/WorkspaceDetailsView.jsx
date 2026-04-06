@@ -248,7 +248,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
                     type="text"
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
-                    className="bg-dark-900 border border-primary/50 rounded px-2 py-1 text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                    className=" border border-primary/50 rounded px-2 py-1 text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary"
                     autoFocus
                     disabled={isUpdating}
                   />
@@ -354,7 +354,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
               <textarea
                 value={editedDescription}
                 onChange={(e) => setEditedDescription(e.target.value)}
-                className="flex-1 bg-dark-900 border border-dark-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="flex-1 border border-dark-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                 rows={2}
                 placeholder="Add a description..."
                 disabled={isUpdating}
@@ -458,7 +458,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
   <select
     value={member.role}
     onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
-    className="bg-dark-900 border border-dark-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-primary"
+    className="border border-dark-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-primary"
   >
     <option value="viewer">Viewer</option>
     <option value="editor">Editor</option>
@@ -508,20 +508,20 @@ const handleRemoveMember = async (memberId, memberName, event) => {
 
           {/* Add member form - inline row layout */}
           {showAddMember && (
-            <form onSubmit={handleAddMember} className="p-4 border-t border-dark-700 bg-dark-900/50">
+            <form onSubmit={handleAddMember} className="p-4 border-t border-dark-700">
               <div className="flex items-center gap-2">
                 <input
                   type="email"
                   placeholder="Email address"
                   value={newMemberEmail}
                   onChange={(e) => setNewMemberEmail(e.target.value)}
-                  className="flex-1 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="flex-1 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
                   required
                 />
                 <select
                   value={newMemberRole}
                   onChange={(e) => setNewMemberRole(e.target.value)}
-                  className="w-32 bg-dark-900 border border-dark-700 rounded px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-primary"
+                  className="w-32 bg-dark-800 border border-dark-700 rounded px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-primary"
                 >
                   <option value="viewer">Viewer</option>
                   <option value="editor">Editor</option>

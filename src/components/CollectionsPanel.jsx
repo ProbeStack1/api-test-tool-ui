@@ -769,7 +769,8 @@ export default function CollectionsPanel({
   onCollectionsChange,
   onRunCollection,
   activeWorkspaceId,
-  onOpenCollectionRun ,
+  onOpenCollectionRun,
+  selectedRequestId, 
 })
  {
   const collections = externalCollections;
@@ -792,7 +793,38 @@ const workspaceCollections = externalCollections.filter(
   col => col.project === activeWorkspaceId
 );
 
+// Auto‑expand ancestors of the selected request
+useEffect(() => {
+  if (!selectedRequestId) return;
 
+  // Helper to find the path (list of parent ids) to a request
+  const findPathToRequest = (items, targetId, path = []) => {
+    for (const item of items) {
+      if (item.id === targetId) return path;
+      if (item.items) {
+        const result = findPathToRequest(item.items, targetId, [...path, item.id]);
+        if (result) return result;
+      }
+    }
+    return null;
+  };
+
+  // Find the request in any collection
+  let path = null;
+  for (const collection of collections) {
+    if (collection.items) {
+      path = findPathToRequest([collection], selectedRequestId);
+      if (path) break;
+    }
+  }
+
+  if (path && path.length) {
+    setExpanded(prev => ({
+      ...prev,
+      ...Object.fromEntries(path.map(id => [id, true]))
+    }));
+  }
+}, [selectedRequestId, collections]);
 
   // Helper to update collections
   const setCollections = (newCollectionsOrUpdater) => {
@@ -1203,13 +1235,9 @@ if (actionId === 'run-collection') {
       const response = await createRequest(payload);
       const savedRequest = normalizeRequest(response.data);
 
-      if (onSelectEndpoint) {
-        onSelectEndpoint({
-          method: savedRequest.method || 'GET',
-          path: savedRequest.url || savedRequest.path || '',
-          name: savedRequest.name || uniqueName,
-        });
-      }
+if (onSelectEndpoint) {
+  onSelectEndpoint(savedRequest);
+}
 
       setCollections((prev) => {
         const updated = structuredClone(prev);
@@ -1967,6 +1995,7 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
         onDrop={handleDrop}
         onDragEnd={handleDragEnd}
         dragOverItem={dragOverItem}
+        selectedRequestId={selectedRequestId}
       />
     ))
   )}
@@ -2050,7 +2079,7 @@ const handleImportToWorkspace = async (workspaceId, workspaceName) => {
 // COLLECTION NODE COMPONENT
 // ----------------------------------------------------------------------
 
-function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem }) {
+function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem, selectedRequestId  }) {
   const isExpanded = expanded[item.id];
   const hasChildren = item.items && item.items.length > 0;
   const isRequest = item.type === 'request';
@@ -2059,6 +2088,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
   const isDragOver = dragOverItem === item.id;
   const canDrag = isRequest || isFolder;
   const canDrop = isCollection || isFolder;
+  const isSelected = item.type === 'request' && item.id === selectedRequestId;
 
   const handleRowClick = () => {
     if (isRequest && onSelectEndpoint) {
@@ -2097,11 +2127,13 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
         }}
         onDragEnd={onDragEnd}
         style={{ paddingLeft: indentPx }}
-        className={clsx(
-          'flex items-center gap-1.5 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50',
-          isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50',
-          canDrag && 'cursor-move'
-        )}
+className={clsx(
+  'flex items-center gap-2 pr-2 rounded-md group cursor-pointer',
+  !isSelected && 'hover:bg-primary/5',          // ← hover only when not selected
+  isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50',
+  canDrag && 'cursor-move',
+  isSelected && 'bg-primary/10 border-l-2 border-primary'
+)}
         onClick={handleRowClick}
       >
         <div className="w-4 h-4 flex items-center justify-center shrink-0">
@@ -2138,7 +2170,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
           />
         )}
 
-        <span className={clsx('text-xs truncate flex-1', isRequest ? 'text-gray-300' : 'text-gray-200 font-medium')}>
+        <span className={clsx('text-xs truncate flex-1', isRequest ? 'text-gray-300 py-1' : 'text-gray-200 font-medium')}>
           {item.name}
         </span>
 
@@ -2173,6 +2205,7 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
               onDrop={onDrop}
               onDragEnd={onDragEnd}
               dragOverItem={dragOverItem}
+              selectedRequestId={selectedRequestId}
             />
           ))}
         </div>

@@ -5,7 +5,7 @@
  * Features:
  * - Draggable across the screen (via header, no drag handle icon)
  * - Resizable (small/medium toggle) - stays within viewport bounds
- * - Minimize to floating bubble with smooth fade/scale
+ * - Minimize to floating bubble with smooth fade/scale + ripple/ping animation
  * - Modern, professional design matching the app's color scheme
  * - Analyzes errors and provides helpful responses (dummy data for now - real AI integration later)
  */
@@ -175,7 +175,7 @@ const ChatInputBar = ({ userInput, setUserInput, onSend, isProcessing }) => (
  * Draggable AI Chatbot Helper Component
  * - Draggable by header (no separate drag icon)
  * - Resizable (small/medium)
- * - Minimize to floating bubble at bottom-right with smooth fade/scale
+ * - Minimize to floating bubble with smooth fade/scale + ripple/ping animation
  * 
  * @param {boolean} isVisible - Controls visibility
  * @param {function} onClose - Close handler (still passed but not used in header)
@@ -391,18 +391,34 @@ const AIChatbotHelper = ({
 
   if (!isVisible) return null;
 
-  // Minimized state: bubble with smooth pop-in
+  // Minimized state: bubble with smooth pop-in + ripple/ping animation around it
   if (isMinimized) {
     return ReactDOM.createPortal(
-      <button
-        onClick={handleExpand}
-        className="fixed z-[200] w-14 h-14 rounded-full shadow-2xl transition-all duration-200 hover:scale-110 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center animate-in fade-in zoom-in"
+      <div
+        className="fixed z-[200]"
         style={{ bottom: MARGIN, right: MARGIN }}
-        data-testid="ai-chatbot-bubble"
+        data-testid="ai-chatbot-bubble-container"
       >
-        <Bot className="w-6 h-6 text-white" />
-        {error && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center animate-pulse font-bold">!</span>}
-      </button>,
+        {/* Ripple/Ping animation rings - same effect as the green dot's ping */}
+        <div className="absolute inset-0 rounded-full animate-ping opacity-70 bg-primary/40" style={{ animationDuration: '1.5s' }} />
+        <div className="absolute inset-0 rounded-full animate-ping opacity-40 bg-primary/20" style={{ animationDuration: '1.5s', animationDelay: '0.5s' }} />
+        
+        {/* Actual bubble button */}
+        <button
+          onClick={handleExpand}
+          className="relative w-14 h-14 rounded-full shadow-2xl transition-all duration-200 hover:scale-110 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center animate-in fade-in zoom-in"
+          data-testid="ai-chatbot-bubble"
+        >
+          <Bot className="w-6 h-6 text-white" />
+          
+          {/* Red error badge (only if error exists) */}
+          {error && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center animate-pulse font-bold">
+              !
+            </span>
+          )}
+        </button>
+      </div>,
       document.body
     );
   }

@@ -193,7 +193,7 @@ export default function WorkspaceCreateModal({ isOpen, onClose, onCreate, worksp
               <button
                 type="button"
                 onClick={handleImportClick}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-dark-600 bg-[var(--color-input-bg)] text-gray-400 hover:text-gray-300 hover:border-primary/50 hover:bg-dark-900/60 transition-all"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-dark-600 bg-[var(--color-input-bg)] text-gray-400 hover:text-gray-300 hover:border-primary/50 transition-all"
               >
                 <Upload className="w-4 h-4" />
                 <span className="text-sm">Import JSON Collection</span>

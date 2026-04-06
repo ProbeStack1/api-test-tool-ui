@@ -57,16 +57,19 @@ export default function CodeSnippetPanel({ className, method, url, headers, body
   return (
     <aside
       className={clsx(
-        'w-80 min-w-[18rem] max-w-[22rem] border-l border-dark-700 flex flex-col bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden',
+        'w-80 min-w-[18rem] max-w-[20rem] border-l border-dark-700 flex flex-col flex-shrink-0 min-h-0 overflow-hidden',
         className
       )}
     >
-      <div className="p-4 border-b border-dark-700 shrink-0 flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Code snippet</h3>
+      <div className="p-3.5 border-b border-dark-700 shrink-0 flex items-center justify-between">
+        <div className=' flex items-center gap-2'>
+          <span className="text-primary text-sm font-semibold leading-none">&lt;/&gt;</span>
+        <h3 className="text-sm font-semibold text-white">Code snippet</h3>
+        </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-dark-700 transition-colors"
+          className="p-1 rounded-lg text-gray-500 hover:text-white hover:bg-dark-700 transition-colors"
           title="Copy"
         >
           <Copy className="w-4 h-4" />
@@ -83,7 +86,7 @@ export default function CodeSnippetPanel({ className, method, url, headers, body
             <option value="postman" className="bg-dark-800 text-white">Postman CLI</option>
           </select>
         </div>
-        <div className="flex-1 min-h-0 rounded-lg border border-dark-700 bg-dark-900/80 overflow-auto">
+        <div className="flex-1 min-h-0 rounded-lg border border-dark-700 overflow-auto">
           <pre className="p-4 text-xs font-mono text-gray-400 whitespace-pre-wrap break-all leading-relaxed">
             {curlCommand}
           </pre>

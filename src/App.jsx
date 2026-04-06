@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info  } from 'lucide-react';
+import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info, Activity  } from 'lucide-react';
 import clsx from 'clsx';
 import { USER_ID } from '././lib/apiClient';
 import { executeScript } from './utils/scriptExecutor';
+import localForage from 'localforage';
 import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services/workspaceService';
 import { fetchCollections, normalizeCollection, fetchFolders, normalizeFolder, createCollection, listCollectionRuns,listWorkspaceLoadTests  } from './services/collectionService';
 import { startFunctionalRun, pollRunUntilDone, getRunHistoryDetail, listRunHistory } from './services/functionalTestService';
@@ -107,32 +108,120 @@ const handleCloseChatbot = () => {
   }, 300);
 };
 
-// ========== Workspace tab helpers (must be defined early) ==========
-const loadWorkspaceTabs = (workspaceId) => {
-  const saved = localStorage.getItem(`probestack_workspace_tabs_${workspaceId}`);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch (e) {}
+
+// ========== IndexedDB storage using localForage ==========
+const tabDB = localForage.createInstance({
+  name: 'ProbeStack',
+  storeName: 'workspace_tabs'
+});
+
+const contextualDB = localForage.createInstance({
+  name: 'ProbeStack',
+  storeName: 'contextual_tabs'
+});
+
+// Sanitize a tab for storage using safeStringify (handles circular refs and non-serializable values)
+const sanitizeTabForStorage = (tab) => {
+  if (!tab) return tab;
+  try {
+    // Use safeStringify to get a clean JSON string (removes functions, circular refs, etc.)
+    const jsonString = safeStringify(tab);
+    if (!jsonString) return null;
+    const parsed = JSON.parse(jsonString);
+    // Remove any large transient fields that might have survived (though safeStringify should have handled them)
+    const { response, isLoading, results, ...essential } = parsed;
+    return essential;
+  } catch (err) {
+    console.error('Failed to sanitize tab', err);
+    return null;
   }
-  return [createEmptyRequest()];
 };
 
-const loadWorkspaceActiveIndex = (workspaceId) => {
-  const saved = localStorage.getItem(`probestack_workspace_active_${workspaceId}`);
-  if (saved !== null) {
-    try {
-      return parseInt(saved, 10);
-    } catch (e) {}
+const sanitizeTabsForStorage = (tabs) => tabs.map(sanitizeTabForStorage).filter(Boolean);
+
+// Save workspace tabs to IndexedDB (without response data)
+const saveWorkspaceTabsToDB = async (workspaceId, tabs, activeIdx) => {
+  try {
+    const cleanedTabs = sanitizeTabsForStorage(tabs);
+    const data = { tabs: cleanedTabs, activeIndex: activeIdx, updatedAt: Date.now() };
+    await tabDB.setItem(`workspace_${workspaceId}`, data);
+  } catch (err) {
+    console.error('Failed to save tabs to IndexedDB', err);
   }
-  return 0;
+};
+
+// Save workspace tabs to IndexedDB (without response data)
+const saveWorkspaceTabs = (workspaceId, tabs, activeIdx) => {
+  saveWorkspaceTabsToDB(workspaceId, tabs, activeIdx);
+  // Memory cache bhi update karo (fast switching ke liye)
+  setWorkspaceTabs(prev => ({ ...prev, [workspaceId]: tabs }));
+  setWorkspaceActiveIndex(prev => ({ ...prev, [workspaceId]: activeIdx }));
+};
+
+// Load workspace tabs from IndexedDB
+const loadWorkspaceTabsFromDB = async (workspaceId) => {
+  try {
+    const data = await tabDB.getItem(`workspace_${workspaceId}`);
+    if (!data) return null;
+    // response aur isLoading fields wapas add karo (null/ false)
+    const tabsWithDefaults = data.tabs.map(tab => ({ ...tab, response: null, isLoading: false }));
+    return { tabs: tabsWithDefaults, activeIndex: data.activeIndex };
+  } catch (err) {
+    console.error('Failed to load tabs from IndexedDB', err);
+    return null;
+  }
+};
+
+// Save contextual tabs (Collections / Mock views)
+const saveContextualTabsToDB = async (workspaceId, context, tabs, activeIndex) => {
+  try {
+    const cleanedTabs = sanitizeTabsForStorage(tabs);
+    const data = { tabs: cleanedTabs, activeIndex };
+    await contextualDB.setItem(`ctx_${workspaceId}_${context}`, data);
+    // Memory state bhi update karo (optional, fast access ke liye)
+    setContextualTabs(prev => ({
+      ...prev,
+      [workspaceId]: { ...prev[workspaceId], [context]: { tabs, activeIndex } }
+    }));
+  } catch (err) {
+    console.error('Failed to save contextual tabs', err);
+  }
+};
+
+// Load contextual tabs from IndexedDB
+const loadContextualTabsFromDB = async (workspaceId, context) => {
+  try {
+    const data = await contextualDB.getItem(`ctx_${workspaceId}_${context}`);
+    if (!data) return null;
+    const tabsWithDefaults = data.tabs.map(tab => ({ ...tab, response: null, isLoading: false }));
+    return { tabs: tabsWithDefaults, activeIndex: data.activeIndex };
+  } catch (err) {
+    console.error('Failed to load contextual tabs', err);
+    return null;
+  }
+};
+
+const handleCreateProjectTab = () => {
+  const newTab = {
+    id: `project-wizard-${Date.now()}`,
+    type: 'project-wizard',
+    name: 'New Project',
+  };
+  handleNewTab(newTab);
 };
 
 const safeStringify = (obj) => {
   const seen = new WeakSet();
   return JSON.stringify(obj, (key, value) => {
     if (typeof value === 'function') return undefined;
-    if (value instanceof Node) return undefined;
+    // Detect DOM nodes: nodeType is a number (1-11) or tagName is a string
+    if (value && typeof value === 'object' && (value.nodeType !== undefined || value.tagName !== undefined)) {
+      return undefined;
+    }
+    if (value && typeof value === 'object' && value.$$typeof) return undefined;
+    if (value && typeof value === 'object' && (value._owner !== undefined || value.__reactFiber !== undefined || value._reactInternals !== undefined)) {
+      return undefined;
+    }
     if (typeof value === 'object' && value !== null) {
       if (seen.has(value)) return '[Circular]';
       seen.add(value);
@@ -141,17 +230,6 @@ const safeStringify = (obj) => {
   });
 };
 
-const saveWorkspaceTabs = (workspaceId, tabs, activeIdx) => {
-  try {
-    const serialized = safeStringify(tabs);
-    localStorage.setItem(`probestack_workspace_tabs_${workspaceId}`, serialized);
-  } catch (err) {
-    console.error('Failed to save project tabs:', err);
-  }
-  localStorage.setItem(`probestack_workspace_active_${workspaceId}`, activeIdx.toString());
-  setWorkspaceTabs(prev => ({ ...prev, [workspaceId]: tabs }));
-  setWorkspaceActiveIndex(prev => ({ ...prev, [workspaceId]: activeIdx }));
-};
 
 const buildPristineFromRequests = (reqs) => {
   const pristine = {};
@@ -191,27 +269,17 @@ const getEnvironmentOverrides = () => {
   return combined;
 };
 
-// Now loadWorkspaceTabsAndData – uses the above helpers
-const loadWorkspaceTabsAndData = (workspaceId, workspaceName) => {
-  const tabs = loadWorkspaceTabs(workspaceId);
-  let activeIndex = loadWorkspaceActiveIndex(workspaceId);
-
-  // Remove the automatic addition of workspace details tab
-  // Instead, just ensure there is at least one tab
-  if (!tabs || tabs.length === 0) {
-    // No saved tabs → create a default request tab
-    tabs.push(createEmptyRequest());
-    activeIndex = 0;
+const loadWorkspaceTabsAndData = async (workspaceId, workspaceName) => {
+  const saved = await loadWorkspaceTabsFromDB(workspaceId);
+  if (saved && saved.tabs.length > 0) {
+    setRequests(saved.tabs);
+    setActiveRequestIndex(saved.activeIndex);
+    setPristineRequests(buildPristineFromRequests(saved.tabs));
   } else {
-    // Ensure activeIndex is within bounds
-    if (activeIndex < 0 || activeIndex >= tabs.length) {
-      activeIndex = 0;
-    }
+    setRequests([createEmptyRequest()]);
+    setActiveRequestIndex(0);
+    setPristineRequests({});
   }
-
-  setRequests(tabs);
-  setActiveRequestIndex(activeIndex);
-  setPristineRequests(buildPristineFromRequests(tabs));
 };
 
 const handleOpenWorkspaceDetails = (workspaceId) => {
@@ -236,24 +304,40 @@ const handleOpenWorkspaceDetails = (workspaceId) => {
   setActiveRequestIndex(requests.length); // will be the new last index
 };
 
-const handleSelectWorkspace = (workspaceId) => {
-  // Save current workspace's tabs
-  if (activeWorkspaceId) {
-    saveWorkspaceTabs(activeWorkspaceId, requests, activeRequestIndex);
+const handleSelectWorkspace = async (workspaceId) => {
+  // Save current tabs (as before)
+  if (activeWorkspaceId && (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service')) {
+    await saveContextualTabsToDB(activeWorkspaceId, currentActiveMenu, requests, activeRequestIndex);
+  } else if (activeWorkspaceId) {
+    await saveWorkspaceTabsToDB(activeWorkspaceId, requests, activeRequestIndex);
   }
 
-  // Get workspace name
   const workspaceName = projects.find(p => p.id === workspaceId)?.name || workspaceId;
-
-  // Load new workspace's tabs (with name)
-  loadWorkspaceTabsAndData(workspaceId, workspaceName);
-
   setActiveWorkspaceId(workspaceId);
   localStorage.setItem('probestack_active_workspace_id', workspaceId);
 
+  // Load tabs for new workspace
+  if (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test') {
+    const saved = await loadContextualTabsFromDB(workspaceId, currentActiveMenu);
+    if (saved) {
+      setRequests(saved.tabs);
+      setActiveRequestIndex(saved.activeIndex);
+    } else {
+      if (currentActiveMenu === 'collections') {
+        setRequests([createEmptyRequest()]);
+        setActiveRequestIndex(0);
+      } else {
+        setRequests([]);
+        setActiveRequestIndex(0);
+      }
+    }
+  } else {
+    await loadWorkspaceTabsAndData(workspaceId, workspaceName);
+  }
+
   setIsWorkspaceDropdownOpen(false);
 
-  // Update selected environment
+  // Environment update (same as before)
   const workspaceEnvs = environments.filter(env => env.workspaceId === workspaceId);
   const activeEnv = workspaceEnvs.find(env => env.isActive);
   if (activeEnv) {
@@ -904,6 +988,8 @@ const createEmptyRequest = () => ({
   authData: {},
   preRequestScript: '',
   tests: '',
+  response: null,
+  isLoading: false,
 });
 
 const [requests, setRequests] = useState([createEmptyRequest()]);
@@ -972,14 +1058,16 @@ const [activeRequestIndex, setActiveRequestIndex] = useState(0);
   const preRequestScript = currentRequest?.preRequestScript ?? '';
   const tests = currentRequest?.tests ?? '';
 
-  const updateActiveRequest = (field, value) => {
-    setRequests((prev) => {
-      const next = [...prev];
-      const idx = activeRequestIndex >= 0 && activeRequestIndex < next.length ? activeRequestIndex : 0;
-      next[idx] = { ...next[idx], [field]: value };
-      return next;
-    });
-  };
+const updateActiveRequest = (field, value) => {
+  setRequests((prev) => {
+    const next = [...prev];
+    const idx = activeRequestIndex >= 0 && activeRequestIndex < next.length ? activeRequestIndex : 0;
+    next[idx] = { ...next[idx], [field]: value };
+    return next;
+  });
+};
+
+const onMcpTypeChange = (value) => updateActiveRequest('mcpType', value);
 
 const [environments, setEnvironments] = useState(() => [{ id: 'no-env', name: 'No Environment' }]);
 const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('no-env');
@@ -1089,41 +1177,40 @@ const [isRunningLoadTest, setIsRunningLoadTest] = useState(false);
     }
   ];
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('probestack_mock_apis', JSON.stringify(mockApis));
-    } catch (error) {
-    }
-  }, [mockApis]);
+useEffect(() => {
+  try {
+    localStorage.setItem('probestack_mock_apis', safeStringify(mockApis));
+  } catch (error) {}
+}, [mockApis]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('probestack_test_files', JSON.stringify(testFiles));
+      localStorage.setItem('probestack_test_files', safeStringify(testFiles));
     } catch (error) {
     }
   }, [testFiles]);
 
   useEffect(() => {
-    localStorage.setItem('probestack_history', JSON.stringify(history));
+    localStorage.setItem('probestack_history', safeStringify(history));
   }, [history]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('probestack_requests', JSON.stringify(requests));
+      localStorage.setItem('probestack_requests', safeStringify(requests));
     } catch (error) {
     }
   }, [requests]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('probestack_active_request_index', activeRequestIndex.toString());
+      localStorage.setItem('probestack_active_request_index', safeStringify(activeRequestIndex));
     } catch (error) {
     }
   }, [activeRequestIndex]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('probestack_environment_variables', JSON.stringify(environmentVariables));
+      localStorage.setItem('probestack_environment_variables', safeStringify(environmentVariables));
     } catch (error) {
     }
   }, [environmentVariables]);
@@ -1148,209 +1235,246 @@ useEffect(() => {
 
   hasFetchedRef.current = true;
 
-  const loadData = async () => {
-    // ------------------------------------------------------------------
-    // 1. Fetch workspaces (projects)
-    // ------------------------------------------------------------------
-    let workspaces = [];
-    try {
-      const wsRes = await fetchWorkspaces();
-      workspaces = wsRes.data.map(normalizeWorkspace);
-      setProjects(workspaces);
-    } catch (err) {
-      console.error('Failed to load workspaces:', err);
+const loadData = async () => {
+  // ------------------------------------------------------------------
+  // 1. Fetch workspaces (projects)
+  // ------------------------------------------------------------------
+  let workspaces = [];
+  try {
+    const wsRes = await fetchWorkspaces();
+    workspaces = wsRes.data.map(normalizeWorkspace);
+    setProjects(workspaces);
+
+    // ✅ Load ALL contextual tabs from IndexedDB (collections, mock-service, mcp-test)
+    const allContextual = {};
+    for (const ws of workspaces) {
+      allContextual[ws.id] = {};
+
+      const collectionsData = await loadContextualTabsFromDB(ws.id, 'collections');
+      if (collectionsData) {
+        allContextual[ws.id].collections = collectionsData;
+      }
+
+      const mockData = await loadContextualTabsFromDB(ws.id, 'mock-service');
+      if (mockData) {
+        allContextual[ws.id]['mock-service'] = mockData;
+      }
+
+      const mcpData = await loadContextualTabsFromDB(ws.id, 'mcp-test');
+      if (mcpData) {
+        allContextual[ws.id]['mcp-test'] = mcpData;
+      }
     }
+    setContextualTabs(allContextual);
+  } catch (err) {
+    console.error('Failed to load workspaces:', err);
+  }
 
-    // ------------------------------------------------------------------
-    // 2. If we have workspaces, load collections, folders, requests
-    // ------------------------------------------------------------------
-    if (workspaces.length > 0) {
-      const allCollections = [];
+  // ------------------------------------------------------------------
+  // 2. If we have workspaces, load collections, folders, requests
+  // ------------------------------------------------------------------
+  if (workspaces.length > 0) {
+    const allCollections = [];
 
-      for (const ws of workspaces) {
-        try {
-          const colRes = await fetchCollections(ws.id);
-          const cols = colRes.data.map(col => normalizeCollection(col, ws));
+    for (const ws of workspaces) {
+      try {
+        const colRes = await fetchCollections(ws.id);
+        const cols = colRes.data.map(col => normalizeCollection(col, ws));
 
-          for (const col of cols) {
-            let folders = [];
-            try {
-              const folderRes = await fetchFolders(col.id);
-              folders = folderRes.data.map(normalizeFolder);
-            } catch (err) {
-              console.error(`Failed to fetch folders for collection ${col.id}:`, err);
-            }
+        for (const col of cols) {
+          let folders = [];
+          try {
+            const folderRes = await fetchFolders(col.id);
+            folders = folderRes.data.map(normalizeFolder);
+          } catch (err) {
+            console.error(`Failed to fetch folders for collection ${col.id}:`, err);
+          }
 
-            const folderMap = new Map();
-            folders.forEach(f => folderMap.set(f.id, f));
+          const folderMap = new Map();
+          folders.forEach(f => folderMap.set(f.id, f));
 
-            const rootFolders = [];
-            folders.forEach(f => {
-              if (f.parentFolderId) {
-                const parent = folderMap.get(f.parentFolderId);
-                if (parent) {
-                  if (!parent.items) parent.items = [];
-                  parent.items.push(f);
-                } else {
-                  rootFolders.push(f);
-                }
+          const rootFolders = [];
+          folders.forEach(f => {
+            if (f.parentFolderId) {
+              const parent = folderMap.get(f.parentFolderId);
+              if (parent) {
+                if (!parent.items) parent.items = [];
+                parent.items.push(f);
               } else {
                 rootFolders.push(f);
               }
+            } else {
+              rootFolders.push(f);
+            }
+          });
+
+          const sortItems = (items) => {
+            if (!items) return;
+            items.sort((a, b) => {
+              if (a.type === 'folder' && b.type !== 'folder') return -1;
+              if (a.type !== 'folder' && b.type === 'folder') return 1;
+              return (a.orderIndex || 0) - (b.orderIndex || 0);
             });
+            items.forEach(item => {
+              if (item.items) sortItems(item.items);
+            });
+          };
+          sortItems(rootFolders);
 
-            const sortItems = (items) => {
-              if (!items) return;
-              items.sort((a, b) => {
-                if (a.type === 'folder' && b.type !== 'folder') return -1;
-                if (a.type !== 'folder' && b.type === 'folder') return 1;
-                return (a.orderIndex || 0) - (b.orderIndex || 0);
-              });
-              items.forEach(item => {
-                if (item.items) sortItems(item.items);
-              });
-            };
-            sortItems(rootFolders);
+          const items = [...rootFolders];
 
-            const items = [...rootFolders];
+          try {
+            const reqRes = await fetchRequests({ collectionId: col.id });
+            const requestsInCol = reqRes.data.map(normalizeRequest);
 
-            try {
-              const reqRes = await fetchRequests({ collectionId: col.id });
-              const requestsInCol = reqRes.data.map(normalizeRequest);
-
-              requestsInCol.forEach(req => {
-                const parentFolderId = req.folderId;
-                if (parentFolderId) {
-                  const parentFolder = folderMap.get(parentFolderId);
-                  if (parentFolder) {
-                    if (!parentFolder.items) parentFolder.items = [];
-                    parentFolder.items.push(req);
-                  } else {
-                    items.push(req);
-                  }
+            requestsInCol.forEach(req => {
+              const parentFolderId = req.folderId;
+              if (parentFolderId) {
+                const parentFolder = folderMap.get(parentFolderId);
+                if (parentFolder) {
+                  if (!parentFolder.items) parentFolder.items = [];
+                  parentFolder.items.push(req);
                 } else {
                   items.push(req);
                 }
-              });
-              sortItems(items);
-            } catch (err) {
-              console.error(`Failed to fetch requests for collection ${col.id}:`, err);
-            }
-
-            allCollections.push({
-              ...col,
-              items,
+              } else {
+                items.push(req);
+              }
             });
+            sortItems(items);
+          } catch (err) {
+            console.error(`Failed to fetch requests for collection ${col.id}:`, err);
           }
-        } catch (err) {
-          console.error(`Failed to fetch collections for workspace ${ws.id}:`, err);
+
+          allCollections.push({
+            ...col,
+            items,
+          });
         }
-      }
-
-      setCollections(allCollections);
-    } else {
-      setCollections([]);
-    }
-
-    // ------------------------------------------------------------------
-    // 3. Set active workspace (if any)
-    // ------------------------------------------------------------------
-    if (workspaces.length > 0) {
-      const savedWorkspaceId = localStorage.getItem('probestack_active_workspace_id');
-      let activeId = null;
-      if (savedWorkspaceId && workspaces.some(ws => ws.id === savedWorkspaceId)) {
-        activeId = savedWorkspaceId;
-      } else if (workspaces.length > 0) {
-        activeId = workspaces[0].id;
-      }
-
-      if (activeId) {
-        const workspaceName = workspaces.find(w => w.id === activeId)?.name || activeId;
-        setActiveWorkspaceId(activeId);
-        loadWorkspaceTabsAndData(activeId, workspaceName);
-      }
-    } else {
-      setActiveWorkspaceId(null);
-      setRequests([createEmptyRequest()]);
-      setActiveRequestIndex(0);
-    }
-
-    // ------------------------------------------------------------------
-    // 4. Fetch environments (global + workspace-specific)
-    // ------------------------------------------------------------------
-    try {
-      let allEnvs = [];
-
-      // Global environments (no workspaceId)
-      try {
-        const globalRes = await listEnvironments({ limit: 100 });
-        const globalEnvs = (globalRes.data.data || globalRes.data).map(normalizeEnvironment);
-        allEnvs.push(...globalEnvs);
       } catch (err) {
-        console.error('Failed to fetch global environments:', err);
+        console.error(`Failed to fetch collections for workspace ${ws.id}:`, err);
       }
+    }
 
-      // Environments for each workspace
-      for (const ws of workspaces) {
-        try {
-          const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
-          const wsEnvs = (wsRes.data.data || wsRes.data).map(normalizeEnvironment);
-          
-          allEnvs.push(...wsEnvs);
-        } catch (err) {
-          console.error(`Failed to fetch environments for workspace ${ws.id}:`, err);
+    setCollections(allCollections);
+  } else {
+    setCollections([]);
+  }
+
+  // ------------------------------------------------------------------
+  // 3. Set active workspace (if any)
+  // ------------------------------------------------------------------
+  if (workspaces.length > 0) {
+    const savedWorkspaceId = localStorage.getItem('probestack_active_workspace_id');
+    let activeId = null;
+    if (savedWorkspaceId && workspaces.some(ws => ws.id === savedWorkspaceId)) {
+      activeId = savedWorkspaceId;
+    } else if (workspaces.length > 0) {
+      activeId = workspaces[0].id;
+    }
+
+    if (activeId) {
+      const workspaceName = workspaces.find(w => w.id === activeId)?.name || activeId;
+      setActiveWorkspaceId(activeId);
+      const initialMenu = getActiveMenu();
+      if (initialMenu === 'collections' || initialMenu === 'mock-service' || initialMenu === 'mcp-test') {
+        const saved = contextualTabs[activeId]?.[initialMenu];
+        if (saved) {
+          setRequests(saved.tabs);
+          setActiveRequestIndex(saved.activeIndex);
+        } else {
+          if (initialMenu === 'collections') {
+            setRequests([createEmptyRequest()]);
+            setActiveRequestIndex(0);
+          } else {
+            setRequests([]);
+            setActiveRequestIndex(0);
+          }
         }
-      }
-
-      const uniqueEnvs = Array.from(new Map(allEnvs.map(env => [env.id, env])).values());
-
-      const globalEnv = uniqueEnvs.find(env => env.environmentType === 'global');
-      setGlobalEnvironment(globalEnv || null);
-
-      setEnvironments([{ id: 'no-env', name: 'No Environment' }, ...uniqueEnvs]);
-
-      if (uniqueEnvs.length > 0) {
-        const activeEnv = uniqueEnvs.find(e => e.isActive) || uniqueEnvs[0];
-        setSelectedEnvironmentId(activeEnv.id);
-        setEnvironmentVariables(activeEnv.variables || []);
       } else {
-        setSelectedEnvironmentId('no-env');
-        setEnvironmentVariables([]);
+        await loadWorkspaceTabsAndData(activeId, workspaceName);
       }
+    }
+  } else {
+    setActiveWorkspaceId(null);
+    setRequests([createEmptyRequest()]);
+    setActiveRequestIndex(0);
+  }
 
+  // ------------------------------------------------------------------
+  // 4. Fetch environments (global + workspace-specific)
+  // ------------------------------------------------------------------
+  try {
+    let allEnvs = [];
+
+    // Global environments (no workspaceId)
+    try {
+      const globalRes = await listEnvironments({ limit: 100 });
+      const globalEnvs = (globalRes.data.data || globalRes.data).map(normalizeEnvironment);
+      allEnvs.push(...globalEnvs);
     } catch (err) {
-      console.error('Failed to load environments:', err);
-      setEnvironments([{ id: 'no-env', name: 'No Environment' }]);
+      console.error('Failed to fetch global environments:', err);
+    }
+
+    // Environments for each workspace
+    for (const ws of workspaces) {
+      try {
+        const wsRes = await listEnvironments({ workspaceId: ws.id, limit: 100 });
+        const wsEnvs = (wsRes.data.data || wsRes.data).map(normalizeEnvironment);
+        allEnvs.push(...wsEnvs);
+      } catch (err) {
+        console.error(`Failed to fetch environments for workspace ${ws.id}:`, err);
+      }
+    }
+
+    const uniqueEnvs = Array.from(new Map(allEnvs.map(env => [env.id, env])).values());
+
+    const globalEnv = uniqueEnvs.find(env => env.environmentType === 'global');
+    setGlobalEnvironment(globalEnv || null);
+
+    setEnvironments([{ id: 'no-env', name: 'No Environment' }, ...uniqueEnvs]);
+
+    if (uniqueEnvs.length > 0) {
+      const activeEnv = uniqueEnvs.find(e => e.isActive) || uniqueEnvs[0];
+      setSelectedEnvironmentId(activeEnv.id);
+      setEnvironmentVariables(activeEnv.variables || []);
+    } else {
       setSelectedEnvironmentId('no-env');
       setEnvironmentVariables([]);
     }
+  } catch (err) {
+    console.error('Failed to load environments:', err);
+    setEnvironments([{ id: 'no-env', name: 'No Environment' }]);
+    setSelectedEnvironmentId('no-env');
+    setEnvironmentVariables([]);
+  }
 
-    // ------------------------------------------------------------------
-    // 5. Fetch global execution history
-    // ------------------------------------------------------------------
-    try {
-      const historyRes = await fetchGlobalHistory({ limit: 50 });
-      const normalizedHistory = (historyRes.data.data || []).map(item => ({
-        historyId: item.history_id,
-        requestId: item.request_id, 
-        url: item.url,
-        method: item.method,
-        status: item.status_code,
-        size: item.response_size_bytes,
-        time: item.response_time_ms,
-        error: item.error_message ? true : false,
-        date: item.executed_at,
-      }));
-      setHistory(normalizedHistory);
-    } catch (err) {
-      console.error('Failed to load execution history:', err);
-    }
+  // ------------------------------------------------------------------
+  // 5. Fetch global execution history
+  // ------------------------------------------------------------------
+  try {
+    const historyRes = await fetchGlobalHistory({ limit: 50 });
+    const normalizedHistory = (historyRes.data.data || []).map(item => ({
+      historyId: item.history_id,
+      requestId: item.request_id,
+      url: item.url,
+      method: item.method,
+      status: item.status_code,
+      size: item.response_size_bytes,
+      time: item.response_time_ms,
+      error: item.error_message ? true : false,
+      date: item.executed_at,
+    }));
+    setHistory(normalizedHistory);
+  } catch (err) {
+    console.error('Failed to load execution history:', err);
+  }
 
-    // ------------------------------------------------------------------
-    // 6. Fetch mock servers
-    // ------------------------------------------------------------------
-    await fetchMockServers();
-  };
+  // ------------------------------------------------------------------
+  // 6. Fetch mock servers
+  // ------------------------------------------------------------------
+  await fetchMockServers();
+};
 
   loadData();
 }, []);
@@ -1418,7 +1542,8 @@ const handleSelectMockEndpoint = (mockServer, endpoint) => {
 const handleExecute = async () => {
   if (!url) return;
 
-  setIsLoading(true);
+  updateActiveRequest('isLoading', true);
+updateActiveRequest('response', null);
   setResponse(null);
   setError(null);
 
@@ -1534,7 +1659,8 @@ if (currentReq.preRequestScript) {
           res.data = `${res.status} ${res.statusText || 'Error'}`;
         }
       }
-      setResponse(res);
+      updateActiveRequest('response', res);
+updateActiveRequest('isLoading', false);
       addToHistory(url, method, res.status, res.size, res.time);
     } catch (err) {
       const errorMessage = err.message || 'Unknown error';
@@ -1548,11 +1674,11 @@ if (currentReq.preRequestScript) {
         testResults: [],
         testScriptError: null,
       };
-      setResponse(res);
+      updateActiveRequest('response', res);
       addToHistory(url, method, 0, 0, 0, true);
       if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
     } finally {
-      setIsLoading(false);
+       updateActiveRequest('isLoading', false);
     }
     return;
   }
@@ -1641,16 +1767,30 @@ if (currentReq.preRequestScript) {
       parsedBody = executionResult.error_message;
     }
 
-    const res = {
-      status: executionResult.status_code,
-      statusText: executionResult.status_text || '',
-      time: executionResult.response_time_ms || 0,
-      size: executionResult.response_size_bytes || 0,
-      data: parsedBody,
-      headers: executionResult.response_headers || [],
-      testResults: executionResult.test_results || [],
-      testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
-    };
+const res = {
+  status: executionResult.status_code,
+  statusText: executionResult.status_text || '',
+  time: executionResult.response_time_ms || 0,
+  size: executionResult.response_size_bytes || 0,
+  data: parsedBody,
+  headers: executionResult.response_headers || [],
+  testResults: executionResult.test_results || [],
+  testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
+  // ========== DEBUG FIELDS ==========
+  isSuccess: executionResult.is_success,
+  failureStage: executionResult.failure_stage,
+  failureCategory: executionResult.failure_category,
+  failureReason: executionResult.failure_reason,
+  suggestion: executionResult.suggestion,
+  errorMessage: executionResult.error_message,
+  responseTimeMs: executionResult.response_time_ms,
+  traceSteps: executionResult.trace_steps || [],
+  request_size_bytes: executionResult.request_size_bytes,
+  request_headers_size_bytes: executionResult.request_headers_size_bytes,
+  request_body_size_bytes: executionResult.request_body_size_bytes,
+  response_headers_size_bytes: executionResult.response_headers_size_bytes,
+  network: executionResult.network,
+};
 
     if (res.status >= 400) {
       const isBodyEmpty = 
@@ -1663,18 +1803,19 @@ if (currentReq.preRequestScript) {
       }
     }
 
-    setResponse(res);
+    updateActiveRequest('response', res);
+    updateActiveRequest('isLoading', false); 
     if (res.status >= 400 || res.status === 0) {
       if (handleShowChatbot) handleShowChatbot(null, res, { method, url, headers, body });
     }
     addToHistory(url, method, res.status, res.size, res.time, false, executionResult.history_id);
   } catch (err) {
-    setError(err);
-    addToHistory(url, method, 0, 0, 0, true, null);
-    if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
-  } finally {
-    setIsLoading(false);
-  }
+   updateActiveRequest('response', null);
+  updateActiveRequest('isLoading', false);
+  setError(err);
+  addToHistory(url, method, 0, 0, 0, true, null);
+  if (handleShowChatbot) handleShowChatbot(err, null, { method, url, headers, body });
+}
 };
 
   const addToHistory = (url, method, status, size, time, isError = false,historyId = null) => {
@@ -1755,9 +1896,9 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
   }
   setResponse(null);
   setError(null);
-  if (!skipNavigate) {
-    navigate('/workspace');
-  }
+  // if (!skipNavigate) {
+  //   navigate('/workspace');
+  // }
 };
 
  const handleUpdateRequest = async (updatedRequest) => {
@@ -1972,16 +2113,34 @@ const handleNewTab = (tabData) => {
   if (tabData) {
     setRequests(prev => {
       const newRequests = [...prev, tabData];
-      // Set active index to the new tab (last position)
       setActiveRequestIndex(newRequests.length - 1);
       return newRequests;
     });
   } else {
     const uniqueName = generateUniqueRequestName();
-    const newRequest = {
-      ...createEmptyRequest(),
-      name: uniqueName
-    };
+    let newRequest;
+    
+    // ✅ Use pathname directly – it’s always correct
+    const isMcpContext = pathname.includes('/workspace/mcp-test');
+    
+    console.log('🔍 [handleNewTab] Debug:', { pathname, isMcpContext });
+    
+    if (isMcpContext) {
+      console.log('✅ Creating MCP‑specific request');
+      newRequest = {
+        ...createEmptyRequest(),
+        name: uniqueName,
+        type: 'mcp-request',    // triggers the extra dropdown
+        mcpType: 'sse',         // default transport
+      };
+    } else {
+      console.log('✅ Creating normal HTTP request');
+      newRequest = {
+        ...createEmptyRequest(),
+        name: uniqueName
+      };
+    }
+    
     setRequests(prev => {
       const newRequests = [...prev, newRequest];
       setActiveRequestIndex(newRequests.length - 1);
@@ -2645,6 +2804,15 @@ const handleMockServerRun = (runData) => {
 const [workspaceTabs, setWorkspaceTabs] = useState({});
 const [workspaceActiveIndex, setWorkspaceActiveIndex] = useState({});
 
+// Context-aware tabs storage (for Collections and Mock views)
+const [contextualTabs, setContextualTabs] = useState({});
+
+const saveContextualTabs = (workspaceId, context, tabs, activeIndex) => {
+  saveContextualTabsToDB(workspaceId, context, tabs, activeIndex);
+};
+
+const currentContextRef = useRef(null);
+
 const activeWorkspace = projects.find(p => p.id === activeWorkspaceId);
 
 const handleUpdateTab = (index, newTab) => {
@@ -2695,6 +2863,7 @@ const filteredMockServers = useMemo(() => {
     { id: 'history', label: 'History', path: '/workspace/history', icon: History },
     { id: 'collections', label: 'Collections', path: '/workspace/collections', icon: LayoutGrid },
     { id: 'environments', label: 'Variables', path: '/workspace/variables', icon: Layers },
+    { id: 'mcp-test', label: 'MCP', path: '/workspace/mcp-test', icon: Activity },
     { id: 'testing', label: 'Testing', path: '/workspace/testing', icon: BarChart3 },
     { id: 'mock-service', label: 'Mock', path: '/workspace/mock-service', icon: Layers },
     { id: 'ai-assisted', label: 'AI-Assisted', path: '/workspace/ai-assisted', icon: Bot },
@@ -2705,6 +2874,7 @@ const filteredMockServers = useMemo(() => {
   const getActiveMenu = () => {
     if (pathname.includes('/workspace/profile')) return null; // Profile pages don't highlight navigation
     if (pathname.includes('/workspace/history')) return 'history';
+    if (pathname.includes('/workspace/mcp-test')) return 'mcp-test';
     if (pathname.includes('/workspace/variables')) return 'environments';
     if (pathname.includes('/workspace/testing')) return 'testing';
     if (pathname.includes('/workspace/mock-service')) return 'mock-service';
@@ -2713,7 +2883,11 @@ const filteredMockServers = useMemo(() => {
     if (pathname.includes('/workspace/collections')) return 'collections';
     return 'collections';
   };
-  const activeMenu = getActiveMenu();
+ const [currentActiveMenu, setCurrentActiveMenu] = useState(() => getActiveMenu());
+
+useEffect(() => {
+  setCurrentActiveMenu(getActiveMenu());
+}, [pathname]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -2742,10 +2916,46 @@ const filteredMockServers = useMemo(() => {
 
   // Save tabs whenever they change (requests or active index)
 useEffect(() => {
-  if (activeWorkspaceId) {
+  if (!activeWorkspaceId) return;
+  if (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test') {
+    saveContextualTabs(activeWorkspaceId, currentActiveMenu, requests, activeRequestIndex);
+  } else {
     saveWorkspaceTabs(activeWorkspaceId, requests, activeRequestIndex);
   }
-}, [requests, activeRequestIndex, activeWorkspaceId]);
+}, [requests, activeRequestIndex, activeWorkspaceId, currentActiveMenu]);
+
+// Handle context switching between 'collections' and 'mock-service'
+useEffect(() => {
+  if (!activeWorkspaceId) return;
+  const prevContext = currentContextRef.current;
+  const newContext = (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test') ? currentActiveMenu : null;
+
+  if (prevContext === newContext) return;
+
+  // Save current tabs to previous context if it was a tracked context
+  if (prevContext === 'collections' || prevContext === 'mock-service' || prevContext === 'mcp-test') {
+  saveContextualTabs(activeWorkspaceId, prevContext, requests, activeRequestIndex);
+}
+
+  // Load tabs for new context if it is a tracked context
+if (newContext === 'collections' || newContext === 'mock-service' || newContext === 'mcp-test') {
+  const saved = contextualTabs[activeWorkspaceId]?.[newContext];
+    if (saved) {
+      setRequests(saved.tabs);
+      setActiveRequestIndex(saved.activeIndex);
+    } else {
+      if (newContext === 'collections') {
+        setRequests([createEmptyRequest()]);
+        setActiveRequestIndex(0);
+      } else { // mock-service
+        setRequests([]);
+        setActiveRequestIndex(0);
+      }
+    }
+  }
+
+  currentContextRef.current = newContext;
+}, [currentActiveMenu, activeWorkspaceId, contextualTabs]);
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
@@ -2792,7 +3002,7 @@ useEffect(() => {
       <nav className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
         {topMenuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeMenu === item.id;
+          const isActive = currentActiveMenu === item.id;
           return (
             <button
               key={item.id}
@@ -2816,104 +3026,7 @@ useEffect(() => {
   
   <div className="flex items-center gap-3">
     {/* Workspace Dropdown */}
-  {isWorkspace && (
-    <div className="relative" ref={workspaceDropdownRef}>
-<button
-  type="button"
-  onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
-  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm font-medium bg-dark-800 hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors w-30 flex-shrink-0"
->
-  <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-    {activeWorkspace ? activeWorkspace.name.charAt(0).toUpperCase() : 'W'}
-  </div>
-  <span className="flex-1 truncate">
-    {activeWorkspace ? activeWorkspace.name : 'Select Workspace'}
-  </span>
-  <ChevronDown className={clsx('w-4 h-4 transition-transform shrink-0', isWorkspaceDropdownOpen && 'rotate-180')} />
-</button>
 
-      {isWorkspaceDropdownOpen && (
-        <div className="absolute right-0 mt-2 w-70 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
-          {/* Header: Workspaces */}
-          <div className="px-4 py-2 border-b border-dark-700">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Projects</h3>
-          </div>
-
-          {/* Search + Create */}
-          <div className="p-3 border-b border-dark-700">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search projects..."
-                  value={workspaceSearch}
-                  onChange={(e) => setWorkspaceSearch(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                />
-              </div>
-              <button
-                onClick={() => setShowNewWorkspaceModal(true)}
-                className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors"
-                title="Create new project"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Project list */}
-<div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
-  {projects
-    .filter(ws => ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()))
-    .map(workspace => (
-      <button
-        key={workspace.id}
-        onClick={() => {
-          handleSelectWorkspace(workspace.id);
-          setIsWorkspaceDropdownOpen(false);
-        }}
-        className={clsx(
-          'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-dark-700 transition-colors',
-          activeWorkspaceId === workspace.id && 'bg-primary/10 border-l-2 border-primary'
-        )}
-      >
-        <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-          {workspace.name.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white truncate">{workspace.name}</p>
-          <p className="text-xs text-gray-500">
-            {workspace.visibility === 'private' ? 'Private' : 'Public'}
-          </p>
-        </div>
-        {/* New icon button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();          // prevent the parent button click
-            handleOpenWorkspaceDetails(workspace.id);
-            setIsWorkspaceDropdownOpen(false);
-          }}
-          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-600 transition-colors"
-          title="View project details"
-        >
-          <Info className="w-4 h-4" />
-        </button>
-        {activeWorkspaceId === workspace.id && (
-          <Check className="w-4 h-4 text-primary" />
-        )}
-      </button>
-    ))}
-  {projects.length === 0 && (
-    <div className="px-4 py-3 text-xs text-gray-500 text-center">
-      No Projects yet
-    </div>
-  )}
-</div>
-        </div>
-      )}
-    </div>
-)}
     {/* Settings Button */}
     <button
       type="button"
@@ -3005,8 +3118,8 @@ useEffect(() => {
                 authData={authData}
                 preRequestScript={preRequestScript}
                 tests={tests}
-                response={response}
-                isLoading={isLoading}
+response={currentRequest?.response}
+isLoading={currentRequest?.isLoading}
                 error={error}
                 selectedEnvironment={selectedEnvironmentId}
                 onEnvironmentChange={handleEnvironmentChange}
@@ -3091,6 +3204,9 @@ onShowChatbot={handleShowChatbot}
    onViewRunResults={handleViewFunctionalRunResults} 
    onBodyTypeChange={(v) => 
     updateActiveRequest('bodyType', v)}
+    onMcpTypeChange={onMcpTypeChange}
+    onSelectWorkspace={handleSelectWorkspace}
+    onCreateProjectTab={handleCreateProjectTab}
               />
             }
           />

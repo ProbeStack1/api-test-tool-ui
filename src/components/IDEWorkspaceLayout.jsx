@@ -1,10 +1,11 @@
-import React, { useEffect, useState,useRef, useMemo } from 'react';
+import React, { useEffect, useState,useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {  History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen, Activity } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
+import { RightPanelVariables } from './RightPanelVariables';
 import CollectionsPanel from './CollectionsPanel';
 import VariablesEditor from './VariablesEditor';
 import DashboardSpecTable from './DashboardSpecTable';
@@ -13,7 +14,6 @@ import AIAssisted from '../pages/AIAssisted';
 import clsx from 'clsx';
 import EnvironmentList from './sidebar/EnvironmentList';
 import EnvironmentDropdown from './sidebar/EnvironmentDropdown';
-import CreateMockServiceModal from '../components/modals/CreateMockServiceModal';
 import { runMockServer,getMockEndpointHistory } from '../services/mockServerService';
 import { listCollectionRuns,exportCollection  } from '../services/collectionService';
 import {listTestFiles,uploadTestFile,deleteTestFile,} from '../services/testFileService';
@@ -24,6 +24,9 @@ import { uploadCollection as uploadLoadCollection } from '../services/loadTestSe
 import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
 import { fetchRequestHistory } from '../services/requestService';
 import { toast } from 'sonner';
+import MCPPanel from './sidebar/MCPPanel';
+import RightPanelProjects from './RightPanelProjects';
+import RightPanelAI from './RightPanelAI';
 
 export default function IDEWorkspaceLayout({
   history,
@@ -125,6 +128,9 @@ onShowChatbot,
   loadingLoadRuns,   
   onLoadTestComplete, 
    onBodyTypeChange,
+   onMcpTypeChange,
+   onSelectWorkspace,
+   onCreateProjectTab,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -140,11 +146,31 @@ const [fileSelectionContext, setFileSelectionContext] = useState({ context: null
 const [selectedHistoryType, setSelectedHistoryType] = useState('request');
 const [isPreparingCollection, setIsPreparingCollection] = useState(false);
 const [isPreparingLoadCollection, setIsPreparingLoadCollection] = useState(false);
+// MCP Test states
+const [mcpServerType, setMcpServerType] = useState('local'); // 'local' | 'remote'
+const [mcpServerUrl, setMcpServerUrl] = useState('http://localhost:8000');
+const [mcpTestResult, setMcpTestResult] = useState(null);
+const [mcpTesting, setMcpTesting] = useState(false);
+
+
+const testMcpConnection = async () => {
+  setMcpTesting(true);
+  setMcpTestResult(null);
+  try {
+    // Simulate API call – replace with real MCP endpoint later
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setMcpTestResult({ success: true, message: 'MCP server responded successfully' });
+  } catch (err) {
+    setMcpTestResult({ success: false, message: err.message || 'Connection failed' });
+  } finally {
+    setMcpTesting(false);
+  }
+};
 
 const handleOpenMockEditor = (config) => {
   const newTab = {
-    id: `mock-editor-${Date.now()}`,
-    type: 'mock-editor',
+    id: `mock-wizard-${Date.now()}`,
+    type: 'mock-wizard',
     name: `Mock: ${config.name}`,
     mockConfig: config,
   };
@@ -152,17 +178,19 @@ const handleOpenMockEditor = (config) => {
 };
 
 const handleOpenMockEditorForExisting = (mockServer) => {
-  // Check if a tab with this mock server already exists
-  const existingTabIndex = requests.findIndex(tab => tab.type === 'mock-editor' && tab.mockServer?.id === mockServer.id);
+  const existingTabIndex = requests.findIndex(
+    tab => tab.type === 'mock-wizard' && tab.mockServer?.id === mockServer.id
+  );
   if (existingTabIndex !== -1) {
     onTabSelect(existingTabIndex);
     return;
   }
 
   const newTab = {
-    id: `mock-editor-${mockServer.id}`,
-    type: 'mock-editor',
+    id: `mock-wizard-${mockServer.id}`,
+    type: 'mock-wizard',
     name: `Mock: ${mockServer.name}`,
+    step: 'editor',
     mockServer: mockServer,
     isEdit: true,
   };
@@ -240,6 +268,7 @@ const handleShowLoadTestResults = (loadTestId) => {
   const getTopMenuFromPath = (pathname) => {
     if (pathname.includes('/workspace/history')) return 'history';
     if (pathname.includes('/workspace/variables')) return 'environments';
+    if (pathname.includes('/workspace/mcp-test')) return 'mcp-test'; 
     if (pathname.includes('/workspace/testing')) return 'testing';
     if (pathname.includes('/workspace/mock-service')) return 'mock-service';
     if (pathname.includes('/workspace/ai-assisted')) return 'ai-assisted';
@@ -251,6 +280,7 @@ const handleShowLoadTestResults = (loadTestId) => {
   const getPathFromTopMenu = (menuId) => {
     if (menuId === 'history') return '/workspace/history';
     if (menuId === 'environments') return '/workspace/variables';
+    if (menuId === 'mcp-test') return '/workspace/mcp-test';
     if (menuId === 'testing') return '/workspace/testing';
     if (menuId === 'mock-service') return '/workspace/mock-service';
     if (menuId === 'ai-assisted') return '/workspace/ai-assisted';
@@ -272,6 +302,52 @@ const handleShowLoadTestResults = (loadTestId) => {
 const [functionalSelectedFile, setFunctionalSelectedFile] = useState(null);
 const [loadSelectedFile, setLoadSelectedFile] = useState(null);
 const fileSelectCallbackRef = useRef(null);
+
+// Resizable sidebar state
+const [sidebarWidth, setSidebarWidth] = useState(() => {
+  const saved = localStorage.getItem('probestack_sidebar_width');
+  return saved ? parseInt(saved, 10) : 288;
+});
+const [isResizing, setIsResizing] = useState(false);
+const startXRef = useRef(0);
+const startWidthRef = useRef(0);
+
+const startResize = (e) => {
+  e.preventDefault();
+  setIsResizing(true);
+  startXRef.current = e.clientX;
+  startWidthRef.current = sidebarWidth;
+};
+
+const onResize = useCallback((e) => {
+  if (!isResizing) return;
+  const dx = e.clientX - startXRef.current;
+  let newWidth = startWidthRef.current + dx;
+  newWidth = Math.min(300, Math.max(200, newWidth));
+  setSidebarWidth(newWidth);
+  if (sidebarCollapsed) setSidebarCollapsed(false);
+}, [isResizing, sidebarCollapsed]);
+
+const stopResize = useCallback(() => {
+  if (isResizing) {
+    setIsResizing(false);
+    localStorage.setItem('probestack_sidebar_width', sidebarWidth);
+  }
+}, [isResizing, sidebarWidth]);
+
+useEffect(() => {
+  if (isResizing) {
+    window.addEventListener('mousemove', onResize);
+    window.addEventListener('mouseup', stopResize);
+  } else {
+    window.removeEventListener('mousemove', onResize);
+    window.removeEventListener('mouseup', stopResize);
+  }
+  return () => {
+    window.removeEventListener('mousemove', onResize);
+    window.removeEventListener('mouseup', stopResize);
+  };
+}, [isResizing, onResize, stopResize]);
 
 const handleFileSelect = (file) => {
   if (fileSelectCallbackRef.current) {
@@ -338,6 +414,7 @@ useEffect(() => {
   const topMenuItems = [
     { id: 'history', label: 'History', icon: History },
     { id: 'collections', label: 'Collections', icon: LayoutGrid },
+    { id: 'mcp-test', label: 'MCP Test', icon: Activity },
     { id: 'environments', label: 'Variables', icon: Layers },
     { id: 'testing', label: 'Testing', icon: BarChart3 },
     { id: 'mock-service', label: 'Mock', icon: Layers },
@@ -352,6 +429,7 @@ const testingSubTabs = [
   { id: 'generate', label: 'Test Cases', icon: FileSearch },
   { id: 'functional', label: 'Functional Test', icon: Play },
   { id: 'load', label: 'Load Test', icon: BarChart3 },
+  { id: 'MCP Test', label: 'MCP Test', icon: Activity }, // new tab
   { id: 'tracing', label: 'Tracing', icon: Activity }, // new tab
 ];
 
@@ -520,7 +598,6 @@ const handleRunMockServer = async (mockServer) => {
   const [selectedMockRequest, setSelectedMockRequest] = useState(null);
   const [mockSearch, setMockSearch] = useState('');
   const [mockMenu, setMockMenu] = useState(null);
-  const [showCreateMockServiceModal, setShowCreateMockServiceModal] = useState(false);
   const [editingMockId, setEditingMockId] = useState(null);
   const [editingMockName, setEditingMockName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -1006,6 +1083,20 @@ const handleHistoryItemClick = async (historyItem) => {
         headers: fullDetails.response_headers,
         testResults: [],
         testScriptError: null,
+          // === DEBUG FIELDS (for the Debug panel) ===
+  isSuccess: fullDetails.is_success,
+  failureStage: fullDetails.failure_stage,
+  failureCategory: fullDetails.failure_category,
+  failureReason: fullDetails.failure_reason,
+  suggestion: fullDetails.suggestion,
+  errorMessage: fullDetails.error_message,
+  responseTimeMs: fullDetails.response_time_ms,
+  traceSteps: fullDetails.trace_steps || [],
+  request_size_bytes: fullDetails.request_size_bytes,
+  request_headers_size_bytes: fullDetails.request_headers_size_bytes,
+  request_body_size_bytes: fullDetails.request_body_size_bytes,
+  response_headers_size_bytes: fullDetails.response_headers_size_bytes,
+  network: fullDetails.network,
       }
     };
 
@@ -1349,42 +1440,34 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
       {/* project header bar: Search + Environment selector */}
-      <header className="shrink-0 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm">
+      {/* <header className="shrink-0 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3 px-4 py-2">
           <div className="flex-1"></div>
-          <div className="relative w-full max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search project..."
-              value={workspaceSearch}
-              onChange={(e) => setWorkspaceSearch(e.target.value)}
-              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-shadow"
-            />
-          </div>
+
           <div className="flex-1 flex justify-end">
-{/* Environment selector */}
 <div className="relative min-w-[180px]">
   <EnvironmentDropdown
     environments={environments}
     activeEnvironmentId={environments.find(e => e.isActive)?.id || 'no-env'}
     onSelect={(envId) => {
-      // Activate the selected environment (which also sets it as the editing target)
       onActivateEnvironment?.(envId);
     }}
   />
 </div>
           </div>
         </div>
-      </header>
+      </header> */}
 
       {/* Main Content Area - Forgeq layout (flex-1 min-h-0 so footer stays at bottom) */}
       <main className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         {/* Left sidebar - Forgeq w-72, background-light/30 */}
-        <aside className={clsx(
-          'border-r border-dark-700 flex flex-col bg-dark-800/30 flex-shrink-0 transition-all overflow-hidden',
-          sidebarCollapsed ? 'w-0' : 'w-72'
-        )}>
+<aside
+  className={clsx(
+    'border-r border-dark-700 flex flex-col bg-dark-800/30 flex-shrink-0 overflow-hidden',
+    sidebarCollapsed ? 'w-0' : ''
+  )}
+  style={!sidebarCollapsed ? { width: sidebarWidth } : {}}
+>
           <div className="px-3 py-2 border-b border-dark-700/50 flex items-center justify-between shrink-0">
 <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
   {topMenuActive === 'testing'
@@ -1415,6 +1498,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
   currentUserId={currentUserId}
   activeWorkspaceId={activeWorkspaceId} 
   onOpenCollectionRun={onOpenCollectionRun}
+    selectedRequestId={currentRequest?.id}
 />
               </div>
             )}
@@ -1526,8 +1610,18 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
     <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
 <button
   type="button"
-  onClick={() => setShowCreateMockServiceModal(true)}
-  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+  onClick={() => {
+    const newTab = {
+      id: `mock-wizard-${Date.now()}`,
+      type: 'mock-wizard',
+      name: 'New Mock Service',
+      step: 'config',
+      configData: null,
+      isEdit: false,
+    };
+    onNewTab(newTab);
+  }}
+  className="..."
 >
   <Plus className="w-4 h-4" />
   Create Mock Service
@@ -1751,6 +1845,27 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
     )}
   </div>
 )}
+
+{topMenuActive === 'mcp-test' && (
+  <div className="flex-1 min-h-0 flex flex-col">
+    <MCPPanel 
+      onSelectMcpEndpoint={(mcpRequest) => {
+        // Create a new tab for this MCP request
+        const newTab = {
+          id: `mcp-${mcpRequest.id}`,
+          type: 'mcp-request',  // custom type
+          name: mcpRequest.name,
+          method: mcpRequest.method,
+          url: mcpRequest.url,
+          // ... other fields
+        };
+        onNewTab(newTab);
+      }}
+      selectedRequestId={null} // can be linked later
+    />
+  </div>
+)}
+
             {topMenuActive === 'settings-general' && (
               <div className="flex-1 flex flex-col p-4">
                 <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
@@ -1769,7 +1884,12 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
             )}
           </div>
         </aside>
-
+  {!sidebarCollapsed && (
+  <div
+    className="w-1 cursor-ew-resize bg-transparent hover:bg-primary/50 transition-colors flex-shrink-0"
+    onMouseDown={startResize}
+  />
+)}
         {sidebarCollapsed && (
           <button
             onClick={() => setSidebarCollapsed(false)}
@@ -2357,12 +2477,106 @@ topMenuActive === 'testing' ? (
         </div>
       </div>
     )}
+{testingSubTab === 'MCP Test' && (
+  <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
+    <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-5 max-w-2xl">
+      <h3 className="text-sm font-semibold text-white mb-4">MCP Server Configuration</h3>
+      
+      {/* Radio group for server type */}
+      <div className="mb-5">
+        <label className="block text-xs text-gray-400 uppercase tracking-wider mb-2">
+          Server Type
+        </label>
+        <div className="flex gap-6">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="mcpServerType"
+              value="local"
+              checked={mcpServerType === 'local'}
+              onChange={() => setMcpServerType('local')}
+              className="text-primary focus:ring-primary/30"
+            />
+            <span className="text-sm text-gray-300">Local</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="mcpServerType"
+              value="remote"
+              checked={mcpServerType === 'remote'}
+              onChange={() => setMcpServerType('remote')}
+              className="text-primary focus:ring-primary/30"
+            />
+            <span className="text-sm text-gray-300">Remote</span>
+          </label>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          {mcpServerType === 'local' 
+            ? 'Connect to a locally running MCP server' 
+            : 'Connect to a remote MCP server endpoint'}
+        </p>
+      </div>
+
+      {/* URL input (only for remote) */}
+      {mcpServerType === 'remote' && (
+        <div className="mb-5">
+          <label className="block text-xs text-gray-400 uppercase tracking-wider mb-2">
+            Server URL
+          </label>
+          <input
+            type="text"
+            value={mcpServerUrl}
+            onChange={(e) => setMcpServerUrl(e.target.value)}
+            placeholder="https://your-mcp-server.com"
+            className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+      )}
+
+      {/* Test connection button */}
+      <button
+        type="button"
+        onClick={testMcpConnection}
+        disabled={mcpTesting}
+        className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {mcpTesting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Testing...
+          </>
+        ) : (
+          'Test MCP Connection'
+        )}
+      </button>
+
+      {/* Result message */}
+      {mcpTestResult && (
+        <div className={`mt-4 p-3 rounded-lg text-sm ${
+          mcpTestResult.success 
+            ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+            : 'bg-red-500/10 border border-red-500/30 text-red-400'
+        }`}>
+          {mcpTestResult.message}
+        </div>
+      )}
+
+      {/* Optional info note */}
+      <div className="mt-5 pt-4 border-t border-dark-700 text-xs text-gray-500">
+        <p>MCP (Model Context Protocol) allows AI assistants to interact with your APIs. Configure your MCP server endpoint here.</p>
+      </div>
+    </div>
+  </div>
+)}
   </div>
 )
+
           
           : topMenuActive === 'ai-assisted' ? (
               <AIAssisted />
-            ) : topMenuActive === 'dashboard' ? (
+            ) 
+            : topMenuActive === 'dashboard' ? (
   <DashboardSpecTable
     projects={projects}
     workspaceRuns={workspaceRuns}
@@ -2440,62 +2654,158 @@ topMenuActive === 'testing' ? (
      onUpdateMockServer={onUpdateMockServer}
      onFetchRequestHistory={fetchRequestHistory} 
      onFetchMockEndpointHistory={getMockEndpointHistory}
+     onMcpTypeChange={onMcpTypeChange}
+     onUpdateTab={onUpdateTab} 
+     onSelectWorkspace={onSelectWorkspace} 
               />
             )}
           </div>
 
           {/* Right side: Code snippet and Execution Insights (both closed by default), + icon strip */}
-          <div className="flex flex-shrink-0 border-l border-dark-700 bg-dark-800/30 min-h-0">
-            {rightPanelOpen === 'code' && (
-              <CodeSnippetPanel 
-                method={method}
-                url={url}
-                headers={headers}
-                body={body}
-                authType={authType}
-                authData={authData}
-              />
-            )}
-            {rightPanelOpen === 'insights' && (
-              <IDEExecutionInsights
-                response={response}
-                isLoading={isLoading}
-                error={error}
-                executionHistory={history}
-                forgeqStyle
-              />
-            )}
-            <div className="flex flex-col border-l border-dark-700 bg-dark-800/60 w-12 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setRightPanelOpen((prev) => (prev === 'code' ? null : 'code'))}
-                className={clsx(
-                  'flex flex-col items-center justify-center gap-0.5 py-3 px-2 border-b border-dark-700 transition-colors',
-                  rightPanelOpen === 'code'
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
-                )}
-                title="Code snippet (cURL)"
-              >
-                <span className="font-mono text-sm font-semibold leading-none">&lt;/&gt;</span>
-                <span className="text-[9px] font-medium">Code</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRightPanelOpen((prev) => (prev === 'insights' ? null : 'insights'))}
-                className={clsx(
-                  'flex flex-col items-center justify-center gap-0.5 py-3 px-2 transition-colors',
-                  rightPanelOpen === 'insights'
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
-                )}
-                title="Execution Insights"
-              >
-                <BarChart3 className="w-5 h-5" />
-                <span className="text-[9px] font-medium">Insights</span>
-              </button>
-            </div>
-          </div>
+{/* Right side: Code snippet, Execution Insights, and Variables panel */}
+<div className="flex flex-shrink-0 border-l border-dark-700 bg-dark-800/30 min-h-0">
+
+{rightPanelOpen === 'projects' && (
+    <RightPanelProjects
+      projects={projects}
+      activeWorkspaceId={activeWorkspaceId}
+      onSelectWorkspace={onSelectWorkspace}
+      onCreateWorkspace={onAddProject}  
+      onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+      onCreateProjectTab={onCreateProjectTab}   
+    />
+)}
+
+{rightPanelOpen === 'variables' && (
+  <RightPanelVariables
+    environments={environments}
+    activeEnvId={environments.find(e => e.isActive)?.id || 'no-env'}
+    globalEnv={globalEnvironment}
+    onNavigateToVariables={() => navigate('/workspace/variables')}
+    onActivateEnvironment={onActivateEnvironment}
+  />
+)}
+  {rightPanelOpen === 'code' && (
+    <CodeSnippetPanel 
+      method={method}
+      url={url}
+      headers={headers}
+      body={body}
+      authType={authType}
+      authData={authData}
+    />
+  )}
+  {rightPanelOpen === 'insights' && (
+    <IDEExecutionInsights
+      response={response}
+      isLoading={isLoading}
+      error={error}
+      executionHistory={history}
+      forgeqStyle
+    />
+  )}
+
+{rightPanelOpen === 'ai' && (
+  <RightPanelAI
+    method={method}
+    url={url}
+    headers={headers}
+    body={body}
+    authType={authType}
+    authData={authData}
+    preRequestScript={preRequestScript}
+    tests={tests}
+    response={response}
+    error={error}
+    isLoading={isLoading}
+  />
+)}
+
+  <div className="flex flex-col border-l border-dark-700 bg-dark-800/60 w-12 flex-shrink-0">
+
+      {/* --- NEW: Projects button --- */}
+  <button
+    type="button"
+    onClick={() => setRightPanelOpen((prev) => (prev === 'projects' ? null : 'projects'))}
+    className={clsx(
+      'flex flex-col items-center justify-center gap-0.5 py-2 px-2 border-b border-dark-700 transition-colors cursor-pointer',
+      rightPanelOpen === 'projects'
+        ? 'bg-primary/15 text-primary'
+        : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+    )}
+    title="Projects"
+  >
+    <Building2 className="w-5 h-5" />
+    <span className="text-[9px] font-medium">Projects</span>
+  </button>
+
+    {/* Variables button - first */}
+    <button
+      type="button"
+      onClick={() => setRightPanelOpen((prev) => (prev === 'variables' ? null : 'variables'))}
+      className={clsx(
+        'flex flex-col items-center justify-center gap-0.5 py-2 px-2 border-b border-dark-700 transition-colors cursor-pointer',
+        rightPanelOpen === 'variables'
+          ? 'bg-primary/15 text-primary'
+          : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+      )}
+      title="Environment Variables"
+    >
+      <Layers className="w-5 h-5" />
+      <span className="text-[9px] font-medium">Variables</span>
+    </button>
+
+    {/* Code button */}
+    <button
+      type="button"
+      onClick={() => setRightPanelOpen((prev) => (prev === 'code' ? null : 'code'))}
+      className={clsx(
+        'flex flex-col items-center justify-center gap-0.5 py-2 px-2 border-b border-dark-700 transition-colors cursor-pointer',
+        rightPanelOpen === 'code'
+          ? 'bg-primary/15 text-primary'
+          : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+      )}
+      title="Code snippet (cURL)"
+    >
+      <span className="font-mono text-sm font-semibold leading-none">&lt;/&gt;</span>
+      <span className="text-[9px] font-medium">Code</span>
+    </button>
+
+    {/* Insights button */}
+    <button
+      type="button"
+      onClick={() => setRightPanelOpen((prev) => (prev === 'insights' ? null : 'insights'))}
+      className={clsx(
+        'flex flex-col items-center justify-center gap-0.5 py-2 px-2 border-b border-dark-700 transition-colors cursor-pointer',
+        rightPanelOpen === 'insights'
+          ? 'bg-primary/15 text-primary'
+          : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+      )}
+      title="Execution Insights"
+    >
+      <BarChart3 className="w-5 h-5" />
+      <span className="text-[9px] font-medium">Insights</span>
+    </button>
+
+  {/* --- NEW: AI button --- */}
+  <button
+    type="button"
+    onClick={() => setRightPanelOpen((prev) => (prev === 'ai' ? null : 'ai'))}
+    className={clsx(
+      'flex flex-col items-center justify-center gap-0.5 py-2 px-2 border-b border-dark-700 transition-colors cursor-pointer',
+      rightPanelOpen === 'ai'
+        ? 'bg-primary/15 text-primary'
+        : 'text-gray-500 hover:text-white hover:bg-dark-700/50'
+    )}
+    title="AI Assistant"
+  >
+    <Bot className="w-5 h-5" />
+    <span className="text-[9px] font-medium">AI</span>
+  </button>
+
+
+  </div>
+</div>
         </section>
       </main>
 
@@ -2779,21 +3089,7 @@ topMenuActive === 'testing' ? (
         />
       )}
 
-      {/* Create Mock Service Modal */}
-{showCreateMockServiceModal && (
-<CreateMockServiceModal
-  onClose={() => {
-    setShowCreateMockServiceModal(false);
-    setSelectedMockRequest(null);
-  }}
-  onConfigure={handleOpenMockEditor}
-  onCreateMockServer={onCreateMockServer} 
-  onUpdateMockServer={onUpdateMockServer} 
-  mockServer={selectedMockRequest} 
-  collections={collections} 
-  initialRequest={selectedMockRequest} 
-/>
-)}
+
     </div>
   );
 }

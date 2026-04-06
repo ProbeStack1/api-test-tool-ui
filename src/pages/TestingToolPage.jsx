@@ -103,7 +103,10 @@ export default function TestingToolPage({
   loadingRuns,             
   loadTestRuns,            
   loadingLoadRuns,  
-  onBodyTypeChange,       
+  onBodyTypeChange,   
+  onMcpTypeChange,
+  onSelectWorkspace,
+  onCreateProjectTab,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -206,6 +209,9 @@ export default function TestingToolPage({
   loadingLoadRuns={loadingLoadRuns}
   onLoadTestComplete={onLoadTestComplete}
    onBodyTypeChange={onBodyTypeChange}
+   onMcpTypeChange={onMcpTypeChange}
+   onSelectWorkspace={onSelectWorkspace}
+   onCreateProjectTab={onCreateProjectTab}
     />
   );
 }

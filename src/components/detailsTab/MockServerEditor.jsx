@@ -1,5 +1,6 @@
+// src/components/detailsTab/MockServerEditor.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Trash2, Loader2, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, ChevronDown, ChevronRight, GripVertical, Edit } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 import { fetchRequests } from '../../services/requestService';
@@ -15,6 +16,8 @@ export default function MockServerEditor({
   onClose,
   collections,
   activeWorkspaceId,
+  tabIndex,
+  onUpdateTab,
 }) {
   const initialData = isEdit ? mockServer : config;
 
@@ -27,6 +30,8 @@ export default function MockServerEditor({
   const [saving, setSaving] = useState(false);
   const [mockUrl, setMockUrl] = useState(initialData?.mockUrl ? `/api/v1/mocks/${initialData.mockUrl}` : null);
   const [expandedEndpoints, setExpandedEndpoints] = useState({});
+  const [readOnly, setReadOnly] = useState(isEdit); // start read‑only for edit, editable for new
+  const [mockId, setMockId] = useState(initialData?.id || null);
 
   // Resizable split state
   const containerRef = useRef(null);
@@ -177,14 +182,17 @@ export default function MockServerEditor({
   });
 
   const addEndpoint = () => {
+    if (readOnly) return;
     setEndpoints(prev => [...prev, createEmptyEndpoint()]);
   };
 
   const updateEndpoint = (id, field, value) => {
+    if (readOnly) return;
     setEndpoints(prev => prev.map(ep => (ep.id === id ? { ...ep, [field]: value } : ep)));
   };
 
   const removeEndpoint = (id) => {
+    if (readOnly) return;
     if (endpoints.length === 1) {
       toast.info('At least one endpoint is required');
       return;
@@ -225,8 +233,12 @@ export default function MockServerEditor({
         delay,
       };
       try {
-        await onUpdate(initialData.id, updatedData, endpoints);
+        await onUpdate(mockId, updatedData, endpoints);
         toast.success('Mock server updated');
+        setReadOnly(true);
+        if (onUpdateTab && tabIndex !== undefined) {
+          onUpdateTab(tabIndex, { name: `Mock: ${name.trim()}` });
+        }
       } catch (err) {
         toast.error('Update failed');
       } finally {
@@ -252,7 +264,12 @@ export default function MockServerEditor({
       };
       try {
         const createdMock = await onSave(mockData);
+        setMockId(createdMock.id);
         setMockUrl(`/api/v1/mocks/${createdMock.mockUrl}`);
+        setReadOnly(true);
+        if (onUpdateTab && tabIndex !== undefined) {
+          onUpdateTab(tabIndex, { name: `Mock: ${createdMock.name}` });
+        }
         toast.success('Mock server created');
       } catch (err) {
         toast.error('Failed to create mock server');
@@ -260,6 +277,10 @@ export default function MockServerEditor({
         setSaving(false);
       }
     }
+  };
+
+  const handleEdit = () => {
+    setReadOnly(false);
   };
 
   return (
@@ -273,13 +294,15 @@ export default function MockServerEditor({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white">Endpoints</h2>
-            <button
-              type="button"
-              onClick={addEndpoint}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <Plus size={14} /> Add Endpoint
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={addEndpoint}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <Plus size={14} /> Add Endpoint
+              </button>
+            )}
           </div>
           {loading ? (
             <div className="flex justify-center py-8">
@@ -297,6 +320,7 @@ export default function MockServerEditor({
                 onRemove={() => removeEndpoint(ep.id)}
                 canRemove={endpoints.length > 1}
                 isTwoColumn={isLeftPanelWide}
+                disabled={readOnly}
               />
             ))
           )}
@@ -308,7 +332,7 @@ export default function MockServerEditor({
         className="w-0.5 bg-dark-700 hover:bg-primary/50 cursor-col-resize transition-colors relative group flex-shrink-0"
         onMouseDown={startDrag}
       >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2  transition-opacity">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity">
           <GripVertical className="w-5 h-5 text-gray-400" />
         </div>
       </div>
@@ -323,7 +347,8 @@ export default function MockServerEditor({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            disabled={readOnly}
+            className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -337,9 +362,10 @@ export default function MockServerEditor({
               type="checkbox"
               checked={isPrivate}
               onChange={(e) => setIsPrivate(e.target.checked)}
+              disabled={readOnly}
               className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-dark-700 rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+            <div className="w-11 h-6 bg-dark-700 rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full disabled:opacity-60"></div>
           </label>
         </div>
 
@@ -351,7 +377,8 @@ export default function MockServerEditor({
             <select
               value={delayOption}
               onChange={(e) => setDelayOption(e.target.value)}
-              className="flex-1 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              disabled={readOnly}
+              className="flex-1 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
             >
               <option value="none">No delay</option>
               <option value="200">200ms</option>
@@ -366,7 +393,8 @@ export default function MockServerEditor({
                   step="50"
                   value={customDelayMs}
                   onChange={(e) => setCustomDelayMs(Number(e.target.value))}
-                  className="w-20 border border-dark-700 rounded-lg px-2 py-2 text-sm text-white text-center bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  disabled={readOnly}
+                  className="w-20 border border-dark-700 rounded-lg px-2 py-2 text-sm text-white text-center bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
                 />
                 <span className="text-sm text-gray-400">ms</span>
               </div>
@@ -381,22 +409,32 @@ export default function MockServerEditor({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
-          {isEdit ? 'Update Mock Server' : 'Create Mock Server'}
-        </button>
+        {readOnly ? (
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm flex items-center justify-center gap-2"
+          >
+            <Edit className="w-4 h-4" /> Edit Mock Server
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
+            {isEdit ? 'Update Mock Server' : 'Create Mock Server'}
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 // EndpointEditor component with responsive two‑column layout
-function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate, onRemove, canRemove, isTwoColumn }) {
+function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate, onRemove, canRemove, isTwoColumn, disabled }) {
   const [jsonErrors, setJsonErrors] = useState({});
   const [showRequestBody, setShowRequestBody] = useState(endpoint.showRequestBody ?? false);
 
@@ -472,7 +510,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
               e.stopPropagation();
               handleChange('method', e.target.value);
             }}
-            className={`border rounded px-2 py-1.5 text-sm ${getMethodClass(endpoint.method)} focus:outline-none focus:ring-2 focus:ring-primary/50 bg-dark-800`}
+            disabled={disabled}
+            className={`border rounded px-2 py-1.5 text-sm ${getMethodClass(endpoint.method)} focus:outline-none focus:ring-2 focus:ring-primary/50 bg-dark-800 disabled:opacity-60`}
             onClick={(e) => e.stopPropagation()}
           >
             <option value="GET" className="text-green-400 bg-dark-800">GET</option>
@@ -490,7 +529,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
               e.stopPropagation();
               handleChange('path', e.target.value);
             }}
-            className="border border-dark-700 rounded px-3 py-1.5 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            disabled={disabled}
+            className="border border-dark-700 rounded px-3 py-1.5 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
             onClick={(e) => e.stopPropagation()}
           />
 
@@ -503,12 +543,13 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
               e.stopPropagation();
               handleChange('statusCode', Number(e.target.value) || 200);
             }}
-            className={`border border-dark-700 rounded px-2 py-1.5 text-sm text-center w-20 bg-dark-800 ${getStatusClass(endpoint.statusCode)} focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary`}
+            disabled={disabled}
+            className={`border border-dark-700 rounded px-2 py-1.5 text-sm text-center w-20 bg-dark-800 ${getStatusClass(endpoint.statusCode)} focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60`}
             placeholder="200"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
-        {canRemove && (
+        {canRemove && !disabled && (
           <button
             type="button"
             onClick={(e) => {
@@ -532,20 +573,23 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-gray-500">Request Body (JSON)</label>
-                  <button
-                    type="button"
-                    onClick={toggleRequestBody}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Remove
-                  </button>
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={toggleRequestBody}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
                 <textarea
                   placeholder="Request body (JSON)"
                   value={endpoint.requestBodySample}
                   onChange={(e) => handleChange('requestBodySample', e.target.value)}
                   rows={4}
-                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  disabled={disabled}
+                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
                 />
                 {jsonErrors.requestBodySample && (
                   <p className="text-red-400 text-xs mt-1">{jsonErrors.requestBodySample}</p>
@@ -560,7 +604,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
                   value={endpoint.responseBody}
                   onChange={(e) => handleChange('responseBody', e.target.value)}
                   rows={4}
-                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  disabled={disabled}
+                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
                 />
                 {jsonErrors.responseBody && (
                   <p className="text-red-400 text-xs mt-1">{jsonErrors.responseBody}</p>
@@ -569,7 +614,7 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
             </div>
           ) : (
             <>
-              {!isGet && !showRequestBody && (
+              {!isGet && !showRequestBody && !disabled && (
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -587,7 +632,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
                   value={endpoint.responseBody}
                   onChange={(e) => handleChange('responseBody', e.target.value)}
                   rows={4}
-                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  disabled={disabled}
+                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
                 />
                 {jsonErrors.responseBody && (
                   <p className="text-red-400 text-xs mt-1">{jsonErrors.responseBody}</p>
@@ -603,7 +649,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
                 type="checkbox"
                 checked={endpoint.validateMethod}
                 onChange={(e) => handleChange('validateMethod', e.target.checked)}
-                className="rounded text-primary focus:ring-2 focus:ring-primary/50"
+                disabled={disabled}
+                className="rounded text-primary focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
               />
               Validate HTTP method
             </label>
@@ -613,7 +660,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
                 <select
                   value={endpoint.validationMode}
                   onChange={(e) => handleChange('validationMode', e.target.value)}
-                  className="bg-dark-800 border border-dark-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  disabled={disabled}
+                  className="bg-dark-800 border border-dark-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
                 >
                   <option value="NONE">No body validation</option>
                   <option value="EXACT_MATCH">Exact match</option>
@@ -629,7 +677,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
                 min="0"
                 value={endpoint.delayMs}
                 onChange={(e) => handleChange('delayMs', Number(e.target.value))}
-                className="w-16 border border-dark-700 rounded px-2 py-1 text-xs text-white text-center bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                disabled={disabled}
+                className="w-16 border border-dark-700 rounded px-2 py-1 text-xs text-white text-center bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
               />
             </div>
           </div>

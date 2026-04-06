@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, XCircle, Clock, Database, AlertCircle, Gauge, CheckSquare, LockOpen, Info } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Database, AlertCircle, Gauge, CheckSquare, LockOpen, Info, BarChart3 } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function IDEExecutionInsights({ response, isLoading, error, executionHistory = [], forgeqStyle = false }) {
@@ -8,9 +8,10 @@ export default function IDEExecutionInsights({ response, isLoading, error, execu
 
   if (forgeqStyle) {
     return (
-      <aside className="w-64 min-w-[16rem] border-l border-dark-700 flex flex-col bg-dark-800/40 flex-shrink-0 min-h-0 overflow-hidden">
-        <div className="p-4 border-b border-dark-700 shrink-0">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Execution Insights</h3>
+      <aside className="w-80 min-w-[18rem] max-w-[20rem] border-l border-dark-700 flex flex-col flex-shrink-0 min-h-0 overflow-hidden">
+        <div className="p-4.5 border-b border-dark-700 shrink-0 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-primary" />
+          <h3 className="text-sm font-semibold text-white">Execution Insights</h3>
         </div>
         <div className="p-4 space-y-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
           {/* Status */}

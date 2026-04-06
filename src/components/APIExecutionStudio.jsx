@@ -1701,7 +1701,7 @@ isMockWizard ? (
     </div> {/* closes the inner flex-col div */}
 
     {/* Bottom Panel & Save Modal – only for request tabs */}
-    {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults && !isMockEditor && (
+    {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults && !isMockEditor && !isMockWizard &&(
       <>
         <ResizableBottomPanel
           defaultHeight={440}

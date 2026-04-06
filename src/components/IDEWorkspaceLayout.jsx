@@ -152,6 +152,25 @@ const [mcpServerUrl, setMcpServerUrl] = useState('http://localhost:8000');
 const [mcpTestResult, setMcpTestResult] = useState(null);
 const [mcpTesting, setMcpTesting] = useState(false);
 
+const selectedMockServerId = useMemo(() => {
+  if (!currentRequest) return null;
+  if (currentRequest.type === 'mock-wizard') {
+    return currentRequest.mockServer?.id || null;
+  }
+  if (currentRequest.type === 'mock-editor') {
+    return currentRequest.mockServer?.id || null;
+  }
+  return null;
+}, [currentRequest]);
+
+const selectedMockEndpointId = useMemo(() => {
+  if (!currentRequest) return null;
+  // If the current tab is a regular request that is a mock endpoint
+  if (currentRequest.isMockEndpoint === true) {
+    return currentRequest.mockEndpointId || currentRequest.mockEndpoint?.id;
+  }
+  return null;
+}, [currentRequest]);
 
 const testMcpConnection = async () => {
   setMcpTesting(true);
@@ -1621,7 +1640,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
     };
     onNewTab(newTab);
   }}
-  className="..."
+  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
 >
   <Plus className="w-4 h-4" />
   Create Mock Service
@@ -1642,125 +1661,135 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
       </div>
     </div>
 
-    {/* Mock Servers Tree */}
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
-      {mockServers && mockServers.length > 0 ? (
-        <div className="space-y-2">
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Mocks</h3>
-          {mockServers.map((mock) => {
-            const isExpanded = expandedMockServers[mock.id];
-            const filteredEndpoints = mock.endpoints?.filter(ep =>
-              ep.path.toLowerCase().includes(mockSearch.toLowerCase()) ||
-              ep.method.toLowerCase().includes(mockSearch.toLowerCase())
-            ) || [];
-            const hasVisibleEndpoints = filteredEndpoints.length > 0;
+{/* Mock Servers Tree */}
+<div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
+  {mockServers && mockServers.length > 0 ? (
+    <div className="space-y-2">
+      <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Mocks</h3>
+      {mockServers.map((mock) => {
+        const isExpanded = expandedMockServers[mock.id];
+        const filteredEndpoints = mock.endpoints?.filter(ep =>
+          ep.path.toLowerCase().includes(mockSearch.toLowerCase()) ||
+          ep.method.toLowerCase().includes(mockSearch.toLowerCase())
+        ) || [];
+        const hasVisibleEndpoints = filteredEndpoints.length > 0;
 
-            return (
-              <div key={mock.id} className="select-none">
-                {/* Mock Server Row */}
-<div
-  className="flex items-center gap-1 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50"
-  onClick={() => setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }))}
->
-                  {/* Expand/collapse chevron */}
-                  <div
-                    className="w-4 h-4 flex items-center justify-center shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }));
-                    }}
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-                    )}
-                  </div>
+        const isActiveMock = selectedMockServerId === mock.id;
 
-                  <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
-                  {editingMockId === mock.id ? (
-                    <input
-                      type="text"
-                      value={editingMockName}
-                      onChange={(e) => setEditingMockName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          onRenameMockServer(mock.id, editingMockName.trim());
-                          setEditingMockId(null);
-                          setEditingMockName('');
-                        } else if (e.key === 'Escape') {
-                          setEditingMockId(null);
-                          setEditingMockName('');
-                        }
-                      }}
-                      onBlur={() => {
-                        if (editingMockName.trim() && editingMockName !== mock.name) {
-                          onRenameMockServer(mock.id, editingMockName.trim());
-                        }
-                        setEditingMockId(null);
-                        setEditingMockName('');
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                      className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  ) : (
-                    <span className="text-xs font-medium text-gray-200 flex-1 truncate">{mock.name}</span>
-                  )}
-                  <span className="text-[10px] text-gray-500">
-                    {mock.endpoints?.length || 0} endpoint{(mock.endpoints?.length || 0) !== 1 ? 's' : ''}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMockMenu({ x: e.clientX, y: e.clientY, mock });
-                    }}
-                    className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
-                    title="Actions"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Endpoints List */}
-                {isExpanded && hasVisibleEndpoints && (
-                  <div className="ml-6 space-y-0.5 mt-0.5">
-                    {filteredEndpoints.map((ep) => (
-                      <div
-                        key={ep.id}
-                        className="flex items-center gap-1 py-1 px-2 rounded-md group cursor-pointer hover:bg-dark-700/30"
-                        onClick={() => onSelectMockEndpoint(mock, ep)}
-                      >
-                        <span
-                          className={clsx(
-                            'text-[10px] font-bold w-9 text-right shrink-0',
-                            ep.method === 'GET' && 'text-green-400',
-                            ep.method === 'POST' && 'text-yellow-400',
-                            ep.method === 'PUT' && 'text-blue-400',
-                            ep.method === 'DELETE' && 'text-red-400',
-                            !['GET','POST','PUT','DELETE'].includes(ep.method) && 'text-purple-400'
-                          )}
-                        >
-                          {ep.method}
-                        </span>
-                        <span className="text-xs text-gray-300 truncate flex-1">{ep.path}</span>
-                        <span className="text-[10px] text-gray-500">{ep.responseStatus || 200}</span>
-                      </div>
-                    ))}
-                  </div>
+        return (
+          <div key={mock.id} className="select-none">
+            {/* Mock Server Row */}
+            <div
+              className={clsx(
+                'flex items-center gap-1 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50',
+                isActiveMock && 'bg-primary/10 border-l-2 border-primary'
+              )}
+              onClick={() => setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }))}
+            >
+              {/* Expand/collapse chevron */}
+              <div
+                className="w-4 h-4 flex items-center justify-center shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }));
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
                 )}
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-8 text-gray-500 text-xs">
-          No mock servers yet. Create one to get started.
-        </div>
-      )}
+
+              <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
+              {editingMockId === mock.id ? (
+                <input
+                  type="text"
+                  value={editingMockName}
+                  onChange={(e) => setEditingMockName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      onRenameMockServer(mock.id, editingMockName.trim());
+                      setEditingMockId(null);
+                      setEditingMockName('');
+                    } else if (e.key === 'Escape') {
+                      setEditingMockId(null);
+                      setEditingMockName('');
+                    }
+                  }}
+                  onBlur={() => {
+                    if (editingMockName.trim() && editingMockName !== mock.name) {
+                      onRenameMockServer(mock.id, editingMockName.trim());
+                    }
+                    setEditingMockId(null);
+                    setEditingMockName('');
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                  className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              ) : (
+                <span className="text-xs font-medium text-gray-200 flex-1 truncate">{mock.name}</span>
+              )}
+              <span className="text-[10px] text-gray-500">
+                {mock.endpoints?.length || 0} endpoint{(mock.endpoints?.length || 0) !== 1 ? 's' : ''}
+              </span>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMockMenu({ x: e.clientX, y: e.clientY, mock });
+                }}
+                className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
+                title="Actions"
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Endpoints List */}
+            {isExpanded && hasVisibleEndpoints && (
+              <div className="ml-6 space-y-0.5 mt-0.5">
+                {filteredEndpoints.map((ep) => (
+<div
+  key={ep.id}
+  className={clsx(
+    'flex items-center gap-1 py-1 px-2 rounded-sm group cursor-pointer',
+    selectedMockEndpointId === ep.id
+      ? 'bg-primary/10 border-primary'          // selected: no hover class
+      : 'hover:bg-dark-700/30'                  // non‑selected: hover effect only
+  )}
+  onClick={() => onSelectMockEndpoint(mock, ep)}
+>
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold w-9 text-right shrink-0',
+                        ep.method === 'GET' && 'text-green-400',
+                        ep.method === 'POST' && 'text-yellow-400',
+                        ep.method === 'PUT' && 'text-blue-400',
+                        ep.method === 'DELETE' && 'text-red-400',
+                        !['GET','POST','PUT','DELETE'].includes(ep.method) && 'text-purple-400'
+                      )}
+                    >
+                      {ep.method}
+                    </span>
+                    <span className="text-xs text-gray-300 truncate flex-1">{ep.path}</span>
+                    <span className="text-[10px] text-gray-500">{ep.responseStatus || 200}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
+  ) : (
+    <div className="text-center py-8 text-gray-500 text-xs">
+      No mock servers yet. Create one to get started.
+    </div>
+  )}
+</div>
 
     {/* Mock Menu (Delete, Rename, Toggle) */}
     {mockMenu && (

@@ -2129,10 +2129,10 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onO
         style={{ paddingLeft: indentPx }}
 className={clsx(
   'flex items-center gap-2 pr-2 rounded-md group cursor-pointer',
-  !isSelected && 'hover:bg-primary/5',          // ← hover only when not selected
+  !isSelected && 'hover:bg-dark-700/30',         
   isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50',
   canDrag && 'cursor-move',
-  isSelected && 'bg-primary/10 border-l-2 border-primary'
+  isSelected && 'bg-primary/10 border-primary'
 )}
         onClick={handleRowClick}
       >

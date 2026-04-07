@@ -17,7 +17,8 @@ export const normalizeCollection = (col, workspace) => ({
   description: col.description || '',
   version: col.version || '',
   visibility: col.visibility || 'private',
-  type: 'collection',
+   type: col.type || 'http', 
+   nodeType: 'collection',
   project: workspace.id,
   projectName: workspace.name,
   items: [],
@@ -40,7 +41,7 @@ export const normalizeFolder = (folder) => ({
   type: 'folder',
   collectionId: folder.collectionId,
   parentFolderId: folder.parentFolderId || null,
-  orderIndex: folder.orderIndex ?? 0,
+  orderIndex: folder.orderIndex ?? 0, 
   items: [],
 });
 
@@ -51,8 +52,11 @@ export const normalizeFolder = (folder) => ({
  * Lists all non-deleted collections in a workspace.
  * @param {string} workspaceId
  */
-export const fetchCollections = (workspaceId) =>
-  collectionApi.get(COLLECTIONS_BASE, { params: { workspaceId } });
+export const fetchCollections = (workspaceId, type = null) => {
+  const params = { workspaceId };
+  if (type) params.type = type;
+  return collectionApi.get(COLLECTIONS_BASE, { params });
+};
 
 /**
  * POST /api/v1/collections?workspaceId=

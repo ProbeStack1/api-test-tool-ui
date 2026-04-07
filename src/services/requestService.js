@@ -15,6 +15,8 @@ export const normalizeRequest = (req) => ({
   url: req.url || '',                 // dono rakho agar kahin use ho raha ho
   collectionId: req.collection_id,
   folderId: req.folder_id || null,
+  protocol: req.protocol || 'HTTP',   // <-- ADD
+  mcpType: req.mcpType || 'sse',
   description: req.description || '',
   headers: req.headers || [],
   queryParams: req.query_params || [],

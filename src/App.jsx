@@ -993,7 +993,7 @@ const createEmptyRequest = () => ({
 });
 
 const [requests, setRequests] = useState([createEmptyRequest()]);
-
+const [mcpCollections, setMcpCollections] = useState([]);
   const [collections, setCollections] = useState(() => {
     try {
       const stored = localStorage.getItem('probestack_collections');
@@ -1355,8 +1355,14 @@ const loadData = async () => {
         console.error(`Failed to fetch collections for workspace ${ws.id}:`, err);
       }
     }
-
-    setCollections(allCollections);
+        const httpCollections = [];
+    const mcpCols = [];
+    allCollections.forEach(col => {
+      if (col.type === 'mcp') mcpCols.push(col);
+      else httpCollections.push(col);
+    });
+    setCollections(httpCollections);
+    setMcpCollections(mcpCols);
   } else {
     setCollections([]);
   }
@@ -1982,6 +1988,7 @@ const handleSaveRequest = async (saveData) => {
       test_script: request.tests,
       collection_id: targetCollectionId,
       folder_id: folderId || null,
+      protocol: request.protocol || 'HTTP', 
     };
 
     const createRes = await createRequest(payload);
@@ -3207,6 +3214,8 @@ onShowChatbot={handleShowChatbot}
     onMcpTypeChange={onMcpTypeChange}
     onSelectWorkspace={handleSelectWorkspace}
     onCreateProjectTab={handleCreateProjectTab}
+    mcpCollections={mcpCollections}
+    setMcpCollections={setMcpCollections}
               />
             }
           />

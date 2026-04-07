@@ -107,6 +107,8 @@ export default function TestingToolPage({
   onMcpTypeChange,
   onSelectWorkspace,
   onCreateProjectTab,
+  mcpCollections,
+  setMcpCollections,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -212,6 +214,8 @@ export default function TestingToolPage({
    onMcpTypeChange={onMcpTypeChange}
    onSelectWorkspace={onSelectWorkspace}
    onCreateProjectTab={onCreateProjectTab}
+   mcpCollections={mcpCollections}
+   setMcpCollections={setMcpCollections}
     />
   );
 }

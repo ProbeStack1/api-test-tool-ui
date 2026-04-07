@@ -131,6 +131,8 @@ onShowChatbot,
    onMcpTypeChange,
    onSelectWorkspace,
    onCreateProjectTab,
+   mcpCollections,
+   setMcpCollections,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1508,16 +1510,17 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
 <CollectionsPanel 
   onSelectEndpoint={onSelectEndpoint}
   existingTabRequests={requests}
-  collections={collections}
   projects={projects}
   onAddProject={onAddProject}
-  onCollectionsChange={onCollectionsChange}
+  onCollectionsChange={onCollectionsChange} 
   onRunCollection={onRunCollection}
   onOpenWorkspaceDetails={onOpenWorkspaceDetails}
   currentUserId={currentUserId}
   activeWorkspaceId={activeWorkspaceId} 
   onOpenCollectionRun={onOpenCollectionRun}
     selectedRequestId={currentRequest?.id}
+        collectionType="http"
+    collections={collections}
 />
               </div>
             )}
@@ -1876,23 +1879,21 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
 )}
 
 {topMenuActive === 'mcp-test' && (
-  <div className="flex-1 min-h-0 flex flex-col">
-    <MCPPanel 
-      onSelectMcpEndpoint={(mcpRequest) => {
-        // Create a new tab for this MCP request
-        const newTab = {
-          id: `mcp-${mcpRequest.id}`,
-          type: 'mcp-request',  // custom type
-          name: mcpRequest.name,
-          method: mcpRequest.method,
-          url: mcpRequest.url,
-          // ... other fields
-        };
-        onNewTab(newTab);
-      }}
-      selectedRequestId={null} // can be linked later
-    />
-  </div>
+<CollectionsPanel 
+  onSelectEndpoint={onSelectEndpoint}
+  existingTabRequests={requests}
+  projects={projects}
+  onAddProject={onAddProject}
+  onCollectionsChange={setMcpCollections}
+  onRunCollection={onRunCollection}
+  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+  currentUserId={currentUserId}
+  activeWorkspaceId={activeWorkspaceId} 
+  onOpenCollectionRun={onOpenCollectionRun}
+    selectedRequestId={currentRequest?.id}
+        collectionType="mcp"
+    collections={mcpCollections}
+/>
 )}
 
             {topMenuActive === 'settings-general' && (
@@ -2686,6 +2687,11 @@ topMenuActive === 'testing' ? (
      onMcpTypeChange={onMcpTypeChange}
      onUpdateTab={onUpdateTab} 
      onSelectWorkspace={onSelectWorkspace} 
+       onProtocolChange={(protocol) => {
+    const updatedRequest = { ...currentRequest, protocol };
+    onUpdateTab(activeRequestIndex, updatedRequest);
+  }}
+  isMcpContext={topMenuActive === 'mcp-test'}
               />
             )}
           </div>

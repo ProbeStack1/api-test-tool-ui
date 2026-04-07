@@ -43,51 +43,51 @@ export const environmentApi = axios.create({
 });
 addUserIdInterceptor(environmentApi);
 
-// Local development services (keep as is)
+// Mock server API (was using double quotes)
 export const mockserverApi = axios.create({
-  baseURL: "${BASE_API_URL}/api/v1/mocks",
+  baseURL: `${BASE_API_URL}/api/v1/mocks`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(mockserverApi);
 
 export const supportApi = axios.create({
-  baseURL: "${BASE_API_URL}/api/v1/support",
+  baseURL: `${BASE_API_URL}/api/v1/support`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(supportApi);
 
 export const userSettingApi = axios.create({
-  baseURL: "${BASE_API_URL}/api/v1/settings",
+  baseURL: `${BASE_API_URL}/api/v1/settings`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(userSettingApi);
 
 export const testFileApi = axios.create({
-  baseURL: "${BASE_API_URL}/api/v1/test-files",
+  baseURL: `${BASE_API_URL}/api/v1/test-files`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(testFileApi);
 
 export const testSpecificationApi = axios.create({
-  baseURL: "${BASE_API_URL}/api/v1/test-specs",
+  baseURL: `${BASE_API_URL}/api/v1/test-specs`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(testSpecificationApi);
 
 export const dashboardApi = axios.create({
-  baseURL: "${BASE_API_URL}/api/v1/dashboard",
+  baseURL: `${BASE_API_URL}/api/v1/dashboard`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(dashboardApi);
 
 export const functionalTestApi = axios.create({
-  baseURL: '${BASE_API_URL}/api/v1/functional-tests',
+  baseURL: `${BASE_API_URL}/api/v1/functional-tests`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(functionalTestApi);
 
 export const loadTestApi = axios.create({
-  baseURL: '${BASE_API_URL}/api/v1/load-tests',
+  baseURL: `${BASE_API_URL}/api/v1/load-tests`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(loadTestApi);

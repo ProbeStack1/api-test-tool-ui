@@ -1653,17 +1653,17 @@ export default function APIExecutionStudio({
                                 )}
                               </div>
                             ) : bodyType === 'none' ? (
-                              <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
+                              <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
                                 This request does not have a body
                               </div>
                             ) : (
-                              <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
+                              <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg">
                                 {bodyType === 'form-data' ? 'Form-data editor coming soon. Use Raw for now.' : 'x-www-form-urlencoded editor coming soon. Use Raw for now.'}
                               </div>
                             )}
                           </>
                         ) : (
-                          <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg bg-dark-900/50">
+                          <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
                             Body not supported for {method} requests
                           </div>
                         )}

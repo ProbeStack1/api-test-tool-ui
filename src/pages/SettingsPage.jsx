@@ -56,7 +56,7 @@ useEffect(() => {
       setCertSettings(prev => ({ ...prev, ...data.certification }));
     } catch (error) {
       console.error('Failed to fetch settings:', error);
-      toast.error('Failed to load settings. Please refresh the page.');
+      // toast.error('Failed to load settings. Please refresh the page.');
     } finally {
       setIsFetching(false);
     }

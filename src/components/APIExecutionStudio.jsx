@@ -1560,6 +1560,7 @@ export default function APIExecutionStudio({
                               inactiveEnvInfo={inactiveEnvInfo}
                               globalVars={globalVars}
                               globalValues={globalValues}
+                              isHeaders={false}
                             />
                           </div>
                         </div>
@@ -1582,6 +1583,7 @@ export default function APIExecutionStudio({
                               inactiveEnvInfo={inactiveEnvInfo}
                               globalVars={globalVars}
                               globalValues={globalValues}
+                                isHeaders={true}
                             />
                           </div>
                         </div>

@@ -15,6 +15,12 @@ import ReactDOM from "react-dom";
 import { Trash2, Plus } from "lucide-react";
 import clsx from "clsx";
 
+// Default headers as shown in the image (only used when isHeaders={true})
+const DEFAULT_HEADERS = [
+  { key: "User-Agent", value: "ProbeStack/1.0 (https://probestack.io)" },
+  { key: "Connection", value: "keep-alive" }
+];
+
 /**
  * Parses text to find {{variable}} patterns
  * @param {string} text - Text to parse
@@ -213,14 +219,16 @@ const colorClass = {
  * 
  * @param {Array} pairs - Array of { key, value } objects
  * @param {function} onChange - Callback when pairs change
+ * @param {boolean} isHeaders - If true, pre-fill with default headers when pairs is empty
  * @param {Set} activeEnvVars - Variables in active environment (optional)
  * @param {Set} inactiveEnvVars - Variables in inactive environments (optional)
  * @param {Object} activeEnvValues - Values map for active env (optional)
  * @param {Object} inactiveEnvInfo - Info map for inactive envs (optional)
  */
 export default function KeyValueEditor({
-  pairs,
+  pairs = [],
   onChange,
+  isHeaders = false,  // <-- NEW PROP: only headers get the default values
   activeEnvVars = new Set(),
   inactiveEnvVars = new Set(),
   activeEnvValues = {},
@@ -228,6 +236,17 @@ export default function KeyValueEditor({
   globalVars = new Set(),
   globalValues = {},
 }) {
+  const hasInitialized = useRef(false);
+
+  // Initialize with hardcoded User-Agent and Connection headers
+  // ONLY when isHeaders={true} and the component starts with an empty pairs array
+  useEffect(() => {
+    if (isHeaders && pairs.length === 0 && !hasInitialized.current) {
+      hasInitialized.current = true;
+      onChange(DEFAULT_HEADERS);
+    }
+  }, [isHeaders, pairs, onChange]);
+
   const handleChange = (index, field, value) => {
     const newPairs = [...pairs];
     newPairs[index][field] = value;

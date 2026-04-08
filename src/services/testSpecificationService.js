@@ -1,6 +1,6 @@
 import { testSpecificationApi } from '../lib/apiClient';
 
-const BASE = '/api/v1/test-specs';
+const BASE = '/api/v1/test-specs/spec';
 
 export const normalizeTestSpec = (spec) => ({
   id: spec.id,
@@ -17,7 +17,7 @@ export const normalizeTestCase = (tc) => ({ ...tc });
 
 /** GET /test-specs/spec?workspaceId=&q=&limit=&offset= */
 export const listTestSpecs = (workspaceId, params = {}) =>
-  testSpecificationApi.get(`${BASE}/spec`, { params: { workspaceId, ...params } })
+  testSpecificationApi.get(`${BASE}`, { params: { workspaceId, ...params } })
     .then(res => ({
       total: res.data.total,
       items: (res.data.items || []).map(normalizeTestSpec),
@@ -30,7 +30,7 @@ export const getTestSpec = (testSpecId) =>
 
 /** POST /test-specs */
 export const createTestSpec = (data) =>
-  testSpecificationApi.post(`${BASE}/spec`, data).then(res => normalizeTestSpec(res.data));
+  testSpecificationApi.post(`${BASE}`, data).then(res => normalizeTestSpec(res.data));
 
 /** PATCH /test-specs/{testSpecId} */
 export const updateTestSpec = (testSpecId, data) =>

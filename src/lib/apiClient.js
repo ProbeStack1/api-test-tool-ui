@@ -51,7 +51,7 @@ export const mockserverApi = axios.create({
 addUserIdInterceptor(mockserverApi);
 
 export const supportApi = axios.create({
-  baseURL: `${BASE_API_URL}/api/v1/support`,
+  baseURL: `${BASE_API_URL}`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(supportApi);

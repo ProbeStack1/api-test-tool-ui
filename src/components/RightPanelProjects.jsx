@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Search, Plus, Check, Info, Building2 } from 'lucide-react';
 import clsx from 'clsx';
+import { useNavigate } from 'react-router-dom';
 
 export default function RightPanelProjects({
   projects,
@@ -12,7 +13,7 @@ export default function RightPanelProjects({
   onCreateProjectTab,    // opens the wizard tab
 }) {
   const [search, setSearch] = useState('');
-
+const navigate = useNavigate();
   const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -38,19 +39,21 @@ export default function RightPanelProjects({
               className="w-full border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
-          <button
-            onClick={onCreateProjectTab}
-            className="p-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors"
-            title="Create new project"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+  <button
+    type="button"
+    onClick={() => navigate('/workspace/projects-management')}   // ← changed
+    className="p-1.5 rounded-md text-gray-500 hover:text-white hover:bg-dark-700 transition-colors flex items-center gap-1"
+    title="Create new project"
+  >
+    <Plus className="w-4 h-4" />
+    <span className="text-sm hidden sm:inline">Create</span>
+  </button>
         </div>
       </div>
 
       {/* Project list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
-        <p className="text-xs text-gray-500 mt-1 px-4 pb-2">Switch or manage your workspaces</p>
+        <p className="text-xs text-gray-500 mt-1 px-4 pb-2">Switch or manage your projects</p>
 
         {filteredProjects.length === 0 ? (
           <div className="px-4 py-8 text-center text-xs text-gray-500">

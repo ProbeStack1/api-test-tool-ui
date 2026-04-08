@@ -49,6 +49,7 @@ import WorkspaceCreateModal from './components/modals/WorkspaceCreateModal';
 import { useVariableMaps } from './components/VariableHighlightInput';
 import RunModal from './components/modals/RunModal';
 import AIChatbotHelper from './components/AiChatbotHelper';
+import ProjectManagementPage from './pages/ProjectManagementPage';
 
 // Flatten all request items recursively from a collection tree
 const flattenCollectionRequests = (items = []) => {
@@ -3103,6 +3104,20 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
           <Route path="/workspace/profile" element={<Profile />} />
           <Route path="/workspace/profile/support" element={<ProfileSupport />} />
           <Route path="/workspace/profile/support/ticket" element={<ProfileSupportTicket />} />
+          <Route
+  path="/workspace/projects-management"
+  element={
+    <ProjectManagementPage
+      projects={projects}
+      activeWorkspaceId={activeWorkspaceId}
+      onSelectWorkspace={handleSelectWorkspace}
+      onAddProject={handleAddProject}
+      onWorkspaceUpdate={handleWorkspaceUpdate}
+      onWorkspaceDelete={handleWorkspaceDelete}
+      currentUserId={currentUserId}
+    />
+  }
+/>
           <Route
             path="/workspace/*"
             element={

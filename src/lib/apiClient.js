@@ -75,7 +75,7 @@ export const testSpecificationApi = axios.create({
 addUserIdInterceptor(testSpecificationApi);
 
 export const dashboardApi = axios.create({
-  baseURL: `${BASE_API_URL}/api/v1/dashboard`,
+  baseURL: `${BASE_API_URL}`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(dashboardApi);

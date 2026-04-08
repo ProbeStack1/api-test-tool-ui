@@ -18,19 +18,29 @@
   /* Tool background */
   --color-probestack-bg: #0e172a;
 
-
   /*==================================================================*/
 
---color-input-bg: #0f172a80; /* dark mode input bg */
---color-card-bg: #161b30; 
+  --color-input-bg: #0f172a80; /* dark mode input bg */
+  --color-card-bg: #161b30;
 
+  /* ProbeStack Landing Page Theme Variables */
+  --probestack-primary: #ff5b1f;
+  --probestack-primary-light: #ff8c4a;
+  --probestack-bg-dark: #0f172a80;
+  --probestack-surface-dark: #1a1a1c;
+  --probestack-border-dark: #2d2d30;
+  --probestack-text-primary-dark: #f9fafb;
+  --probestack-text-secondary-dark: #9ca3af;
+  --probestack-card-bg-dark: #161b30;
 
+  --probestack-bg-light: #fafafa;
+  --probestack-surface-light: #ffffff;
+  --probestack-border-light: #e5e7eb;
+  --probestack-text-primary-light: #1f2937;
+  --probestack-text-secondary-light: #6b7280;
+  --probestack-card-bg-light: rgba(255, 255, 255, 0.8);
 
-
-
-
-/*=====================================================================*/
-
+  /*=====================================================================*/
 }
 
 /* Light theme: override Tailwind theme variables so all components update */
@@ -44,15 +54,9 @@
   --color-dark-500: #5a617a;
   --color-dark-400: #5a617a;
 
-
-
   /*======================================================================*/
---color-input-bg: #ffffffd5; /* light mode input bg */
---color-card-bg: #f0f2f5; /* white card */
-
-
-
-
+  --color-input-bg: #ffffffd5; /* light mode input bg */
+  --color-card-bg: #f0f2f5; /* white card */
 
   /*======================================================================*/
 }
@@ -186,4 +190,316 @@
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-dark-600;
+}
+
+/* ===================================================================
+   ProbeStack Landing Page Animation Keyframes
+   Production-grade smooth animations
+   =================================================================== */
+
+/* Subtle floating animation for background particles */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+  }
+  25% {
+    transform: translateY(-20px) translateX(10px);
+  }
+  50% {
+    transform: translateY(-10px) translateX(-5px);
+  }
+  75% {
+    transform: translateY(-25px) translateX(5px);
+  }
+}
+
+/* Gentle pulse animation for ambient glow effects */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+/* Smooth gradient shift for background ambiance */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Fade in from bottom animation */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Rocket hover ignition animation - slight shake and glow */
+@keyframes rocket-ignition {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  10% {
+    transform: translateY(-2px) rotate(-1deg);
+  }
+  20% {
+    transform: translateY(-1px) rotate(1deg);
+  }
+  30% {
+    transform: translateY(-3px) rotate(-0.5deg);
+  }
+  40% {
+    transform: translateY(-2px) rotate(0.5deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(0deg);
+  }
+  60% {
+    transform: translateY(-2px) rotate(-0.5deg);
+  }
+  70% {
+    transform: translateY(-3px) rotate(0.5deg);
+  }
+  80% {
+    transform: translateY(-1px) rotate(0deg);
+  }
+  90% {
+    transform: translateY(-2px) rotate(-0.5deg);
+  }
+}
+
+/* Rocket launch and fly away animation */
+@keyframes rocket-launch {
+  0% {
+    transform: translateX(0) translateY(0) scale(1);
+    opacity: 1;
+  }
+  30% {
+    transform: translateX(10px) translateY(-20px) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(200px) translateY(-100px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* Exhaust flame animation */
+@keyframes flame-flicker {
+  0%, 100% {
+    transform: scaleY(1) scaleX(1);
+    opacity: 0.8;
+  }
+  25% {
+    transform: scaleY(1.2) scaleX(0.9);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleY(0.9) scaleX(1.1);
+    opacity: 0.9;
+  }
+  75% {
+    transform: scaleY(1.1) scaleX(0.95);
+    opacity: 1;
+  }
+}
+
+/* Particle drift animation */
+@keyframes particle-drift {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(var(--drift-x, 20px));
+    opacity: 0;
+  }
+}
+
+/* Smooth scale in animation */
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ===================================================================
+   ProbeStack Utility Classes
+   Reusable animation and style utilities
+   =================================================================== */
+
+/* Theme-friendly gradient text that works in both light and dark modes */
+.gradient-text-theme {
+  background: linear-gradient(135deg, var(--probestack-text-primary-dark) 0%, var(--probestack-primary) 50%, var(--probestack-text-primary-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .gradient-text-theme {
+  background: linear-gradient(135deg, var(--probestack-text-primary-light) 0%, var(--probestack-primary) 50%, var(--probestack-text-primary-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Primary brand gradient text */
+.gradient-text-primary {
+  background: linear-gradient(135deg, #ff5b1f 0%, #ff8c4a 50%, #ff5b1f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animation utility classes */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.animate-gradient-shift {
+  animation: gradient-shift 8s ease infinite;
+  background-size: 200% 200%;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.5s ease-out forwards;
+}
+
+/* Rocket button specific animations */
+.rocket-icon-hover {
+  animation: rocket-ignition 0.5s ease-in-out infinite;
+}
+
+.rocket-icon-launch {
+  animation: rocket-launch 0.6s ease-in forwards;
+}
+
+.flame-active {
+  animation: flame-flicker 0.15s ease-in-out infinite;
+}
+
+/* Animation delay utilities for staggered reveals */
+.animation-delay-100 { animation-delay: 0.1s; }
+.animation-delay-200 { animation-delay: 0.2s; }
+.animation-delay-300 { animation-delay: 0.3s; }
+.animation-delay-400 { animation-delay: 0.4s; }
+.animation-delay-500 { animation-delay: 0.5s; }
+
+/* Particle styling */
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--probestack-primary);
+  opacity: 0;
+  animation: particle-drift var(--duration, 15s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Glass morphism card effect */
+.glass-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Dark theme glass card */
+.glass-card-dark {
+  background: var(--probestack-card-bg-dark);
+  border: 1px solid var(--probestack-border-dark);
+}
+
+/* Light theme glass card */
+[data-theme="light"] .glass-card-dark {
+  background: var(--probestack-card-bg-light);
+  border: 1px solid var(--probestack-border-light);
+}
+
+/* Smooth transitions for interactive elements */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Button hover glow effect */
+.btn-glow:hover {
+  box-shadow: 0 0 30px rgba(255, 91, 31, 0.4), 0 0 60px rgba(255, 91, 31, 0.2);
+}
+
+/* Landing page specific theme colors */
+.landing-bg {
+  background: var(--probestack-bg-dark);
+}
+
+[data-theme="light"] .landing-bg {
+  background: var(--probestack-bg-light);
+}
+
+.landing-text-primary {
+  color: var(--probestack-text-primary-dark);
+}
+
+[data-theme="light"] .landing-text-primary {
+  color: var(--probestack-text-primary-light);
+}
+
+.landing-text-secondary {
+  color: var(--probestack-text-secondary-dark);
+}
+
+[data-theme="light"] .landing-text-secondary {
+  color: var(--probestack-text-secondary-light);
+}
+
+.landing-border {
+  border-color: var(--probestack-border-dark);
+}
+
+[data-theme="light"] .landing-border {
+  border-color: var(--probestack-border-light);
+}
+
+.landing-card-bg {
+  background: var(--probestack-card-bg-dark);
+}
+
+[data-theme="light"] .landing-card-bg {
+  background: var(--probestack-card-bg-light);
+}
+
+/* Protect JSON syntax colors in light theme */
+[data-theme="light"] .json-syntax-protected span[data-syntax] {
+  color: inherit !important;
+  background-color: inherit !important;
 }

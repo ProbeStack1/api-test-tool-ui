@@ -14,7 +14,7 @@ import {
   deleteTestSpec,
   generateTestCases,
   listTestCases,
-  getTestSpec,                        // <-- NEW import
+  getTestSpec,
 } from '../services/testSpecificationService';
 import { listLibraryItems } from '../services/specLibraryService';
 
@@ -25,14 +25,18 @@ const BLANK_SPEC_TEMPLATE = {
   components: { schemas: {} },
 };
 
-const MONACO_OPTIONS = {
+// ── Monaco options (theme will be dynamic) ────────────────────────────────────
+const getMonacoOptions = (isDark) => ({
   fontSize: 13, lineHeight: 20, minimap: { enabled: false }, wordWrap: 'on',
   scrollBeyondLastLine: false, smoothScrolling: true, automaticLayout: true,
   tabSize: 2, insertSpaces: true, renderWhitespace: 'selection',
   bracketPairColorization: { enabled: true }, formatOnPaste: true, formatOnType: true,
-};
+  theme: isDark ? 'vs-dark' : 'light',
+});
 
-const MONACO_READONLY = { ...MONACO_OPTIONS, readOnly: true, lineNumbers: 'off', glyphMargin: false, folding: false };
+const MONACO_READONLY = (isDark) => ({
+  ...getMonacoOptions(isDark), readOnly: true, lineNumbers: 'off', glyphMargin: false, folding: false
+});
 
 const TEST_CASES_LIMIT = 20;
 
@@ -56,10 +60,21 @@ const METHOD_COLORS = {
 const methodColor = (method) =>
   METHOD_COLORS[(method || '').toUpperCase()] || 'bg-gray-500/15 text-gray-400 border-gray-500/30';
 
-// ─── TestCaseCard ──────────────────────────────────────────────────────────────
+// ─── TestCaseCard (theme‑friendly) ────────────────────────────────────────────
 function TestCaseCard({ tc }) {
   const [showReq, setShowReq] = useState(false);
   const [showRes, setShowRes] = useState(false);
+  const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDark(root.getAttribute('data-theme') !== 'light');
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    setIsDark(root.getAttribute('data-theme') !== 'light');
+    return () => observer.disconnect();
+  }, []);
 
   const formatSample = (raw) => {
     if (!raw) return '';
@@ -68,12 +83,11 @@ function TestCaseCard({ tc }) {
 
   return (
     <div className="border border-dark-700 rounded-lg bg-[var(--color-card-bg)] overflow-hidden">
-      {/* Header row */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-dark-700/60">
         <span className={clsx('text-xs font-bold px-2 py-0.5 rounded border uppercase tracking-wide', methodColor(tc.method))}>
           {tc.method}
         </span>
-        <span className="font-mono text-sm text-white truncate flex-1">{tc.endpoint}</span>
+        <span className="font-mono text-sm text-[var(--color-text-primary)] truncate flex-1">{tc.endpoint}</span>
         {tc.expectedStatus && (
           <span className="text-xs px-2 py-0.5 rounded bg-dark-700 text-gray-300 border border-dark-600 font-mono">
             {tc.expectedStatus}
@@ -81,21 +95,16 @@ function TestCaseCard({ tc }) {
         )}
       </div>
 
-      {/* Summary / description */}
       <div className="px-4 py-3 space-y-1">
-        {tc.summary && <p className="text-sm font-medium text-gray-200">{tc.summary}</p>}
+        {tc.summary && <p className="text-sm font-medium text-[var(--color-text-primary)]">{tc.summary}</p>}
         {tc.description && tc.description !== tc.summary && (
-          <p className="text-xs text-gray-400">{tc.description}</p>
+          <p className="text-xs text-[var(--color-text-secondary)]">{tc.description}</p>
         )}
 
-        {/* Parameters */}
         {tc.parameters?.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {tc.parameters.map((p, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-dark-700 text-gray-300 border border-dark-600"
-              >
+              <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-dark-700 text-gray-300 border border-dark-600">
                 <span className="text-gray-500">{p.in}</span>
                 <span className="text-white font-medium">{p.name}</span>
                 {p.required && <span className="text-red-400">*</span>}
@@ -104,19 +113,15 @@ function TestCaseCard({ tc }) {
           </div>
         )}
 
-        {/* Collapsible samples */}
         {tc.requestBodySample && (
           <div className="mt-2">
-            <button
-              onClick={() => setShowReq(v => !v)}
-              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-            >
+            <button onClick={() => setShowReq(v => !v)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
               {showReq ? '▼' : '▶'} Request Sample
             </button>
             {showReq && (
               <div className="mt-1.5 rounded overflow-hidden border border-dark-700" style={{ height: 120 }}>
-                <Editor value={formatSample(tc.requestBodySample)} language="json" theme="vs-dark"
-                  options={MONACO_READONLY} height={120} />
+                <Editor value={formatSample(tc.requestBodySample)} language="json" theme={isDark ? 'vs-dark' : 'light'}
+                  options={MONACO_READONLY(isDark)} height={120} />
               </div>
             )}
           </div>
@@ -124,16 +129,13 @@ function TestCaseCard({ tc }) {
 
         {tc.responseSample && (
           <div className="mt-2">
-            <button
-              onClick={() => setShowRes(v => !v)}
-              className="text-xs text-green-400 hover:text-green-300 transition-colors"
-            >
+            <button onClick={() => setShowRes(v => !v)} className="text-xs text-green-400 hover:text-green-300 transition-colors">
               {showRes ? '▼' : '▶'} Response Sample
             </button>
             {showRes && (
               <div className="mt-1.5 rounded overflow-hidden border border-dark-700" style={{ height: 120 }}>
-                <Editor value={formatSample(tc.responseSample)} language="json" theme="vs-dark"
-                  options={MONACO_READONLY} height={120} />
+                <Editor value={formatSample(tc.responseSample)} language="json" theme={isDark ? 'vs-dark' : 'light'}
+                  options={MONACO_READONLY(isDark)} height={120} />
               </div>
             )}
           </div>
@@ -143,7 +145,7 @@ function TestCaseCard({ tc }) {
   );
 }
 
-// ─── TestCasesView ─────────────────────────────────────────────────────────────
+// ─── TestCasesView (theme‑friendly) ────────────────────────────────────────────
 function TestCasesView({ testCases, total, offset, loading, onPageChange, onGenerate, generating }) {
   const totalPages = Math.max(1, Math.ceil(total / TEST_CASES_LIMIT));
   const currentPage = Math.floor(offset / TEST_CASES_LIMIT) + 1;
@@ -152,7 +154,7 @@ function TestCasesView({ testCases, total, offset, loading, onPageChange, onGene
     return (
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 rounded-lg bg-dark-700/40 animate-pulse" />
+          <div key={i} className="h-24 rounded-lg bg-[var(--color-card-bg)]/40 animate-pulse" />
         ))}
       </div>
     );
@@ -163,8 +165,8 @@ function TestCasesView({ testCases, total, offset, loading, onPageChange, onGene
       <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
         <ListChecks className="h-12 w-12 text-gray-600" />
         <div>
-          <p className="text-gray-300 font-medium">No test cases generated yet</p>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-[var(--color-text-primary)] font-medium">No test cases generated yet</p>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             Click "Generate" to parse this spec and create test cases for each endpoint.
           </p>
         </div>
@@ -188,10 +190,9 @@ function TestCasesView({ testCases, total, offset, loading, onPageChange, onGene
         {testCases.map((tc) => <TestCaseCard key={tc.id} tc={tc} />)}
       </div>
 
-      {/* Pagination */}
       {total > TEST_CASES_LIMIT && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700 bg-dark-800/30">
-          <span className="text-xs text-gray-400">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-dark-700 bg-[var(--color-card-bg)]/30">
+          <span className="text-xs text-[var(--color-text-secondary)]">
             {total} test case{total !== 1 ? 's' : ''} total
           </span>
           <div className="flex items-center gap-2">
@@ -202,9 +203,7 @@ function TestCasesView({ testCases, total, offset, loading, onPageChange, onGene
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs text-gray-300">
-              Page {currentPage} of {totalPages}
-            </span>
+            <span className="text-xs text-[var(--color-text-primary)]">Page {currentPage} of {totalPages}</span>
             <button
               onClick={() => onPageChange(offset + TEST_CASES_LIMIT)}
               disabled={offset + TEST_CASES_LIMIT >= total}
@@ -219,7 +218,7 @@ function TestCasesView({ testCases, total, offset, loading, onPageChange, onGene
   );
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+// ─── Main Component (theme‑friendly) ──────────────────────────────────────────
 export default function GenerateTestCase({ projects, activeWorkspaceId }) {
   const [specs, setSpecs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -227,18 +226,12 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
   const [editorContent, setEditorContent] = useState('');
   const [parseError, setParseError] = useState('');
   const [isEditorDirty, setIsEditorDirty] = useState(false);
-
-  // View toggle: 'spec' | 'testcases'
   const [viewMode, setViewMode] = useState('spec');
-
-  // Test cases state
   const [testCases, setTestCases] = useState([]);
   const [testCasesTotal, setTestCasesTotal] = useState(0);
   const [testCasesOffset, setTestCasesOffset] = useState(0);
   const [testCasesLoading, setTestCasesLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-
-  // Create modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSpecName, setNewSpecName] = useState('');
   const [createMode, setCreateMode] = useState('upload');
@@ -246,15 +239,25 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [importUrl, setImportUrl] = useState('');
   const fileInputRef = useRef(null);
-
   const [libraryItems, setLibraryItems] = useState([]);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [editingSpecId, setEditingSpecId] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [isDark, setIsDark] = useState(true);
 
-  // ── Fetch specs on workspace change ─────────────────────────────────────────
+  // Detect theme
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDark(root.getAttribute('data-theme') !== 'light');
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    setIsDark(root.getAttribute('data-theme') !== 'light');
+    return () => observer.disconnect();
+  }, []);
+
+  // ── Fetch specs ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeWorkspaceId) return;
     fetchSpecs();
@@ -274,7 +277,6 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
     }
   };
 
-  // ── Reset test cases view when active spec changes ───────────────────────────
   useEffect(() => {
     setViewMode('spec');
     setTestCases([]);
@@ -282,14 +284,12 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
     setTestCasesOffset(0);
   }, [activeSpecId]);
 
-  // ── Load test cases when switching to testcases view ─────────────────────────
   useEffect(() => {
     if (viewMode === 'testcases' && activeSpecId) {
       handleLoadTestCases(activeSpecId, 0);
     }
   }, [viewMode, activeSpecId]);
 
-  // ── Library items for create modal ───────────────────────────────────────────
   useEffect(() => {
     if (showCreateModal && createMode === 'library') fetchLibraryItems();
   }, [showCreateModal, createMode]);
@@ -308,25 +308,20 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
 
   const activeSpec = useMemo(() => specs.find(s => s.id === activeSpecId) || null, [specs, activeSpecId]);
 
-  // ─── NEW: Fetch full spec when content is missing ────────────────────────────
   useEffect(() => {
     const spec = specs.find(s => s.id === activeSpecId);
     if (spec && !spec.content) {
       getTestSpec(activeSpecId)
-        .then(fullSpec => {
-          setSpecs(prev => prev.map(s => s.id === activeSpecId ? fullSpec : s));
-        })
+        .then(fullSpec => setSpecs(prev => prev.map(s => s.id === activeSpecId ? fullSpec : s)))
         .catch(() => toast.error('Failed to load test spec content'));
     }
   }, [activeSpecId, specs]);
 
-  // ─── Sync editor content with active spec (depends on activeSpec, not activeSpecId) ───
   useEffect(() => {
     setEditorContent(activeSpec ? activeSpec.content || '' : JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2));
     setIsEditorDirty(false);
   }, [activeSpec]);
 
-  // ── JSON validation ───────────────────────────────────────────────────────────
   useEffect(() => {
     try { JSON.parse(editorContent); setParseError(''); }
     catch (e) { setParseError(e.message); }
@@ -337,7 +332,6 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
     return specs.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [specs, searchQuery]);
 
-  // ── Test case handlers ────────────────────────────────────────────────────────
   const handleGenerateTestCases = async () => {
     if (!activeSpecId || generating) return;
     setGenerating(true);
@@ -369,7 +363,6 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
     }
   };
 
-  // ── Spec handlers ─────────────────────────────────────────────────────────────
   const handleSelectSpec = (spec) => setActiveSpecId(spec.id);
 
   const handleDeleteSpec = async (e, spec) => {
@@ -440,7 +433,6 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
     URL.revokeObjectURL(url);
   };
 
-  // ── Create spec — payload aligned to backend discriminated union ──────────────
   const handleSaveNewSpec = async () => {
     if (!newSpecName.trim()) { toast.error('Please enter a spec name'); return; }
     if (!activeWorkspaceId) { toast.error('No project selected'); return; }
@@ -452,19 +444,17 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
       let content;
       try {
         const text = await uploadedFile.text();
-        JSON.parse(text); // validate
+        JSON.parse(text);
         content = text;
       } catch { toast.error('Invalid JSON file'); return; }
       payload = { source: 'upload', name: newSpecName.trim(), content, workspaceId: activeWorkspaceId };
 
     } else if (createMode === 'url') {
       if (!importUrl.trim()) { toast.error('Please enter a URL'); return; }
-      // Backend fetches content — just send the URL
       payload = { source: 'url', name: newSpecName.trim(), importUrl: importUrl.trim(), workspaceId: activeWorkspaceId };
 
     } else if (createMode === 'library') {
       if (!selectedLibrarySpec) { toast.error('Please select a library spec'); return; }
-      // Backend copies content from library item
       payload = { source: 'library', name: newSpecName.trim(), sourceId: selectedLibrarySpec, workspaceId: activeWorkspaceId };
 
     } else {
@@ -477,22 +467,19 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
       setSpecs(prev => [created, ...prev]);
       setActiveSpecId(created.id);
       setShowCreateModal(false);
-      setNewSpecName(''); setCreateMode('upload'); setUploadedFile(null);
-      setSelectedLibrarySpec(null); setImportUrl('');
       toast.success('Test spec created');
     } catch (err) {
       toast.error('Creation failed: ' + (err.response?.data?.message || err.message));
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[var(--color-input-bg)]">
       {/* Page header */}
       <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-white">Generate Test Cases</h2>
-          <p className="text-sm text-gray-400">Create and manage JSON test case specifications</p>
+          <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Generate Test Cases</h2>
+          <p className="text-sm text-[var(--color-text-secondary)]">Create and manage JSON test case specifications</p>
         </div>
         <button
           onClick={handleCreateNewSpec}
@@ -513,7 +500,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                 type="text" placeholder="Search specs..." value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm
-                           text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                           text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
           </div>
@@ -534,7 +521,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                     'group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-all',
                     activeSpecId === spec.id
                       ? 'bg-primary/10 border border-primary/30'
-                      : 'hover:bg-dark-700/50 border border-transparent'
+                      : 'hover:bg-[var(--color-card-bg)]/80 border border-transparent'
                   )}
                 >
                   <div className="flex-1 min-w-0">
@@ -547,12 +534,12 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                           onKeyDown={(e) => handleConfirmRename(e, spec)}
                           onBlur={() => handleRenameBlur(spec)}
                           autoFocus
-                          className="flex-1 bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-sm text-white
+                          className="flex-1 bg-[var(--color-input-bg)] border border-primary/50 rounded px-2 py-0.5 text-sm text-[var(--color-text-primary)]
                                      focus:outline-none focus:ring-1 focus:ring-primary"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        <span className="text-sm font-medium text-white truncate">{spec.name}</span>
+                        <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{spec.name}</span>
                       )}
                     </div>
                     {spec.source && (
@@ -585,10 +572,9 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
         {/* ── Main editor / test cases area ── */}
         <main className="flex-1 flex flex-col min-h-0 bg-[var(--color-card-bg)]">
           {/* Toolbar */}
-          <div className="px-4 py-2.5 border-b border-dark-700 flex items-center justify-between bg-dark-800/20 gap-3">
-            {/* Left: spec name + view toggle */}
+          <div className="px-4 py-2.5 border-b border-dark-700 flex items-center justify-between bg-[var(--color-card-bg)]/20 gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <span className="text-sm font-medium text-white truncate">
+              <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
                 {activeSpec ? activeSpec.name : 'New Test Case'}
               </span>
 
@@ -630,7 +616,6 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
               )}
             </div>
 
-            {/* Right: action buttons */}
             {activeSpec && (
               <div className="flex items-center gap-2 shrink-0">
                 <button
@@ -639,7 +624,6 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600
                              text-white font-medium text-xs hover:from-orange-600 hover:to-orange-700 transition-all
                              shadow shadow-orange-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
-                  title="Parse spec and generate test cases"
                 >
                   <Zap className={clsx('h-3.5 w-3.5', generating && 'animate-spin')} />
                   {generating ? 'Generating…' : 'Generate'}
@@ -666,7 +650,8 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
             <div className="flex-1 flex flex-col min-h-0">
               <div className="flex-1 min-h-0">
                 <Editor
-                  value={editorContent} language="json" theme="vs-dark" options={MONACO_OPTIONS}
+                  value={editorContent} language="json" theme={isDark ? 'vs-dark' : 'light'}
+                  options={getMonacoOptions(isDark)}
                   onChange={(v) => { setEditorContent(v || ''); setIsEditorDirty(true); }}
                   height="100%"
                 />
@@ -691,15 +676,15 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
         </main>
       </div>
 
-      {/* ── Create Modal ── */}
+      {/* ── Create Modal (theme‑friendly) ── */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
           <div className="relative bg-[var(--color-input-bg)] border border-dark-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
-            <div className="px-6 py-4 border-b border-dark-700 flex items-center justify-between bg-dark-800/50">
+            <div className="px-6 py-4 border-b border-dark-700 flex items-center justify-between bg-[var(--color-card-bg)]/50">
               <div>
-                <h3 className="text-lg font-semibold text-white">Create New Test Case</h3>
-                <p className="text-sm text-gray-400">Create a test case using various methods</p>
+                <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Create New Test Case</h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">Create a test case using various methods</p>
               </div>
               <button onClick={() => setShowCreateModal(false)}
                 className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors">
@@ -709,19 +694,19 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
 
             <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh]">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
                   Test Case Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text" value={newSpecName} onChange={(e) => setNewSpecName(e.target.value)}
                   placeholder="Enter test case name"
-                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white
-                             placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2.5 text-sm
+                             text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">Creation Method</label>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-3">Creation Method</label>
                 <div className="space-y-3">
                   {/* Upload */}
                   <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${
@@ -729,16 +714,16 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                     <input type="radio" name="createMode" value="upload" checked={createMode === 'upload'}
                       onChange={(e) => setCreateMode(e.target.value)} className="mt-1 mr-3 text-primary" />
                     <div className="flex-1">
-                      <div className="font-medium text-white">Upload JSON Spec</div>
-                      <div className="text-sm text-gray-400 mt-1">Upload an existing JSON specification file (JSON only)</div>
+                      <div className="font-medium text-[var(--color-text-primary)]">Upload JSON Spec</div>
+                      <div className="text-sm text-[var(--color-text-secondary)] mt-1">Upload an existing JSON specification file (JSON only)</div>
                       {createMode === 'upload' && (
                         <div className="mt-3">
                           <input type="file" accept=".json" ref={fileInputRef}
                             onChange={(e) => e.target.files?.[0] && setUploadedFile(e.target.files[0])}
                             className="hidden" />
                           <button type="button" onClick={() => fileInputRef.current?.click()}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-dark-700
-                                       text-gray-300 hover:bg-dark-600 hover:text-white transition-colors text-sm">
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-600 bg-[var(--color-card-bg)]
+                                       text-[var(--color-text-primary)] hover:bg-dark-600 hover:text-white transition-colors text-sm">
                             <Upload className="h-4 w-4" />
                             {uploadedFile ? `Selected: ${uploadedFile.name}` : 'Choose JSON File'}
                           </button>
@@ -753,8 +738,8 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                     <input type="radio" name="createMode" value="library" checked={createMode === 'library'}
                       onChange={(e) => setCreateMode(e.target.value)} className="mt-1 mr-3 text-primary" />
                     <div className="flex-1">
-                      <div className="font-medium text-white">Create from organization Specification Library</div>
-                      <div className="text-sm text-gray-400 mt-1">Browse and select from the specification library</div>
+                      <div className="font-medium text-[var(--color-text-primary)]">Create from organization Specification Library</div>
+                      <div className="text-sm text-[var(--color-text-secondary)] mt-1">Browse and select from the specification library</div>
                       {createMode === 'library' && (
                         <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
                           {loadingLibrary ? (
@@ -767,15 +752,15 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                                 className={`p-3 rounded-lg border cursor-pointer transition-all ${
                                   selectedLibrarySpec === item.id
                                     ? 'border-primary bg-primary/10'
-                                    : 'border-dark-600 hover:border-primary/50 hover:bg-dark-700/50'}`}>
+                                    : 'border-dark-600 hover:border-primary/50 hover:bg-[var(--color-card-bg)]/50'}`}>
                                 <div className="flex items-start gap-3">
                                   <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
                                     selectedLibrarySpec === item.id ? 'border-primary bg-primary' : 'border-dark-500'}`}>
                                     {selectedLibrarySpec === item.id && <Check className="w-3 h-3 text-white" />}
                                   </div>
                                   <div className="flex-1">
-                                    <div className="font-medium text-white text-sm">{item.name}</div>
-                                    {item.description && <div className="text-xs text-gray-400 mt-0.5">{item.description}</div>}
+                                    <div className="font-medium text-[var(--color-text-primary)] text-sm">{item.name}</div>
+                                    {item.description && <div className="text-xs text-[var(--color-text-secondary)] mt-0.5">{item.description}</div>}
                                     {item.category && (
                                       <div className="mt-1">
                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-dark-600 text-gray-400">{item.category}</span>
@@ -797,14 +782,14 @@ export default function GenerateTestCase({ projects, activeWorkspaceId }) {
                     <input type="radio" name="createMode" value="url" checked={createMode === 'url'}
                       onChange={(e) => setCreateMode(e.target.value)} className="mt-1 mr-3 text-primary" />
                     <div className="flex-1">
-                      <div className="font-medium text-white">Import from URL</div>
-                      <div className="text-sm text-gray-400 mt-1">Fetch and import a JSON specification from a URL</div>
+                      <div className="font-medium text-[var(--color-text-primary)]">Import from URL</div>
+                      <div className="text-sm text-[var(--color-text-secondary)] mt-1">Fetch and import a JSON specification from a URL</div>
                       {createMode === 'url' && (
                         <div className="mt-3">
                           <input type="text" value={importUrl} onChange={(e) => setImportUrl(e.target.value)}
                             placeholder="https://example.com/api-spec.json"
                             className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm
-                                       text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                                       text-[var(--color-text-primary)] placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                           />
                         </div>
                       )}

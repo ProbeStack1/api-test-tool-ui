@@ -133,6 +133,7 @@ onShowChatbot,
    onCreateProjectTab,
    mcpCollections,
    setMcpCollections,
+   onCreateEnvironmentWithScope,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1933,13 +1934,23 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
         <section className="flex-1 flex min-h-0 overflow-hidden min-w-0">
           <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
             
-            {topMenuActive === 'environments' ? (
-              <VariablesEditor
-                pairs={variablesScope === 'environment-scope' ? environmentVariables : globalVariables}
-                onChange={variablesScope === 'environment-scope' ? onEnvironmentVariablesChange : onGlobalVariablesChange}
-                title={variablesScope === 'environment-scope' ? 'Environment Variables' : 'Global Variables'}
-              />
-            ) : 
+{topMenuActive === 'environments' ? (
+  <VariablesEditor
+    pairs={variablesScope === 'environment-scope' ? environmentVariables : globalVariables}
+    onChange={variablesScope === 'environment-scope' ? onEnvironmentVariablesChange : onGlobalVariablesChange}
+    title={variablesScope === 'environment-scope' ? 'Environment Variables' : 'Global Variables'}
+    // New props for environment management
+    environments={environments}
+    activeWorkspaceId={activeWorkspaceId}
+    onCreateEnvironment={onCreateEnvironmentWithScope}
+    onUpdateEnvironment={onRenameEnvironment}
+    onActivateEnvironment={onActivateEnvironment}
+    globalEnvironment={globalEnvironment}
+    onGlobalVariablesChange={onGlobalVariablesChange}
+    onSaveGlobalVariables={onSaveGlobalVariables}
+    onSaveEnvironmentVariables={onSaveEnvironmentVariables}
+  />
+) : 
 
 topMenuActive === 'testing' ? (
   <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
@@ -2716,20 +2727,48 @@ topMenuActive === 'testing' ? (
     environments={environments}
     activeEnvId={environments.find(e => e.isActive)?.id || 'no-env'}
     globalEnv={globalEnvironment}
-    onNavigateToVariables={() => navigate('/workspace/variables')}
+    onNavigateToVariables={() => {
+      navigate('/workspace/variables');
+      setRightPanelOpen(null);
+    }}
+    onCreateEnvironmentWithRedirect={() => {
+      navigate('/workspace/variables?action=create');
+      setRightPanelOpen(null);
+    }}
+    onEditEnvironment={(envId) => {
+      onEnvironmentChange(envId);
+      navigate('/workspace/variables');
+      setRightPanelOpen(null);
+    }}
     onActivateEnvironment={onActivateEnvironment}
+    onShowGlobal={() => {
+      setVariablesScope('global-scope');
+      navigate('/workspace/variables');
+      setRightPanelOpen(null);
+    }}
   />
 )}
-  {rightPanelOpen === 'code' && (
-    <CodeSnippetPanel 
-      method={method}
-      url={url}
-      headers={headers}
-      body={body}
-      authType={authType}
-      authData={authData}
-    />
-  )}
+
+{rightPanelOpen === 'code' && (
+  <CodeSnippetPanel
+    method={method}
+    url={url}
+    queryParams={queryParams}
+    headers={headers}
+    body={body}
+    authType={authType}
+    authData={authData}
+    onRequestUpdate={(parsed) => {
+      if (parsed.method) onMethodChange(parsed.method);
+      if (parsed.url) onUrlChange(parsed.url);
+      if (parsed.queryParams) onQueryParamsChange(parsed.queryParams);
+      if (parsed.headers) onHeadersChange(parsed.headers);
+      if (parsed.body !== undefined) onBodyChange(parsed.body);
+      if (parsed.authType) onAuthTypeChange(parsed.authType);
+      if (parsed.authData) onAuthDataChange(parsed.authData);
+    }}
+  />
+)}
   {rightPanelOpen === 'insights' && (
     <IDEExecutionInsights
       response={response}

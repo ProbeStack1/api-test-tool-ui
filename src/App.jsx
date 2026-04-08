@@ -2544,6 +2544,46 @@ const handleCreateEnvironment = async (desiredName) => {
     }
   };
 
+  const handleCreateEnvironmentWithScope = async (name, isGlobal) => {
+  const workspaceId = isGlobal ? null : activeWorkspaceId;
+  if (!workspaceId && !isGlobal) {
+    toast.error('No project selected');
+    return;
+  }
+
+  let attempt = 0;
+  let currentName = name;
+  let success = false;
+
+  while (!success && attempt < 20) {
+    try {
+      const response = await createEnvironment(workspaceId, {
+        name: currentName,
+        environment_type: isGlobal ? 'global' : 'collection',
+        is_active: false,
+      });
+      const newEnv = normalizeEnvironment(response.data);
+      setEnvironments(prev => [...prev, newEnv]);
+      setSelectedEnvironmentId(newEnv.id);
+      setEnvironmentVariables(newEnv.variables || []);
+      toast.success(`${isGlobal ? 'Global' : 'Environment'} created`);
+      success = true;
+    } catch (err) {
+      if (err.response?.status === 409) {
+        attempt++;
+        currentName = `${name} ${attempt}`;
+      } else {
+        console.error('Failed to create environment:', err);
+        toast.error(err.response?.data?.message || 'Failed to create environment');
+        return;
+      }
+    }
+  }
+  if (!success) {
+    toast.error(`Could not create environment after ${attempt} attempts.`);
+  }
+};
+
 const handleActivateEnvironment = async (envId) => {
   if (envId === 'no-env') {
     // Find current active environment
@@ -3231,6 +3271,7 @@ onShowChatbot={handleShowChatbot}
     onCreateProjectTab={handleCreateProjectTab}
     mcpCollections={mcpCollections}
     setMcpCollections={setMcpCollections}
+    onCreateEnvironmentWithScope={handleCreateEnvironmentWithScope} 
               />
             }
           />

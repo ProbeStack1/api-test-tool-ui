@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Trash2, Plus, Search, MoreVertical, Check, X, Key, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Trash2, Plus, Search, MoreVertical, Check, X, Key, Eye, EyeOff, ChevronUp, ChevronDown, CheckCircle, XCircle } from 'lucide-react';
 import clsx from 'clsx';
+import { toast } from 'sonner';
+import { createEnvironment, updateEnvironment, normalizeEnvironment } from '../services/environmentService';
 
 const emptyVariable = () => ({
   key: '',
@@ -20,21 +23,86 @@ const normalizeVariable = (v) => ({
   secret: v.secret || false,
 });
 
-export default function VariablesEditor({ pairs, onChange, title = 'Variables' }) {
+export default function VariablesEditor({
+  pairs,
+  onChange,
+  title = 'Variables',
+  environments = [],
+  activeWorkspaceId,
+  onCreateEnvironment,
+  onUpdateEnvironment,
+  onActivateEnvironment,
+  globalEnvironment,
+  onGlobalVariablesChange,
+  onSaveGlobalVariables,
+  onSaveEnvironmentVariables,
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const query = new URLSearchParams(location.search);
+  const editId = query.get('edit');
+
+  // State for inline create in header
+  const [showInlineCreate, setShowInlineCreate] = useState(false);
+  const [newEnvName, setNewEnvName] = useState('New Environment');
+
+  // State for edit form (full page)
+  const [showEditForm, setShowEditForm] = useState(!!editId);
+  const [editEnv, setEditEnv] = useState(null);
+  const [editEnvName, setEditEnvName] = useState('');
+
+  // State for the normal editor
   const [variables, setVariables] = useState(() => pairs.map(normalizeVariable));
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDescription, setShowDescription] = useState(false);
   const [showSecret, setShowSecret] = useState({});
-  const [sortDirection, setSortDirection] = useState(null); // null, 'asc', 'desc'
+  const [sortDirection, setSortDirection] = useState(null);
 
   const menuRef = useRef(null);
   const searchInputRef = useRef(null);
   const searchContainerRef = useRef(null);
-  const searchButtonRef = useRef(null); // for outside click detection
+  const searchButtonRef = useRef(null);
+  const createInputRef = useRef(null);
 
-  // Compute visible row numbers based on enabled state
+  // ──────────────────────────────────────────────────────────────
+  // ALL HOOKS (unconditional)
+  // ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (editId) {
+      const env = environments.find(e => e.id === editId);
+      if (env) {
+        setEditEnv(env);
+        setEditEnvName(env.name);
+      } else {
+        navigate('/workspace/variables', { replace: true });
+        setShowEditForm(false);
+      }
+    } else {
+      setEditEnv(null);
+      setShowEditForm(false);
+    }
+  }, [editId, environments, navigate]);
+
+  // Show inline create when URL has ?action=create
+  useEffect(() => {
+    const action = query.get('action');
+    if (action === 'create') {
+      setShowInlineCreate(true);
+      // Remove query param from URL
+      navigate('/workspace/variables', { replace: true });
+    }
+  }, [query, navigate]);
+
+  // Auto-focus create input when shown
+  useEffect(() => {
+    if (showInlineCreate && createInputRef.current) {
+      createInputRef.current.focus();
+    }
+  }, [showInlineCreate]);
+
   const enabledCounts = useMemo(() => {
     let count = 0;
     return variables.map(v => {
@@ -57,7 +125,6 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
     }
   }, [showSearch]);
 
-  // Close search on outside click only if empty, ignoring clicks on the search button
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showSearch && searchContainerRef.current && !searchContainerRef.current.contains(e.target) &&
@@ -71,7 +138,6 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showSearch, searchQuery]);
 
-  // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -157,7 +223,6 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
     setMenuOpen(false);
   };
 
-  // Sort and filter logic
   const baseList = useMemo(() => {
     if (!sortDirection) return variables;
     return [...variables].sort((a, b) => {
@@ -180,23 +245,136 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
     );
   }, [baseList, searchQuery]);
 
+  // Inline create handlers
+  const handleCreateSubmit = async () => {
+    const name = newEnvName.trim();
+    if (!name) {
+      toast.error('Environment name is required');
+      return;
+    }
+    if (!onCreateEnvironment) {
+      toast.error('Create function not available');
+      return;
+    }
+    await onCreateEnvironment(name, false); // false = workspace scope (not global)
+    setShowInlineCreate(false);
+    setNewEnvName('New Environment');
+  };
+
+  const handleCreateKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCreateSubmit();
+    }
+  };
+
+  const cancelCreate = () => {
+    setShowInlineCreate(false);
+    setNewEnvName('New Environment');
+  };
+
+  // ──────────────────────────────────────────────────────────────
+  // CONDITIONAL RENDERING
+  // ──────────────────────────────────────────────────────────────
+
+  // Edit form (full page)
+  if (showEditForm && editEnv) {
+    return (
+      <div className="flex-1 flex flex-col p-6">
+        <div className="max-w-md mx-auto w-full bg-dark-800/40 border border-dark-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Edit Environment: {editEnv.name}</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+              <input
+                type="text"
+                value={editEnvName}
+                onChange={(e) => setEditEnvName(e.target.value)}
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-white"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={async () => {
+                  if (!editEnvName.trim()) {
+                    toast.error('Name is required');
+                    return;
+                  }
+                  await onUpdateEnvironment(editEnv.id, editEnvName.trim());
+                  navigate('/workspace/variables', { replace: true });
+                  setShowEditForm(false);
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/workspace/variables', { replace: true });
+                  setShowEditForm(false);
+                }}
+                className="px-4 py-2 bg-dark-700 text-gray-300 rounded-lg text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal editor view with inline create in header
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* Title header */}
+      {/* Header bar with title and inline create input OR button */}
       <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-white">{title}</h2>
+        {!showInlineCreate && title === 'Environment Variables' && (
+          <button
+            onClick={() => setShowInlineCreate(true)}
+            className="text-sm text-primary hover:underline flex items-center gap-1"
+          >
+            <Plus className="w-4 h-4" /> Create Environment
+          </button>
+        )}
+        {showInlineCreate && title === 'Environment Variables' && (
+          <div className="flex items-center gap-2">
+            <input
+              ref={createInputRef}
+              type="text"
+              value={newEnvName}
+              onChange={(e) => setNewEnvName(e.target.value)}
+              onKeyDown={handleCreateKeyDown}
+              className="bg-[var(--color-input-bg)] border border-dark-700 rounded px-2 py-1 text-sm text-white w-48"
+              placeholder="Environment name"
+              autoFocus
+            />
+            <button
+              onClick={handleCreateSubmit}
+              className="p-1 rounded text-green-400 hover:text-green-300 hover:bg-green-500/10"
+              title="Save"
+            >
+              <CheckCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={cancelCreate}
+              className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              title="Cancel"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Editor Table */}
       <div className="flex-1 overflow-auto p-4">
         <div className="border border-dark-700 rounded-lg overflow-hidden">
-          {/* Header */}
+          {/* Table Header */}
           <div className="flex bg-[var(--color-card-bg)] border-b border-dark-700 text-[10px] text-gray-400 font-semibold uppercase tracking-wide relative">
-            {/* # column */}
             <div className="w-8 px-3 py-2 border-r border-dark-700 flex items-center justify-center">#</div>
-            {/* On column  */}
             <div className="w-8 px-3 py-2 border-r border-dark-700 flex items-center justify-center">On</div>
-            {/* Key column with sort */}
             <div
               className="flex-1 px-3 py-2 border-r border-dark-700 flex items-center gap-1 cursor-pointer hover:text-gray-300"
               onClick={() => {
@@ -209,17 +387,12 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
               {sortDirection === 'asc' && <ChevronUp className="w-3 h-3" />}
               {sortDirection === 'desc' && <ChevronDown className="w-3 h-3" />}
             </div>
-            {/* Value column */}
             <div className="flex-1 px-3 py-2 border-r border-dark-700">Value</div>
-            {/* Description column (conditional) */}
             {showDescription && (
               <div className="flex-1 px-3 py-2 border-r border-dark-700">Description</div>
             )}
-            {/* Actions column – search and menu (fixed width) */}
             <div className="w-20 px-2 py-2 flex items-center justify-end gap-1 relative">
-              {/* Inner container for buttons and search overlay */}
               <div className="relative flex items-center">
-                {/* Search button */}
                 <button
                   ref={searchButtonRef}
                   type="button"
@@ -228,11 +401,9 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                     "p-1 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700",
                     showSearch && "bg-[var(--color-input-bg)] text-white"
                   )}
-                  title="Search"
                 >
                   <Search className="w-4 h-4" />
                 </button>
-                {/* Menu button */}
                 <div className="relative" ref={menuRef}>
                   <button
                     type="button"
@@ -246,37 +417,22 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-1 w-48 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 py-1">
-                      <button
-                        onClick={handleResetAll}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-700"
-                      >
+                      <button onClick={handleResetAll} className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-700">
                         Reset all
                       </button>
-                      <button
-                        onClick={handleToggleAllSensitive}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-700 flex items-center justify-between"
-                      >
+                      <button onClick={handleToggleAllSensitive} className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-700 flex items-center justify-between">
                         <span>Mark all as sensitive</span>
                         {allSecret && <Check className="w-4 h-4 text-primary" />}
                       </button>
-                      <button
-                        onClick={handleToggleDescription}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-700 flex items-center justify-between"
-                      >
+                      <button onClick={handleToggleDescription} className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-dark-700 flex items-center justify-between">
                         <span>Show description</span>
                         {showDescription && <Check className="w-4 h-4 text-primary" />}
                       </button>
                     </div>
                   )}
                 </div>
-
-                {/* Search input overlay (when active) */}
                 {showSearch && (
-                  <div
-                    ref={searchContainerRef}
-                    className="absolute right-full top-1/2 -translate-y-1/2 mr-2 z-20"
-                    style={{ width: '240px' }}
-                  >
+                  <div ref={searchContainerRef} className="absolute right-full top-1/2 -translate-y-1/2 mr-2 z-20" style={{ width: '240px' }}>
                     <div className="relative">
                       <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                       <input
@@ -288,10 +444,7 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                         className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded pl-7 pr-7 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                       {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-white"
-                        >
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-white">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -304,32 +457,23 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
 
           {/* Add button */}
           <div className="px-3 py-2 border-b border-dark-700/50">
-            <button
-              onClick={handleAdd}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-dark-700/50"
-            >
+            <button onClick={handleAdd} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-dark-700/50">
               <Plus className="w-3.5 h-3.5" />
               <span>Add</span>
             </button>
           </div>
 
-          {/* Rows */}
+          {/* Variables rows */}
           {filteredVariables.map((variable, idx) => {
             const originalIndex = variables.findIndex(v => v === variable);
             const isEmpty = !variable.key && !variable.value;
             const rowNumber = enabledCounts[originalIndex];
 
             return (
-              <div
-                key={originalIndex}
-                className="flex border-b border-dark-700/30 last:border-0 transition-colors group"
-              >
-                {/* Row number column */}
+              <div key={originalIndex} className="flex border-b border-dark-700/30 last:border-0 transition-colors group">
                 <div className="w-8 px-3 py-2 border-r border-dark-700/30 flex items-center justify-center text-xs text-gray-500">
                   {rowNumber !== null ? rowNumber : '-'}
                 </div>
-                
-                {/* Checkbox Column */}
                 <div className="w-8 px-3 py-2 border-r border-dark-700/30 flex items-center justify-center">
                   <div
                     onClick={() => !isEmpty && handleChange(originalIndex, 'enabled', !variable.enabled)}
@@ -343,8 +487,6 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                     {variable.enabled && <Check className="w-3 h-3" />}
                   </div>
                 </div>
-
-                {/* Key input */}
                 <div className="flex-1 border-r border-dark-700/30 flex items-center">
                   <div className="flex-1 mx-0.5 my-0.5 rounded border border-transparent hover:border-primary/80 focus-within:border-primary/80">
                     <div className="flex items-center px-3 py-1.5">
@@ -356,19 +498,13 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                         className="flex-1 bg-transparent text-xs text-gray-200 placeholder:text-dark-500 font-mono focus:outline-none"
                       />
                       {!isEmpty && (
-                        <button
-                          onClick={() => handleChange(originalIndex, 'secret', !variable.secret)}
-                          className="ml-1 p-1 rounded text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors"
-                          title={variable.secret ? 'Mark as normal' : 'Mark as sensitive'}
-                        >
+                        <button onClick={() => handleChange(originalIndex, 'secret', !variable.secret)} className="ml-1 p-1 rounded text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors" title={variable.secret ? 'Mark as normal' : 'Mark as sensitive'}>
                           <Key className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
-
-                {/* Value input */}
                 <div className="flex-1 border-r border-dark-700/30 flex items-center">
                   <div className="flex-1 mx-0.5 my-0.5 rounded border border-transparent hover:border-primary/80 focus-within:border-primary/80">
                     <div className="flex items-center px-3 py-1.5">
@@ -380,22 +516,16 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                         className="flex-1 bg-transparent text-xs text-gray-200 placeholder:text-dark-500 font-mono focus:outline-none"
                       />
                       {!isEmpty && variable.secret && (
-                        <button
-                          onClick={() => setShowSecret(prev => ({ ...prev, [originalIndex]: !prev[originalIndex] }))}
-                          className="ml-1 p-1 rounded text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors"
-                          title={showSecret[originalIndex] ? 'Hide' : 'Show'}
-                        >
+                        <button onClick={() => setShowSecret(prev => ({ ...prev, [originalIndex]: !prev[originalIndex] }))} className="ml-1 p-1 rounded text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors" title={showSecret[originalIndex] ? 'Hide' : 'Show'}>
                           {showSecret[originalIndex] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
-
-                {/* Description column (if enabled) */}
                 {showDescription && (
                   <div className="flex-1 border-r border-dark-700/30 flex items-center">
-                    <div className="flex-1 mx-0.5 my-0.5 rounded border border-transparent hover:border-primary/80 focus-within:border-primary/80 transition-colors">
+                    <div className="flex-1 mx-0.5 my-0.5 rounded border border-transparent hover:border-primary/80 focus-within:border-primary/80">
                       <input
                         type="text"
                         placeholder="Description"
@@ -406,14 +536,8 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
                     </div>
                   </div>
                 )}
-
-                {/* Delete button */}
                 <div className="w-20 flex items-center justify-center">
-                  <button
-                    onClick={() => handleRemove(originalIndex)}
-                    className="text-dark-500 hover:text-red-400 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 transition-colors"
-                    title="Delete"
-                  >
+                  <button onClick={() => handleRemove(originalIndex)} className="text-dark-500 hover:text-red-400 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 transition-colors" title="Delete">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -421,7 +545,6 @@ export default function VariablesEditor({ pairs, onChange, title = 'Variables' }
             );
           })}
         </div>
-
         <p className="mt-3 text-xs text-gray-500">
           Use <code className="bg-dark-800 px-1 py-0.5 rounded text-gray-300">{'{{variable}}'}</code> in requests to substitute these values
         </p>

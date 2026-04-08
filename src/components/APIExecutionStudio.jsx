@@ -15,6 +15,7 @@ import VariableHighlightInput from '../components/VariableHighlightInput';
 import MockServerEditor from './detailsTab/MockServerEditor';
 import MockServerWizardTab from './detailsTab/MockServerWizardTab';
 import ProjectWizardTab from './detailsTab/ProjectWizardTab';
+import JsonEditorWithVariables from './ui/JsonEditorWithVariables';
 
 function getTabLabel(request) {
   if (request.type === 'workspace-details') {
@@ -1595,7 +1596,7 @@ export default function APIExecutionStudio({
                         {(method === 'POST' || method === 'PUT' || method === 'PATCH') ? (
                           <>
                             {/* Postman-style body type: none | form-data | x-www-form-urlencoded | raw */}
-                            <div className="flex items-center gap-4 mb-3 flex-wrap">
+                            <div className="flex items-center gap-4 mb-2 -mt-4 flex-wrap">
                               {['none', 'form-data', 'x-www-form-urlencoded', 'raw'].map((type) => (
                                 <label key={type}>
                                   <input
@@ -1623,36 +1624,53 @@ export default function APIExecutionStudio({
                               )}
                             </div>
                             {bodyType === 'raw' ? (
-                              <div className="rounded-lg border border-dark-700 overflow-hidden bg-[#1e1e1e]">
-                                <div className="flex items-center gap-2 px-3 py-2 bg-dark-800/80 border-b border-dark-700 text-xs text-gray-400">
-                                  <span className="font-medium text-gray-300">{rawBodyFormat === 'json' ? 'JSON' : 'Text'}</span>
-                                </div>
-                                <VariableHighlightInput
-                                  value={body}
-                                  onChange={(val) => {
-                                    onBodyChange(val);
-                                    validateRequestBodyJson(val); // optional real-time
-                                  }}
-                                  onBlur={() => validateRequestBodyJson(body)}
-                                  placeholder={rawBodyFormat === 'json' ? '{\n  "key": "value"\n}' : 'Enter request body...'}
-                                  multiline
-                                  activeEnvVars={activeEnvVars}
-                                  inactiveEnvVars={inactiveEnvVars}
-                                  activeEnvValues={activeEnvValues}
-                                  inactiveEnvInfo={inactiveEnvInfo}
-                                  globalVars={globalVars}
-                                  globalValues={globalValues}
-                                  className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
-                                  inputClassName="h-full"
-                                />
-                                {bodyJsonError && (
-                                  <div className="text-red-400 text-xs mt-1 flex items-center gap-1">
-                                    <AlertCircle className="w-3 h-3" />
-                                    {bodyJsonError}
-                                  </div>
-                                )}
-                              </div>
-                            ) : bodyType === 'none' ? (
+  rawBodyFormat === 'json' ? (
+    <JsonEditorWithVariables
+      value={body}
+      onChange={(val) => {
+        onBodyChange(val);
+        validateRequestBodyJson(val);
+      }}
+      placeholder={rawBodyFormat === 'json' ? '{\n  "key": "value"\n}' : 'Enter request body...'}
+      activeEnvVars={activeEnvVars}
+      inactiveEnvVars={inactiveEnvVars}
+      activeEnvValues={activeEnvValues}
+      inactiveEnvInfo={inactiveEnvInfo}
+      globalVars={globalVars}
+      globalValues={globalValues}
+    />
+  ) : (
+    <div className="rounded-lg border border-dark-700 overflow-hidden bg-[#1e1e1e]">
+      <div className="flex items-center gap-2 px-3 py-2 bg-dark-800/80 border-b border-dark-700 text-xs text-gray-400">
+        <span className="font-medium text-gray-300">Text</span>
+      </div>
+      <VariableHighlightInput
+        value={body}
+        onChange={(val) => {
+          onBodyChange(val);
+          validateRequestBodyJson(val);
+        }}
+        onBlur={() => validateRequestBodyJson(body)}
+        placeholder="Enter request body..."
+        multiline
+        activeEnvVars={activeEnvVars}
+        inactiveEnvVars={inactiveEnvVars}
+        activeEnvValues={activeEnvValues}
+        inactiveEnvInfo={inactiveEnvInfo}
+        globalVars={globalVars}
+        globalValues={globalValues}
+        className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
+        inputClassName="h-full"
+      />
+      {bodyJsonError && (
+        <div className="text-red-400 text-xs mt-1 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />
+          {bodyJsonError}
+        </div>
+      )}
+    </div>
+  )
+) : bodyType === 'none' ? (
                               <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
                                 This request does not have a body
                               </div>

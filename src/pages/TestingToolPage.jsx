@@ -109,6 +109,7 @@ export default function TestingToolPage({
   onCreateProjectTab,
   mcpCollections,
   setMcpCollections,
+  onCreateEnvironmentWithScope,
 }) {
   return (
     <IDEWorkspaceLayout
@@ -216,6 +217,7 @@ export default function TestingToolPage({
    onCreateProjectTab={onCreateProjectTab}
    mcpCollections={mcpCollections}
    setMcpCollections={setMcpCollections}
+   onCreateEnvironmentWithScope={onCreateEnvironmentWithScope}
     />
   );
 }

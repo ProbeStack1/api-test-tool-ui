@@ -230,7 +230,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-dark-800/80 backdrop-blur-sm">
+    <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header with visibility icon*/}
         <div className="flex items-start justify-between">
@@ -316,7 +316,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
               onClick={handleToggleVisibility}
               disabled={isUpdating}
               className={clsx(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
                 workspace.visibility === 'private'
                   ? 'bg-dark-700 text-gray-300 hover:bg-dark-600'
                   : 'bg-primary/20 text-primary hover:bg-primary/30'
@@ -336,7 +336,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
         </div>
 
         {/* Description field */}
-        <div className="p-4 rounded-lg border border-dark-700 bg-dark-800/40">
+        <div className="p-4 rounded-md border border-dark-700 ">
           <div className="flex items-start justify-between">
             <p className="text-xs text-gray-500 mb-1">Description</p>
             {canEdit && !isEditingDescription && (
@@ -387,11 +387,11 @@ const handleRemoveMember = async (memberId, memberName, event) => {
 
         {/* Details grid - updated with info tile */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-lg border border-dark-700 bg-dark-800/40">
+          <div className="p-4 rounded-md border border-dark-700 bg-dark-800/40">
             <p className="text-xs text-gray-500 mb-1">Collections</p>
             <p className="text-sm text-white">{collectionsCount}</p>
           </div>
-          <div className="p-4 rounded-lg border border-dark-700 bg-dark-800/40">
+          <div className="p-4 rounded-md border border-dark-700 bg-dark-800/40">
             <p className="text-xs text-gray-500 mb-1">Info</p>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
@@ -417,7 +417,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
         </div>
 
         {/* Members section */}
-        <div className="rounded-lg border border-dark-700 bg-dark-800/40 overflow-hidden">
+        <div className="rounded-md border border-dark-700 bg-dark-800/40 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-dark-700">
             <h2 className="text-sm font-semibold text-gray-300">Members</h2>
             {canManage && (

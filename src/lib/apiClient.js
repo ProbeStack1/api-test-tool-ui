@@ -57,7 +57,7 @@ export const supportApi = axios.create({
 addUserIdInterceptor(supportApi);
 
 export const userSettingApi = axios.create({
-  baseURL: `${BASE_API_URL}/api/v1/settings`,
+  baseURL: `${BASE_API_URL}`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(userSettingApi);

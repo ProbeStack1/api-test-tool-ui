@@ -97,7 +97,7 @@ const RocketButton = ({ onClick, children }) => {
       {/* Animated background glow on hover */}
       <div 
         className={`
-          absolute inset-0 bg-gradient-to-r from-[#ff8c4a] to-[#ffb380]
+          absolute inset-0 bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a]
           transition-opacity duration-300
           ${isHovered && !isLaunching ? 'opacity-100' : 'opacity-0'}
         `}
@@ -290,7 +290,7 @@ export default function Home({ workspaces = [], loading = false }) {
             {/* Main Headline - Theme-friendly gradient text */}
             <h1 
               data-testid="hero-title"
-              className="text-5xl md:text-6xl font-bold mb-4 animate-fade-in-up animation-delay-100 gradient-text-theme"
+              className="text-5xl md:text-5xl font-bold mb-4 animate-fade-in-up animation-delay-100 gradient-text-theme"
             >
               API Testing & Verification Hub
             </h1>

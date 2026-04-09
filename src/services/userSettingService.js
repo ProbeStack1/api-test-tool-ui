@@ -3,11 +3,11 @@ import { userSettingApi } from '../lib/apiClient';
 const BASE = '/api/v1/settings';
 
 /**
- * GET /api/v1/settings
+ * GET /api/v1/settings/all
  * Fetch general and certification settings for the current user.
  * @returns {Promise<{ general: GeneralSettings, certification: CertificationSettings }>}
  */
-export const fetchSettings = () => userSettingApi.get(BASE);
+export const fetchSettings = () => userSettingApi.get(`${BASE}/all`);
 
 /**
  * PUT /api/v1/settings/general

@@ -290,7 +290,7 @@ export default function Home({ workspaces = [], loading = false }) {
             {/* Main Headline - Theme-friendly gradient text */}
             <h1 
               data-testid="hero-title"
-              className="text-5xl md:text-5xl font-bold mb-4 animate-fade-in-up animation-delay-100 gradient-text-theme"
+              className="text-5xl md:text-5xl font-bold mb-4 animate-fade-in-up animation-delay-100 gradient-text"
             >
               API Testing & Verification Hub
             </h1>

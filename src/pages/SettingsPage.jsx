@@ -186,7 +186,7 @@ const handleSave = async (section) => {
                         type="text"
                         value={generalSettings.username}
                         onChange={(e) => handleGeneralChange('username', e.target.value)}
-                        className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                        className="w-full  border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -195,7 +195,7 @@ const handleSave = async (section) => {
                         type="email"
                         value={generalSettings.email}
                         onChange={(e) => handleGeneralChange('email', e.target.value)}
-                        className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                        className="w-full  border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                       />
                     </div>
                   </div>
@@ -214,13 +214,13 @@ const handleSave = async (section) => {
                       <select
                         value={generalSettings.language}
                         onChange={(e) => handleGeneralChange('language', e.target.value)}
-                        className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                        className="w-full  border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                       >
-                        <option value="en">English</option>
-                        <option value="es">Spanish</option>
-                        <option value="fr">French</option>
-                        <option value="de">German</option>
-                        <option value="zh">Chinese</option>
+                        <option value="en" className='bg-dark-800'>English</option>
+                        <option value="es" className='bg-dark-800'>Spanish</option>
+                        <option value="fr" className='bg-dark-800'>French</option>
+                        <option value="de" className='bg-dark-800'>German</option>
+                        <option value="zh" className='bg-dark-800'>Chinese</option>
                       </select>
                     </div>
                     <div className="space-y-1.5">
@@ -228,13 +228,13 @@ const handleSave = async (section) => {
                       <select
                         value={generalSettings.timezone}
                         onChange={(e) => handleGeneralChange('timezone', e.target.value)}
-                        className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                        className="w-full bg-dark-800/40 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
                       >
-                        <option value="UTC">UTC</option>
-                        <option value="EST">EST (Eastern)</option>
-                        <option value="PST">PST (Pacific)</option>
-                        <option value="GMT">GMT</option>
-                        <option value="IST">IST (India)</option>
+                        <option value="UTC" className='bg-dark-800'>UTC</option>
+                        <option value="EST" className='bg-dark-800'>EST (Eastern)</option>
+                        <option value="PST" className='bg-dark-800'>PST (Pacific)</option>
+                        <option value="GMT" className='bg-dark-800'>GMT</option>
+                        <option value="IST" className='bg-dark-800'>IST (India)</option>
                       </select>
                     </div>
                   </div>
@@ -470,7 +470,7 @@ const handleSave = async (section) => {
                 )}
 
                 {/* Certificate Info Box */}
-                <div className="rounded-lg bg-dark-900/50 border border-dark-700 p-3 mt-4">
+                <div className="rounded-lg border border-dark-700 p-3 mt-4">
                   <div className="flex items-start gap-2">
                     <Shield className="w-4 h-4 text-primary mt-0.5" />
                     <div className="flex-1">

@@ -480,7 +480,7 @@ useEffect(() => {
       const res = await listTestFiles(activeWorkspaceId);
       onTestFilesChange(res.items);
     } catch (err) {
-      toast.error('Failed to load test files');
+      // toast.error('Failed to load test files');
     }
   };
   fetchFiles();

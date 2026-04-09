@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Folder, Lock, Edit3, Trash2, Copy, Check, Eye, EyeOff, UserPlus, X, User, Calendar, Clock, Unlock } from 'lucide-react';
+import { Folder, Lock, Edit3, Trash2, Copy, Check, Eye, EyeOff, UserPlus, X, User, Calendar, Clock, Unlock, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 import { updateWorkspace, deleteWorkspace } from '../../services/workspaceService';
@@ -9,7 +9,6 @@ import {
   updateWorkspaceMemberRole,
   removeWorkspaceMember
 } from '../../services/workspaceMemberService';
-
 
 // Helper to check permissions based on role
 const canEditWorkspace = (role) => ['owner', 'admin'].includes(role);
@@ -23,7 +22,7 @@ export default function WorkspaceDetailsView({
   onWorkspaceUpdate,
   onWorkspaceDelete,
 }) {
-    const [deleteStage, setDeleteStage] = useState('idle'); // 'idle' | 'confirming' | 'deleting' | 'success' | 'error'
+  const [deleteStage, setDeleteStage] = useState('idle');
 
   // State for workspace editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -31,7 +30,7 @@ export default function WorkspaceDetailsView({
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editedDescription, setEditedDescription] = useState(workspace?.description ?? '');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false); // new modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Sync fields when workspace changes
   useEffect(() => {
@@ -51,7 +50,7 @@ export default function WorkspaceDetailsView({
 
   // Determine current user's role in this workspace
   const currentUserMember = members.find(m => m.userId === currentUserId);
-  const currentUserRole = currentUserMember?.role || 'viewer'; // fallback
+  const currentUserRole = currentUserMember?.role || 'viewer';
 
   // Fetch members on mount
   useEffect(() => {
@@ -60,11 +59,28 @@ export default function WorkspaceDetailsView({
     }
   }, [workspace?.id]);
 
+  // FIXED: loadMembers – adds current user as owner if missing
   const loadMembers = async () => {
     setLoadingMembers(true);
     try {
       const response = await fetchWorkspaceMembers(workspace.id);
-      setMembers(response.data || []);
+      let membersList = response.data || [];
+      
+      // If the current user is the creator and not in the members list, add them as owner
+      const currentUserInList = membersList.some(m => m.userId === currentUserId);
+      if (!currentUserInList && workspace.createdBy === currentUserId) {
+        // Create a synthetic member entry for the owner
+        const ownerEntry = {
+          id: 'owner-self',
+          userId: currentUserId,
+          userName: 'You', // or fetch actual name from profile if available
+          userEmail: '',    // optional
+          role: 'owner',
+        };
+        membersList.unshift(ownerEntry);
+      }
+      
+      setMembers(membersList);
     } catch (error) {
       toast.error('Could not load members');
     } finally {
@@ -73,16 +89,15 @@ export default function WorkspaceDetailsView({
   };
 
   useEffect(() => {
-  const handleClickOutside = (e) => {
-    if (removeConfirm && !removeConfirmRef.current?.contains(e.target)) {
-      setRemoveConfirm(null);
-    }
-  };
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => document.removeEventListener('mousedown', handleClickOutside);
-}, [removeConfirm]);
+    const handleClickOutside = (e) => {
+      if (removeConfirm && !removeConfirmRef.current?.contains(e.target)) {
+        setRemoveConfirm(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [removeConfirm]);
 
-  // Handlers
   const handleCopyId = () => {
     navigator.clipboard.writeText(workspace.id);
     toast.success('Project ID copied');
@@ -141,35 +156,27 @@ export default function WorkspaceDetailsView({
     }
   };
 
-const handleDelete = async () => {
-
-  setDeleteStage('deleting');
-  setIsUpdating(true);
-
-  try {
-    await deleteWorkspace(workspace.id);
-
-    setDeleteStage('success');
-    toast.success('Project deleted successfully');
-
-    // Wait ~1.8 seconds to show nice success animation, then close & trigger callback
-    setTimeout(() => {
-      onWorkspaceDelete?.(workspace.id);
-      setShowDeleteModal(false);
-      setDeleteStage('idle');
-    }, 1800);
-
-  } catch (error) {
-    setDeleteStage('error');
-    toast.error(error.response?.data?.message || 'Failed to delete project');
-
-    // Let user see error for a moment, then allow retry / close
-    setTimeout(() => {
-      setDeleteStage('idle');
-      setIsUpdating(false);
-    }, 2200);
-  }
-};
+  const handleDelete = async () => {
+    setDeleteStage('deleting');
+    setIsUpdating(true);
+    try {
+      await deleteWorkspace(workspace.id);
+      setDeleteStage('success');
+      toast.success('Project deleted successfully');
+      setTimeout(() => {
+        onWorkspaceDelete?.(workspace.id);
+        setShowDeleteModal(false);
+        setDeleteStage('idle');
+      }, 1800);
+    } catch (error) {
+      setDeleteStage('error');
+      toast.error(error.response?.data?.message || 'Failed to delete project');
+      setTimeout(() => {
+        setDeleteStage('idle');
+        setIsUpdating(false);
+      }, 2200);
+    }
+  };
 
   const handleAddMember = async (e) => {
     e.preventDefault();
@@ -204,15 +211,15 @@ const handleDelete = async () => {
     }
   };
 
-const handleRemoveMember = async (memberId, memberName, event) => {
-  try {
-    await removeWorkspaceMember(workspace.id, memberId);
-    setMembers(prev => prev.filter(m => m.id !== memberId));
-    toast.success('Member removed');
-  } catch (error) {
-    toast.error(error.response?.data?.message || 'Failed to remove member');
-  }
-};
+  const handleRemoveMember = async (memberId, memberName, event) => {
+    try {
+      await removeWorkspaceMember(workspace.id, memberId);
+      setMembers(prev => prev.filter(m => m.id !== memberId));
+      toast.success('Member removed');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to remove member');
+    }
+  };
 
   if (!workspace) {
     return <div className="p-6 text-gray-400">Project not found</div>;
@@ -222,8 +229,6 @@ const handleRemoveMember = async (memberId, memberName, event) => {
   const canManage = canManageMembers(currentUserRole);
   const isOwner = currentUserRole === 'owner';
 
-
-  // Format date helper
   const formatDate = (dateString) => {
     if (!dateString) return '—';
     return new Date(dateString).toLocaleString();
@@ -235,7 +240,6 @@ const handleRemoveMember = async (memberId, memberName, event) => {
         {/* Header with visibility icon*/}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            {/* Visibility icon */}
             {workspace.visibility === 'private' ? (
               <Lock className="w-8 h-8 text-gray-400" />
             ) : (
@@ -276,16 +280,13 @@ const handleRemoveMember = async (memberId, memberName, event) => {
                   <h1 className="text-lg font-semibold text-white">{workspace.name}</h1>
                   {canEdit && (
                     <button
-                      onClick={() => {
-                        setIsEditingName(true);
-                      }}
+                      onClick={() => setIsEditingName(true)}
                       className="p-1 rounded text-gray-400 hover:text-white hover:bg-dark-700"
                       title="Rename"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                   )}
-                  {/* Role badge */}
                   <span className={clsx(
                     'text-xs px-2 py-1 rounded-full font-medium',
                     currentUserRole === 'owner' && 'bg-red-500/20 text-red-400',
@@ -310,7 +311,6 @@ const handleRemoveMember = async (memberId, memberName, event) => {
             </div>
           </div>
 
-          {/* Visibility toggle button (only for editors) */}
           {canEdit && (
             <button
               onClick={handleToggleVisibility}
@@ -385,7 +385,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
           )}
         </div>
 
-        {/* Details grid - updated with info tile */}
+        {/* Details grid - includes email row */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-4 rounded-md border border-dark-700 bg-dark-800/40">
             <p className="text-xs text-gray-500 mb-1">Collections</p>
@@ -400,6 +400,12 @@ const handleRemoveMember = async (memberId, memberName, event) => {
                   Created by: {workspace.createdBy || '—'}
                 </span>
               </div>
+              {workspace.email && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-gray-300">Email: {workspace.email}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Calendar className="w-3.5 h-3.5 text-gray-500" />
                 <span className="text-gray-300">
@@ -416,15 +422,16 @@ const handleRemoveMember = async (memberId, memberName, event) => {
           </div>
         </div>
 
-        {/* Members section */}
+        {/* Shared Access section */}
         <div className="rounded-md border border-dark-700 bg-dark-800/40 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-dark-700">
-            <h2 className="text-sm font-semibold text-gray-300">Members</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-300">Shared Access</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Manage who has access to this project and their permissions</p>
+            </div>
             {canManage && (
               <button
-                onClick={() => {
-                  setShowAddMember(true);
-                }}
+                onClick={() => setShowAddMember(true)}
                 className="flex items-center gap-1 px-2 py-1 rounded bg-primary/20 text-primary hover:bg-primary/30 text-xs"
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -449,51 +456,46 @@ const handleRemoveMember = async (memberId, memberName, event) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-{/* Show dropdown only if:
-   - current user can manage members (admin/owner)
-   - member is not the current user
-   - member is NOT the owner (so we never show a dropdown for the owner row)
-*/}
-{canManage && member.userId !== currentUserId && member.role !== 'owner' ? (
-  <select
-    value={member.role}
-    onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
-    className="border border-dark-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-primary"
-  >
-    <option value="viewer">Viewer</option>
-    <option value="editor">Editor</option>
-    <option value="admin">Admin</option>
-    {isOwner && <option value="owner">Owner</option>}  {/* only owners can assign owner role */}
-  </select>
-) : (
-  <span className={clsx(
-    'text-xs px-2 py-1 rounded capitalize',
-    member.role === 'owner' && 'bg-red-500/20 text-red-400',
-    member.role === 'admin' && 'bg-purple-500/20 text-purple-400',
-    member.role === 'editor' && 'bg-blue-500/20 text-blue-400',
-    member.role === 'viewer' && 'bg-gray-500/20 text-gray-400'
-  )}>
-    {member.role}
-  </span>
-)}
-{canManage && member.userId !== currentUserId && member.role !== 'owner' && (
-<button
-  onClick={(e) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setRemoveConfirm({
-      x: rect.left,               // align with button's left edge
-      y: rect.bottom + 5,          // 5px below the button
-      memberId: member.id,
-      memberName: member.userName
-    });
-  }}
-  className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10"
-  title="Remove member"
->
-  <Trash2 className="w-3.5 h-3.5" />
-</button>
-)}
+                    {canManage && member.userId !== currentUserId && member.role !== 'owner' ? (
+                      <select
+                        value={member.role}
+                        onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
+                        className="border border-dark-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-primary"
+                      >
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                        <option value="admin">Admin</option>
+                        {isOwner && <option value="owner">Owner</option>}
+                      </select>
+                    ) : (
+                      <span className={clsx(
+                        'text-xs px-2 py-1 rounded capitalize',
+                        member.role === 'owner' && 'bg-red-500/20 text-red-400',
+                        member.role === 'admin' && 'bg-purple-500/20 text-purple-400',
+                        member.role === 'editor' && 'bg-blue-500/20 text-blue-400',
+                        member.role === 'viewer' && 'bg-gray-500/20 text-gray-400'
+                      )}>
+                        {member.role}
+                      </span>
+                    )}
+                    {canManage && member.userId !== currentUserId && member.role !== 'owner' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setRemoveConfirm({
+                            x: rect.left,
+                            y: rect.bottom + 5,
+                            memberId: member.id,
+                            memberName: member.userName
+                          });
+                        }}
+                        className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                        title="Remove member"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {member.userId === currentUserId && (
                       <span className="text-xs text-gray-500">(you)</span>
                     )}
@@ -506,7 +508,7 @@ const handleRemoveMember = async (memberId, memberName, event) => {
             </div>
           )}
 
-          {/* Add member form - inline row layout */}
+          {/* Add member form */}
           {showAddMember && (
             <form onSubmit={handleAddMember} className="p-4 border-t border-dark-700">
               <div className="flex items-center gap-2">
@@ -552,36 +554,38 @@ const handleRemoveMember = async (memberId, memberName, event) => {
             </form>
           )}
         </div>
-{/* Member Remove Confirmation */}
-{removeConfirm && (
-  <div
-    ref={removeConfirmRef}
-    className="fixed z-50 min-w-[180px] p-3 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
-    style={{ left: removeConfirm.x, top: removeConfirm.y }}
-  >
-    <p className="text-xs text-gray-300 mb-3">
-      Remove <span className="font-medium text-white">{removeConfirm.memberName}</span> from workspace?
-    </p>
-    <div className="flex justify-end gap-2">
-      <button
-        onClick={() => setRemoveConfirm(null)}
-        className="px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded"
-      >
-        Cancel
-      </button>
-      <button
-        onClick={async () => {
-          await handleRemoveMember(removeConfirm.memberId, removeConfirm.memberName);
-          setRemoveConfirm(null);
-        }}
-        className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
-      >
-        Remove
-      </button>
-    </div>
-  </div>
-)}
-        {/* Danger zone - delete button opens modal */}
+
+        {/* Remove confirmation modal */}
+        {removeConfirm && (
+          <div
+            ref={removeConfirmRef}
+            className="fixed z-50 min-w-[180px] p-3 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+            style={{ left: removeConfirm.x, top: removeConfirm.y }}
+          >
+            <p className="text-xs text-gray-300 mb-3">
+              Remove <span className="font-medium text-white">{removeConfirm.memberName}</span> from workspace?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRemoveConfirm(null)}
+                className="px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await handleRemoveMember(removeConfirm.memberId, removeConfirm.memberName);
+                  setRemoveConfirm(null);
+                }}
+                className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Danger zone - delete button */}
         {isOwner && (
           <div className="rounded-lg border border-red-500/30 bg-red-500/5 overflow-hidden">
             <div className="px-4 py-3 border-b border-red-500/20">
@@ -605,100 +609,99 @@ const handleRemoveMember = async (memberId, memberName, event) => {
       </div>
 
       {/* Delete Confirmation Modal */}
-{showDeleteModal && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-md"
-    onClick={() => {
-      if (deleteStage === 'idle' || deleteStage === 'error') {
-        setShowDeleteModal(false);
-        setDeleteStage('idle');
-      }
-    }}
-  >
-    <div
-      className={clsx(
-        "bg-dark-800 border border-red-500/30 rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all duration-300",
-        deleteStage === 'success' && "scale-95 opacity-90",
-        deleteStage === 'error' && "border-red-600/50"
-      )}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {deleteStage === 'idle' && (
-        <>
-          <h3 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
-            <Trash2 className="w-5 h-5 text-red-400" />
-            Delete Project
-          </h3>
-<p className="text-sm text-gray-400 mb-6">
-              Are you sure you want to delete <span className="font-medium text-white">{workspace.name}</span>? This action cannot be undone. All collections, requests, and data will be permanently lost.
-            </p>
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-md"
+          onClick={() => {
+            if (deleteStage === 'idle' || deleteStage === 'error') {
+              setShowDeleteModal(false);
+              setDeleteStage('idle');
+            }
+          }}
+        >
+          <div
+            className={clsx(
+              "bg-dark-800 border border-red-500/30 rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all duration-300",
+              deleteStage === 'success' && "scale-95 opacity-90",
+              deleteStage === 'error' && "border-red-600/50"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {deleteStage === 'idle' && (
+              <>
+                <h3 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                  Delete Project
+                </h3>
+                <p className="text-sm text-gray-400 mb-6">
+                  Are you sure you want to delete <span className="font-medium text-white">{workspace.name}</span>? This action cannot be undone. All collections, requests, and data will be permanently lost.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="px-5 py-2.5 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-300 text-sm font-medium transition"
+                    disabled={isUpdating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isUpdating}
+                    className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition flex items-center gap-2 shadow-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
 
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              className="px-5 py-2.5 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-300 text-sm font-medium transition"
-              disabled={isUpdating}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={isUpdating}
-              className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition flex items-center gap-2 shadow-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
+            {deleteStage === 'deleting' && (
+              <div className="py-10 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 border-4 border-t-red-500 border-red-500/30 rounded-full animate-spin mb-6"></div>
+                <h3 className="text-lg font-semibold text-white mb-2">Deleting workspace...</h3>
+                <p className="text-sm text-gray-400">This may take a few seconds</p>
+              </div>
+            )}
+
+            {deleteStage === 'success' && (
+              <div className="py-12 flex flex-col items-center justify-center text-center animate-fade-in">
+                <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-6 animate-bounce-once">
+                  <Check className="w-12 h-12 text-green-400" strokeWidth={3} />
+                </div>
+                <h3 className="text-2xl font-bold text-green-400 mb-2">Deleted!</h3>
+                <p className="text-sm text-gray-400">Project removed successfully</p>
+              </div>
+            )}
+
+            {deleteStage === 'error' && (
+              <div className="py-10 flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mb-6">
+                  <X className="w-10 h-10 text-red-400" strokeWidth={3} />
+                </div>
+                <h3 className="text-xl font-semibold text-red-400 mb-3">Delete failed</h3>
+                <p className="text-sm text-gray-300 mb-6">
+                  Something went wrong. Please try again.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="px-5 py-2.5 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-300 text-sm"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm flex items-center gap-2"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </>
-      )}
-
-      {deleteStage === 'deleting' && (
-        <div className="py-10 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 border-4 border-t-red-500 border-red-500/30 rounded-full animate-spin mb-6"></div>
-          <h3 className="text-lg font-semibold text-white mb-2">Deleting workspace...</h3>
-          <p className="text-sm text-gray-400">This may take a few seconds</p>
         </div>
       )}
-
-      {deleteStage === 'success' && (
-        <div className="py-12 flex flex-col items-center justify-center text-center animate-fade-in">
-          <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-6 animate-bounce-once">
-            <Check className="w-12 h-12 text-green-400" strokeWidth={3} />
-          </div>
-          <h3 className="text-2xl font-bold text-green-400 mb-2">Deleted!</h3>
-          <p className="text-sm text-gray-400">Project removed successfully</p>
-        </div>
-      )}
-
-      {deleteStage === 'error' && (
-        <div className="py-10 flex flex-col items-center text-center">
-          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mb-6">
-            <X className="w-10 h-10 text-red-400" strokeWidth={3} />
-          </div>
-          <h3 className="text-xl font-semibold text-red-400 mb-3">Delete failed</h3>
-          <p className="text-sm text-gray-300 mb-6">
-            Something went wrong. Please try again.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              className="px-5 py-2.5 rounded-lg bg-dark-700 hover:bg-dark-600 text-gray-300 text-sm"
-            >
-              Close
-            </button>
-            <button
-              onClick={handleDelete}
-              className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm flex items-center gap-2"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  </div>
-)}
     </div>
   );
 }

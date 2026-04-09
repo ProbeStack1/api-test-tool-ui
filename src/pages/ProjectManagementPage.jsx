@@ -46,6 +46,9 @@ export default function ProjectManagementPage({
   const [showCreateForm, setShowCreateForm] = useState(mode === 'create');
   const [workspaceName, setWorkspaceName] = useState('');
   const [description, setDescription] = useState('');
+  const [workspaceEmail, setWorkspaceEmail] = useState('');
+  const [organizationId, setOrganizationId] = useState('');      // NEW
+  const [projectSme, setProjectSme] = useState('');              // NEW
   const [visibility, setVisibility] = useState('private');
   const [validationError, setValidationError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -125,11 +128,16 @@ export default function ProjectManagementPage({
       const response = await createWorkspace(payload);
       const newWorkspace = response.data;
 
+      // Add custom fields locally
+      newWorkspace.email = workspaceEmail.trim();
+      newWorkspace.organizationId = organizationId.trim();
+      newWorkspace.projectSme = projectSme.trim();
+
       // Update local state immediately
       setLocalProjects(prev => [newWorkspace, ...prev]);
       createdIdsRef.current.add(newWorkspace.id);
       setLocalActiveWorkspaceId(newWorkspace.id);
-      setShowCreateForm(false);               // ✅ switch to details view
+      setShowCreateForm(false);
       navigate(`/workspace/projects-management?mode=details&projectId=${newWorkspace.id}`, { replace: true });
 
       // Notify parent
@@ -138,11 +146,10 @@ export default function ProjectManagementPage({
 
       toast.success(`Project "${newWorkspace.name}" created!`);
 
-      // Store the new project and open the modal (now details view is already shown)
+      // Store the new project and open the modal
       setNewlyCreatedProject(newWorkspace);
       setRedirectDialogOpen(true);
       startCountdown(() => {
-        // Auto‑redirect when timer reaches zero
         if (redirectDialogOpen && newlyCreatedProject) {
           handleRedirectToCollections();
         }
@@ -168,7 +175,6 @@ export default function ProjectManagementPage({
 
   const handleStayOnDetails = () => {
     if (!newlyCreatedProject) return;
-    // Just close the modal – we're already on the details view
     closeModalWithAnimation(() => {
       setNewlyCreatedProject(null);
     });
@@ -257,6 +263,51 @@ export default function ProjectManagementPage({
                   placeholder="Describe the purpose of this project"
                   className="w-full border border-dark-700 rounded-md px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
                 />
+              </div>
+
+              {/* Project Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Project Email <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="email"
+                  value={workspaceEmail}
+                  onChange={(e) => setWorkspaceEmail(e.target.value)}
+                  placeholder="team@example.com"
+                  className="w-full border border-dark-700 rounded-md px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <p className="text-xs text-gray-500 mt-1">Used for team collaboration and notifications</p>
+              </div>
+
+              {/* Organization ID */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Organization ID <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={organizationId}
+                  onChange={(e) => setOrganizationId(e.target.value)}
+                  placeholder="e.g., ORG-001, acme-corp"
+                  className="w-full border border-dark-700 rounded-md px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <p className="text-xs text-gray-500 my-1">Internal organization reference</p>
+              </div>
+
+              {/* Project SME */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Project SME <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={projectSme}
+                  onChange={(e) => setProjectSme(e.target.value)}
+                  placeholder="Name or email of subject matter expert"
+                  className="w-full border border-dark-700 rounded-md px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <p className="text-xs text-gray-500 mt-1">The person responsible for this project</p>
               </div>
 
               <div>

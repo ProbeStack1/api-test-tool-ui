@@ -9,8 +9,8 @@ export default function ProjectWizardTab({
   tab,
   onUpdateTab,
   onCloseTab,
-  onWorkspaceCreated,  // callback after creation (to select workspace)
-  onAddProject,        // NEW: to add workspace to projects list
+  onWorkspaceCreated,
+  onAddProject,
   currentUserId,
   onWorkspaceUpdate,
   onWorkspaceDelete,
@@ -19,6 +19,7 @@ export default function ProjectWizardTab({
 
   const [workspaceName, setWorkspaceName] = useState('');
   const [description, setDescription] = useState('');
+  const [workspaceEmail, setWorkspaceEmail] = useState('');   // NEW: project email
   const [visibility, setVisibility] = useState('private');
   const [validationError, setValidationError] = useState('');
   const [importedFile, setImportedFile] = useState(null);
@@ -43,6 +44,9 @@ export default function ProjectWizardTab({
       };
       const response = await createWorkspace(payload);
       const newWorkspace = response.data;
+
+      // Add email property locally (backend may not store it, but we keep it for UI)
+      newWorkspace.email = workspaceEmail.trim();
 
       // 1. Add to projects list immediately
       if (onAddProject) {
@@ -119,7 +123,7 @@ export default function ProjectWizardTab({
     );
   }
 
-  // Form UI (unchanged)
+  // Form UI
   return (
     <div className="flex-1 flex flex-col overflow-auto p-6">
       <div className="max-w-2xl mx-auto w-full space-y-6">
@@ -155,6 +159,21 @@ export default function ProjectWizardTab({
             rows="3"
             className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
           />
+        </div>
+
+        {/* NEW: Project Email field */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Project Email <span className="text-gray-500 font-normal">(optional)</span>
+          </label>
+          <input
+            type="email"
+            value={workspaceEmail}
+            onChange={(e) => setWorkspaceEmail(e.target.value)}
+            placeholder="team@example.com"
+            className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <p className="text-xs text-gray-500 mt-1">Used for team collaboration and notifications</p>
         </div>
 
         <div>

@@ -78,7 +78,7 @@ export default function RightPanelProjects({
                     {project.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{project.name}</p>
+                    <p className="text-xs font-medium text-white truncate">{project.name}</p>
                     <p className="text-xs text-gray-500">
                       {project.visibility === 'private' ? 'Private' : 'Public'}
                     </p>

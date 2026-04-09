@@ -22,7 +22,7 @@ import { listLibraryItems ,updateLibraryItem, deleteLibraryItem } from '../servi
 import { uploadCollection as uploadFunctionalCollection } from '../services/functionalTestService';
 import { uploadCollection as uploadLoadCollection } from '../services/loadTestService';
 import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
-import { fetchRequestHistory } from '../services/requestService';
+import { fetchRequestHistory ,saveResponseFromHistory,  updateSavedResponseName,  deleteSavedResponse, } from '../services/requestService';
 import { toast } from 'sonner';
 import MCPPanel from './sidebar/MCPPanel';
 import RightPanelProjects from './RightPanelProjects';
@@ -154,6 +154,83 @@ const [mcpServerType, setMcpServerType] = useState('local'); // 'local' | 'remot
 const [mcpServerUrl, setMcpServerUrl] = useState('http://localhost:8000');
 const [mcpTestResult, setMcpTestResult] = useState(null);
 const [mcpTesting, setMcpTesting] = useState(false);
+
+const [refreshCollectionsKey, setRefreshCollectionsKey] = useState(0);
+
+const handleSaveResponse = useCallback(async (requestId, historyId, customName) => {
+  if (!requestId || !historyId) {
+    toast.error('Missing request or history ID');
+    return;
+  }
+  try {
+    const response = await saveResponseFromHistory(requestId, historyId, customName);
+    const newSavedResponse = response.data;
+    toast.success('Response saved');
+
+    // Immutable update using the current collections prop
+    const updateRequestInTree = (items) => {
+      return items.map(item => {
+        if (item.type === 'request' && item.id === requestId) {
+          const existing = item.savedResponses || [];
+          if (!existing.some(sr => sr.saved_response_id === newSavedResponse.saved_response_id)) {
+            return {
+              ...item,
+              savedResponses: [...existing, newSavedResponse]
+            };
+          }
+          return item;
+        }
+        if (item.items) {
+          return {
+            ...item,
+            items: updateRequestInTree(item.items)
+          };
+        }
+        return item;
+      });
+    };
+
+    const updatedCollections = updateRequestInTree(collections);
+    onCollectionsChange(updatedCollections);
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Save failed');
+  }
+}, [saveResponseFromHistory, collections, onCollectionsChange]);
+
+const handleOpenSavedResponse = (savedResponse, parentRequest) => {
+  const requestTab = {
+    id: `saved-${savedResponse.saved_response_id}`,
+    type: 'request',
+    name: savedResponse.name,
+    method: savedResponse.method,
+    url: savedResponse.url,
+    headers: savedResponse.request_headers || [],
+    queryParams: [],
+    body: savedResponse.request_body || '',
+    bodyType: 'raw',
+    authType: 'none',
+    authData: {},
+    preRequestScript: '',
+    tests: '',
+    response: {
+      status: savedResponse.status_code,
+      statusText: savedResponse.status_text,
+      time: savedResponse.response_time_ms,
+      size: savedResponse.response_size_bytes,
+      data: savedResponse.response_body,
+      headers: savedResponse.response_headers || [],
+      testResults: [],
+      testScriptError: null,
+    }
+  };
+  // Check if tab already exists
+  const existingIndex = requests.findIndex(r => r.id === requestTab.id);
+  if (existingIndex !== -1) {
+    onTabSelect(existingIndex);
+  } else {
+    onNewTab(requestTab);
+  }
+};
 
 const selectedMockServerId = useMemo(() => {
   if (!currentRequest) return null;
@@ -1490,8 +1567,8 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
   )}
   style={!sidebarCollapsed ? { width: sidebarWidth } : {}}
 >
-          <div className="px-3 py-2 border-b border-dark-700/50 flex items-center justify-between shrink-0">
-<h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+          <div className="px-3 py-1 border-b border-dark-700/50 flex items-center justify-between shrink-0">
+<h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">
   {topMenuActive === 'testing'
     ? 'Testing'
     : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
@@ -1519,9 +1596,13 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
   currentUserId={currentUserId}
   activeWorkspaceId={activeWorkspaceId} 
   onOpenCollectionRun={onOpenCollectionRun}
-    selectedRequestId={currentRequest?.id}
+  selectedRequestId={currentRequest?.id}
         collectionType="http"
-    collections={collections}
+  collections={collections}
+  onOpenSavedResponse={handleOpenSavedResponse}
+  onUpdateSavedResponseName={updateSavedResponseName}
+  onDeleteSavedResponse={deleteSavedResponse} 
+  activeSavedResponseId={currentRequest?.id?.startsWith('saved-') ? currentRequest.id : null}
 />
               </div>
             )}
@@ -1630,7 +1711,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
 {topMenuActive === 'mock-service' && (
   <div className="flex-1 flex flex-col min-h-0">
     {/* Create Mock Service Button */}
-    <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
+    <div className="shrink-0 px-4 py-1.5 border-b border-dark-700/50">
 <button
   type="button"
   onClick={() => {
@@ -1644,7 +1725,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
     };
     onNewTab(newTab);
   }}
-  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
 >
   <Plus className="w-4 h-4" />
   Create Mock Service
@@ -2702,6 +2783,8 @@ topMenuActive === 'testing' ? (
     const updatedRequest = { ...currentRequest, protocol };
     onUpdateTab(activeRequestIndex, updatedRequest);
   }}
+  onSaveResponse={handleSaveResponse}
+  readOnly={currentRequest?.id?.startsWith('saved-')}
   isMcpContext={topMenuActive === 'mcp-test'}
               />
             )}

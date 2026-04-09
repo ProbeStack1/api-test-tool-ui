@@ -10,7 +10,7 @@ import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services
 import { fetchCollections, normalizeCollection, fetchFolders, normalizeFolder, createCollection, listCollectionRuns,listWorkspaceLoadTests  } from './services/collectionService';
 import { startFunctionalRun, pollRunUntilDone, getRunHistoryDetail, listRunHistory } from './services/functionalTestService';
 import { startLoadTest as startLoadTestApi, getLoadTestReport, listLoadTestHistory } from './services/loadTestService';
-import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry  } from './services/requestService';
+import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry,  saveResponseFromHistory, } from './services/requestService';
 import {
   listEnvironments,
   createEnvironment,
@@ -1783,6 +1783,7 @@ const res = {
   headers: executionResult.response_headers || [],
   testResults: executionResult.test_results || [],
   testScriptError: executionResult.error_message !== null && executionResult.status_code !== 0 ? executionResult.error_message : null,
+  historyId: executionResult.history_id, 
   // ========== DEBUG FIELDS ==========
   isSuccess: executionResult.is_success,
   failureStage: executionResult.failure_stage,

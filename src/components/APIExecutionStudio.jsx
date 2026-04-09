@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X, Save, Folder, ChevronDown, ChevronRight } from 'lucide-react';
+import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X, Save, Folder, ChevronDown, ChevronRight, Loader2, History } from 'lucide-react';
 import KeyValueEditor from './KeyValueEditor';
 import AuthPanel from './AuthPanel';
 import ResizableBottomPanel from './ResizableBottomPanel';
@@ -16,6 +16,18 @@ import MockServerEditor from './detailsTab/MockServerEditor';
 import MockServerWizardTab from './detailsTab/MockServerWizardTab';
 import ProjectWizardTab from './detailsTab/ProjectWizardTab';
 import JsonEditorWithVariables from './ui/JsonEditorWithVariables';
+
+function EmptyState({ icon: Icon, title, description }) {
+  return (
+    <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[200px]">
+      <div className="w-14 h-14 bg-[var(--color-card-bg)] rounded-xl flex items-center justify-center mb-4 border border-dark-700 dark:border-dark-600">
+        <Icon className="h-7 w-7" />
+      </div>
+      <p className="text-sm font-medium text-white">{title}</p>
+      <p className="text-sm mt-1 text-gray-600 dark:text-gray-400">{description}</p>
+    </div>
+  );
+}
 
 function getTabLabel(request) {
   if (request.type === 'workspace-details') {
@@ -143,6 +155,8 @@ export default function APIExecutionStudio({
   onSelectWorkspace,
   onProtocolChange,
   isMcpContext = false,
+  onSaveResponse,
+  readOnly = false, 
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
@@ -165,6 +179,7 @@ export default function APIExecutionStudio({
   const syncSource = useRef(null);
   const tabsContainerRef = useRef(null);
   const [bodyJsonError, setBodyJsonError] = useState('');
+  const [isSavingResponse, setIsSavingResponse] = useState(false);
 
 
   const validateRequestBodyJson = (value) => {
@@ -824,7 +839,11 @@ export default function APIExecutionStudio({
       return <div className="text-gray-400 animate-pulse">Executing request...</div>;
     }
     if (!response && !error) {
-      return <div className="text-gray-400">No request executed yet.</div>;
+      return <EmptyState
+            icon={AlertCircle}
+            title="No debug information"
+            description="Execute a request to see detailed execution steps"
+          />;
     }
 
     const traceSteps = response?.traceSteps || [];
@@ -1215,12 +1234,12 @@ export default function APIExecutionStudio({
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Tab bar */}
-        <div className="flex items-center border-b border-dark-700 bg-[var(--color-card-bg)] flex-shrink-0 min-h-11 overflow-hidden">
+        <div className="flex items-center border-b border-dark-700 bg-[var(--color-card-bg)] flex-shrink-0 min-h-8 overflow-hidden">
           {!hideNewButton && (
             <button
               type="button"
               onClick={onNewTab}
-              className="flex items-center justify-center gap-1.5 px-3 h-11 shrink-0 text-gray-400 bg-[var(--color-card-bg)] cursor-pointer hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
+              className="flex items-center justify-center gap-1.5 px-3 h-9 shrink-0 text-gray-400 bg-[var(--color-card-bg)] cursor-pointer hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
               title="New request"
             >
               <Plus className="w-4 h-4" />
@@ -1231,119 +1250,109 @@ export default function APIExecutionStudio({
           <div
             ref={tabsContainerRef}
             className="flex items-center overflow-x-auto overflow-y-hidden min-w-0 thin-horizontal-scrollbar"
-            style={{ marginBottom: '-6px' }}
+            style={{ marginBottom: '-15px' }}
           >
             {requests.map((req, index) => {
               const isActive = index === activeRequestIndex;
               const label = getTabLabel(req);
               const isEditing = editingTabIndex === index;
               return (
-                <div
-                  key={req.id}
-                  data-index={index}
-                  role="tab"
-                  tabIndex={0}
-                  onClick={() => !isEditing && onTabSelect(index)}
-                  onDoubleClick={() => {
-                    setEditingTabIndex(index);
-                    setEditingTabName(req.name || label);
-                  }}
-                  onKeyDown={(e) => {
-                    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      onTabSelect(index);
-                    }
-                  }}
-                  className={clsx(
-                    'flex items-center gap-2 pl-3 pr-1 py-2.5 min-w-0 max-w-[200px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group',
-                    isActive
-                      ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
-                  )}
-                >
-                  {/* Only show method badge for non‑workspace tabs */}
-                  {req.type !== 'workspace-details' && (
-                    <span
-                      className={clsx(
-                        'text-[10px] font-bold shrink-0',
-                        req.method === 'GET' && 'text-green-400',
-                        req.method === 'POST' && 'text-yellow-400',
-                        req.method === 'PUT' && 'text-blue-400',
-                        req.method === 'DELETE' && 'text-red-400',
-                        'text-purple-400'
-                      )}
-                    >
-                      {req.method}
-                    </span>
-                  )}
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editingTabName}
-                      onChange={(e) => setEditingTabName(e.target.value)}
-                      onBlur={() => {
-                        if (editingTabName.trim() && onTabRename) {
-                          onTabRename(index, editingTabName.trim());
-                        }
-                        setEditingTabIndex(null);
-                        setEditingTabName('');
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (editingTabName.trim() && onTabRename) {
-                            onTabRename(index, editingTabName.trim());
-                          }
-                          setEditingTabIndex(null);
-                          setEditingTabName('');
-                        } else if (e.key === 'Escape') {
-                          setEditingTabIndex(null);
-                          setEditingTabName('');
-                        }
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                      className="text-xs flex-1 bg-dark-700 border border-primary rounded px-1 py-0.5 outline-none text-white min-w-0"
-                    />
-                  ) : (
-                    <span className="text-xs truncate flex-1">{req.name || label}</span>
-                  )}
-                  {requests.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCloseTab(index);
-                      }}
-                      className="p-1 rounded text-gray-500 hover:text-white hover:bg-dark-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      title="Close tab"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+<div
+  key={req.id}
+  data-index={index}
+  role="tab"
+  tabIndex={0}
+  onClick={() => !isEditing && onTabSelect(index)}
+  onDoubleClick={() => {
+    setEditingTabIndex(index);
+    setEditingTabName(req.name || label);
+  }}
+  onKeyDown={(e) => {
+    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onTabSelect(index);
+    }
+  }}
+  className={clsx(
+    'flex items-center gap-2 pl-3 pr-1 py-1 w-[110px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group relative',
+    isActive
+      ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
+      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
+  )}
+>
+  {/* Tooltip */}
+  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+    {req.name || label}
+  </div>
+
+  {/* Only show method badge for non‑workspace tabs */}
+  {req.type !== 'workspace-details' && (
+    <span
+      className={clsx(
+        'text-[10px] font-bold shrink-0',
+        req.method === 'GET' && 'text-green-400',
+        req.method === 'POST' && 'text-yellow-400',
+        req.method === 'PUT' && 'text-blue-400',
+        req.method === 'DELETE' && 'text-red-400',
+        'text-purple-400'
+      )}
+    >
+      {req.method}
+    </span>
+  )}
+  {isEditing ? (
+    <input
+      type="text"
+      value={editingTabName}
+      onChange={(e) => setEditingTabName(e.target.value)}
+      onBlur={() => {
+        if (editingTabName.trim() && onTabRename) {
+          onTabRename(index, editingTabName.trim());
+        }
+        setEditingTabIndex(null);
+        setEditingTabName('');
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (editingTabName.trim() && onTabRename) {
+            onTabRename(index, editingTabName.trim());
+          }
+          setEditingTabIndex(null);
+          setEditingTabName('');
+        } else if (e.key === 'Escape') {
+          setEditingTabIndex(null);
+          setEditingTabName('');
+        }
+      }}
+      onClick={(e) => e.stopPropagation()}
+      autoFocus
+      className="text-xs flex-1 bg-dark-700 border border-primary rounded px-1 outline-none text-white min-w-0"
+    />
+  ) : (
+    <span className="text-xs truncate flex-1">{req.name || label}</span>
+  )}
+  {requests.length > 1 && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onCloseTab(index);
+      }}
+      className="rounded text-gray-500 hover:text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+      title="Close tab"
+    >
+      <X className="w-5 h-5" />
+    </button>
+  )}
+</div>
               );
             })}
           </div>
         </div>
 
-        {/* Conditional main content: workspace details OR request UI */}
-        {isWorkspaceDetails ? (
-          (() => {
-            const workspace = projects.find(p => p.id === currentReq.workspaceId);
-            return (
-              <WorkspaceDetailsView
-                workspace={workspace}
-                collectionsCount={collections.filter(c => c.project === workspace?.id).length}
-                onRename={(id, oldName) => toast.info('Rename from tab not implemented yet')}
-                onDelete={(id, name) => toast.info('Delete from tab not implemented yet')}
-                currentUserId={currentUserId}
-                onWorkspaceDelete={onWorkspaceDelete}
-                onWorkspaceUpdate={onWorkspaceUpdate}
-              />
-            );
-          })()
-        ) : isCollectionRun ? (
+        {/* Conditional main content: request UI */}
+        { isCollectionRun ? (
           <CollectionRunView
             collection={collections.find(c => c.id === currentReq.collectionId)}
             onRunCollection={onRunCollectionWithOrder}
@@ -1428,13 +1437,13 @@ export default function APIExecutionStudio({
               ) : (
                 <>
                   {/* Postman-style: Request line — Method + URL + Send */}
-                  <div className="px-5 py-3 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
+                  <div className="px-5 py-1 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
                     <div className="flex gap-3 flex-wrap items-center">
                       <div className="relative w-[110px] flex-shrink-0">
                         <select
                           value={method}
                           onChange={(e) => onMethodChange(e.target.value)}
-                          className={clsx('w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2.5 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none', getMethodColor(method))}
+                          className={clsx('w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none', getMethodColor(method))}
                         >
                           {methods.map((m) => (
                             <option key={m} value={m} className="bg-dark-800 text-white">
@@ -1458,7 +1467,7 @@ export default function APIExecutionStudio({
                               const newProtocol = e.target.value;
                               if (onProtocolChange) onProtocolChange(newProtocol);
                             }}
-                            className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2.5 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none text-gray-300"
+                            className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none text-gray-300"
                           >
                             <option value="HTTP">HTTP</option>
                             <option value="SSE">SSE</option>
@@ -1484,38 +1493,62 @@ export default function APIExecutionStudio({
                         globalVars={globalVars}
                         globalValues={globalValues}
                       />
-                      <button
-                        onClick={handleSendClick}
-                        disabled={isLoading || !url?.trim()}
-                        className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {isLoading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            <span>Sending...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4 fill-current" />
-                            <span>Send</span>
-                          </>
-                        )}
-                      </button>
-                      {!isMockEndpoint && (
-                        <button
-                          type="button"
-                          onClick={handleSaveClick}
-                          disabled={isSavedRequest(currentReq) && !hasUnsavedChanges}
-                          title={getSaveTooltip()}
-                          className={clsx(
-                            'bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
-                            (isSavedRequest(currentReq) && !hasUnsavedChanges) && 'opacity-50 cursor-not-allowed'
-                          )}
-                        >
-                          <Save className="w-4 h-4" />
-                          <span>Save</span>
-                        </button>
-                      )}
+                      {!readOnly && (
+  <button
+    onClick={handleSendClick}
+    disabled={isLoading || !url?.trim()}
+    className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+  >
+    {isLoading ? (
+      <>
+        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        <span>Sending...</span>
+      </>
+    ) : (
+      <>
+        <Play className="w-4 h-4 fill-current" />
+        <span>Send</span>
+      </>
+    )}
+  </button>
+)}
+
+{!readOnly && !isMockEndpoint && (
+  <button
+    type="button"
+    onClick={handleSaveClick}
+    disabled={isSavedRequest(currentReq) && !hasUnsavedChanges}
+    title={getSaveTooltip()}
+    className={clsx(
+      'bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
+      (isSavedRequest(currentReq) && !hasUnsavedChanges) && 'opacity-50 cursor-not-allowed'
+    )}
+  >
+    <Save className="w-4 h-4" />
+    <span>Save</span>
+  </button>
+)}
+
+{readOnly && (
+  <button
+    type="button"
+    onClick={() => {
+      // Create an editable copy of this saved response
+      const editableCopy = {
+        ...currentReq,
+        id: `editable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: `${currentReq.name} (Edit)`,
+        response: null,           // clear response
+        readOnly: false,
+      };
+      onNewTab(editableCopy);
+    }}
+    className="bg-primary/80 hover:bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2"
+  >
+    <Play className="w-4 h-4 fill-current" />
+    <span>Try</span>
+  </button>
+)}
                     </div>
                   </div>
 
@@ -1859,6 +1892,39 @@ export default function APIExecutionStudio({
                   </button>
                 ))}
               </div>
+
+              {/* Save Response button */}
+  {effectiveResponse && effectiveResponse.historyId && !isLoading && (
+  <button
+    type="button"
+    onClick={async () => {
+      if (isSavingResponse) return;
+      setIsSavingResponse(true);
+      try {
+        const requestId = currentReq?.id;
+        if (!requestId) {
+          toast.error('Request ID missing');
+          return;
+        }
+        await onSaveResponse?.(requestId, effectiveResponse.historyId, null);
+      } finally {
+        setIsSavingResponse(false);
+      }
+    }}
+    disabled={isSavingResponse}
+    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary/20 text-primary hover:bg-primary/30 transition-colors mr-2"
+    title="Save this response as an example"
+  >
+    {isSavingResponse ? (
+      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+    ) : (
+      <Save className="w-3.5 h-3.5" />
+    )}
+    Save Response
+  </button>
+)}
+
+
               <button
                 onClick={() => setBottomPanelCollapsed(!bottomPanelCollapsed)}
                 className="p-4 text-gray-500 hover:text-gray-200 transition-colors border-l border-dark-700 -mr-4"
@@ -2021,13 +2087,11 @@ export default function APIExecutionStudio({
                       }
 
                       return (
-                        <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
-                          <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">
-                            <Terminal className="h-7 w-7" />
-                          </div>
-                          <p className="text-sm font-medium text-white/80">Execute a request to see response</p>
-                          <p className="text-xs mt-1">Output will be formatted as JSON by default</p>
-                        </div>
+                          <EmptyState
+            icon={Terminal}
+            title="Execute a request to see response"
+            description="Output will be formatted as JSON by default"
+          />
                       );
                     })()}
                   </>
@@ -2185,7 +2249,11 @@ export default function APIExecutionStudio({
                         </div>
                       ))
                     ) : (
-                      <div className="text-gray-500">No execution logs</div>
+                      <EmptyState
+            icon={History}
+            title="No execution logs yet"
+            description="Send a request to see its history here"
+          />
                     )}
                   </div>
                 )}
@@ -2245,7 +2313,11 @@ export default function APIExecutionStudio({
                         )}
                       </>
                     ) : (
-                      <div className="text-xs text-gray-500">Configure validation tests to see results</div>
+                      <EmptyState
+            icon={CheckCircle2}
+            title="No validation results"
+            description="Execute a request to see test results"
+          />
                     )}
                   </div>
                 )}
@@ -2458,13 +2530,11 @@ export default function APIExecutionStudio({
                         )}
                       </>
                     ) : (
-                      <div className="flex flex-col items-center justify-center p-8 text-gray-400 min-h-[140px]">
-                        <div className="w-14 h-14 bg-dark-800 rounded-xl flex items-center justify-center mb-4 border border-dark-700">
-                          <Play className="h-7 w-7 text-gray-500" />
-                        </div>
-                        <p className="text-sm font-medium text-white/80">No collection run yet</p>
-                        <p className="text-xs mt-1">Right-click a collection and select &quot;Run Collection&quot; to start</p>
-                      </div>
+                      <EmptyState
+            icon={Play}
+            title="No collection run yet"
+            description="Right-click a collection and select 'Run Collection' to start"
+          />
                     )}
                   </div>
                 )}

@@ -27,6 +27,7 @@ import {
   Lock,
   Upload,
   FileText,
+  FileCode,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
@@ -764,7 +765,11 @@ export default function CollectionsPanel({
   activeWorkspaceId,
   onOpenCollectionRun,
   selectedRequestId,
-  collectionType = 'http', // ← new prop: 'http' or 'mcp'
+  onOpenSavedResponse,
+  onUpdateSavedResponseName,
+  onDeleteSavedResponse, 
+  collectionType = 'http', // 'http' or 'mcp'
+  activeSavedResponseId,  
 }) {
   const collections = externalCollections;
   const [expanded, setExpanded] = useState({ '3': true });
@@ -781,6 +786,7 @@ export default function CollectionsPanel({
   const fileInputRef = useRef(null);
   const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
   const [importFileData, setImportFileData] = useState(null);
+  const [expandedSavedResponses, setExpandedSavedResponses] = useState({});
 
   // Filter collections by workspace and type
   const workspaceCollections = useMemo(() => {
@@ -1891,12 +1897,12 @@ const handleCreateFolder = async (name) => {
   return (
     <div className="flex flex-col h-full bg-dark-800/40">
       {/* Top buttons */}
-      <div className="shrink-0 px-4 py-3 border-b border-dark-700/50">
+      <div className="shrink-0 px-4 py-1.5 border-b border-dark-700/50">
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setShowNewCollectionModal(true)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Create
@@ -1904,7 +1910,7 @@ const handleCreateFolder = async (name) => {
           <button
             type="button"
             onClick={handleImportClick}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
             title="Import Collections"
           >
             Import
@@ -1966,6 +1972,13 @@ const handleCreateFolder = async (name) => {
               onDragEnd={handleDragEnd}
               dragOverItem={dragOverItem}
               selectedRequestId={selectedRequestId}
+              onOpenSavedResponse={onOpenSavedResponse}
+              expandedSavedResponses={expandedSavedResponses}
+              setExpandedSavedResponses={setExpandedSavedResponses}
+              activeSavedResponseId={activeSavedResponseId} 
+              onUpdateSavedResponseName={onUpdateSavedResponseName}
+              onDeleteSavedResponse={onDeleteSavedResponse} 
+              onCollectionsChange={onCollectionsChange}
             />
           ))
         )}
@@ -2040,7 +2053,14 @@ const handleCreateFolder = async (name) => {
 // COLLECTION NODE COMPONENT
 // ----------------------------------------------------------------------
 
-function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onSelectCollection, onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, dragOverItem, selectedRequestId }) {
+function CollectionNode({ 
+  item, expanded, onToggle, level, onSelectEndpoint, onSelectCollection, 
+  onOpenMenu, parentType, onDragStart, onDragOver, onDragLeave, onDrop, 
+  onDragEnd, dragOverItem, selectedRequestId, activeSavedResponseId, 
+  onOpenSavedResponse, expandedSavedResponses, setExpandedSavedResponses,
+  onUpdateSavedResponseName, onDeleteSavedResponse,
+  onCollectionsChange,   // <-- new
+}) {
   const isExpanded = expanded[item.id];
   const hasChildren = item.items && item.items.length > 0;
   const isRequest = item.type === 'request';
@@ -2051,105 +2071,323 @@ function CollectionNode({ item, expanded, onToggle, level, onSelectEndpoint, onS
   const canDrop = isCollection || isFolder;
   const isSelected = item.type === 'request' && item.id === selectedRequestId;
 
-const handleRowClick = () => {
-  if (isRequest && onSelectEndpoint) {
-    onSelectEndpoint(item);
-  } else if (!isRequest) {
-    onToggle(item.id);
-    if (onSelectCollection) onSelectCollection(item.id);   // ✅ select folder/collection
-  }
-};
+  const hasSavedResponses = item.savedResponses && item.savedResponses.length > 0;
+  const isSavedResponsesExpanded = expandedSavedResponses[item.id] || false;
+
+  const [savedResponseMenu, setSavedResponseMenu] = useState(null);
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [selectedSavedResponse, setSelectedSavedResponse] = useState(null);
+
+  const handleRowClick = () => {
+    if (isRequest && onSelectEndpoint) {
+      onSelectEndpoint(item);
+    } else if (!isRequest) {
+      onToggle(item.id);
+      if (onSelectCollection) onSelectCollection(item.id);
+    }
+  };
+
+  const handleChevronClick = (e) => {
+    e.stopPropagation();
+    if (isRequest && hasSavedResponses) {
+      setExpandedSavedResponses(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+    } else if (!isRequest) {
+      onToggle(item.id);
+    }
+  };
 
   const indentPx = level * 16;
+
+  const handleRenameSavedResponse = async (savedResponse, newName) => {
+    if (!newName || newName === savedResponse.name) return;
+    try {
+      await onUpdateSavedResponseName(item.id, savedResponse.saved_response_id, newName);
+      // Immutable update via parent's state setter
+      onCollectionsChange(prev => {
+        const updateRequest = (items) => {
+          return items.map(i => {
+            if (i.type === 'request' && i.id === item.id) {
+              return {
+                ...i,
+                savedResponses: i.savedResponses.map(sr =>
+                  sr.saved_response_id === savedResponse.saved_response_id
+                    ? { ...sr, name: newName }
+                    : sr
+                )
+              };
+            }
+            if (i.items) {
+              return { ...i, items: updateRequest(i.items) };
+            }
+            return i;
+          });
+        };
+        return updateRequest(prev);
+      });
+      toast.success('Saved response renamed');
+    } catch (err) {
+      toast.error('Failed to rename saved response');
+    }
+  };
+
+  const handleDeleteSavedResponse = async (savedResponse) => {
+    try {
+      await onDeleteSavedResponse(item.id, savedResponse.saved_response_id);
+      // Immutable update via parent's state setter
+      onCollectionsChange(prev => {
+        const updateRequest = (items) => {
+          return items.map(i => {
+            if (i.type === 'request' && i.id === item.id) {
+              return {
+                ...i,
+                savedResponses: i.savedResponses.filter(sr => sr.saved_response_id !== savedResponse.saved_response_id)
+              };
+            }
+            if (i.items) {
+              return { ...i, items: updateRequest(i.items) };
+            }
+            return i;
+          });
+        };
+        return updateRequest(prev);
+      });
+      toast.success('Saved response deleted');
+    } catch (err) {
+      toast.error('Failed to delete saved response');
+    }
+  };
 
   return (
     <div className="select-none">
       <div
         draggable={canDrag}
-        onDragStart={(e) => {
-          if (canDrag) {
-            e.stopPropagation();
-            onDragStart(item);
-          }
-        }}
-        onDragOver={(e) => {
-          if (canDrop) {
-            onDragOver(e, item);
-          }
-        }}
-        onDragLeave={(e) => {
-          if (canDrop) {
-            onDragLeave(e);
-          }
-        }}
-        onDrop={(e) => {
-          if (canDrop) {
-            onDrop(e, item);
-          }
-        }}
+        onDragStart={(e) => { if (canDrag) { e.stopPropagation(); onDragStart(item); } }}
+        onDragOver={(e) => { if (canDrop) onDragOver(e, item); }}
+        onDragLeave={(e) => { if (canDrop) onDragLeave(e); }}
+        onDrop={(e) => { if (canDrop) onDrop(e, item); }}
         onDragEnd={onDragEnd}
         style={{ paddingLeft: indentPx }}
         className={clsx(
-          'flex items-center gap-2 pr-2 rounded-md group cursor-pointer',
-          !isSelected && 'hover:bg-dark-700/30',
-          isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50',
-          canDrag && 'cursor-move',
-          isSelected && 'bg-primary/10 border-primary'
+          'w-full',
+          isDragOver && canDrop && 'bg-primary/20 border-2 border-primary/50'
         )}
-        onClick={handleRowClick}
       >
-        <div className="w-4 h-4 flex items-center justify-center shrink-0">
-          {!isRequest ? (
-            isExpanded ? (
-              <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-            )
-          ) : null}
-        </div>
-
-        {isRequest ? (
-          <span
-            className={clsx(
-              'text-[10px] font-bold w-9 text-right shrink-0',
-              item.method === 'GET' && 'text-green-400',
-              item.method === 'POST' && 'text-yellow-400',
-              item.method === 'PUT' && 'text-blue-400',
-              item.method === 'DELETE' && 'text-red-400',
-              'text-purple-400'
-            )}
-          >
-            {item.method}
-          </span>
-        ) : item.icon === 'globe' ? (
-          <Globe className="w-4 h-4 shrink-0 text-sky-400/90" aria-hidden />
-        ) : (
-          <Folder
-            className={clsx(
-              'w-4 h-4 shrink-0',
-              isCollection ? 'text-amber-500/90' : 'text-gray-500'
-            )}
-          />
-        )}
-
-        <span className={clsx('text-xs truncate flex-1', isRequest ? 'text-gray-300 py-1' : 'text-gray-200 font-medium')}>
-          {item.name}
-        </span>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            const itemType = isCollection ? 'collection' : (isFolder ? 'folder' : 'request');
-            onOpenMenu(e, item, itemType);
-          }}
-          className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity"
-          title="More actions"
+        <div
+          className={clsx(
+            'flex items-center gap-2 pr-2 rounded-md group cursor-pointer w-full',
+            !isSelected && 'hover:bg-dark-700/30',
+            canDrag && 'cursor-move',
+            isSelected && 'bg-primary/10 border-primary'
+          )}
+          onClick={handleRowClick}
         >
-          <MoreHorizontal className="w-3.5 h-3.5" />
-        </button>
+          <div className="w-4 h-4 flex items-center justify-center shrink-0" onClick={handleChevronClick}>
+            {(isRequest && hasSavedResponses) ? (
+              isSavedResponsesExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+              )
+            ) : (!isRequest && hasChildren) ? (
+              isExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+              )
+            ) : (
+              <div className="w-3.5 h-3.5" />
+            )}
+          </div>
+
+          {isRequest ? (
+            <span
+              className={clsx(
+                'text-[10px] font-bold w-9 text-left shrink-0',
+                item.method === 'GET' && 'text-green-400',
+                item.method === 'POST' && 'text-yellow-400',
+                item.method === 'PUT' && 'text-blue-400',
+                item.method === 'DELETE' && 'text-red-400',
+                !['GET', 'POST', 'PUT', 'DELETE'].includes(item.method) && 'text-purple-400'
+              )}
+            >
+              {item.method}
+            </span>
+          ) : item.icon === 'globe' ? (
+            <Globe className="w-4 h-4 shrink-0 text-sky-400/90" />
+          ) : (
+            <Folder
+              className={clsx(
+                'w-4 h-4 shrink-0',
+                isCollection ? 'text-amber-500/90' : 'text-gray-500'
+              )}
+            />
+          )}
+
+          <span className={clsx('text-xs truncate flex-1', isRequest ? 'text-gray-300 py-1' : 'text-gray-200 font-medium')}>
+            {item.name}
+          </span>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const itemType = isCollection ? 'collection' : (isFolder ? 'folder' : 'request');
+              onOpenMenu(e, item, itemType);
+            }}
+            className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity shrink-0"
+            title="More actions"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
-      {hasChildren && isExpanded && (
+{/* Saved responses – expandable list */}
+{isRequest && hasSavedResponses && isSavedResponsesExpanded && (
+  <div style={{ paddingLeft: indentPx + 24 }} className="space-y-0.5 mt-0.5">
+    {item.savedResponses.map((saved) => {
+      const savedTabId = `saved-${saved.saved_response_id}`;
+      const isActiveSavedResponse = activeSavedResponseId === savedTabId;
+      const statusCode = saved.status_code;
+      let statusColorClass = 'text-gray-500';
+      if (statusCode >= 200 && statusCode < 300) statusColorClass = 'text-green-400';
+      else if (statusCode >= 300 && statusCode < 400) statusColorClass = 'text-yellow-400';
+      else if (statusCode >= 400 && statusCode < 600) statusColorClass = 'text-red-400';
+      return (
+        <div key={saved.saved_response_id} className="relative group">
+          <div
+className={clsx(
+  'flex items-center gap-2  rounded-md group cursor-pointer w-full',
+  !isActiveSavedResponse && 'hover:bg-dark-700/30',
+  isActiveSavedResponse && 'bg-primary/10 border-primary'
+)}
+            onClick={() => onOpenSavedResponse && onOpenSavedResponse(saved, item)}
+          >
+            <span className={clsx('text-xs font-mono w-8 text-right', statusColorClass)}>
+              {statusCode}
+            </span>
+            <span className="text-xs text-gray-300 truncate flex-1">{saved.name}</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSavedResponseMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  savedResponse: saved,
+                  requestId: item.id
+                });
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-dark-600 text-gray-500 hover:text-white transition-opacity"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+
+      {/* Saved Response Context Menu */}
+      {savedResponseMenu && (
+        <div
+          className="fixed z-50 min-w-[140px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+          style={{ left: savedResponseMenu.x, top: savedResponseMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedSavedResponse(savedResponseMenu.savedResponse);
+              setRenameModalOpen(true);
+              setSavedResponseMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+            Rename
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await handleDeleteSavedResponse(savedResponseMenu.savedResponse);
+              setSavedResponseMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Rename Modal */}
+      {renameModalOpen && selectedSavedResponse && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setRenameModalOpen(false)}
+        >
+          <div
+            className="bg-dark-800 border border-dark-600 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-dark-700">
+              <h3 className="text-base font-semibold text-white">Rename Saved Response</h3>
+              <button
+                type="button"
+                onClick={() => setRenameModalOpen(false)}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5">
+              <input
+                type="text"
+                id="rename-saved-input"
+                defaultValue={selectedSavedResponse.name}
+                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                autoFocus
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    const newName = e.target.value.trim();
+                    if (newName && newName !== selectedSavedResponse.name) {
+                      await handleRenameSavedResponse(selectedSavedResponse, newName);
+                    }
+                    setRenameModalOpen(false);
+                  }
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
+              <button
+                type="button"
+                onClick={() => setRenameModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const input = document.getElementById('rename-saved-input');
+                  const newName = input?.value.trim();
+                  if (newName && newName !== selectedSavedResponse.name) {
+                    await handleRenameSavedResponse(selectedSavedResponse, newName);
+                  }
+                  setRenameModalOpen(false);
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Children (sub‑folders and requests) */}
+      {!isRequest && hasChildren && isExpanded && (
         <div>
           {sortItems(item.items).map((child) => (
             <CollectionNode
@@ -2159,6 +2397,7 @@ const handleRowClick = () => {
               onToggle={onToggle}
               level={level + 1}
               onSelectEndpoint={onSelectEndpoint}
+              onSelectCollection={onSelectCollection}
               onOpenMenu={onOpenMenu}
               parentType={item.type}
               onDragStart={onDragStart}
@@ -2168,6 +2407,13 @@ const handleRowClick = () => {
               onDragEnd={onDragEnd}
               dragOverItem={dragOverItem}
               selectedRequestId={selectedRequestId}
+              activeSavedResponseId={activeSavedResponseId}
+              onOpenSavedResponse={onOpenSavedResponse}
+              expandedSavedResponses={expandedSavedResponses}
+              setExpandedSavedResponses={setExpandedSavedResponses}
+              onUpdateSavedResponseName={onUpdateSavedResponseName}
+              onDeleteSavedResponse={onDeleteSavedResponse}
+              onCollectionsChange={onCollectionsChange}
             />
           ))}
         </div>

@@ -35,7 +35,7 @@ export const normalizeRequest = (req) => ({
   createdBy: req.created_by,
   createdAt: req.created_at,
   updatedAt: req.updated_at,
-
+  savedResponses: req.saved_responses || [],
 });
 
 /**
@@ -245,3 +245,35 @@ export const executeRequestStream = (requestId, overrides, onStep, onResult, onE
   
   return eventSource;
 };
+
+/**
+ * POST /api/v1/requests/{id}/saved-responses
+ * Save an execution result as a saved response for the request
+ * @param {string} requestId - UUID of the request
+ * @param {string} historyId - UUID of the execution history entry
+ * @param {string} name - optional custom name (auto-generated if not provided)
+ */
+export const saveResponseFromHistory = (requestId, historyId, name) =>
+  requestApi.post(`${BASE}/${requestId}/saved-responses`, {
+    history_id: historyId,
+    name: name || undefined,
+  });
+
+  /**
+ * PATCH /api/v1/requests/{id}/saved-responses/{responseId}
+ * Update the name of a saved response
+ * @param {string} requestId - UUID of the parent request
+ * @param {string} responseId - UUID of the saved response
+ * @param {string} name - new name
+ */
+export const updateSavedResponseName = (requestId, responseId, name) =>
+  requestApi.patch(`${BASE}/${requestId}/saved-responses/${responseId}`, { name });
+
+/**
+ * DELETE /api/v1/requests/{id}/saved-responses/{responseId}
+ * Delete a saved response by ID
+ * @param {string} requestId - UUID of the parent request
+ * @param {string} responseId - UUID of the saved response
+ */
+export const deleteSavedResponse = (requestId, responseId) =>
+  requestApi.delete(`${BASE}/${requestId}/saved-responses/${responseId}`);

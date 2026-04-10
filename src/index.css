@@ -16,17 +16,17 @@
   --color-primary: #ff5b1f;
   /* ProbeStack Primary Orange - matches parent site */
   /* Tool background */
-  --color-probestack-bg: #0e172a;
+  --color-probestack-bg: #0e1629;
 
   /*==================================================================*/
 
-  --color-input-bg: #0f172a80; /* dark mode input bg */
+  --color-input-bg: #0e1629; /* dark mode input bg */
   --color-card-bg: #161b30;
 
   /* ProbeStack Landing Page Theme Variables */
   --probestack-primary: #ff5b1f;
   --probestack-primary-light: #ff8c4a;
-  --probestack-bg-dark: #0f172a80;
+  --probestack-bg-dark: #0e1629;
   /* 0f0f10 */
   --probestack-surface-dark: #1a1a1c;
   --probestack-border-dark: #2d2d30;
@@ -503,4 +503,24 @@
 [data-theme="light"] .json-syntax-protected span[data-syntax] {
   color: inherit !important;
   background-color: inherit !important;
+}
+
+.thin-horizontal-scrollbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-height: thin; /* Firefox */
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar {
+  height: 3px; /* height */
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-scrollbar); 
+  border-radius: 0;
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar); 
+  border-radius: 0;
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
 }

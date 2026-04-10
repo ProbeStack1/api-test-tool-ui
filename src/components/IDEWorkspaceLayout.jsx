@@ -1568,7 +1568,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
   style={!sidebarCollapsed ? { width: sidebarWidth } : {}}
 >
           <div className="px-3 py-1 border-b border-dark-700/50 flex items-center justify-between shrink-0">
-<h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">
+<h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
   {topMenuActive === 'testing'
     ? 'Testing'
     : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
@@ -2790,7 +2790,6 @@ topMenuActive === 'testing' ? (
             )}
           </div>
 
-          {/* Right side: Code snippet and Execution Insights (both closed by default), + icon strip */}
 {/* Right side: Code snippet, Execution Insights, and Variables panel */}
 <div className="flex flex-shrink-0 border-l border-dark-700 bg-dark-800/30 min-h-0">
 
@@ -2968,7 +2967,7 @@ topMenuActive === 'testing' ? (
 
       {/* Footer - same as Forgeq / Migration page */}
       <footer className="border-t border-dark-700/50 shrink-0 bg-dark-800/80">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col items-center justify-between gap-4 text-sm text-gray-400 md:flex-row">
             <div className="flex items-center gap-2">
               <img

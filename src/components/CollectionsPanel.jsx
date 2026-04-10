@@ -1895,9 +1895,9 @@ const handleCreateFolder = async (name) => {
   // RENDER
   // ----------------------------------------------------------------------
   return (
-    <div className="flex flex-col h-full bg-dark-800/40">
+    <div className="flex flex-col h-full bg[var(--color-probestack-bg)] ">
       {/* Top buttons */}
-      <div className="shrink-0 px-4 py-1.5 border-b border-dark-700/50">
+      <div className="shrink-0 px-4 py-2 border-b border-dark-700/50">
         <div className="flex gap-2">
           <button
             type="button"
@@ -1926,7 +1926,7 @@ const handleCreateFolder = async (name) => {
       </div>
 
       {/* Search */}
-      <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
+      <div className="shrink-0 px-3 py-1 border-b border-dark-700/50">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input

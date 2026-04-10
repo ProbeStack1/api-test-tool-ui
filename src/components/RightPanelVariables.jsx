@@ -57,7 +57,7 @@ export function RightPanelVariables({
       <div className="shrink-0">
         <div className="px-4 py-4 gap-2 flex items-center border-b border-dark-700">
           <Layers className="w-5 h-5 text-primary" />
-          <h3 className="text-sm font-semibold text-white">Environment Variables</h3>
+          <h3 className="text-xs font-semibold text-white">Environment Variables</h3>
         </div>
 
         <div className="mb-4 px-4 mt-4">

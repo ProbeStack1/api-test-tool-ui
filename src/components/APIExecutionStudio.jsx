@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X, Save, Folder, ChevronDown, ChevronRight, Loader2, History } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Play, Globe, Key, Menu, FileText, Shield, CheckCircle2, XCircle, Clock, Database, AlertCircle, Plus, Terminal, X, Save, Folder, ChevronDown, ChevronRight, Loader2, History, ArrowUpRight, Check } from 'lucide-react';
 import KeyValueEditor from './KeyValueEditor';
 import AuthPanel from './AuthPanel';
 import ResizableBottomPanel from './ResizableBottomPanel';
@@ -16,6 +17,13 @@ import MockServerEditor from './detailsTab/MockServerEditor';
 import MockServerWizardTab from './detailsTab/MockServerWizardTab';
 import ProjectWizardTab from './detailsTab/ProjectWizardTab';
 import JsonEditorWithVariables from './ui/JsonEditorWithVariables';
+
+const formatTimeOfDay = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
 
 function EmptyState({ icon: Icon, title, description }) {
   return (
@@ -180,7 +188,26 @@ export default function APIExecutionStudio({
   const tabsContainerRef = useRef(null);
   const [bodyJsonError, setBodyJsonError] = useState('');
   const [isSavingResponse, setIsSavingResponse] = useState(false);
+  const [bottomPanelResetKey, setBottomPanelResetKey] = useState(0);
+  const [hoveredTab, setHoveredTab] = useState(null);
+  const tabRefs = useRef([]);
+  const [isMethodOpen, setIsMethodOpen] = useState(false);
+const methodDropdownRef = useRef(null);
+const [isProtocolOpen, setIsProtocolOpen] = useState(false);
+const protocolDropdownRef = useRef(null);
 
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (methodDropdownRef.current && !methodDropdownRef.current.contains(event.target)) {
+      setIsMethodOpen(false);
+    }
+    if (protocolDropdownRef.current && !protocolDropdownRef.current.contains(event.target)) {
+      setIsProtocolOpen(false);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
 
   const validateRequestBodyJson = (value) => {
     if (rawBodyFormat !== 'json') {
@@ -1234,12 +1261,12 @@ export default function APIExecutionStudio({
     <div className="flex-1 flex flex-col bg-probestack-bg min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Tab bar */}
-        <div className="flex items-center border-b border-dark-700 bg-[var(--color-card-bg)] flex-shrink-0 min-h-8 overflow-hidden">
+        <div className="flex items-center border-b border-dark-700 bg-probestack-bg flex-shrink-0 min-h-8 overflow-hidden">
           {!hideNewButton && (
             <button
               type="button"
               onClick={onNewTab}
-              className="flex items-center justify-center gap-1.5 px-3 h-9 shrink-0 text-gray-400 bg-[var(--color-card-bg)] cursor-pointer hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
+              className="flex items-center justify-center gap-1.5 px-3 h-9 shrink-0 text-gray-400 bg-probestack-bg cursor-pointer hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
               title="New request"
             >
               <Plus className="w-4 h-4" />
@@ -1249,8 +1276,8 @@ export default function APIExecutionStudio({
           {/* Scrollable container */}
           <div
             ref={tabsContainerRef}
-            className="flex items-center overflow-x-auto overflow-y-hidden min-w-0 thin-horizontal-scrollbar"
-            style={{ marginBottom: '-15px' }}
+            className="flex items-center overflow-x-auto overflow-y-visible min-w-0 thin-horizontal-scrollbar"
+            // style={{ marginBottom: '-15px'}}
           >
             {requests.map((req, index) => {
               const isActive = index === activeRequestIndex;
@@ -1273,17 +1300,25 @@ export default function APIExecutionStudio({
       onTabSelect(index);
     }
   }}
+  onMouseEnter={(e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredTab({
+      index,
+      name: req.name || label,
+      url: req.url || '',
+      left: rect.left + rect.width / 2,
+      top: rect.bottom + window.scrollY + 6,
+    });
+  }}
+  onMouseLeave={() => setHoveredTab(null)}
+  ref={(el) => (tabRefs.current[index] = el)}
   className={clsx(
     'flex items-center gap-2 pl-3 pr-1 py-1 w-[110px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group relative',
     isActive
-      ? 'bg-probestack-bg text-white border-b-2 border-b-primary -mb-px'
+      ? 'bg-primary/10 text-white border-b-2 border-b-primary -mb-px'
       : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
   )}
 >
-  {/* Tooltip */}
-  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
-    {req.name || label}
-  </div>
 
   {/* Only show method badge for non‑workspace tabs */}
   {req.type !== 'workspace-details' && (
@@ -1396,20 +1431,7 @@ export default function APIExecutionStudio({
           />
         )
 
-          : isProjectWizard ? (
-            <ProjectWizardTab
-              tab={{ ...currentReq, index: activeRequestIndex }}
-              onUpdateTab={onUpdateTab}
-              onCloseTab={onCloseTab}
-              onWorkspaceCreated={(workspaceId) => {
-                onSelectWorkspace(workspaceId);
-              }}
-              currentUserId={currentUserId}
-              onWorkspaceUpdate={onWorkspaceUpdate}
-              onWorkspaceDelete={onWorkspaceDelete}
-              onAddProject={onAddProject}
-            />
-          ) :
+           :
 
             isMockWizard ? (
               <MockServerWizardTab
@@ -1437,49 +1459,84 @@ export default function APIExecutionStudio({
               ) : (
                 <>
                   {/* Postman-style: Request line — Method + URL + Send */}
-                  <div className="px-5 py-1 bg-dark-800/50 border-b border-dark-700 flex-shrink-0">
-                    <div className="flex gap-3 flex-wrap items-center">
-                      <div className="relative w-[110px] flex-shrink-0">
-                        <select
-                          value={method}
-                          onChange={(e) => onMethodChange(e.target.value)}
-                          className={clsx('w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none', getMethodColor(method))}
-                        >
-                          {methods.map((m) => (
-                            <option key={m} value={m} className="bg-dark-800 text-white">
-                              {m}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                          <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M1 1L6 6L11 1" />
-                          </svg>
-                        </div>
-                      </div>
+                  <div className="px-2 py-1 bg-probestack-bg border-b border-dark-700 flex-shrink-0">
+                    <div className="flex gap-2 flex-wrap  justify-end">
+{/* Method dropdown */}
+<div className="relative w-[110px] flex-shrink-0" ref={methodDropdownRef}>
+  <button
+    type="button"
+    onClick={() => setIsMethodOpen(!isMethodOpen)}
+    className={clsx(
+      'w-full rounded-lg text-sm font-bold py-2 pl-3 pr-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center justify-between border',
+      getMethodColor(method)
+    )}
+  >
+    <span>{method}</span>
+    <ChevronDown className={clsx('w-4 h-4 text-gray-500 transition-transform', isMethodOpen && 'rotate-180')} />
+  </button>
+  {isMethodOpen && (
+    <div className="absolute z-50 mt-1 w-full bg-probestack-bg border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+{methods.map((m) => (
+  <div
+    key={m}
+    onClick={() => {
+      onMethodChange(m);
+      setIsMethodOpen(false);
+    }}
+    className={clsx(
+      'flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
+      method === m && 'bg-primary/10',
+      // Method-specific text color
+      m === 'GET' && 'text-green-400',
+      m === 'POST' && 'text-yellow-400',
+      m === 'PUT' && 'text-blue-400',
+      m === 'DELETE' && 'text-red-400',
+      !['GET','POST','PUT','DELETE'].includes(m) && 'text-purple-400'
+    )}
+  >
+    <span className="truncate">{m}</span>
+    {method === m && <Check className="w-3.5 h-3.5 text-primary ml-2 shrink-0" />}
+  </div>
+))}
+    </div>
+  )}
+</div>
 
-                      {/* Protocol dropdown – ONLY for MCP requests */}
-                      {isMcpRequest && (
-                        <div className="relative w-[100px] flex-shrink-0">
-                          <select
-                            value={currentReq?.protocol || 'MCP'}
-                            onChange={(e) => {
-                              const newProtocol = e.target.value;
-                              if (onProtocolChange) onProtocolChange(newProtocol);
-                            }}
-                            className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer shadow-sm appearance-none text-gray-300"
-                          >
-                            <option value="HTTP">HTTP</option>
-                            <option value="SSE">SSE</option>
-                            <option value="MCP">MCP</option>
-                          </select>
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                            <svg width="12" height="8" viewBox="0 0 12 8" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M1 1L6 6L11 1" />
-                            </svg>
-                          </div>
-                        </div>
-                      )}
+{/* Protocol dropdown – ONLY for MCP requests */}
+{isMcpRequest && (
+  <div className="relative w-[100px] flex-shrink-0" ref={protocolDropdownRef}>
+    <button
+      type="button"
+      onClick={() => setIsProtocolOpen(!isProtocolOpen)}
+      className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center justify-between text-gray-300"
+    >
+      <span>{currentReq?.protocol || 'MCP'}</span>
+      <ChevronDown className={clsx('w-4 h-4 text-gray-500 transition-transform', isProtocolOpen && 'rotate-180')} />
+    </button>
+    {isProtocolOpen && (
+      <div className="absolute z-50 mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+        {['HTTP', 'SSE', 'MCP'].map((proto) => (
+          <div
+            key={proto}
+            onClick={() => {
+              if (onProtocolChange) onProtocolChange(proto);
+              setIsProtocolOpen(false);
+            }}
+            className={clsx(
+              'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
+              (currentReq?.protocol || 'MCP') === proto ? 'text-primary bg-primary/10' : 'text-gray-300'
+            )}
+          >
+            <div className="w-3.5 h-3.5 flex items-center justify-center">
+              {(currentReq?.protocol || 'MCP') === proto && <Check className="w-3.5 h-3.5 text-primary" />}
+            </div>
+            <span className="flex-1 truncate">{proto}</span>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
 
                       <VariableHighlightInput
                         value={url}
@@ -1497,7 +1554,7 @@ export default function APIExecutionStudio({
   <button
     onClick={handleSendClick}
     disabled={isLoading || !url?.trim()}
-    className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+    className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
   >
     {isLoading ? (
       <>
@@ -1520,7 +1577,7 @@ export default function APIExecutionStudio({
     disabled={isSavedRequest(currentReq) && !hasUnsavedChanges}
     title={getSaveTooltip()}
     className={clsx(
-      'bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
+      'bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
       (isSavedRequest(currentReq) && !hasUnsavedChanges) && 'opacity-50 cursor-not-allowed'
     )}
   >
@@ -1543,24 +1600,31 @@ export default function APIExecutionStudio({
       };
       onNewTab(editableCopy);
     }}
-    className="bg-primary/80 hover:bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2"
+    className="bg-primary/80 hover:bg-primary text-white px-6 py-2 rounded-lg font-semibold text-sm flex items-center gap-2"
   >
-    <Play className="w-4 h-4 fill-current" />
     <span>Try</span>
+    <ArrowUpRight className="w-4 h-4" />
   </button>
 )}
                     </div>
                   </div>
 
                   {/* Postman-style: Tabs below request line — Params, Headers, Body, Auth, Pre-request Script, Tests */}
-                  <div className="border-b border-dark-700 px-5 flex items-center justify-between flex-shrink-0 bg-[var(--color-card-bg)] gap-2 min-h-0">
+                  <div className="border-b border-dark-700 flex items-center justify-between flex-shrink-0 bg-[var(--color-card-bg)] gap-2 min-h-0">
                     <div className="flex items-center gap-0 overflow-y-hidden min-w-0 flex-1">
                       {sections.map((section) => (
                         <button
                           key={section.id}
-                          onClick={() => setActiveSection(section.id)}
+onClick={() => {
+  // Set active section to show corresponding content
+  setActiveSection(section.id);
+  // If the bottom panel is collapsed, expand it to show the content. If it's already expanded, reset its scroll position to top.
+  if (!bottomPanelCollapsed) {
+    setBottomPanelResetKey(prev => prev + 1);
+  }
+}}
                           className={clsx(
-                            'px-4 py-3.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-all -mb-px flex-shrink-0 border-b-2',
+                            'px-3 py-2.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-all -mb-px flex-shrink-0 border-b-2',
                             activeSection === section.id
                               ? 'border-primary text-primary bg-transparent'
                               : 'border-transparent text-gray-400 hover:text-white'
@@ -1579,12 +1643,12 @@ export default function APIExecutionStudio({
                   <div className="flex-1 overflow-y-auto custom-scrollbar bg-probestack-bg min-h-0">
                     {/* Tab-specific content */}
                     {activeSection === 'params' && (
-                      <div className="p-5">
-                        <div className="rounded-lg border border-dark-700  overflow-hidden">
-                          <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
+                      <div className="p-1">
+                        {/* <div className="rounded-lg border border-dark-700  overflow-hidden"> */}
+                          <div className="px-2 py-1 text-xs text-gray-400 font-medium">
                             Query parameters for the request URL
                           </div>
-                          <div className="p-4">
+                          <div className="p-2">
                             <KeyValueEditor
                               pairs={queryParams}
                               onChange={handleQueryParamsChange}
@@ -1597,17 +1661,17 @@ export default function APIExecutionStudio({
                               isHeaders={false}
                             />
                           </div>
-                        </div>
+                        {/* </div> */}
                       </div>
                     )}
 
                     {activeSection === 'headers' && (
-                      <div className="p-5">
-                        <div className="rounded-lg border border-dark-700 overflow-hidden">
-                          <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
+                      <div className="p-1">
+                        {/* <div className="rounded-lg border border-dark-700 overflow-hidden"> */}
+                          <div className="px-2 py-1 text-xs text-gray-400 font-medium">
                             Request headers (e.g. Content-Type, Authorization)
                           </div>
-                          <div className="p-4">
+                          <div className="p-2">
                             <KeyValueEditor
                               pairs={headers}
                               onChange={onHeadersChange}
@@ -1620,7 +1684,7 @@ export default function APIExecutionStudio({
                                 isHeaders={true}
                             />
                           </div>
-                        </div>
+                        {/* </div> */}
                       </div>
                     )}
 
@@ -1649,10 +1713,10 @@ export default function APIExecutionStudio({
                                 <select
                                   value={rawBodyFormat}
                                   onChange={(e) => setRawBodyFormat(e.target.value)}
-                                  className="ml-2 bg-[var(--color-card-bg)] border border-dark-700 rounded-md text-xs text-gray-300 py-2 px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
+                                  className="rounded-md text-xs text-gray-300  px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
                                 >
-                                  <option value="json">JSON</option>
-                                  <option value="text">Text</option>
+                                  <option value="json" className='bg-dark-800'>JSON</option>
+                                  <option value="text" className='bg-dark-800'>Text</option>
                                 </select>
                               )}
                             </div>
@@ -1673,9 +1737,9 @@ export default function APIExecutionStudio({
       globalValues={globalValues}
     />
   ) : (
-    <div className="rounded-lg border border-dark-700 overflow-hidden bg-[#1e1e1e]">
-      <div className="flex items-center gap-2 px-3 py-2 bg-dark-800/80 border-b border-dark-700 text-xs text-gray-400">
-        <span className="font-medium text-gray-300">Text</span>
+    <div className="rounded-lg border border-dark-700 overflow-hidden ">
+      <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-card-bg)] border-b border-dark-700 text-xs text-gray-400">
+        <span className="font-medium text-gray-300 ">Text</span>
       </div>
       <VariableHighlightInput
         value={body}
@@ -1741,15 +1805,15 @@ export default function APIExecutionStudio({
 
                     {activeSection === 'pre-request' && (
                       <div className="p-5">
-                        <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                        <div className="rounded-lg border border-dark-700  overflow-hidden">
                           <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
                             <span className="text-xs text-gray-400 font-medium">Pre-request Script</span>
-                            <span className="text-[10px] text-gray-500">Runs before the request is sent</span>
+                            <span className="text-xs text-gray-500">Runs before the request is sent</span>
                           </div>
                           <textarea
                             value={preRequestScript}
                             onChange={(e) => onPreRequestScriptChange && onPreRequestScriptChange(e.target.value)}
-                            className="w-full h-80 p-4 font-mono text-sm bg-[#1e1e1e] focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
+                            className="w-full h-80 p-4 font-mono text-sm bg-probestack-bg focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
                             placeholder="// Add custom JavaScript code here\n// Example: pm.environment.set('token', 'abc123');"
                             spellCheck={false}
                           />
@@ -1759,15 +1823,15 @@ export default function APIExecutionStudio({
 
                     {activeSection === 'tests' && (
                       <div className="p-5">
-                        <div className="rounded-lg border border-dark-700 bg-dark-900/40 overflow-hidden">
+                        <div className="rounded-lg border border-dark-700  overflow-hidden">
                           <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
                             <span className="text-xs text-gray-400 font-medium">Tests</span>
-                            <span className="text-[10px] text-gray-500">Runs after the response is received</span>
+                            <span className="text-xs text-gray-500">Runs after the response is received</span>
                           </div>
                           <textarea
                             value={tests}
                             onChange={(e) => onTestsChange && onTestsChange(e.target.value)}
-                            className="w-full h-80 p-4 font-mono text-sm bg-[#1e1e1e] focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
+                            className="w-full h-80 p-4 font-mono text-sm  focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
                             placeholder="// Add test scripts here\n// Example: pm.test('Status code is 200', () => {\n//   pm.response.to.have.status(200);\n// });"
                             spellCheck={false}
                           />
@@ -1864,23 +1928,31 @@ export default function APIExecutionStudio({
       {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults && !isMockEditor && !isMockWizard && (
         <>
           <ResizableBottomPanel
-            defaultHeight={440}
+           key={bottomPanelResetKey}
+            defaultHeight={360}
             minHeight={48}
-            maxHeight={440}
+            maxHeight={480}
             collapsed={bottomPanelCollapsed}
             onCollapseChange={setBottomPanelCollapsed}
           >
             {/* </ResizableBottomPanel> */}
 
             {/* Forgeq-style Panel Header */}
-            <div className="h-12 px-5 flex items-center justify-between border-b border-dark-700 bg-[var(--color-card-bg)] shrink-0 gap-2 min-w-0">
+            <div className="h-10 flex items-center justify-between border-b border-dark-700 bg-[var(--color-card-bg)] shrink-0 gap-2 min-w-0">
               <div className="flex items-center gap-1 min-w-0 flex-1">
                 {['response', 'logs', 'validation', 'collection-run', ...(isMockEndpoint ? [] : ['debug'])].map((tab) => (
                   <button
                     key={tab}
-                    onClick={() => setBottomPanelTab(tab)}
+                      onClick={() => {
+    // If panel is collapsed, expand it first
+    if (bottomPanelCollapsed) {
+      setBottomPanelCollapsed(false);
+    }
+    // Then switch to the selected tab
+    setBottomPanelTab(tab);
+  }}
                     className={clsx(
-                      'px-4 py-3 text-sm font-medium -mb-px cursor-pointer transition-colors rounded-t capitalize whitespace-nowrap flex-shrink-0',
+                      'px-3 py-3 text-sm font-medium -mb-px cursor-pointer transition-colors rounded-t capitalize whitespace-nowrap flex-shrink-0',
                       bottomPanelTab === tab
                         ? 'border-b-2 border-primary text-primary'
                         : 'text-gray-400 hover:text-white'
@@ -1912,22 +1984,22 @@ export default function APIExecutionStudio({
       }
     }}
     disabled={isSavingResponse}
-    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-primary/20 text-primary hover:bg-primary/30 transition-colors mr-2"
-    title="Save this response as an example"
+    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-primary/80 hover:text-primary cursor-pointer transition-colors mr-2"
+    title="Save this response"
   >
     {isSavingResponse ? (
       <Loader2 className="w-3.5 h-3.5 animate-spin" />
     ) : (
       <Save className="w-3.5 h-3.5" />
     )}
-    Save Response
+    Save
   </button>
 )}
 
 
               <button
                 onClick={() => setBottomPanelCollapsed(!bottomPanelCollapsed)}
-                className="p-4 text-gray-500 hover:text-gray-200 transition-colors border-l border-dark-700 -mr-4"
+                className="p-4 text-gray-500 hover:text-gray-200 transition-colors border-l border-dark-700 cursor-pointer flex items-center justify-center rounded-t"
               >
                 {bottomPanelCollapsed ? (
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2109,9 +2181,13 @@ export default function APIExecutionStudio({
                           {/* Items in group */}
                           <div className="space-y-2 mt-2">
                             {items.map((item) => {
+                              console.log("item",item);
                               const isExpanded = expandedLogId === item.historyId;
                               const fullDetails = logDetails[item.historyId];
                               const isLoading = loadingLogDetails[item.historyId];
+                              const executedAt = item.executed_at ? new Date(item.executed_at) : null;
+                              console.log("time",executedAt);
+                              
                               return (
                                 <div key={item.historyId || `log-${item.date}`} className="border border-dark-700 rounded-lg overflow-visible">
                                   {/* Summary row – same layout as collection run */}
@@ -2143,6 +2219,7 @@ export default function APIExecutionStudio({
 
                                     {/* Request name */}
                                     <span className="text-xs text-gray-300 truncate flex-1">{item.url}</span>
+                                    
 
                                     {/* Status badge */}
                                     {item.status > 0 ? (
@@ -2162,14 +2239,14 @@ export default function APIExecutionStudio({
                                     <span className="text-xs text-gray-500 w-14 text-right">{item.time}ms</span>
                                   </div>
 
-                                  {/* URL line – always visible, indented */}
-                                  <div className="pl-[76px] pr-3 pb-1 text-[10px] text-gray-500 truncate">
-                                    {item.url}
+                                  {/* executed at  – always visible, indented */}
+                                  <div className="pl-[83px] pr-3 pb-1 text-[10px] text-gray-500 truncate">
+                                    {formatTimeOfDay(item.executed_at)}
                                   </div>
 
                                   {/* Expanded details (same as before) */}
                                   {isExpanded && (
-                                    <div className="pl-[76px] pr-3 pb-3 space-y-2">
+                                    <div className="pl-[16px] pr-3 pb-3 space-y-2">
                                       {isLoading ? (
                                         <div className="flex items-center gap-2 text-xs text-gray-400">
                                           <div className="w-3 h-3 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
@@ -2585,6 +2662,30 @@ export default function APIExecutionStudio({
           />
         </>
       )}
+
+      {/* Portal Tooltip */}
+{hoveredTab && createPortal(
+  <div
+    className="fixed z-[99999] px-3 py-2 text-xs rounded shadow-lg bg-probestack-bg border border-dark-700 pointer-events-none"
+    style={{
+      left: hoveredTab.left,
+      top: hoveredTab.top,
+      transform: 'translateX(-50%)',
+      color: 'var(--color-text-primary)',
+    }}
+  >
+    <div className="font-semibold mb-1">{hoveredTab.name}</div>
+    {hoveredTab.url && (
+      <div className="text-gray-400 textxs break-all max-w-[250px]">
+        {hoveredTab.url}
+      </div>
+    )}
+    <div 
+      className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 rotate-45 bg-probestack-bg border-t border-l border-dark-700"
+    ></div>
+  </div>,
+  document.body
+)}
     </div>
   );
 }

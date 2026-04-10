@@ -21,9 +21,9 @@ export default function RightPanelProjects({
   return (
     <div className="w-80 min-w-[18rem] max-w-[20rem] border-l border-dark-700 flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-4.5 border-b border-dark-700 shrink-0 flex items-center gap-2">
+      <div className="px-4 py-4 border-b border-dark-700 shrink-0 flex items-center gap-2">
         <Building2 className="w-5 h-5 text-primary" />
-        <h3 className="text-sm font-semibold text-white">Projects</h3>
+        <h3 className="text-xs font-semibold text-white">Projects</h3>
       </div>
 
       {/* Search + Create */}

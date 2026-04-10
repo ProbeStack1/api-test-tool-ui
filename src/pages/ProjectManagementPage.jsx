@@ -213,7 +213,7 @@ export default function ProjectManagementPage({
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Header with inline toggle button */}
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-xl font-bold text-white">
               {showCreateForm ? 'Create New Project' : 'Project Management'}
             </h1>
             <button
@@ -443,7 +443,7 @@ export default function ProjectManagementPage({
 
       {/* Footer */}
       <footer className="border-t border-dark-700/50 shrink-0 bg-dark-800/80">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col items-center justify-between gap-4 text-sm text-gray-400 md:flex-row">
             <div className="flex items-center gap-2">
               <img src="/assets/justlogo.png" alt="ProbeStack logo" className="h-6 w-auto" />

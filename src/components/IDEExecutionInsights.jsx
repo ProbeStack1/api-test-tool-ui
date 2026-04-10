@@ -8,14 +8,14 @@ export default function IDEExecutionInsights({ response, isLoading, error, execu
 
   if (forgeqStyle) {
     return (
-      <aside className="w-80 min-w-[18rem] max-w-[20rem] border-l border-dark-700 flex flex-col flex-shrink-0 min-h-0 overflow-hidden">
-        <div className="p-4.5 border-b border-dark-700 shrink-0 flex items-center gap-2">
+      <aside className="w-80 min-w-[18rem] max-w-[20rem] border-l bg-probestack-bg border-dark-700 flex flex-col flex-shrink-0 min-h-0 overflow-hidden">
+        <div className="p-4 border-b border-dark-700 shrink-0 flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-primary" />
-          <h3 className="text-sm font-semibold text-white">Execution Insights</h3>
+          <h3 className="text-xs font-semibold text-white">Execution Insights</h3>
         </div>
-        <div className="p-4 space-y-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+        <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
           {/* Status */}
-          <div className="p-3.5 rounded-xl bg-dark-800 border border-dark-700 shadow-sm space-y-2">
+          <div className="p-3.5 rounded-xl border border-dark-700 shadow-sm space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</span>
               <Info className="h-3.5 w-3.5 text-gray-500" />
@@ -36,7 +36,7 @@ export default function IDEExecutionInsights({ response, isLoading, error, execu
             ) : (
               <span className="text-xl font-mono font-semibold text-gray-500 block">—</span>
             )}
-            <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
+            <div className="h-1.5 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary/60 rounded-full transition-all"
                 style={{ width: response || error ? '100%' : '0%' }}
@@ -45,7 +45,7 @@ export default function IDEExecutionInsights({ response, isLoading, error, execu
           </div>
 
           {/* Latency */}
-          <div className="p-3.5 rounded-xl bg-dark-800 border border-dark-700 shadow-sm space-y-2">
+          <div className="p-3.5 rounded-xl border border-dark-700 shadow-sm space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Latency</span>
               <Gauge className="h-3.5 w-3.5 text-gray-500" />
@@ -60,7 +60,7 @@ export default function IDEExecutionInsights({ response, isLoading, error, execu
           </div>
 
           {/* Validation */}
-          <div className="p-3.5 rounded-xl bg-dark-800 border border-dark-700 shadow-sm space-y-2">
+          <div className="p-3.5 rounded-xl border border-dark-700 shadow-sm space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Validation</span>
               <CheckSquare className="h-3.5 w-3.5 text-gray-500" />
@@ -76,7 +76,7 @@ export default function IDEExecutionInsights({ response, isLoading, error, execu
           </div>
 
           {/* Auth card - Forgeq style */}
-          <div className="p-4 rounded-xl border border-dashed border-dark-700 bg-dark-800/80 flex flex-col items-center text-center gap-2.5 shadow-sm">
+          <div className="p-4 rounded-xl border border-dashed border-dark-700  flex flex-col items-center text-center gap-2.5 shadow-sm">
             <div className="w-10 h-10 rounded-lg bg-dark-700 flex items-center justify-center">
               <LockOpen className="h-5 w-5 text-gray-500" />
             </div>

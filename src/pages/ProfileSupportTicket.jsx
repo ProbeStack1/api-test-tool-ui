@@ -253,7 +253,7 @@ export const ProfileSupportTicket = () => {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-xl border border-dark-700 bg-dark-800/80 backdrop-blur-sm p-8 md:p-10 shadow-xl"
+              className="rounded-xl border border-dark-700 backdrop-blur-sm p-8 md:p-10 shadow-xl"
             >
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -296,13 +296,14 @@ export const ProfileSupportTicket = () => {
                     value={formData.productArea}
                     onChange={handleInputChange}
                     required
-                    className="flex h-11 w-full rounded-lg border border-dark-700 bg-dark-900/60 px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
+                    className="flex h-11 w-full rounded-lg border border-dark-700  px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
                   >
                     {productAreas.map((opt, i) => (
                       <option
                         key={opt.value}
                         value={opt.value}
                         disabled={i === 0}
+                        className="bg-probestack-bg"
                       >
                         {opt.label}
                       </option>
@@ -336,7 +337,7 @@ export const ProfileSupportTicket = () => {
                     onChange={handleInputChange}
                     required
                     rows={5}
-                    className="resize-none"
+                    className="resize-none bg-probestack-bg"
                   />
                 </div>
 
@@ -421,7 +422,7 @@ export const ProfileSupportTicket = () => {
 
       {/* Footer */}
       <footer className="border-t border-dark-700/50 shrink-0 bg-dark-800/80">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col items-center justify-between gap-4 text-sm text-gray-400 md:flex-row">
             <div className="flex items-center gap-2">
               <img

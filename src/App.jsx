@@ -3060,11 +3060,11 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
               className={clsx(
                 'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap shrink-0',
                 isActive
-                  ? 'bg-primary/20 border border-primary/30 text-primary'
+                  ? ' border border-primary text-primary'
                   : 'text-gray-300 hover:text-white hover:bg-white/5 border border-transparent'
               )}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-4 h-4 text-white hover:bg-white/5" />
               {item.label}
             </button>
           );

@@ -34,8 +34,8 @@ import {
   updateEndpoint,
   createEndpoint,
   getEndpoints,
-} from './services/mockServerService'; ;
-import Home from './components/Home';
+} from './services/mockServerService';
+import Home from './components/Home2';
 import Reports from './components/Reports';
 import Explore from './components/Explore';
 import TestingToolPage from './pages/TestingToolPage';
@@ -81,8 +81,6 @@ const [showNewWorkspaceModal, setShowNewWorkspaceModal] = useState(false);
 const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
 const workspaceDropdownRef = useRef(null);
 
-
-
 const [chatbotVisible, setChatbotVisible] = useState(false);
 const [chatbotError, setChatbotError] = useState(null);
 const [chatbotResponse, setChatbotResponse] = useState(null);
@@ -92,6 +90,29 @@ const [workspaceRuns, setWorkspaceRuns] = useState([]);
 const [loadingRuns, setLoadingRuns] = useState(false);
 const [loadTestRuns, setLoadTestRuns] = useState([]);
 const [loadingLoadRuns, setLoadingLoadRuns] = useState(false);
+
+const [showProbeStack, setShowProbeStack] = useState(false);
+const [probeStackDisappearing, setProbeStackDisappearing] = useState(false);
+const [logoVibrate, setLogoVibrate] = useState(false);
+
+useEffect(() => {
+  let timer;
+  if (location.pathname === '/') {
+    setShowProbeStack(true);
+    setProbeStackDisappearing(false);
+    setLogoVibrate(false); // reset
+
+    timer = setTimeout(() => {
+      setProbeStackDisappearing(true);
+      setLogoVibrate(true); // 👈 start logo vibration
+    }, 1500);
+  } else {
+    setShowProbeStack(false);
+    setProbeStackDisappearing(false);
+    setLogoVibrate(false);
+  }
+  return () => clearTimeout(timer);
+}, [location.pathname]);
 
 const handleShowChatbot = (error, response, requestInfo) => {
   setChatbotError(error);
@@ -3033,18 +3054,34 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
         {/* Header - same logo block as Migration/DashboardNavbar (porbestack-new-repo) */}
         <header className="h-16 border-b border-dark-700 flex items-center px-6 justify-between shrink-0 z-20 bg-header-bg">
   <div className="flex items-center gap-8 flex-1 min-w-0">
-    <div className="flex items-center gap-2.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
-      <img
-        src="/assets/justlogo.png"
-        alt="ProbeStack logo"
-        className="h-11 w-auto"
-        onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
-      />
-      <div className="flex flex-col">
-        <span className="text-xl font-extrabold gradient-text font-heading whitespace-nowrap">ForgeQ</span>
-        <span className="text-[0.65rem] text-gray-400 leading-tight mt-0.5 whitespace-nowrap">A ForgeCrux Company</span>
-      </div>
-    </div>
+   <div className="flex items-center gap-2.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
+  <img
+    src="/assets/justlogo.png"
+    alt="ProbeStack logo"
+    className={clsx("h-11 w-auto", logoVibrate && "animate-vibrate")}
+    onAnimationEnd={() => setLogoVibrate(false)}
+    onError={(e) => { e.target.onerror = null; e.target.src = '/logo.png'; }}
+  />
+  <div className="flex flex-col">
+    <span
+      className={clsx(
+        "text-xl font-extrabold gradient-text font-heading whitespace-nowrap leading-tight",
+        probeStackDisappearing && "animate-disappear"
+      )}
+      onAnimationEnd={() => {
+        if (probeStackDisappearing) {
+          setShowProbeStack(false);
+          setProbeStackDisappearing(false);
+        }
+      }}
+    >
+      {showProbeStack ? "ProbeStack" : "ForgeQ"}
+    </span>
+    <span className="text-[0.65rem] text-gray-400 leading-tight whitespace-nowrap">
+      A ForgeCrux Company
+    </span>
+  </div>
+</div>
     
     {/* Navigation Links - only show on workspace pages */}
     {isWorkspace && (

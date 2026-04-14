@@ -299,29 +299,32 @@ const handleOpenMockEditorForExisting = (mockServer) => {
 const handleViewLoadTestResults = (run) => {
   const loadTestId = run.testId || run.loadTestId || run.id;
   if (!loadTestId) {
-    toast.error('Cannot open results please try again later');
+    toast.error('Cannot open results – invalid test ID');
     return;
   }
 
-  // Check if a tab with this loadTestId already exists
-  const existingTabIndex = requests.findIndex(
-    tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
-  );
-  if (existingTabIndex !== -1) {
-    // Already exists – switch to it
-    onTabSelect(existingTabIndex);
-    return;
-  }
+  // First navigate to the Collections view
+  navigate('/workspace/collections');
 
-  // Create a new tab
-  const resultsTab = {
-    id: `load-test-results-${loadTestId}-${Date.now()}`,
-    type: 'load-test-results',
-    name: `Load Test Results: ${run.collectionName || run.testName || 'Load Test'}`,
-    loadTestId: loadTestId,
-  };
-  onNewTab(resultsTab);
-  // The tab is automatically activated by onNewTab, so no extra action needed.
+  // After a short delay, add the tab (ensures the context has switched)
+  setTimeout(() => {
+    // Check if a tab with this loadTestId already exists
+    const existingTabIndex = requests.findIndex(
+      tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
+    );
+
+    if (existingTabIndex !== -1) {
+      onTabSelect(existingTabIndex);
+    } else {
+      const resultsTab = {
+        id: `load-test-results-${loadTestId}-${Date.now()}`,
+        type: 'load-test-results',
+        name: `Load Test Results: ${run.collectionName || run.testName || 'Load Test'}`,
+        loadTestId: loadTestId,
+      };
+      onNewTab(resultsTab);
+    }
+  }, 100);
 };
 
 
@@ -2703,6 +2706,8 @@ topMenuActive === 'testing' ? (
     projects={projects}
     workspaceRuns={workspaceRuns}
     loadingRuns={loadingRuns}
+    loadTestRuns={loadTestRuns}
+    loadingLoadRuns={loadingLoadRuns}
     onViewRunResults={onViewRunResults}
     onViewLoadTestRun={handleViewLoadTestResults} 
   />

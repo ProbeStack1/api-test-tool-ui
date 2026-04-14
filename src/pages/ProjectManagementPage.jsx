@@ -21,47 +21,28 @@ export default function ProjectManagementPage({
   const mode = searchParams.get('mode') || 'details';
   const projectId = searchParams.get('projectId') || externalActiveWorkspaceId;
 
-  // Local project list (never overwritten by stale parent data)
-  const [localProjects, setLocalProjects] = useState(externalProjects);
-  const [localActiveWorkspaceId, setLocalActiveWorkspaceId] = useState(projectId);
-  const createdIdsRef = useRef(new Set());
-
-  // Merge parent projects with our locally created ones
-  useEffect(() => {
-    const merged = [...externalProjects];
-    localProjects.forEach(lp => {
-      if (!externalProjects.some(ep => ep.id === lp.id) && createdIdsRef.current.has(lp.id)) {
-        merged.push(lp);
-      }
-    });
-    if (JSON.stringify(merged) !== JSON.stringify(localProjects)) {
-      setLocalProjects(merged);
-    }
-  }, [externalProjects]);
-
-  useEffect(() => {
-    setLocalActiveWorkspaceId(projectId);
-  }, [projectId]);
-
   const [showCreateForm, setShowCreateForm] = useState(mode === 'create');
   const [workspaceName, setWorkspaceName] = useState('');
   const [description, setDescription] = useState('');
   const [workspaceEmail, setWorkspaceEmail] = useState('');
-  const [organizationId, setOrganizationId] = useState('');      // NEW
-  const [projectSme, setProjectSme] = useState('');              // NEW
+  const [organizationId, setOrganizationId] = useState('');
+  const [projectSme, setProjectSme] = useState('');
   const [visibility, setVisibility] = useState('private');
   const [validationError, setValidationError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  // Modal states
   const [redirectDialogOpen, setRedirectDialogOpen] = useState(false);
   const [newlyCreatedProject, setNewlyCreatedProject] = useState(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [closingModal, setClosingModal] = useState(false);
   const [countdownPercent, setCountdownPercent] = useState(100);
   const countdownIntervalRef = useRef(null);
+  const redirectTimerRef = useRef(null);
+  
+  // Refs to capture latest values for countdown callback
+  const newlyCreatedProjectRef = useRef(null);
+  const redirectDialogOpenRef = useRef(false);
 
-  // Hide workspace tabs (like settings page)
   useEffect(() => {
     document.body.classList.add('hide-workspace-tabs');
     return () => document.body.classList.remove('hide-workspace-tabs');
@@ -71,15 +52,15 @@ export default function ProjectManagementPage({
     setShowCreateForm(mode === 'create');
   }, [mode]);
 
-  // Cleanup interval on unmount
   useEffect(() => {
     return () => {
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     };
   }, []);
 
   const startCountdown = (onComplete) => {
-    const duration = 10; // seconds
+    const duration = 10;
     const startTime = Date.now();
     setCountdownPercent(100);
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
@@ -100,6 +81,10 @@ export default function ProjectManagementPage({
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
+    }
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
     }
   };
 
@@ -124,33 +109,24 @@ export default function ProjectManagementPage({
         name: workspaceName.trim(),
         description: description.trim(),
         visibility,
+        workspaceEmail: workspaceEmail.trim() || null,
+        organizationId: organizationId.trim() || null,
+        projectSme: projectSme.trim() || null,
       };
       const response = await createWorkspace(payload);
       const newWorkspace = response.data;
 
-      // Add custom fields locally
-      newWorkspace.email = workspaceEmail.trim();
-      newWorkspace.organizationId = organizationId.trim();
-      newWorkspace.projectSme = projectSme.trim();
-
-      // Update local state immediately
-      setLocalProjects(prev => [newWorkspace, ...prev]);
-      createdIdsRef.current.add(newWorkspace.id);
-      setLocalActiveWorkspaceId(newWorkspace.id);
-      setShowCreateForm(false);
-      navigate(`/workspace/projects-management?mode=details&projectId=${newWorkspace.id}`, { replace: true });
-
-      // Notify parent
       if (onAddProject) onAddProject(newWorkspace);
       if (onSelectWorkspace) onSelectWorkspace(newWorkspace.id);
 
       toast.success(`Project "${newWorkspace.name}" created!`);
 
-      // Store the new project and open the modal
       setNewlyCreatedProject(newWorkspace);
+      newlyCreatedProjectRef.current = newWorkspace;
       setRedirectDialogOpen(true);
+      redirectDialogOpenRef.current = true;
       startCountdown(() => {
-        if (redirectDialogOpen && newlyCreatedProject) {
+        if (redirectDialogOpenRef.current && newlyCreatedProjectRef.current) {
           handleRedirectToCollections();
         }
       });
@@ -162,43 +138,45 @@ export default function ProjectManagementPage({
   };
 
   const handleRedirectToCollections = () => {
-    if (!newlyCreatedProject) return;
+    const project = newlyCreatedProjectRef.current;
+    if (!project) return;
     setIsRedirecting(true);
     closeModalWithAnimation(() => {
       toast.loading('Redirecting to collections...', { id: 'redirect-loading' });
       setTimeout(() => {
         toast.dismiss('redirect-loading');
-        navigate(`/workspace/collections?projectId=${newlyCreatedProject.id}`);
+        navigate(`/workspace/collections?projectId=${project.id}`);
       }, 300);
     });
   };
 
   const handleStayOnDetails = () => {
-    if (!newlyCreatedProject) return;
+    if (!newlyCreatedProjectRef.current) return;
     closeModalWithAnimation(() => {
       setNewlyCreatedProject(null);
+      newlyCreatedProjectRef.current = null;
     });
   };
 
   const handleCloseDialog = () => {
     closeModalWithAnimation(() => {
       setNewlyCreatedProject(null);
+      newlyCreatedProjectRef.current = null;
     });
   };
 
   const toggleMode = () => {
     if (showCreateForm) {
-      navigate(`/workspace/projects-management?mode=details&projectId=${localActiveWorkspaceId}`);
+      navigate(`/workspace/projects-management?mode=details&projectId=${projectId}`);
     } else {
       navigate('/workspace/projects-management?mode=create');
     }
   };
 
-  const activeWorkspace = localProjects.find(p => p.id === localActiveWorkspaceId);
+  const activeWorkspace = externalProjects.find(p => p.id === projectId);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
-      {/* Back button */}
       <div className="px-6 pt-4">
         <button
           onClick={() => navigate('/workspace/collections')}
@@ -211,7 +189,6 @@ export default function ProjectManagementPage({
 
       <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
         <div className="max-w-4xl mx-auto space-y-6">
-          {/* Header with inline toggle button */}
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-xl font-bold text-white">
               {showCreateForm ? 'Create New Project' : 'Project Management'}
@@ -234,7 +211,6 @@ export default function ProjectManagementPage({
             </button>
           </div>
 
-          {/* Main Content */}
           {showCreateForm ? (
             <div className="rounded-md border border-dark-700 p-6 space-y-4">
               <div>
@@ -265,7 +241,6 @@ export default function ProjectManagementPage({
                 />
               </div>
 
-              {/* Project Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Project Email <span className="text-gray-500 font-normal">(optional)</span>
@@ -280,7 +255,6 @@ export default function ProjectManagementPage({
                 <p className="text-xs text-gray-500 mt-1">Used for team collaboration and notifications</p>
               </div>
 
-              {/* Organization ID */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Organization ID <span className="text-gray-500 font-normal">(optional)</span>
@@ -295,7 +269,6 @@ export default function ProjectManagementPage({
                 <p className="text-xs text-gray-500 my-1">Internal organization reference</p>
               </div>
 
-              {/* Project SME */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Project SME <span className="text-gray-500 font-normal">(optional)</span>
@@ -386,7 +359,6 @@ export default function ProjectManagementPage({
         </div>
       </main>
 
-      {/* Bottom-right modal (no background blur) */}
       {redirectDialogOpen && newlyCreatedProject && (
         <div
           className={clsx(
@@ -427,7 +399,6 @@ export default function ProjectManagementPage({
                 )}
               </button>
             </div>
-            {/* Countdown bar – 10 seconds */}
             <div className="h-1 w-full rounded-md overflow-hidden bg-dark-700">
               <div
                 className="h-full bg-primary transition-all duration-50 ease-linear"
@@ -441,7 +412,6 @@ export default function ProjectManagementPage({
         </div>
       )}
 
-      {/* Footer */}
       <footer className="border-t border-dark-700/50 shrink-0 bg-dark-800/80">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col items-center justify-between gap-4 text-sm text-gray-400 md:flex-row">

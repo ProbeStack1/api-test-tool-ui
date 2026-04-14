@@ -35,7 +35,7 @@ import {
   createEndpoint,
   getEndpoints,
 } from './services/mockServerService';
-import Home from './components/Home2';
+import Home from './components/Home';
 import Reports from './components/Reports';
 import Explore from './components/Explore';
 import TestingToolPage from './pages/TestingToolPage';
@@ -50,6 +50,7 @@ import { useVariableMaps } from './components/VariableHighlightInput';
 import RunModal from './components/modals/RunModal';
 import AIChatbotHelper from './components/AiChatbotHelper';
 import ProjectManagementPage from './pages/ProjectManagementPage';
+import AcceptInvitationPage from './pages/AcceptInvitationPage';
 
 // Flatten all request items recursively from a collection tree
 const flattenCollectionRequests = (items = []) => {
@@ -618,12 +619,29 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     return;
   }
 
+  // Extract unique run identifier (functional test runId, or fallback to collectionId + timestamp)
+  const runId = runData.runId || runData.id || `${collectionId}-${Date.now()}`;
+
+  // Check if a tab with this runId already exists
+  const existingTabIndex = requests.findIndex(
+    tab => tab.type === 'collection-run-results' && tab.runId === runId
+  );
+
+  if (existingTabIndex !== -1) {
+    // Switch to existing tab and navigate
+    onTabSelect(existingTabIndex);
+    if (shouldNavigate) {
+      navigate('/workspace/collections');
+    }
+    return;
+  }
+
+  // --- Build results data (same as before) ---
   const collection = collections.find(c => c.id === runData.collectionId);
   const avgTime = runData.totalRequests > 0 
     ? Math.round(runData.totalTimeMs / runData.totalRequests) 
     : 0;
 
-  // Use runData.requests (functional test) or fallback to runData.results (collection run)
   const sourceResults = runData.requests || runData.results || [];
 
   const mappedResults = {
@@ -665,29 +683,48 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
   };
 
   const resultsTab = {
-    id: `run-results-${Date.now()}`,
+    id: `run-results-${runId}`,                 // stable ID based on runId
     type: 'collection-run-results',
     name: `Run Results: ${runData.collectionName || collection?.name || 'Collection'}`,
     results: mappedResults,
     collectionId: runData.collectionId,
+    runId: runId,                               // store for future reuse
   };
 
-  // Replace or add the tab
+  // Determine the new state
+  let newRequests;
+  let newActiveIndex;
+  if (tabIndex >= 0 && tabIndex < requests.length) {
+    newRequests = [...requests];
+    newRequests[tabIndex] = resultsTab;
+    newActiveIndex = tabIndex;
+  } else {
+    newRequests = [...requests, resultsTab];
+    newActiveIndex = newRequests.length - 1;
+  }
+
+  // Save to the collections context (so it survives navigation)
+  if (activeWorkspaceId) {
+    saveContextualTabs(activeWorkspaceId, 'collections', newRequests, newActiveIndex);
+  }
+
+  // Update the actual state
   if (tabIndex >= 0 && tabIndex < requests.length) {
     setRequests(prev => {
-      const newRequests = [...prev];
-      newRequests[tabIndex] = resultsTab;
-      return newRequests;
+      const updated = [...prev];
+      updated[tabIndex] = resultsTab;
+      return updated;
     });
+    setActiveRequestIndex(tabIndex);
   } else {
-    handleNewTab(resultsTab);
+    setRequests(prev => [...prev, resultsTab]);
+    setActiveRequestIndex(prev => prev.length);
   }
 
   if (shouldNavigate) {
     navigate('/workspace/collections');
   }
 
-  // Only refresh the runs list if requested (e.g., for a new run)
   if (refresh) {
     fetchAllRuns();
   }
@@ -2360,6 +2397,24 @@ const RunLoadingModal = ({ isOpen }) => {
   };
 
 const handleAddProject = (workspaceData) => {
+  // If the workspace already has a real ID (from backend), just add it to state and activate
+  const isRealId = workspaceData?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceData.id);
+  if (isRealId) {
+    setProjects((prev) => [...prev, workspaceData]);
+    setActiveWorkspaceId(workspaceData.id);
+    // Also handle imported collection if any (optional)
+    if (workspaceData.importedCollection?.content) {
+      const parsedCollection = parsePostmanCollection(
+        workspaceData.importedCollection.content,
+        workspaceData.id,
+        workspaceData.name
+      );
+      setCollections((prev) => [...prev, parsedCollection]);
+    }
+    return workspaceData;
+  }
+
+  // --- legacy / offline creation (string input or temporary ID) ---
   const isLegacyFormat = typeof workspaceData === 'string';
   const name = isLegacyFormat ? workspaceData : workspaceData.name;
   const visibility = isLegacyFormat ? 'private' : (workspaceData.visibility || 'private');
@@ -2375,7 +2430,6 @@ const handleAddProject = (workspaceData) => {
   };
   setProjects((prev) => [...prev, newProject]);
 
-  // If there's an imported collection, create it under this workspace
   if (importedCollection && importedCollection.content) {
     const parsedCollection = parsePostmanCollection(importedCollection.content, tempId, name.trim());
     setCollections((prev) => [...prev, parsedCollection]);
@@ -2383,10 +2437,8 @@ const handleAddProject = (workspaceData) => {
 
   const userId = USER_ID;
   if (!userId) {
-    // Offline mode: set active immediately
     setActiveWorkspaceId(tempId);
   } else {
-    // Persist to backend
     createWorkspace({ name: name.trim(), visibility, description })
       .then((res) => {
         const realId = res.data?.id;
@@ -3182,6 +3234,7 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
           <Route path="/workspace/profile" element={<Profile />} />
           <Route path="/workspace/profile/support" element={<ProfileSupport />} />
           <Route path="/workspace/profile/support/ticket" element={<ProfileSupportTicket />} />
+          <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
           <Route
   path="/workspace/projects-management"
   element={

@@ -34,7 +34,7 @@
   --probestack-text-secondary-dark: #9ca3af;
   --probestack-card-bg-dark: #161b30;
 
-  --probestack-bg-light: #fafafa;
+  --probestack-bg-light: #f0f8ff;
   --probestack-surface-light: #ffffff;
   --probestack-border-light: #e5e7eb;
   --probestack-text-primary-light: #1f2937;
@@ -44,7 +44,9 @@
   /*=====================================================================*/
 }
 
-/* Light theme: override Tailwind theme variables so all components update */
+/* ═══════════════════════════════════════════════════════════════════════
+   LIGHT THEME: Override Tailwind theme variables so all components update
+   ═══════════════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
   --color-header-bg: #f6f7fb;
   --color-probestack-bg: #f6f7fb;
@@ -144,12 +146,25 @@
 [data-theme="light"] .bg-slate-800 {
   background-color: #e2e8f0 !important;
 }
+/* Light theme: Terminal background */
+[data-theme="light"] .bg-\[\#0a0e1a\] {
+  background-color: #eef2ff !important;
+}
 
+/* ═══════════════════════════════════════════════════════════════════════
+   BASE LAYER
+   ═══════════════════════════════════════════════════════════════════════ */
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-probestack-bg text-white overflow-hidden;
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    font-size: 13px; /* Reduced from default ~16px */
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   [data-theme="light"] body {
@@ -162,12 +177,24 @@
   }
 }
 
-/* Same as Migration page: Space Grotesk for logo/brand text */
+/* ═══════════════════════════════════════════════════════════════════════
+   FONT CLASSES
+   ═══════════════════════════════════════════════════════════════════════ */
 .font-heading {
   font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Landing page: same gradient text as Migration page (porbestack-new-repo) */
+.font-display {
+  font-family: 'Syne', ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GRADIENT TEXT EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
 .gradient-text {
   background: linear-gradient(90deg, #ff5b1f, #ffb400 40%, #1fbf9a);
   -webkit-background-clip: text;
@@ -175,7 +202,30 @@
   color: transparent;
 }
 
-/* Custom Scrollbar */
+.gradient-text-theme {
+  background: linear-gradient(135deg, var(--probestack-text-primary-dark) 0%, var(--probestack-primary) 50%, var(--probestack-text-primary-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .gradient-text-theme {
+  background: linear-gradient(135deg, var(--probestack-text-primary-light) 0%, var(--probestack-primary) 50%, var(--probestack-text-primary-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-primary {
+  background: linear-gradient(135deg, #ff5b1f 0%, #ff8c4a 50%, #ff5b1f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CUSTOM SCROLLBAR
+   ═══════════════════════════════════════════════════════════════════════ */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -193,190 +243,241 @@
   @apply bg-dark-600;
 }
 
-/* ===================================================================
-   ProbeStack Landing Page Animation Keyframes
-   Production-grade smooth animations
-   =================================================================== */
+.thin-horizontal-scrollbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-height: thin;
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar {
+  height: 3px;
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-scrollbar);
+  border-radius: 0;
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 0;
+}
+.thin-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
+}
 
-/* Subtle floating animation for background particles */
+/* ═══════════════════════════════════════════════════════════════════════
+   LANDING PAGE THEME UTILITIES
+   ═══════════════════════════════════════════════════════════════════════ */
+.landing-bg {
+  background: var(--probestack-bg-dark);
+}
+[data-theme="light"] .landing-bg {
+  background: var(--probestack-bg-light);
+}
+
+.landing-text-primary {
+  color: var(--probestack-text-primary-dark);
+}
+[data-theme="light"] .landing-text-primary {
+  color: var(--probestack-text-primary-light);
+}
+
+.landing-text-secondary {
+  color: var(--probestack-text-secondary-dark);
+}
+[data-theme="light"] .landing-text-secondary {
+  color: var(--probestack-text-secondary-light);
+}
+
+.landing-border {
+  border-color: var(--probestack-border-dark);
+}
+[data-theme="light"] .landing-border {
+  border-color: var(--probestack-border-light);
+}
+
+.landing-card-bg {
+  background: var(--probestack-card-bg-dark);
+}
+[data-theme="light"] .landing-card-bg {
+  background: var(--probestack-card-bg-light);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GLASS MORPHISM & CARD EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
+.glass-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-card-dark {
+  background: var(--probestack-card-bg-dark);
+  border: 1px solid var(--probestack-border-dark);
+}
+[data-theme="light"] .glass-card-dark {
+  background: var(--probestack-card-bg-light);
+  border: 1px solid var(--probestack-border-light);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUTTON EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
+.btn-glow:hover {
+  box-shadow: 0 0 30px rgba(255, 91, 31, 0.4), 0 0 60px rgba(255, 91, 31, 0.2);
+}
+
+.btn-glow-subtle {
+  box-shadow: 0 0 15px rgba(255, 91, 31, 0.15);
+}
+
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION KEYFRAMES - ORIGINAL
+   ═══════════════════════════════════════════════════════════════════════ */
 @keyframes float {
-  0%, 100% {
-    transform: translateY(0) translateX(0);
-  }
-  25% {
-    transform: translateY(-20px) translateX(10px);
-  }
-  50% {
-    transform: translateY(-10px) translateX(-5px);
-  }
-  75% {
-    transform: translateY(-25px) translateX(5px);
-  }
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(-20px) translateX(10px); }
+  50% { transform: translateY(-10px) translateX(-5px); }
+  75% { transform: translateY(-25px) translateX(5px); }
 }
 
-/* Gentle pulse animation for ambient glow effects */
 @keyframes pulse-glow {
-  0%, 100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.05);
-  }
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
 }
 
-/* Smooth gradient shift for background ambiance */
 @keyframes gradient-shift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
-/* Fade in from bottom animation */
 @keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Rocket hover ignition animation - slight shake and glow */
 @keyframes rocket-ignition {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  10% {
-    transform: translateY(-2px) rotate(-1deg);
-  }
-  20% {
-    transform: translateY(-1px) rotate(1deg);
-  }
-  30% {
-    transform: translateY(-3px) rotate(-0.5deg);
-  }
-  40% {
-    transform: translateY(-2px) rotate(0.5deg);
-  }
-  50% {
-    transform: translateY(-4px) rotate(0deg);
-  }
-  60% {
-    transform: translateY(-2px) rotate(-0.5deg);
-  }
-  70% {
-    transform: translateY(-3px) rotate(0.5deg);
-  }
-  80% {
-    transform: translateY(-1px) rotate(0deg);
-  }
-  90% {
-    transform: translateY(-2px) rotate(-0.5deg);
-  }
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  10% { transform: translateY(-2px) rotate(-1deg); }
+  20% { transform: translateY(-1px) rotate(1deg); }
+  30% { transform: translateY(-3px) rotate(-0.5deg); }
+  40% { transform: translateY(-2px) rotate(0.5deg); }
+  50% { transform: translateY(-4px) rotate(0deg); }
+  60% { transform: translateY(-2px) rotate(-0.5deg); }
+  70% { transform: translateY(-3px) rotate(0.5deg); }
+  80% { transform: translateY(-1px) rotate(0deg); }
+  90% { transform: translateY(-2px) rotate(-0.5deg); }
 }
 
-/* Rocket launch and fly away animation */
 @keyframes rocket-launch {
-  0% {
-    transform: translateX(0) translateY(0) scale(1);
-    opacity: 1;
-  }
-  30% {
-    transform: translateX(10px) translateY(-20px) scale(1.1);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(200px) translateY(-100px) scale(0.3);
-    opacity: 0;
-  }
+  0% { transform: translateX(0) translateY(0) scale(1); opacity: 1; }
+  30% { transform: translateX(10px) translateY(-20px) scale(1.1); opacity: 1; }
+  100% { transform: translateX(200px) translateY(-100px) scale(0.3); opacity: 0; }
 }
 
-/* Exhaust flame animation */
 @keyframes flame-flicker {
-  0%, 100% {
-    transform: scaleY(1) scaleX(1);
-    opacity: 0.8;
-  }
-  25% {
-    transform: scaleY(1.2) scaleX(0.9);
-    opacity: 1;
-  }
-  50% {
-    transform: scaleY(0.9) scaleX(1.1);
-    opacity: 0.9;
-  }
-  75% {
-    transform: scaleY(1.1) scaleX(0.95);
-    opacity: 1;
-  }
+  0%, 100% { transform: scaleY(1) scaleX(1); opacity: 0.8; }
+  25% { transform: scaleY(1.2) scaleX(0.9); opacity: 1; }
+  50% { transform: scaleY(0.9) scaleX(1.1); opacity: 0.9; }
+  75% { transform: scaleY(1.1) scaleX(0.95); opacity: 1; }
 }
 
-/* Particle drift animation */
 @keyframes particle-drift {
-  0% {
-    transform: translateY(0) translateX(0);
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-100vh) translateX(var(--drift-x, 20px));
-    opacity: 0;
-  }
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100vh) translateX(var(--drift-x, 20px)); opacity: 0; }
 }
 
-/* Smooth scale in animation */
 @keyframes scale-in {
-  from {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
-/* ===================================================================
-   ProbeStack Utility Classes
-   Reusable animation and style utilities
-   =================================================================== */
-
-/* Theme-friendly gradient text that works in both light and dark modes */
-.gradient-text-theme {
-  background: linear-gradient(135deg, var(--probestack-text-primary-dark) 0%, var(--probestack-primary) 50%, var(--probestack-text-primary-dark) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+@keyframes fadeOutScale {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.8); }
 }
 
-[data-theme="light"] .gradient-text-theme {
-  background: linear-gradient(135deg, var(--probestack-text-primary-light) 0%, var(--probestack-primary) 50%, var(--probestack-text-primary-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+@keyframes vibrate {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, 2px); }
+  80% { transform: translate(1px, -2px); }
+  100% { transform: translate(0); }
 }
 
-/* Primary brand gradient text */
-.gradient-text-primary {
-  background: linear-gradient(135deg, #ff5b1f 0%, #ff8c4a 50%, #ff5b1f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION KEYFRAMES - NEW (Landing Page Sections)
+   ═══════════════════════════════════════════════════════════════════════ */
+@keyframes riseUp {
+  0% { transform: translateY(0) translateX(0px); opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { transform: translateY(-120vh) translateX(var(--drift-x)); opacity: 0; }
 }
 
-/* Animation utility classes */
+@keyframes fade-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes typewriter-blink {
+  0%, 49% { border-color: #ff5b1f; }
+  50%, 100% { border-color: transparent; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes counter-glow {
+  0%, 100% { text-shadow: 0 0 10px rgba(255, 91, 31, 0.3); }
+  50% { text-shadow: 0 0 25px rgba(255, 91, 31, 0.6); }
+}
+
+@keyframes border-glow {
+  0%, 100% { border-color: rgba(255, 91, 31, 0.2); }
+  50% { border-color: rgba(255, 91, 31, 0.5); }
+}
+
+@keyframes draw-line {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(120px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes slide-in-bottom {
+  from { opacity: 0; transform: translateY(60px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION UTILITY CLASSES - ORIGINAL
+   ═══════════════════════════════════════════════════════════════════════ */
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
@@ -391,11 +492,19 @@
 }
 
 .animate-fade-in-up {
-  animation: fade-in-up 0.6s ease-out forwards;
+  animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-scale-in {
   animation: scale-in 0.5s ease-out forwards;
+}
+
+.animate-disappear {
+  animation: fadeOutScale 0.5s ease-in-out forwards;
+}
+
+.animate-vibrate {
+  animation: vibrate 0.2s ease-in-out 0s 2;
 }
 
 /* Rocket button specific animations */
@@ -411,12 +520,50 @@
   animation: flame-flicker 0.15s ease-in-out infinite;
 }
 
-/* Animation delay utilities for staggered reveals */
-.animation-delay-100 { animation-delay: 0.1s; }
-.animation-delay-200 { animation-delay: 0.2s; }
-.animation-delay-300 { animation-delay: 0.3s; }
-.animation-delay-400 { animation-delay: 0.4s; }
-.animation-delay-500 { animation-delay: 0.5s; }
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION UTILITY CLASSES - NEW (Landing Page Sections)
+   ═══════════════════════════════════════════════════════════════════════ */
+.animate-fade-in-left {
+  animation: fade-in-left 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-right {
+  animation: fade-in-right 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-bottom {
+  animation: slide-in-bottom 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background-size: 200% 100%;
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.animate-counter-glow {
+  animation: counter-glow 3s ease-in-out infinite;
+}
+
+.animate-border-glow {
+  animation: border-glow 3s ease-in-out infinite;
+}
+
+.animate-orbit {
+  animation: orbit 20s linear infinite;
+}
+
+/* Particle rise (for ParticleBackground component) */
+.particle-rise {
+  position: absolute;
+  top: 100%;
+  animation: riseUp var(--duration) var(--delay) linear infinite;
+  pointer-events: none;
+  will-change: transform;
+}
 
 /* Particle styling */
 .particle {
@@ -430,120 +577,103 @@
   animation-delay: var(--delay, 0s);
 }
 
-/* Glass morphism card effect */
-.glass-card {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+/* ═══════════════════════════════════════════════════════════════════════
+   ANIMATION DELAY UTILITIES (Staggered Reveals)
+   ═══════════════════════════════════════════════════════════════════════ */
+.animation-delay-100 { animation-delay: 0.1s; }
+.animation-delay-200 { animation-delay: 0.2s; }
+.animation-delay-300 { animation-delay: 0.3s; }
+.animation-delay-400 { animation-delay: 0.4s; }
+.animation-delay-500 { animation-delay: 0.5s; }
+.animation-delay-600 { animation-delay: 0.6s; }
+.animation-delay-700 { animation-delay: 0.7s; }
+.animation-delay-800 { animation-delay: 0.8s; }
+
+/* Stagger children animations */
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CHART & VISUAL EFFECTS (Landing Page)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Chart container glow border */
+.chart-glow {
+  position: relative;
+}
+.chart-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(255, 91, 31, 0.15), transparent 40%, rgba(31, 191, 154, 0.1));
+  z-index: 0;
+  pointer-events: none;
 }
 
-/* Dark theme glass card */
-.glass-card-dark {
-  background: var(--probestack-card-bg-dark);
-  border: 1px solid var(--probestack-border-dark);
+/* Grid background pattern */
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(255, 91, 31, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 91, 31, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
 }
 
-/* Light theme glass card */
-[data-theme="light"] .glass-card-dark {
-  background: var(--probestack-card-bg-light);
-  border: 1px solid var(--probestack-border-light);
+/* Noise texture overlay */
+.noise-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* Smooth transitions for interactive elements */
-.transition-smooth {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* Image placeholder styles */
+.img-placeholder {
+  background: linear-gradient(135deg, #161b30 0%, #232942 50%, #161b30 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Button hover glow effect */
-.btn-glow:hover {
-  box-shadow: 0 0 30px rgba(255, 91, 31, 0.4), 0 0 60px rgba(255, 91, 31, 0.2);
+.img-placeholder-shimmer {
+  background: linear-gradient(90deg, #161b30 25%, #232942 50%, #161b30 75%);
+  animation: shimmer 3s ease infinite;
+  background-size: 200% 100%;
 }
 
-/* Landing page specific theme colors */
-.landing-bg {
-  background: var(--probestack-bg-dark);
-}
-
-[data-theme="light"] .landing-bg {
-  background: var(--probestack-bg-light);
-}
-
-.landing-text-primary {
-  color: var(--probestack-text-primary-dark);
-}
-
+/* ═══════════════════════════════════════════════════════════════════════
+   LIGHT THEME: Landing page overrides
+   ═══════════════════════════════════════════════════════════════════════ */
 [data-theme="light"] .landing-text-primary {
   color: var(--probestack-text-primary-light);
-}
-
-.landing-text-secondary {
-  color: var(--probestack-text-secondary-dark);
 }
 
 [data-theme="light"] .landing-text-secondary {
   color: var(--probestack-text-secondary-light);
 }
 
-.landing-border {
-  border-color: var(--probestack-border-dark);
+[data-theme="light"] .img-placeholder {
+  background: linear-gradient(135deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
 }
 
-[data-theme="light"] .landing-border {
-  border-color: var(--probestack-border-light);
+[data-theme="light"] .img-placeholder-shimmer {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
 }
 
-.landing-card-bg {
-  background: var(--probestack-card-bg-dark);
-}
-
-[data-theme="light"] .landing-card-bg {
-  background: var(--probestack-card-bg-light);
-}
-
-/* Protect JSON syntax colors in light theme */
+/* ═══════════════════════════════════════════════════════════════════════
+   PROTECT JSON SYNTAX COLORS IN LIGHT THEME
+   ═══════════════════════════════════════════════════════════════════════ */
 [data-theme="light"] .json-syntax-protected span[data-syntax] {
   color: inherit !important;
   background-color: inherit !important;
 }
-
-.thin-horizontal-scrollbar {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-height: thin; /* Firefox */
-}
-.thin-horizontal-scrollbar::-webkit-scrollbar {
-  height: 3px; /* height */
-}
-.thin-horizontal-scrollbar::-webkit-scrollbar-track {
-  background: var(--color-scrollbar); 
-  border-radius: 0;
-}
-.thin-horizontal-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--color-scrollbar); 
-  border-radius: 0;
-}
-.thin-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-hover);
-}
-
-@keyframes fadeOutScale {
-  0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0.8); }
-}
-
-.animate-disappear {
-  animation: fadeOutScale 0.5s ease-in-out forwards;
-}
-
-@keyframes vibrate {
-  0% { transform: translate(0); }
-  20% { transform: translate(-2px, 1px); }
-  40% { transform: translate(2px, -1px); }
-  60% { transform: translate(-1px, 2px); }
-  80% { transform: translate(1px, -2px); }
-  100% { transform: translate(0); }
-}
-
-.animate-vibrate {
-  animation: vibrate 0.2s ease-in-out 0s 2;
-}
-

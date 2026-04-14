@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronLeft, ChevronRight, Eye, Columns, ChevronDown, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Columns, ChevronDown, Clock, Check } from 'lucide-react';
 import clsx from 'clsx';
 
 const STORAGE_KEY = 'probestack_runs_table_columns';
@@ -8,23 +8,33 @@ const STORAGE_KEY = 'probestack_runs_table_columns';
 const columnDefinitions = [
   { key: 'startedAt', label: 'Started' },
   { key: 'source', label: 'Source' },
+  { key: 'status', label: 'Status' },
   { key: 'collectionName', label: 'Collection' },
   { key: 'iterations', label: 'Iterations' },
   { key: 'totalRequests', label: 'Total' },
   { key: 'passedFailed', label: 'Passed/Failed' },
-  // { key: 'skipped', label: 'Skipped' }, // Commented out
   { key: 'errors', label: 'Errors' },
   { key: 'totalTime', label: 'Total Time' },
   { key: 'avgTime', label: 'Avg Time' },
-  // { key: 'triggeredBy', label: 'Triggered By' }, // Commented out
+  { key: 'triggeredBy', label: 'Triggered By' },
 ];
 
-export default function CollectionRunsTable({ runs = [], onViewDetails }) {
+export default function CollectionRunsTable({ runs = [], onViewDetails, loading = false }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false);
   const columnVisibilityRef = useRef(null);
-  const itemsPerPage = 10;
+  const buttonRef = useRef(null);
+  const dropdownMenuRef = useRef(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const itemsPerPage = 5;
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: null });
+  const hasLoadedOnce = useRef(false);
+
+  useEffect(() => {
+    if (!loading) {
+      hasLoadedOnce.current = true;
+    }
+  }, [loading]);
 
   const [visibleColumns, setVisibleColumns] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -36,15 +46,15 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
     return {
       startedAt: true,
       source: true,
+      status: true,
       collectionName: true,
       iterations: true,
       totalRequests: false,
       passedFailed: true,
-      // skipped: true, // Commented out
       errors: false,
       totalTime: true,
       avgTime: true,
-      // triggeredBy: false, // Commented out
+      triggeredBy: true,
     };
   });
 
@@ -52,9 +62,37 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
+  // Update dropdown position when open or on scroll/resize
+  useEffect(() => {
+    if (!columnVisibilityOpen) return;
+
+    const updatePosition = () => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.right - 160 + window.scrollX,
+        });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [columnVisibilityOpen]);
+
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (columnVisibilityRef.current && !columnVisibilityRef.current.contains(event.target)) {
+      const isInsideButton = buttonRef.current && buttonRef.current.contains(event.target);
+      const isInsideMenu = dropdownMenuRef.current && dropdownMenuRef.current.contains(event.target);
+      const isInsideRelativeContainer = columnVisibilityRef.current && columnVisibilityRef.current.contains(event.target);
+
+      if (!isInsideButton && !isInsideMenu && !isInsideRelativeContainer) {
         setColumnVisibilityOpen(false);
       }
     };
@@ -87,7 +125,13 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
 
   const totalPages = Math.ceil(runs.length / itemsPerPage);
 
-  // Helper to generate tooltip content for a given column and run
+  // Helper to check if status indicates successful completion (case‑insensitive)
+  const isSuccessStatus = (status) => {
+    if (!status) return false;
+    const normalized = status.toUpperCase();
+    return normalized === 'DONE' || normalized === 'COMPLETED' || normalized === 'SUCCESS';
+  };
+
   const getTooltipContent = (colKey, run) => {
     const options = run.options || {};
 
@@ -105,6 +149,25 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
           ? run.source
           : (run.source ? JSON.stringify(run.source) : 'manual');
         return <div>Source: {sourceStr}</div>;
+      case 'status': {
+        const success = isSuccessStatus(run.status);
+        if (success) {
+          return (
+            <div className="space-y-1">
+              <div>Status: successfully completed</div>
+              {run.completedAt && <div>Completed at: {new Date(run.completedAt).toLocaleString()}</div>}
+            </div>
+          );
+        } else {
+          return (
+            <div className="space-y-1">
+              <div>Status: failed to complete the test</div>
+              {run.completedAt && <div>Failed at: {new Date(run.completedAt).toLocaleString()}</div>}
+              {run.status && <div>Reason: {run.status}</div>}
+            </div>
+          );
+        }
+      }
       case 'collectionName':
         return (
           <div>
@@ -133,7 +196,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
             <div>Total: {run.totalRequests || 0}</div>
             <div>Passed: {run.passedRequests || 0}</div>
             <div>Failed: {run.failedRequests || 0}</div>
-            {/* <div>Skipped: {run.skippedRequests || 0}</div> */}
             {run.totalAssertions > 0 && (
               <>
                 <div>Total Assertions: {run.totalAssertions}</div>
@@ -153,8 +215,6 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
             <div>Pass Rate: {passRate}%</div>
           </div>
         );
-      // case 'skipped':
-      //   return <div>Skipped: {run.skippedRequests || 0}</div>;
       case 'errors':
         const errors = (run.results || []).filter(r => !r.passed && r.error);
         if (errors.length === 0) return <div>No errors</div>;
@@ -177,78 +237,156 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
       case 'avgTime':
         const avg = run.totalRequests > 0 ? (run.totalTimeMs / run.totalRequests).toFixed(1) : 0;
         return <div>Avg Time per Request: {avg}ms</div>;
-      // case 'triggeredBy':
-      //   const user = run.triggeredByUser;
-      //   if (user) {
-      //     return (
-      //       <div className="space-y-1">
-      //         <div><span className="font-medium">Username:</span> {user.username}</div>
-      //         <div><span className="font-medium">Full Name:</span> {user.fullName}</div>
-      //         <div><span className="font-medium">Email:</span> {user.email}</div>
-      //       </div>
-      //     );
-      //   }
-      //   const triggeredByStr = typeof run.triggeredBy === 'string'
-      //     ? run.triggeredBy
-      //     : (run.triggeredBy ? JSON.stringify(run.triggeredBy) : '-');
-      //   return <div>Triggered By: {triggeredByStr}</div>;
+      case 'triggeredBy':
+        const user = run.triggeredByUser;
+        if (user) {
+          return (
+            <div className="space-y-1">
+              <div><span className="font-medium">Username:</span> {user.username}</div>
+              <div><span className="font-medium">Full Name:</span> {user.fullName}</div>
+              <div><span className="font-medium">Email:</span> {user.email}</div>
+            </div>
+          );
+        }
+        return <div>Triggered By: Unknown</div>;
       default:
         return null;
     }
   };
 
+  const getTriggeredByName = (run) => {
+    const user = run.triggeredByUser;
+    if (user?.fullName) return user.fullName;
+    if (user?.username) return user.username;
+    if (user?.email) return user.email;
+    return 'Unknown';
+  };
+
+  const SkeletonRow = () => (
+    <tr className="animate-pulse">
+      {visibleColumns.startedAt && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-28"></div></td>}
+      {visibleColumns.source && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-16"></div></td>}
+      {visibleColumns.status && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-20"></div></td>}
+      {visibleColumns.collectionName && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-32"></div></td>}
+      {visibleColumns.iterations && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-8"></div></td>}
+      {visibleColumns.totalRequests && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-10"></div></td>}
+      {visibleColumns.passedFailed && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-20"></div></td>}
+      {visibleColumns.errors && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-12"></div></td>}
+      {visibleColumns.totalTime && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-16"></div></td>}
+      {visibleColumns.avgTime && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-16"></div></td>}
+      {visibleColumns.triggeredBy && <td className="px-4 py-3"><div className="h-4 bg-dark-600/50 rounded w-24"></div></td>}
+      <td className="px-4 py-3"><div className="h-8 w-8 bg-dark-600/50 rounded"></div></td>
+    </tr>
+  );
+
+  const showSkeleton = loading || (!hasLoadedOnce.current && runs.length === 0);
+
+  if (showSkeleton) {
+    return (
+      <div className="border border-dark-700 rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-dark-700 bg-probestack-bg">
+          <div className="h-6 w-40 bg-dark-600/50 rounded animate-pulse"></div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-dark-700/60 border-b border-dark-700">
+              <tr>
+                {visibleColumns.startedAt && <th className="px-4 py-3"><div className="h-3 w-16 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.source && <th className="px-4 py-3"><div className="h-3 w-12 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.status && <th className="px-4 py-3"><div className="h-3 w-14 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.collectionName && <th className="px-4 py-3"><div className="h-3 w-20 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.iterations && <th className="px-4 py-3"><div className="h-3 w-14 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.totalRequests && <th className="px-4 py-3"><div className="h-3 w-10 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.passedFailed && <th className="px-4 py-3"><div className="h-3 w-24 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.errors && <th className="px-4 py-3"><div className="h-3 w-12 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.totalTime && <th className="px-4 py-3"><div className="h-3 w-16 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.avgTime && <th className="px-4 py-3"><div className="h-3 w-16 bg-dark-600/50 rounded"></div></th>}
+                {visibleColumns.triggeredBy && <th className="px-4 py-3"><div className="h-3 w-20 bg-dark-600/50 rounded"></div></th>}
+                <th className="px-4 py-3"><div className="h-3 w-12 bg-dark-600/50 rounded"></div></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   if (runs.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-        <p className="text-gray-400">No functional runs found</p>
-        <p className="text-xs text-gray-500 mt-1">Run a functional test to see results here</p>
+      <div className="bg-dark-800/60 border border-dark-700 rounded-xl p-12 text-center">
+        <div className="flex flex-col items-center">
+          <div className="w-16 h-16 rounded-full bg-dark-700/50 flex items-center justify-center mb-4">
+            <Clock className="w-8 h-8 text-gray-400" />
+          </div>
+          <h4 className="text-lg font-medium text-white mb-1">No functional test runs yet</h4>
+          <p className="text-sm text-gray-300 max-w-md">
+            Run a functional test from the Testing tab to see results here.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-dark-800/40 border border-dark-700 rounded-xl overflow-hidden">
+    <div className="border border-dark-700 rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Functional Test Runs</h3>
+      <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between bg-probestack-bg">
+        <h3 className="text-lg font-semibold text-white">Functional Test Data</h3>
         <div className="relative" ref={columnVisibilityRef}>
           <button
+            ref={buttonRef}
+            type="button"
             onClick={() => setColumnVisibilityOpen(!columnVisibilityOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-dark-700 bg-dark-800/50 text-white hover:border-primary/50 focus:ring-2 focus:ring-primary/30 focus:border-transparent transition-all outline-none cursor-pointer text-sm"
+            className="flex items-center gap-2 bg-dark-800 border border-dark-700 rounded-lg text-sm font-medium text-white py-2 px-3 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer"
           >
             <Columns className="h-4 w-4" />
             <span>Columns</span>
-            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${columnVisibilityOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={clsx("w-4 h-4 text-gray-500 transition-transform duration-200", columnVisibilityOpen && "rotate-180")} />
           </button>
 
-          {columnVisibilityOpen && (
-            <div className="absolute right-0 mt-2 w-64 rounded-lg border border-dark-700 bg-dark-800/95 backdrop-blur-xl shadow-lg overflow-hidden z-30 max-h-96 overflow-y-auto">
-              <div className="py-2">
-                <div className="px-4 py-2.5 border-b border-dark-700">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allColumnsVisible}
-                      onChange={(e) => toggleAllColumns(e.target.checked)}
-                      className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
-                    />
-                    <span className="text-sm font-medium text-white">Show All</span>
-                  </label>
+          {/* Portal dropdown */}
+          {columnVisibilityOpen && ReactDOM.createPortal(
+            <div
+              ref={dropdownMenuRef}
+              className="fixed z-50 w-40 bg-dark-800 border border-dark-700 rounded-sm shadow-xl max-h-65 overflow-y-auto"
+              style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+            >
+              <div className="py-1">
+                {/* Show All option */}
+                <div
+                  onClick={() => toggleAllColumns(!allColumnsVisible)}
+                  className={clsx(
+                    'flex items-center gap-1 px-2 py-1 text-xs cursor-pointer hover:bg-dark-700',
+                    allColumnsVisible ? 'text-primary' : 'text-gray-300'
+                  )}
+                >
+                  <div className="w-4 h-4 flex items-center justify-center">
+                    {allColumnsVisible && <Check className="w-3.5 h-3.5 text-primary" />}
+                  </div>
+                  <span className="flex-1">Show All</span>
                 </div>
+                <div className="border-t border-dark-700 my-1"></div>
                 {columnDefinitions.map((col) => (
-                  <label key={col.key} className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer hover:bg-dark-700/50">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns[col.key] || false}
-                      onChange={() => toggleColumn(col.key)}
-                      className="cursor-pointer w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary focus:ring-offset-0"
-                    />
-                    <span className="text-gray-300">{col.label}</span>
-                  </label>
+                  <div
+                    key={col.key}
+                    onClick={() => toggleColumn(col.key)}
+                    className={clsx(
+                      'flex items-center gap-1 px-2 py-1 text-xs cursor-pointer hover:bg-dark-700',
+                      visibleColumns[col.key] ? 'text-primary' : 'text-gray-300'
+                    )}
+                  >
+                    <div className="w-4 h-4 flex items-center justify-center">
+                      {visibleColumns[col.key] && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </div>
+                    <span className="flex-1">{col.label}</span>
+                  </div>
                 ))}
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>
@@ -257,20 +395,20 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
       {anyColumnVisible ? (
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-dark-800/60 border-b border-dark-700">
+            <thead className="bg-dark-700/60 border-b border-dark-700">
               <tr>
-                {visibleColumns.startedAt && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Started</th>}
-                {visibleColumns.source && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Source</th>}
-                {visibleColumns.collectionName && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Collection</th>}
-                {visibleColumns.iterations && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Iterations</th>}
-                {visibleColumns.totalRequests && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Total</th>}
-                {visibleColumns.passedFailed && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Passed/Failed</th>}
-                {/* {visibleColumns.skipped && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Skipped</th>} */}
-                {visibleColumns.errors && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Errors</th>}
-                {visibleColumns.totalTime && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Total Time</th>}
-                {visibleColumns.avgTime && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Avg Time</th>}
-                {/* {visibleColumns.triggeredBy && <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Triggered By</th>} */}
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">Actions</th>
+                {visibleColumns.startedAt && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Started</th>}
+                {visibleColumns.source && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Source</th>}
+                {visibleColumns.status && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Status</th>}
+                {visibleColumns.collectionName && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Collection</th>}
+                {visibleColumns.iterations && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Iterations</th>}
+                {visibleColumns.totalRequests && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Total</th>}
+                {visibleColumns.passedFailed && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Passed/Failed</th>}
+                {visibleColumns.errors && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Errors</th>}
+                {visibleColumns.totalTime && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Total Time</th>}
+                {visibleColumns.avgTime && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Avg Time</th>}
+                {visibleColumns.triggeredBy && <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Triggered By</th>}
+                <th className="px-4 py-3 text-xs uppercase font-medium text-gray-400 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-700">
@@ -299,22 +437,17 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                   ? run.source
                   : (run.source ? JSON.stringify(run.source) : 'manual');
                 
-                // Triggered By display is not used because column is hidden, but kept for completeness
-                // let triggeredByDisplay = '-';
-                // if (run.triggeredByUser?.fullName) {
-                //   triggeredByDisplay = run.triggeredByUser.fullName;
-                // } else if (typeof run.triggeredBy === 'string') {
-                //   triggeredByDisplay = run.triggeredBy.length > 8 ? run.triggeredBy.slice(0, 8) + '…' : run.triggeredBy;
-                // } else if (run.triggeredBy) {
-                //   const str = JSON.stringify(run.triggeredBy);
-                //   triggeredByDisplay = str.length > 8 ? str.slice(0, 8) + '…' : str;
-                // }
+                const triggeredByDisplay = getTriggeredByName(run);
+
+                // Determine status badge using case‑insensitive helper
+                const isSuccess = isSuccessStatus(run.status);
+                const statusDisplay = isSuccess ? 'success' : 'failed';
 
                 return (
-                  <tr key={run.runId} className="hover:bg-dark-800/30">
+                  <tr key={run.runId} className="bg-dark-700/20 hover:bg-primary/5 transition-colors">
                     {visibleColumns.startedAt && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('startedAt')}
                       >
                         {run.startedAt ? new Date(run.startedAt).toLocaleString() : '-'}
@@ -322,15 +455,30 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                     )}
                     {visibleColumns.source && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('source')}
                       >
                         {sourceDisplay}
                       </td>
                     )}
+                    {visibleColumns.status && (
+                      <td
+                        className="px-4 py-3 text-sm whitespace-nowrap cursor-help"
+                        {...createTooltipHandler('status')}
+                      >
+                        <span className={clsx(
+                          "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold border",
+                          isSuccess
+                            ? "bg-green-500/20 text-green-400 border-green-500/30"
+                            : "bg-red-500/20 text-red-400 border-red-500/30"
+                        )}>
+                          {statusDisplay}
+                        </span>
+                      </td>
+                    )}
                     {visibleColumns.collectionName && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('collectionName')}
                       >
                         {run.collectionName || '-'}
@@ -338,7 +486,7 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                     )}
                     {visibleColumns.iterations && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('iterations')}
                       >
                         {run.options?.iterations || 1}
@@ -346,7 +494,7 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                     )}
                     {visibleColumns.totalRequests && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('totalRequests')}
                       >
                         {run.totalRequests}
@@ -354,25 +502,17 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                     )}
                     {visibleColumns.passedFailed && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('passedFailed')}
                       >
                         <span className="text-green-400">{run.passedRequests}</span>
-                        <span className="text-gray-500 mx-1">/</span>
+                        <span className="text-gray-400 mx-1">/</span>
                         <span className="text-red-400">{run.failedRequests}</span>
                       </td>
                     )}
-                    {/* {visibleColumns.skipped && (
-                      <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
-                        {...createTooltipHandler('skipped')}
-                      >
-                        {run.skippedRequests}
-                      </td>
-                    )} */}
                     {visibleColumns.errors && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('errors')}
                       >
                         {run.failedRequests}
@@ -380,7 +520,7 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                     )}
                     {visibleColumns.totalTime && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('totalTime')}
                       >
                         {run.totalTimeMs ? `${Math.round(run.totalTimeMs)}ms` : '-'}
@@ -388,24 +528,24 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
                     )}
                     {visibleColumns.avgTime && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('avgTime')}
                       >
                         {run.totalRequests > 0 ? `${Math.round(run.totalTimeMs / run.totalRequests)}ms` : '-'}
                       </td>
                     )}
-                    {/* {visibleColumns.triggeredBy && (
+                    {visibleColumns.triggeredBy && (
                       <td
-                        className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap cursor-help"
+                        className="px-4 py-3 text-sm text-white whitespace-nowrap cursor-help"
                         {...createTooltipHandler('triggeredBy')}
                       >
-                        <span>{triggeredByDisplay}</span>
+                        {triggeredByDisplay}
                       </td>
-                    )} */}
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <button
                         onClick={() => onViewDetails(run)}
-                        className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+                        className="p-1.5 rounded text-gray-300 hover:text-white hover:bg-dark-700 transition-colors"
                         title="View Details"
                       >
                         <Eye className="w-4 h-4" />
@@ -418,36 +558,38 @@ export default function CollectionRunsTable({ runs = [], onViewDetails }) {
           </table>
         </div>
       ) : (
-        <div className="p-12 text-center text-gray-500 italic">No columns selected.</div>
+        <div className="p-12 text-center text-gray-400 italic">No columns selected. Please choose at least one column.</div>
       )}
 
       {/* Pagination */}
-      <div className="px-4 py-3 border-t border-dark-700 flex items-center justify-between">
-        <p className="text-xs text-gray-500">
-          Showing {paginatedRuns.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, runs.length)} of {runs.length}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCurrentPage(p => Math.max(1, p-1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1 text-sm bg-dark-800 border border-dark-700 rounded hover:bg-dark-700 disabled:opacity-50 text-gray-300 flex items-center gap-1"
-          >
-            <ChevronLeft className="w-4 h-4" /> Prev
-          </button>
-          <button
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1 text-sm bg-dark-800 border border-dark-700 rounded hover:bg-dark-700 disabled:opacity-50 text-gray-300 flex items-center gap-1"
-          >
-            Next <ChevronRight className="w-4 h-4" />
-          </button>
+      {anyColumnVisible && runs.length > 0 && (
+        <div className="px-4 py-3 border-t border-dark-700 bg-dark-700/60 flex items-center justify-between">
+          <p className="text-xs uppercase text-gray-300">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, runs.length)} of {runs.length}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p-1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm bg-dark-800 border border-dark-700 rounded hover:bg-dark-700 disabled:opacity-50 text-gray-300 flex items-center gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" /> Prev
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm bg-dark-800 border border-dark-700 rounded hover:bg-dark-700 disabled:opacity-50 text-gray-300 flex items-center gap-1"
+            >
+              Next <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tooltip Portal */}
       {tooltip.show && tooltip.content && ReactDOM.createPortal(
         <div
-          className="fixed z-50 pointer-events-none bg-dark-900 border border-dark-600 rounded-lg shadow-xl p-3 text-sm text-gray-200 max-w-xs"
+          className="fixed z-50 pointer-events-none bg-probestack-bg border border-dark-600 rounded-lg shadow-xl p-3 text-sm text-gray-200 max-w-xs"
           style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
         >
           {tooltip.content}

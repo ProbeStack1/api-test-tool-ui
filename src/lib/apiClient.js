@@ -81,13 +81,13 @@ export const dashboardApi = axios.create({
 addUserIdInterceptor(dashboardApi);
 
 export const functionalTestApi = axios.create({
-  baseURL: `${BASE_API_URL}/api/v1/functional-tests`,
+  baseURL: `${BASE_API_URL}/functional-tests`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(functionalTestApi);
 
 export const loadTestApi = axios.create({
-  baseURL: `${BASE_API_URL}/api/v1/load-tests`,
+  baseURL: `${BASE_API_URL}/load-tests`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(loadTestApi);

@@ -421,8 +421,7 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
   setIsRunningLoadTest(true);
   setLoadTestResults(null);
 
-    const environmentOverrides = getEnvironmentOverrides();
-  // console.log('[loadTest] handleRunLoadTest called with collectionId:', collectionId, 'config:', config);
+  const environmentOverrides = getEnvironmentOverrides();
   const loadConfig = {
     concurrency: config.concurrency,
     durationSeconds: config.durationSeconds,
@@ -435,77 +434,75 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
     maxP99LatencyMs: config.maxP99LatencyMs,
     maxAvgLatencyMs: config.maxAvgLatencyMs,
     collectionPathOverride: config.collectionPathOverride,
-    // environmentOverrides,
   };
-  //  console.log('[loadTest] Sending to startLoadTestApi:', loadConfig);
-  
 
+  const runningTabId = `load-test-running-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const runningTab = {
-    id: `load-test-running-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: runningTabId,
     type: 'load-test-running',
     name: `Load Test Running`,
     loadTestId: null,
     config,
   };
 
-if (configTabIndex >= 0 && configTabIndex < requests.length) {
+  // Helper to save to collections context
+  const saveToCollectionsContext = (tabs, activeIdx) => {
+    if (activeWorkspaceId) {
+      saveContextualTabs(activeWorkspaceId, 'collections', tabs, activeIdx);
+    }
+  };
+
+  let newRequests, newActiveIndex;
+  if (configTabIndex >= 0 && configTabIndex < requests.length) {
     // Replace existing tab
-    setRequests(prev => {
-      const newRequests = [...prev];
-      newRequests[configTabIndex] = runningTab;
-      return newRequests;
-    });
+    newRequests = [...requests];
+    newRequests[configTabIndex] = runningTab;
+    newActiveIndex = configTabIndex;
+    setRequests(newRequests);
+    setActiveRequestIndex(newActiveIndex);
+    saveToCollectionsContext(newRequests, newActiveIndex);
   } else {
-    // Add as new tab (standalone)
-    handleNewTab(runningTab);
-    // 👇 Navigate to collections so the new tab becomes visible
+    // Add as new tab
+    newRequests = [...requests, runningTab];
+    newActiveIndex = newRequests.length - 1;
+    setRequests(newRequests);
+    setActiveRequestIndex(newActiveIndex);
+    saveToCollectionsContext(newRequests, newActiveIndex);
+    // Navigate so the tab becomes visible
     navigate('/workspace/collections');
   }
 
   try {
     const response = await startLoadTestApi({
       ...loadConfig,
-      // Use override path (from upload) if set, otherwise use collectionId (workspace path)
       collectionPath: loadConfig.collectionPathOverride ?? collectionId,
     });
-    // console.log('[loadTest] startLoadTestApi response:', response.data);
     const realId = response.data?.testId ?? response.data;
 
-    // Update the running tab with the real ID
-    if (configTabIndex >= 0 && configTabIndex < requests.length) {
-      setRequests(prev => {
-        const newRequests = [...prev];
-        if (newRequests[configTabIndex] && newRequests[configTabIndex].type === 'load-test-running') {
-          newRequests[configTabIndex] = {
-            ...newRequests[configTabIndex],
-            loadTestId: realId,
-          };
-        }
-        return newRequests;
-      });
-    } else {
-      setRequests(prev =>
-        prev.map(tab =>
-          tab.id === runningTab.id ? { ...tab, loadTestId: realId } : tab
-        )
+    // Update the running tab with the real ID and save again
+    setRequests(prev => {
+      const updated = prev.map(tab =>
+        tab.id === runningTabId ? { ...tab, loadTestId: realId } : tab
       );
-    }
+      const updatedIndex = updated.findIndex(t => t.id === runningTabId);
+      if (updatedIndex !== -1 && activeWorkspaceId) {
+        saveToCollectionsContext(updated, updatedIndex);
+      }
+      return updated;
+    });
 
+    // If replacement, navigate after ID is set
     if (configTabIndex >= 0) {
-      navigate('/workspace/collections');
+      setTimeout(() => {
+        navigate('/workspace/collections');
+      }, 100);
     }
 
-    // Load test is now running asynchronously — clear the starting flag
     setIsRunningLoadTest(false);
-
   } catch (error) {
-     console.error('[loadTest] startLoadTestApi error:', error.response?.data || error.message);
+    console.error('[loadTest] startLoadTestApi error:', error.response?.data || error.message);
     toast.error(`Failed to start load test: ${error.message}`);
-    if (configTabIndex >= 0 && configTabIndex < requests.length) {
-      handleCloseTab(configTabIndex);
-    } else {
-      setRequests(prev => prev.filter(tab => tab.id !== runningTab.id));
-    }
+    setRequests(prev => prev.filter(tab => tab.id !== runningTabId));
     setIsRunningLoadTest(false);
   }
 };
@@ -3376,12 +3373,13 @@ onShowChatbot={handleShowChatbot}
 
 <RunModal isOpen={isRunningCollection} />
 
-<AIChatbotHelper
+<AIChatbotHelper 
   isVisible={chatbotVisible}
   onClose={handleCloseChatbot}
   error={chatbotError}
   response={chatbotResponse}
   requestInfo={chatbotRequestInfo}
+  currentPath={pathname}  
 />
 
       </main>

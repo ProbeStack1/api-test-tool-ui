@@ -1,21 +1,10 @@
-/**
- * LoadTestRunningView.jsx
- * 
- * Enhanced load test running view with analytics dashboard style.
- * Shows analytics dashboard in BOTH states:
- * - Initializing (no loadTestId): OrbitLoader + stat cards + dashboard with initial values
- * - Running (with loadTestId): Live green indicator + stat cards + dashboard with simulated metrics
- * 
- * All animations use Tailwind CSS only - no external libraries.
- */
-
 import React, { useState, useEffect } from "react";
 import { 
   Clock, Users, Gauge, Zap, Activity, Server, Wifi,
   XCircle, BarChart3, TrendingUp, Timer, Target
 } from "lucide-react";
 import clsx from "clsx";
-import { openMetricsStream } from "../../services/loadTestService";
+import { getLoadTestStatus } from "../../services/loadTestService";
 
 /* Stat card with animated entrance */
 function StatCard({ label, value, icon: Icon, delay = 0 }) {
@@ -112,28 +101,6 @@ function SuccessRateGauge({ rate }) {
   );
 }
 
-/* Mini bar chart for latency distribution */
-function LatencyDistribution({ data }) {
-  const max = Math.max(...data.map(d => d.count), 1);
-  return (
-    <div className="flex items-end gap-1 h-14" data-testid="latency-dist">
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-          <div
-            className="w-full rounded-t transition-all duration-500"
-            style={{
-              height: `${Math.max(4, (d.count / max) * 48)}px`,
-              backgroundColor: d.color,
-              opacity: 0.8,
-            }}
-          />
-          <span className="text-[8px] text-gray-600 leading-none">{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* Mini sparkline for throughput trend */
 function ThroughputSparkline({ data }) {
   if (data.length < 2) {
@@ -183,7 +150,7 @@ function ThroughputSparkline({ data }) {
   );
 }
 
-/* Full analytics dashboard metrics panel — accepts live props from SSE */
+/* Full analytics dashboard metrics panel — accepts live props from polling */
 function AnalyticsDashboard({ metrics }) {
   const {
     totalRequests = 0,
@@ -273,7 +240,6 @@ function AnalyticsDashboard({ metrics }) {
   );
 }
 
-
 export default function LoadTestRunningView({
   loadTestId,
   config,
@@ -283,8 +249,9 @@ export default function LoadTestRunningView({
   const [progress, setProgress] = useState(0);
   const [liveMetrics, setLiveMetrics] = useState({});
   const [throughputHistory, setThroughputHistory] = useState([]);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollingError, setPollingError] = useState(null);
 
-  // Determine if test is actively running (has ID) or still initializing
   const isInitializing = !loadTestId;
 
   // Local timer based on config
@@ -301,21 +268,61 @@ export default function LoadTestRunningView({
     return () => clearInterval(timer);
   }, [config?.durationSeconds]);
 
-  // Open SSE stream when loadTestId becomes available
+  // Polling mechanism
   useEffect(() => {
     if (!loadTestId) return;
-    const es = openMetricsStream(
-      loadTestId,
-      (snapshot) => {
-        setLiveMetrics(snapshot);
-        setThroughputHistory(prev => [...prev.slice(-29), snapshot.currentRps ?? 0]);
-      },
-      (lastSnapshot) => {
-        if (lastSnapshot) setLiveMetrics(lastSnapshot);
-        onComplete(loadTestId);
-      },
-    );
-    return () => es.close();
+
+    console.log('[LoadTestRunningView] Starting polling for testId:', loadTestId);
+    setIsPolling(true);
+    setPollingError(null);
+
+    let isMounted = true;
+    let timeoutId = null;
+
+    const poll = async () => {
+      if (!isMounted) return;
+      try {
+        const response = await getLoadTestStatus(loadTestId);
+        const data = response.data;
+        
+        if (data.status === 'DONE' || data.status === 'FAILED') {
+          // Test completed
+          if (isMounted) {
+            if (data.liveMetrics) {
+              setLiveMetrics(data.liveMetrics);
+              setThroughputHistory(prev => [...prev.slice(-29), data.liveMetrics.currentRps ?? 0]);
+            }
+            onComplete(loadTestId);
+          }
+          return;
+        }
+        
+        if (data.liveMetrics) {
+          setLiveMetrics(data.liveMetrics);
+          setThroughputHistory(prev => [...prev.slice(-29), data.liveMetrics.currentRps ?? 0]);
+        }
+        
+        // Poll again after 2 seconds
+        if (isMounted) {
+          timeoutId = setTimeout(poll, 2000);
+        }
+      } catch (err) {
+        console.error('[LoadTestRunningView] Polling error:', err);
+        if (isMounted) {
+          setPollingError(err.message);
+          // Retry after 3 seconds
+          timeoutId = setTimeout(poll, 3000);
+        }
+      }
+    };
+
+    poll();
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      setIsPolling(false);
+    };
   }, [loadTestId, onComplete]);
 
   const minutes = Math.floor(timeRemaining / 60);
@@ -326,10 +333,9 @@ export default function LoadTestRunningView({
     <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm" data-testid={isInitializing ? "load-test-starting" : "load-test-running"}>
       <div className="max-w-5xl mx-auto space-y-5">
 
-        {/* Header - changes based on state */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* Show small orbit loader when initializing, green dot when running */}
             {isInitializing ? (
               <OrbitLoader size="small" />
             ) : (
@@ -348,19 +354,18 @@ export default function LoadTestRunningView({
                   : <>Test ID: <span className="font-mono text-gray-300">{loadTestId}</span></>
                 }
               </p>
+              {pollingError && (
+                <p className="text-xs text-yellow-400 mt-1">Polling: {pollingError}</p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Analytics Dashboard - real SSE data when running, zeros when initializing */}
+        {/* Analytics Dashboard */}
         <AnalyticsDashboard metrics={{ ...liveMetrics, throughputHistory }} />
 
-        {/* Timer & Progress - always visible */}
+        {/* Timer & Progress */}
         <div className="rounded-xl border border-dark-700 bg-gradient-to-b from-dark-800/60 to-dark-900/60 p-5 relative overflow-hidden">
-          {/* Subtle background glow */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-primary/3 rounded-full blur-3xl animate-pulse" />
-          </div>
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -397,7 +402,7 @@ export default function LoadTestRunningView({
           </div>
         </div>
 
-        {/* Config stat cards - always visible */}
+        {/* Config stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Virtual Users" value={config?.concurrency || 0} icon={Users} delay={0} />
           <StatCard label="Load Profile" value={config?.rampUpSeconds > 0 ? "Ramp-up" : "Fixed"} icon={Gauge} delay={100} />
@@ -414,7 +419,7 @@ export default function LoadTestRunningView({
             )} />
             {isInitializing
               ? 'Waiting for test to initialize...'
-              : 'Test running. Results will appear automatically when complete.'
+              : isPolling ? 'Polling for metrics...' : 'Test running. Results will appear automatically when complete.'
             }
           </span>
         </div>

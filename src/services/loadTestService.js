@@ -1,5 +1,5 @@
 import { loadTestApi } from '../lib/apiClient';
-
+import { USER_ID } from '../lib/apiClient';
 /**
  * Start a new load test.
  *
@@ -69,31 +69,78 @@ export const getLoadTestReport = (testId) =>
  * @param {function} onDone      - called when stream closes (last snapshot or null on error)
  * @returns {EventSource}        - caller must call es.close() on component unmount
  */
+/**
+ * Subscribe to real-time metrics via Server-Sent Events using fetch.
+ * Supports custom headers and stays open until explicitly closed.
+ */
 export const openMetricsStream = (testId, onSnapshot, onDone) => {
-   const base = loadTestApi.defaults.baseURL; 
-  const url = `${base}/${testId}/stream`;
-  const es = new EventSource(url);
+  const userId = localStorage.getItem('probestack_user_id') ||
+                 localStorage.getItem('userId') ||
+                 (typeof USER_ID !== 'undefined' ? USER_ID : null);
+  const token = localStorage.getItem('authToken');
 
-  es.onmessage = (event) => {
+  const base = loadTestApi.defaults.baseURL;
+  const url = `${base}/${testId}/stream`;
+  const abortController = new AbortController();
+
+  let isClosed = false;
+
+  const fetchStream = async () => {
     try {
-      const snapshot = JSON.parse(event.data);
-      onSnapshot(snapshot);
-      // Backend sets running=false on the last snapshot
-      if (!snapshot.running) {
-        es.close();
-        onDone(snapshot);
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'text/event-stream',
+          'X-User-Id': userId,
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-    } catch {
-      // Ignore malformed events
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (!isClosed) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6);
+            try {
+              const snapshot = JSON.parse(jsonStr);
+              onSnapshot(snapshot);
+              // Do NOT close here – let the backend close the connection naturally
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', jsonStr, e);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError' && !isClosed) {
+        console.error('SSE stream error:', err);
+        onDone(null);
+      }
     }
   };
 
-  es.onerror = () => {
-    es.close();
-    onDone(null);
-  };
+  fetchStream();
 
-  return es;
+  return {
+    close: () => {
+      isClosed = true;
+      abortController.abort();
+    },
+  };
 };
 
 /**

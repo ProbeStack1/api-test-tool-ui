@@ -52,6 +52,7 @@ import {
   cloneRequest,
   moveRequest,
   deleteRequest,
+  createShareLink,
 } from '../services/requestService';
 
 // ----------------------------------------------------------------------
@@ -1257,6 +1258,26 @@ export default function CollectionsPanel({
           }
         );
       }
+  } else if (actionId === 'share') {
+    // Share: Only works for requests (creates a shareable link via backend)
+    if (item.type === 'request') {
+      try {
+        const res = await createShareLink(item.id, {});
+        const shareUrl = res.data?.share_url;
+        if (shareUrl) {
+          // Build full URL with current origin
+          const fullUrl = `${window.location.origin}${shareUrl}`;
+          await navigator.clipboard.writeText(fullUrl);
+          toast.success('Share link copied to clipboard!');
+        } else {
+          toast.error('Failed to generate share link');
+        }
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to create share link');
+      }
+    } else {
+      toast.info('Share is currently supported for individual requests only.');
+    }
   } else if (actionId === 'delete') {
   const loadingToast = toast.loading(`Deleting ${item.type}...`);
 

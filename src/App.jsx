@@ -10,7 +10,7 @@ import { fetchWorkspaces, createWorkspace, normalizeWorkspace } from './services
 import { fetchCollections, normalizeCollection, fetchFolders, normalizeFolder, createCollection, listCollectionRuns,listWorkspaceLoadTests  } from './services/collectionService';
 import { startFunctionalRun, pollRunUntilDone, getRunHistoryDetail, listRunHistory } from './services/functionalTestService';
 import { startLoadTest as startLoadTestApi, getLoadTestReport, listLoadTestHistory } from './services/loadTestService';
-import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry,  saveResponseFromHistory, } from './services/requestService';
+import { fetchRequests, normalizeRequest,updateRequest,createRequest ,executeRequest,executeCollection ,fetchGlobalHistory, deleteHistoryItem,fetchHistoryEntry,  saveResponseFromHistory, saveSseExecution, } from './services/requestService';
 import {
   listEnvironments,
   createEnvironment,
@@ -1764,6 +1764,7 @@ updateActiveRequest('isLoading', false);
         auth_config: authData,
         pre_request_script: preRequestScript,
         test_script: tests,
+        protocol: currentReq.protocol || 'HTTP',
         collection_id: null,
         folder_id: null,
       };
@@ -1775,25 +1776,53 @@ updateActiveRequest('isLoading', false);
     }
 
     // Build overrides using substituteLocal
-    const overrides = {};
-    overrides.url = substituteLocal(url).split('?')[0];
-    overrides.headers = headers.map(h => ({
-      key: substituteLocal(h.key),
-      value: substituteLocal(h.value),
-      enabled: h.enabled ?? true
-    }));
-    overrides.query_params = queryParams.map(q => ({
-      key: substituteLocal(q.key),
-      value: substituteLocal(q.value),
-      enabled: q.enabled ?? true
-    }));
-    if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
-      overrides.body_content = substituteLocal(body);
-      if (currentReq.bodyType) {
-  overrides.body_type = currentReq.bodyType;
+ // Build overrides using substituteLocal
+const overrides = {};
+overrides.url = substituteLocal(url).split('?')[0];
+overrides.headers = headers.map(h => ({
+  key: substituteLocal(h.key),
+  value: substituteLocal(h.value),
+  enabled: h.enabled ?? true
+}));
+overrides.query_params = queryParams.map(q => ({
+  key: substituteLocal(q.key),
+  value: substituteLocal(q.value),
+  enabled: q.enabled ?? true
+}));
+overrides.path_variables = [];
+
+// MCP: force body_content from the JSON-RPC snippet in Mcp tab
+if ((currentReq.protocol || '').toLowerCase() === 'mcp' || currentReq.type === 'mcp-request') {
+  const mcpBody = currentReq.body || currentReq.bodyContent || '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}';
+  overrides.body_content = substituteLocal(mcpBody);
+  overrides.body_type = 'raw';
 }
+
+// Handle body based on body type
+if (currentReq.bodyType === 'x-www-form-urlencoded' || currentReq.bodyType === 'form-data') {
+  // Send form_data (key‑value pairs) instead of raw body_content
+  if (currentReq.formData && currentReq.formData.length > 0) {
+    overrides.form_data = currentReq.formData
+      .filter(item => item.enabled !== false) // only enabled items
+      .map(item => ({
+        key: substituteLocal(item.key),
+        value: substituteLocal(item.value),
+        type: item.type || 'text',   // 'text' or 'file'
+        enabled: item.enabled !== false,
+        ...(item.filePath && { file_path: item.filePath }),
+        ...(item.contentType && { content_type: item.contentType }),
+      }));
+  }
+  // Do NOT send body_content for these types
+} else {
+  // RAW, GRAPHQL, etc.
+  if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
+    overrides.body_content = substituteLocal(body);
+    if (currentReq.bodyType) {
+      overrides.body_type = currentReq.bodyType;
     }
-    overrides.path_variables = [];
+  }
+}
 
     // Substitute auth data
     const substituteAuthData = (obj) => {
@@ -1811,6 +1840,172 @@ updateActiveRequest('isLoading', false);
     };
     overrides.auth_type = authType;
     overrides.auth_config = substituteAuthData(authData);
+
+    // ========== SSE: Real-time streaming — Postman-style collapsible events ==========
+    if ((currentReq.protocol || '').toLowerCase() === 'sse') {
+      try {
+        updateActiveRequest('response', {
+          status: 0, statusText: 'Connecting...', time: 0, size: 0,
+          data: 'Connecting to SSE stream...', headers: [], testResults: [], testScriptError: null,
+          sseEvents: [],
+        });
+
+        const sseUrl = overrides.url || url;
+        const eventSource = new EventSource(sseUrl);
+        const startTime = Date.now();
+
+        let totalSize = 0;
+        let eventCount = 0;
+        let firstEventReceived = false;
+        const allEvents = [];              // structured events for UI
+        const MAX_EVENTS = 80;
+        const RENDER_MS = 200;
+        let renderTimer = null;
+        let dirty = false;
+
+        // Flush current events to UI
+        const renderToUI = () => {
+          if (!dirty) return;
+          const elapsed = Date.now() - startTime;
+          const visible = allEvents.slice(-MAX_EVENTS);
+          const skipped = allEvents.length - visible.length;
+          updateActiveRequest('response', {
+            status: 200,
+            statusText: `Streaming — ${eventCount} events (${(totalSize / 1024).toFixed(0)} KB, ${(elapsed / 1000).toFixed(1)}s)`,
+            time: elapsed,
+            size: totalSize,
+            data: '', // not used when sseEvents present
+            headers: [],
+            testResults: [],
+            testScriptError: null,
+            sseEvents: visible,
+            sseSkipped: skipped,
+            sseTotalCount: eventCount,
+          });
+          dirty = false;
+        };
+
+        const startRender = () => {
+          if (!renderTimer) renderTimer = setInterval(renderToUI, RENDER_MS);
+        };
+        const stopRender = () => {
+          if (renderTimer) { clearInterval(renderTimer); renderTimer = null; }
+        };
+
+        const finalize = (label) => {
+          stopRender();
+          const elapsed = Date.now() - startTime;
+          const visible = allEvents.slice(-MAX_EVENTS);
+          const skipped = allEvents.length - visible.length;
+
+          // Build a summary string for history storage (last 20 events)
+          const summaryEvents = allEvents.slice(-20).map(e => e.data).join('\n');
+          const summaryBody = `[SSE Stream: ${eventCount} events, ${(totalSize / 1024).toFixed(0)} KB, ${(elapsed / 1000).toFixed(0)}s]\n\n${summaryEvents}`;
+
+          // Save to backend for real history (async, don't block UI)
+          const savePromise = (async () => {
+            try {
+              const isSavedReq = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetRequestId);
+              if (isSavedReq) {
+                const res = await saveSseExecution(targetRequestId, {
+                  url: sseUrl,
+                  method: 'GET',
+                  status_code: 200,
+                  status_text: label,
+                  response_time_ms: elapsed,
+                  response_size_bytes: totalSize,
+                  response_body: summaryBody,
+                  is_success: true,
+                });
+                return res.data?.history_id || null;
+              }
+            } catch (e) {
+              console.warn('Failed to save SSE execution to history:', e);
+            }
+            return null;
+          })();
+
+          savePromise.then((historyId) => {
+            updateActiveRequest('response', {
+              status: 200,
+              statusText: `${label} (${eventCount} events, ${(totalSize / 1024).toFixed(0)} KB, ${(elapsed / 1000).toFixed(0)}s)`,
+              time: elapsed,
+              size: totalSize,
+              data: summaryBody,
+              headers: [],
+              testResults: [],
+              testScriptError: null,
+              isSuccess: true,
+              sseEvents: visible,
+              sseSkipped: skipped,
+              sseTotalCount: eventCount,
+              historyId: historyId,
+            });
+            updateActiveRequest('isLoading', false);
+            addToHistory(url, method, 200, totalSize, elapsed, false, historyId);
+          });
+        };
+
+        eventSource.onmessage = (event) => {
+          eventCount++;
+          totalSize += event.data.length;
+          const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+          allEvents.push({ type: 'message', data: event.data, timestamp: ts, index: eventCount });
+          // Memory: drop oldest beyond 2x display limit
+          if (allEvents.length > MAX_EVENTS * 2) {
+            allEvents.splice(0, allEvents.length - MAX_EVENTS);
+          }
+          dirty = true;
+          if (!firstEventReceived) {
+            firstEventReceived = true;
+            updateActiveRequest('isLoading', false);
+            renderToUI();
+            startRender();
+          }
+          if (!renderTimer) startRender();
+        };
+
+        eventSource.onerror = (err) => {
+          eventSource.close();
+          if (eventCount > 0) {
+            finalize('Stream ended');
+          } else {
+            stopRender();
+            const elapsed = Date.now() - startTime;
+            updateActiveRequest('response', {
+              status: 0,
+              statusText: 'SSE Connection Failed',
+              time: elapsed,
+              size: 0,
+              data: 'Could not connect to SSE endpoint: ' + sseUrl,
+              headers: [],
+              testResults: [],
+              testScriptError: 'SSE connection failed',
+              sseEvents: [],
+            });
+            updateActiveRequest('isLoading', false);
+            addToHistory(url, method, 0, 0, elapsed, true, null);
+          }
+        };
+
+        setTimeout(() => {
+          if (eventSource.readyState !== EventSource.CLOSED) {
+            eventSource.close();
+            finalize('Stream stopped');
+          }
+        }, 15000);
+
+        return;
+      } catch (err) {
+        updateActiveRequest('response', {
+          status: 0, statusText: 'SSE Error', time: 0, size: 0,
+          data: err.message, headers: [], testResults: [], testScriptError: err.message,
+          sseEvents: [],
+        });
+        updateActiveRequest('isLoading', false);
+        return;
+      }
+    }
 
     const axiosResponse = await executeRequest(targetRequestId, { overrides });
     const executionResult = axiosResponse.data;
@@ -1979,6 +2174,8 @@ const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
         auth_config: updatedRequest.authData,
         pre_request_script: updatedRequest.preRequestScript,
         test_script: updatedRequest.tests,
+        protocol: updatedRequest.protocol || 'HTTP',
+        
         // Optionally include folder_id if you allow moving via save (not yet implemented)
       };
 

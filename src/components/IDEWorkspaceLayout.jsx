@@ -207,11 +207,14 @@ const handleOpenSavedResponse = (savedResponse, parentRequest) => {
     headers: savedResponse.request_headers || [],
     queryParams: [],
     body: savedResponse.request_body || '',
-    bodyType: 'raw',
+    bodyType: savedResponse.body_type || 'raw',
+    bodyMode: savedResponse.body_mode || null,
+    formData: savedResponse.form_data || [],
     authType: 'none',
     authData: {},
     preRequestScript: '',
     tests: '',
+    readOnly: true,
     response: {
       status: savedResponse.status_code,
       statusText: savedResponse.status_text,
@@ -2791,6 +2794,16 @@ topMenuActive === 'testing' ? (
   onSaveResponse={handleSaveResponse}
   readOnly={currentRequest?.id?.startsWith('saved-')}
   isMcpContext={topMenuActive === 'mcp-test'}
+  formData={currentRequest?.formData || []}
+onFormDataChange={(newFormData) => {
+  const updated = { ...currentRequest, formData: newFormData };
+  onUpdateTab(activeRequestIndex, updated);
+}}
+advancedUrlEncoded={currentRequest?.advancedUrlEncoded || false}
+onAdvancedUrlEncodedChange={(val) => {
+  const updated = { ...currentRequest, advancedUrlEncoded: val };
+  onUpdateTab(activeRequestIndex, updated);
+}}
               />
             )}
           </div>

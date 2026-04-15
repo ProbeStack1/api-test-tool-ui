@@ -17,6 +17,7 @@ import MockServerEditor from './detailsTab/MockServerEditor';
 import MockServerWizardTab from './detailsTab/MockServerWizardTab';
 import ProjectWizardTab from './detailsTab/ProjectWizardTab';
 import JsonEditorWithVariables from './ui/JsonEditorWithVariables';
+import FormDataEditor from './FormDataEditor';
 
 const formatTimeOfDay = (dateString) => {
   if (!dateString) return '';
@@ -24,6 +25,77 @@ const formatTimeOfDay = (dateString) => {
   if (isNaN(date.getTime())) return '';
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
+
+// ========== SSE Event Viewer — Postman-style collapsible cards ==========
+function SseEventViewer({ events = [], skipped = 0, totalCount = 0 }) {
+  const [expandedIdx, setExpandedIdx] = useState(null);
+  const containerRef = useRef(null);
+
+  // Auto-scroll to bottom when new events arrive (only if user is near bottom)
+  const prevLenRef = useRef(events.length);
+  useEffect(() => {
+    if (events.length > prevLenRef.current && containerRef.current) {
+      const el = containerRef.current;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (nearBottom) {
+        requestAnimationFrame(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }));
+      }
+    }
+    prevLenRef.current = events.length;
+  }, [events.length]);
+
+  const toggle = (idx) => setExpandedIdx(prev => prev === idx ? null : idx);
+
+  // Pretty-print JSON for expanded view
+  const prettyPrint = (raw) => {
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch { return raw; }
+  };
+
+  if (!events || events.length === 0) {
+    return <div className="text-gray-500 text-sm p-4 italic">Waiting for events...</div>;
+  }
+
+  return (
+    <div ref={containerRef} className="overflow-auto max-h-[420px] space-y-0" data-testid="sse-event-viewer">
+      {skipped > 0 && (
+        <div className="text-xs text-gray-500 px-3 py-1 border-b border-dark-700/50 bg-dark-900/30">
+          {skipped} earlier events scrolled off
+        </div>
+      )}
+      {events.map((evt, idx) => {
+        const isOpen = expandedIdx === idx;
+        // Truncated single-line preview
+        let preview = evt.data || '';
+        if (preview.length > 120) preview = preview.substring(0, 120) + '...';
+
+        return (
+          <div key={evt.index || idx} className="border-b border-dark-700/40" data-testid={`sse-event-${idx}`}>
+            {/* Collapsed header row */}
+            <button
+              onClick={() => toggle(idx)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-dark-700/30 transition-colors"
+            >
+              <ChevronRight className={clsx('h-3.5 w-3.5 text-gray-500 transition-transform shrink-0', isOpen && 'rotate-90')} />
+              <span className="text-xs font-semibold text-emerald-400 shrink-0">{evt.type || 'message'}</span>
+              <span className="text-xs text-gray-500 font-mono truncate flex-1">{preview}</span>
+              <span className="text-xs text-gray-600 font-mono shrink-0 ml-auto">{evt.timestamp}</span>
+            </button>
+            {/* Expanded: full JSON with syntax coloring */}
+            {isOpen && (
+              <div className="bg-dark-900/60 border-t border-dark-700/30 px-4 py-3">
+                <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap break-all leading-relaxed max-h-72 overflow-auto">
+                  {prettyPrint(evt.data)}
+                </pre>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function EmptyState({ icon: Icon, title, description }) {
   return (
@@ -164,7 +236,11 @@ export default function APIExecutionStudio({
   onProtocolChange,
   isMcpContext = false,
   onSaveResponse,
-  readOnly = false, 
+  readOnly = false,
+  formData = [],
+  onFormDataChange,
+  advancedUrlEncoded = false,
+  onAdvancedUrlEncodedChange,
 }) {
   const [activeSection, setActiveSection] = useState('params');
   const [bottomPanelTab, setBottomPanelTab] = useState('response');
@@ -192,22 +268,24 @@ export default function APIExecutionStudio({
   const [hoveredTab, setHoveredTab] = useState(null);
   const tabRefs = useRef([]);
   const [isMethodOpen, setIsMethodOpen] = useState(false);
-const methodDropdownRef = useRef(null);
-const [isProtocolOpen, setIsProtocolOpen] = useState(false);
-const protocolDropdownRef = useRef(null);
+  const methodDropdownRef = useRef(null);
+  const [isProtocolOpen, setIsProtocolOpen] = useState(false);
+  const [formDataForFormData, setFormDataForFormData] = useState([]);
+const [formDataForUrlEncoded, setFormDataForUrlEncoded] = useState([]);
+  const protocolDropdownRef = useRef(null);
 
-useEffect(() => {
-  const handleClickOutside = (event) => {
-    if (methodDropdownRef.current && !methodDropdownRef.current.contains(event.target)) {
-      setIsMethodOpen(false);
-    }
-    if (protocolDropdownRef.current && !protocolDropdownRef.current.contains(event.target)) {
-      setIsProtocolOpen(false);
-    }
-  };
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => document.removeEventListener('mousedown', handleClickOutside);
-}, []);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (methodDropdownRef.current && !methodDropdownRef.current.contains(event.target)) {
+        setIsMethodOpen(false);
+      }
+      if (protocolDropdownRef.current && !protocolDropdownRef.current.contains(event.target)) {
+        setIsProtocolOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const validateRequestBodyJson = (value) => {
     if (rawBodyFormat !== 'json') {
@@ -237,6 +315,8 @@ useEffect(() => {
       }
     }
   }, [activeRequestIndex, requests.length]);
+
+
 
   const fetchLogDetails = async (historyId) => {
     // console.log('fetchLogDetails called for', historyId);
@@ -268,6 +348,10 @@ useEffect(() => {
     // Regular request history
     if (!onFetchHistoryEntry) {
       toast.error('History fetch function not available');
+      return;
+    }
+    // Guard: skip backend call if historyId is null/undefined (e.g. SSE local entries)
+    if (!historyId || historyId === 'null') {
       return;
     }
     if (logDetails[historyId]) return;
@@ -429,6 +513,15 @@ useEffect(() => {
     return groups;
   }, [historyToUse]);
 
+// Sync local state when the parent formData prop changes
+useEffect(() => {
+  if (bodyType === 'form-data') {
+    setFormDataForFormData(formData);
+  } else if (bodyType === 'x-www-form-urlencoded') {
+    setFormDataForUrlEncoded(formData);
+  }
+}, [formData, bodyType]);
+
   // ----- LOAD MOCK HISTORY (initial load) -----
   useEffect(() => {
     // console.log('[MockHistory] Loading, isMockEndpoint:', isMockEndpoint);
@@ -531,7 +624,9 @@ useEffect(() => {
     if (prevIsLoadingRef.current === true && isLoading === false) {
       const requestId = currentReq?.id;
       const isSaved = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId);
-      if (isSaved && onFetchRequestHistory) {
+      // Skip history fetch for SSE — SSE uses browser EventSource, no backend history entry
+      const isSSE = (currentReq?.protocol || '').toLowerCase() === 'sse';
+      if (isSaved && !isSSE && onFetchRequestHistory) {
         onFetchRequestHistory(requestId)
           .then(res => {
             let rawData = res.data || res;
@@ -684,6 +779,21 @@ useEffect(() => {
     // Fallback
     return String(data);
   };
+
+  const handleBodyTypeRadioChange = (newType) => {
+  // Save current data to the old type's state
+  if (bodyType === 'form-data') {
+    setFormDataForFormData(formData);
+  } else if (bodyType === 'x-www-form-urlencoded') {
+    setFormDataForUrlEncoded(formData);
+  }
+  // Change the body type
+  setBodyType(newType);
+  // Load the data for the new type into the parent
+  const newData = newType === 'form-data' ? formDataForFormData : formDataForUrlEncoded;
+  onFormDataChange(newData);
+  if (onBodyTypeChange) onBodyTypeChange(newType);
+};
 
   // Tooltip component for size details (right-aligned to avoid overflow)
   function SizeDetailsTooltip({ requestSize, requestHeadersSize, requestBodySize, responseSize, responseHeadersSize, responseBodySize, network }) {
@@ -867,10 +977,10 @@ useEffect(() => {
     }
     if (!response && !error) {
       return <EmptyState
-            icon={AlertCircle}
-            title="No debug information"
-            description="Execute a request to see detailed execution steps"
-          />;
+        icon={AlertCircle}
+        title="No debug information"
+        description="Execute a request to see detailed execution steps"
+      />;
     }
 
     const traceSteps = response?.traceSteps || [];
@@ -1277,117 +1387,117 @@ useEffect(() => {
           <div
             ref={tabsContainerRef}
             className="flex items-center overflow-x-auto overflow-y-visible min-w-0 thin-horizontal-scrollbar"
-            // style={{ marginBottom: '-15px'}}
+          // style={{ marginBottom: '-15px'}}
           >
             {requests.map((req, index) => {
               const isActive = index === activeRequestIndex;
               const label = getTabLabel(req);
               const isEditing = editingTabIndex === index;
               return (
-<div
-  key={req.id}
-  data-index={index}
-  role="tab"
-  tabIndex={0}
-  onClick={() => !isEditing && onTabSelect(index)}
-  onDoubleClick={() => {
-    setEditingTabIndex(index);
-    setEditingTabName(req.name || label);
-  }}
-  onKeyDown={(e) => {
-    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      onTabSelect(index);
-    }
-  }}
-  onMouseEnter={(e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setHoveredTab({
-      index,
-      name: req.name || label,
-      url: req.url || '',
-      left: rect.left + rect.width / 2,
-      top: rect.bottom + window.scrollY + 6,
-    });
-  }}
-  onMouseLeave={() => setHoveredTab(null)}
-  ref={(el) => (tabRefs.current[index] = el)}
-  className={clsx(
-    'flex items-center gap-2 pl-3 pr-1 py-1 w-[110px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group relative',
-    isActive
-      ? 'bg-primary/10 text-white border-b-2 border-b-primary -mb-px'
-      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
-  )}
->
+                <div
+                  key={req.id}
+                  data-index={index}
+                  role="tab"
+                  tabIndex={0}
+                  onClick={() => !isEditing && onTabSelect(index)}
+                  onDoubleClick={() => {
+                    setEditingTabIndex(index);
+                    setEditingTabName(req.name || label);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      onTabSelect(index);
+                    }
+                  }}
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setHoveredTab({
+                      index,
+                      name: req.name || label,
+                      url: req.url || '',
+                      left: rect.left + rect.width / 2,
+                      top: rect.bottom + window.scrollY + 6,
+                    });
+                  }}
+                  onMouseLeave={() => setHoveredTab(null)}
+                  ref={(el) => (tabRefs.current[index] = el)}
+                  className={clsx(
+                    'flex items-center gap-2 pl-3 pr-1 py-1 w-[110px] shrink-0 border-r border-dark-700 cursor-pointer transition-colors group relative',
+                    isActive
+                      ? 'bg-primary/10 text-white border-b-2 border-b-primary -mb-px'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-dark-700/50'
+                  )}
+                >
 
-  {/* Only show method badge for non‑workspace tabs */}
-  {req.type !== 'workspace-details' && (
-    <span
-      className={clsx(
-        'text-[10px] font-bold shrink-0',
-        req.method === 'GET' && 'text-green-400',
-        req.method === 'POST' && 'text-yellow-400',
-        req.method === 'PUT' && 'text-blue-400',
-        req.method === 'DELETE' && 'text-red-400',
-        'text-purple-400'
-      )}
-    >
-      {req.method}
-    </span>
-  )}
-  {isEditing ? (
-    <input
-      type="text"
-      value={editingTabName}
-      onChange={(e) => setEditingTabName(e.target.value)}
-      onBlur={() => {
-        if (editingTabName.trim() && onTabRename) {
-          onTabRename(index, editingTabName.trim());
-        }
-        setEditingTabIndex(null);
-        setEditingTabName('');
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          if (editingTabName.trim() && onTabRename) {
-            onTabRename(index, editingTabName.trim());
-          }
-          setEditingTabIndex(null);
-          setEditingTabName('');
-        } else if (e.key === 'Escape') {
-          setEditingTabIndex(null);
-          setEditingTabName('');
-        }
-      }}
-      onClick={(e) => e.stopPropagation()}
-      autoFocus
-      className="text-xs flex-1 bg-dark-700 border border-primary rounded px-1 outline-none text-white min-w-0"
-    />
-  ) : (
-    <span className="text-xs truncate flex-1">{req.name || label}</span>
-  )}
-  {requests.length > 1 && (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onCloseTab(index);
-      }}
-      className="rounded text-gray-500 hover:text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-      title="Close tab"
-    >
-      <X className="w-5 h-5" />
-    </button>
-  )}
-</div>
+                  {/* Only show method badge for non‑workspace tabs */}
+                  {req.type !== 'workspace-details' && (
+                    <span
+                      className={clsx(
+                        'text-[10px] font-bold shrink-0',
+                        req.method === 'GET' && 'text-green-400',
+                        req.method === 'POST' && 'text-yellow-400',
+                        req.method === 'PUT' && 'text-blue-400',
+                        req.method === 'DELETE' && 'text-red-400',
+                        'text-purple-400'
+                      )}
+                    >
+                      {req.method}
+                    </span>
+                  )}
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editingTabName}
+                      onChange={(e) => setEditingTabName(e.target.value)}
+                      onBlur={() => {
+                        if (editingTabName.trim() && onTabRename) {
+                          onTabRename(index, editingTabName.trim());
+                        }
+                        setEditingTabIndex(null);
+                        setEditingTabName('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (editingTabName.trim() && onTabRename) {
+                            onTabRename(index, editingTabName.trim());
+                          }
+                          setEditingTabIndex(null);
+                          setEditingTabName('');
+                        } else if (e.key === 'Escape') {
+                          setEditingTabIndex(null);
+                          setEditingTabName('');
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="text-xs flex-1 bg-dark-700 border border-primary rounded px-1 outline-none text-white min-w-0"
+                    />
+                  ) : (
+                    <span className="text-xs truncate flex-1">{req.name || label}</span>
+                  )}
+                  {requests.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseTab(index);
+                      }}
+                      className="rounded text-gray-500 hover:text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                      title="Close tab"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
         </div>
 
         {/* Conditional main content: request UI */}
-        { isCollectionRun ? (
+        {isCollectionRun ? (
           <CollectionRunView
             collection={collections.find(c => c.id === currentReq.collectionId)}
             onRunCollection={onRunCollectionWithOrder}
@@ -1431,504 +1541,621 @@ useEffect(() => {
           />
         )
 
-           :
+          :
 
-            isMockWizard ? (
-              <MockServerWizardTab
-                tab={{ ...currentReq, index: activeRequestIndex }}
-                onUpdateTab={onUpdateTab}
-                onCloseTab={onCloseTab}
+          isMockWizard ? (
+            <MockServerWizardTab
+              tab={{ ...currentReq, index: activeRequestIndex }}
+              onUpdateTab={onUpdateTab}
+              onCloseTab={onCloseTab}
+              collections={collections}
+              activeWorkspaceId={activeWorkspaceId}
+              onCreateMockServer={onCreateMockServer}
+              onUpdateMockServer={onUpdateMockServer}
+            />
+          ) :
+
+            isMockEditor ? (
+              <MockServerEditor
+                config={currentReq.mockConfig}
+                mockServer={currentReq.mockServer}
+                isEdit={currentReq.isEdit}
+                onSave={onCreateMockServer}
+                onUpdate={onUpdateMockServer}
+                onClose={() => onCloseTab(activeRequestIndex)}
                 collections={collections}
                 activeWorkspaceId={activeWorkspaceId}
-                onCreateMockServer={onCreateMockServer}
-                onUpdateMockServer={onUpdateMockServer}
               />
-            ) :
-
-              isMockEditor ? (
-                <MockServerEditor
-                  config={currentReq.mockConfig}
-                  mockServer={currentReq.mockServer}
-                  isEdit={currentReq.isEdit}
-                  onSave={onCreateMockServer}
-                  onUpdate={onUpdateMockServer}
-                  onClose={() => onCloseTab(activeRequestIndex)}
-                  collections={collections}
-                  activeWorkspaceId={activeWorkspaceId}
-                />
-              ) : (
-                <>
-                  {/* Postman-style: Request line — Method + URL + Send */}
-                  <div className="px-2 py-1 bg-probestack-bg border-b border-dark-700 flex-shrink-0">
-                    <div className="flex gap-2 flex-wrap  justify-end">
-{/* Method dropdown */}
-<div className="relative w-[110px] flex-shrink-0" ref={methodDropdownRef}>
-  <button
-    type="button"
-    onClick={() => setIsMethodOpen(!isMethodOpen)}
-    className={clsx(
-      'w-full rounded-lg text-sm font-bold py-2 pl-3 pr-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center justify-between border',
-      getMethodColor(method)
-    )}
-  >
-    <span>{method}</span>
-    <ChevronDown className={clsx('w-4 h-4 text-gray-500 transition-transform', isMethodOpen && 'rotate-180')} />
-  </button>
-  {isMethodOpen && (
-    <div className="absolute z-50 mt-1 w-full bg-probestack-bg border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-{methods.map((m) => (
-  <div
-    key={m}
-    onClick={() => {
-      onMethodChange(m);
-      setIsMethodOpen(false);
-    }}
-    className={clsx(
-      'flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
-      method === m && 'bg-primary/10',
-      // Method-specific text color
-      m === 'GET' && 'text-green-400',
-      m === 'POST' && 'text-yellow-400',
-      m === 'PUT' && 'text-blue-400',
-      m === 'DELETE' && 'text-red-400',
-      !['GET','POST','PUT','DELETE'].includes(m) && 'text-purple-400'
-    )}
-  >
-    <span className="truncate">{m}</span>
-    {method === m && <Check className="w-3.5 h-3.5 text-primary ml-2 shrink-0" />}
-  </div>
-))}
-    </div>
-  )}
-</div>
-
-{/* Protocol dropdown – ONLY for MCP requests */}
-{isMcpRequest && (
-  <div className="relative w-[100px] flex-shrink-0" ref={protocolDropdownRef}>
-    <button
-      type="button"
-      onClick={() => setIsProtocolOpen(!isProtocolOpen)}
-      className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center justify-between text-gray-300"
-    >
-      <span>{currentReq?.protocol || 'MCP'}</span>
-      <ChevronDown className={clsx('w-4 h-4 text-gray-500 transition-transform', isProtocolOpen && 'rotate-180')} />
-    </button>
-    {isProtocolOpen && (
-      <div className="absolute z-50 mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-        {['HTTP', 'SSE', 'MCP'].map((proto) => (
-          <div
-            key={proto}
-            onClick={() => {
-              if (onProtocolChange) onProtocolChange(proto);
-              setIsProtocolOpen(false);
-            }}
-            className={clsx(
-              'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
-              (currentReq?.protocol || 'MCP') === proto ? 'text-primary bg-primary/10' : 'text-gray-300'
-            )}
-          >
-            <div className="w-3.5 h-3.5 flex items-center justify-center">
-              {(currentReq?.protocol || 'MCP') === proto && <Check className="w-3.5 h-3.5 text-primary" />}
-            </div>
-            <span className="flex-1 truncate">{proto}</span>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-
-                      <VariableHighlightInput
-                        value={url}
-                        onChange={onUrlChange}
-                        placeholder="https://api.example.com/v1/endpoint"
-                        className="flex-1 min-w-[220px] bg-dark-800 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
-                        activeEnvVars={activeEnvVars}
-                        inactiveEnvVars={inactiveEnvVars}
-                        activeEnvValues={activeEnvValues}
-                        inactiveEnvInfo={inactiveEnvInfo}
-                        globalVars={globalVars}
-                        globalValues={globalValues}
-                      />
-                      {!readOnly && (
-  <button
-    onClick={handleSendClick}
-    disabled={isLoading || !url?.trim()}
-    className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-  >
-    {isLoading ? (
-      <>
-        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-        <span>Sending...</span>
-      </>
-    ) : (
-      <>
-        <Play className="w-4 h-4 fill-current" />
-        <span>Send</span>
-      </>
-    )}
-  </button>
-)}
-
-{!readOnly && !isMockEndpoint && (
-  <button
-    type="button"
-    onClick={handleSaveClick}
-    disabled={isSavedRequest(currentReq) && !hasUnsavedChanges}
-    title={getSaveTooltip()}
-    className={clsx(
-      'bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
-      (isSavedRequest(currentReq) && !hasUnsavedChanges) && 'opacity-50 cursor-not-allowed'
-    )}
-  >
-    <Save className="w-4 h-4" />
-    <span>Save</span>
-  </button>
-)}
-
-{readOnly && (
-  <button
-    type="button"
-    onClick={() => {
-      // Create an editable copy of this saved response
-      const editableCopy = {
-        ...currentReq,
-        id: `editable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        name: `${currentReq.name} (Edit)`,
-        response: null,           // clear response
-        readOnly: false,
-      };
-      onNewTab(editableCopy);
-    }}
-    className="bg-primary/80 hover:bg-primary text-white px-6 py-2 rounded-lg font-semibold text-sm flex items-center gap-2"
-  >
-    <span>Try</span>
-    <ArrowUpRight className="w-4 h-4" />
-  </button>
-)}
-                    </div>
-                  </div>
-
-                  {/* Postman-style: Tabs below request line — Params, Headers, Body, Auth, Pre-request Script, Tests */}
-                  <div className="border-b border-dark-700 flex items-center justify-between flex-shrink-0 bg-[var(--color-card-bg)] gap-2 min-h-0">
-                    <div className="flex items-center gap-0 overflow-y-hidden min-w-0 flex-1">
-                      {sections.map((section) => (
-                        <button
-                          key={section.id}
-onClick={() => {
-  // Set active section to show corresponding content
-  setActiveSection(section.id);
-  // If the bottom panel is collapsed, expand it to show the content. If it's already expanded, reset its scroll position to top.
-  if (!bottomPanelCollapsed) {
-    setBottomPanelResetKey(prev => prev + 1);
-  }
-}}
-                          className={clsx(
-                            'px-3 py-2.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-all -mb-px flex-shrink-0 border-b-2',
-                            activeSection === section.id
-                              ? 'border-primary text-primary bg-transparent'
-                              : 'border-transparent text-gray-400 hover:text-white'
-                          )}
-                        >
-                          {section.label}
-                          {section.count != null && section.count > 0 && (
-                            <span className="ml-1 text-gray-500 font-normal">({section.count})</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Tab content area */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar bg-probestack-bg min-h-0">
-                    {/* Tab-specific content */}
-                    {activeSection === 'params' && (
-                      <div className="p-1">
-                        {/* <div className="rounded-lg border border-dark-700  overflow-hidden"> */}
-                          <div className="px-2 py-1 text-xs text-gray-400 font-medium">
-                            Query parameters for the request URL
-                          </div>
-                          <div className="p-2">
-                            <KeyValueEditor
-                              pairs={queryParams}
-                              onChange={handleQueryParamsChange}
-                              activeEnvVars={activeEnvVars}
-                              inactiveEnvVars={inactiveEnvVars}
-                              activeEnvValues={activeEnvValues}
-                              inactiveEnvInfo={inactiveEnvInfo}
-                              globalVars={globalVars}
-                              globalValues={globalValues}
-                              isHeaders={false}
-                            />
-                          </div>
-                        {/* </div> */}
-                      </div>
-                    )}
-
-                    {activeSection === 'headers' && (
-                      <div className="p-1">
-                        {/* <div className="rounded-lg border border-dark-700 overflow-hidden"> */}
-                          <div className="px-2 py-1 text-xs text-gray-400 font-medium">
-                            Request headers (e.g. Content-Type, Authorization)
-                          </div>
-                          <div className="p-2">
-                            <KeyValueEditor
-                              pairs={headers}
-                              onChange={onHeadersChange}
-                              activeEnvVars={activeEnvVars}
-                              inactiveEnvVars={inactiveEnvVars}
-                              activeEnvValues={activeEnvValues}
-                              inactiveEnvInfo={inactiveEnvInfo}
-                              globalVars={globalVars}
-                              globalValues={globalValues}
-                                isHeaders={true}
-                            />
-                          </div>
-                        {/* </div> */}
-                      </div>
-                    )}
-
-                    {activeSection === 'body' && (
-                      <div className="p-5">
-                        {(method === 'POST' || method === 'PUT' || method === 'PATCH') ? (
-                          <>
-                            {/* Postman-style body type: none | form-data | x-www-form-urlencoded | raw */}
-                            <div className="flex items-center gap-4 mb-2 -mt-4 flex-wrap">
-                              {['none', 'form-data', 'x-www-form-urlencoded', 'raw'].map((type) => (
-                                <label key={type}>
-                                  <input
-                                    type="radio"
-                                    name="bodyType"
-                                    checked={bodyType === type}
-                                    onChange={() => {
-                                      setBodyType(type);
-                                      if (onBodyTypeChange) onBodyTypeChange(type);
-                                    }}
-                                    className="mr-2"
-                                  />
-                                  {type === 'x-www-form-urlencoded' ? 'x-www-form-urlencoded' : type.charAt(0).toUpperCase() + type.slice(1)}
-                                </label>
-                              ))}
-                              {bodyType === 'raw' && (
-                                <select
-                                  value={rawBodyFormat}
-                                  onChange={(e) => setRawBodyFormat(e.target.value)}
-                                  className="rounded-md text-xs text-gray-300  px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
-                                >
-                                  <option value="json" className='bg-dark-800'>JSON</option>
-                                  <option value="text" className='bg-dark-800'>Text</option>
-                                </select>
+            ) : (
+              <>
+                {/* Postman-style: Request line — Method + URL + Send */}
+                <div className="px-2 py-1 bg-probestack-bg border-b border-dark-700 flex-shrink-0">
+                  <div className="flex gap-2 flex-wrap  justify-end">
+                    {/* Method dropdown */}
+                    <div className="relative w-[110px] flex-shrink-0" ref={methodDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setIsMethodOpen(!isMethodOpen)}
+                        className={clsx(
+                          'w-full rounded-lg text-sm font-bold py-2 pl-3 pr-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center justify-between border',
+                          getMethodColor(method)
+                        )}
+                      >
+                        <span>{method}</span>
+                        <ChevronDown className={clsx('w-4 h-4 text-gray-500 transition-transform', isMethodOpen && 'rotate-180')} />
+                      </button>
+                      {isMethodOpen && (
+                        <div className="absolute z-50 mt-1 w-full bg-probestack-bg border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                          {methods.map((m) => (
+                            <div
+                              key={m}
+                              onClick={() => {
+                                onMethodChange(m);
+                                setIsMethodOpen(false);
+                              }}
+                              className={clsx(
+                                'flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
+                                method === m && 'bg-primary/10',
+                                // Method-specific text color
+                                m === 'GET' && 'text-green-400',
+                                m === 'POST' && 'text-yellow-400',
+                                m === 'PUT' && 'text-blue-400',
+                                m === 'DELETE' && 'text-red-400',
+                                !['GET', 'POST', 'PUT', 'DELETE'].includes(m) && 'text-purple-400'
                               )}
+                            >
+                              <span className="truncate">{m}</span>
+                              {method === m && <Check className="w-3.5 h-3.5 text-primary ml-2 shrink-0" />}
                             </div>
-                            {bodyType === 'raw' ? (
-  rawBodyFormat === 'json' ? (
-    <JsonEditorWithVariables
-      value={body}
-      onChange={(val) => {
-        onBodyChange(val);
-        validateRequestBodyJson(val);
-      }}
-      placeholder={rawBodyFormat === 'json' ? '{\n  "key": "value"\n}' : 'Enter request body...'}
-      activeEnvVars={activeEnvVars}
-      inactiveEnvVars={inactiveEnvVars}
-      activeEnvValues={activeEnvValues}
-      inactiveEnvInfo={inactiveEnvInfo}
-      globalVars={globalVars}
-      globalValues={globalValues}
-    />
-  ) : (
-    <div className="rounded-lg border border-dark-700 overflow-hidden ">
-      <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-card-bg)] border-b border-dark-700 text-xs text-gray-400">
-        <span className="font-medium text-gray-300 ">Text</span>
-      </div>
-      <VariableHighlightInput
-        value={body}
-        onChange={(val) => {
-          onBodyChange(val);
-          validateRequestBodyJson(val);
-        }}
-        onBlur={() => validateRequestBodyJson(body)}
-        placeholder="Enter request body..."
-        multiline
-        activeEnvVars={activeEnvVars}
-        inactiveEnvVars={inactiveEnvVars}
-        activeEnvValues={activeEnvValues}
-        inactiveEnvInfo={inactiveEnvInfo}
-        globalVars={globalVars}
-        globalValues={globalValues}
-        className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
-        inputClassName="h-full"
-      />
-      {bodyJsonError && (
-        <div className="text-red-400 text-xs mt-1 flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
-          {bodyJsonError}
-        </div>
-      )}
-    </div>
-  )
-) : bodyType === 'none' ? (
-                              <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
-                                This request does not have a body
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Protocol dropdown – ONLY for MCP requests */}
+                    {isMcpRequest && (
+                      <div className="relative w-[100px] flex-shrink-0" ref={protocolDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setIsProtocolOpen(!isProtocolOpen)}
+                          className="w-full bg-dark-800 border border-dark-700 rounded-lg text-sm font-bold py-2 pl-3 pr-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none cursor-pointer flex items-center justify-between text-gray-300"
+                        >
+                          <span>{currentReq?.protocol || 'MCP'}</span>
+                          <ChevronDown className={clsx('w-4 h-4 text-gray-500 transition-transform', isProtocolOpen && 'rotate-180')} />
+                        </button>
+                        {isProtocolOpen && (
+                          <div className="absolute z-50 mt-1 w-full bg-dark-800 border border-dark-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                            {['HTTP', 'SSE', 'MCP'].map((proto) => (
+                              <div
+                                key={proto}
+                                onClick={() => {
+                                  if (onProtocolChange) onProtocolChange(proto);
+                                  setIsProtocolOpen(false);
+                                }}
+                                className={clsx(
+                                  'flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-dark-700',
+                                  (currentReq?.protocol || 'MCP') === proto ? 'text-primary bg-primary/10' : 'text-gray-300'
+                                )}
+                              >
+                                <div className="w-3.5 h-3.5 flex items-center justify-center">
+                                  {(currentReq?.protocol || 'MCP') === proto && <Check className="w-3.5 h-3.5 text-primary" />}
+                                </div>
+                                <span className="flex-1 truncate">{proto}</span>
                               </div>
-                            ) : (
-                              <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg">
-                                {bodyType === 'form-data' ? 'Form-data editor coming soon. Use Raw for now.' : 'x-www-form-urlencoded editor coming soon. Use Raw for now.'}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
-                            Body not supported for {method} requests
+                            ))}
                           </div>
                         )}
                       </div>
                     )}
 
-                    {activeSection === 'auth' && (
-                      <div className="p-5">
-                        <div className="rounded-lg border border-dark-700">
-                          <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
-                            Authentication type and credentials for the request
+                    <VariableHighlightInput
+                      value={url}
+                      onChange={onUrlChange}
+                      placeholder="https://api.example.com/v1/endpoint"
+                      className="flex-1 min-w-[220px] bg-dark-800 border border-dark-700 rounded-lg text-sm font-mono text-white py-2.5 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none shadow-sm placeholder:text-gray-500"
+                      activeEnvVars={activeEnvVars}
+                      inactiveEnvVars={inactiveEnvVars}
+                      activeEnvValues={activeEnvValues}
+                      inactiveEnvInfo={inactiveEnvInfo}
+                      globalVars={globalVars}
+                      globalValues={globalValues}
+                    />
+                    {!readOnly && (
+                      <button
+                        onClick={handleSendClick}
+                        disabled={isLoading || !url?.trim()}
+                        className="bg-primary cursor-pointer hover:bg-primary/90 text-white px-6 py-2 rounded-lg font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 fill-current" />
+                            <span>Send</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {!readOnly && !isMockEndpoint && (
+                      <button
+                        type="button"
+                        onClick={handleSaveClick}
+                        disabled={isSavedRequest(currentReq) && !hasUnsavedChanges}
+                        title={getSaveTooltip()}
+                        className={clsx(
+                          'bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg cursor-pointer font-semibold text-sm shadow-md shadow-primary/25 flex items-center gap-2 transition-all active:scale-[0.98] flex-shrink-0',
+                          (isSavedRequest(currentReq) && !hasUnsavedChanges) && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Save</span>
+                      </button>
+                    )}
+
+                    {readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Create an editable copy of this saved response
+                          const editableCopy = {
+                            ...currentReq,
+                            id: `editable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                            name: `${currentReq.name} (Edit)`,
+                            response: null,           // clear response
+                            readOnly: false,
+                          };
+                          onNewTab(editableCopy);
+                        }}
+                        className="bg-primary/80 hover:bg-primary text-white px-6 py-2 rounded-lg font-semibold text-sm flex items-center gap-2"
+                      >
+                        <span>Try</span>
+                        <ArrowUpRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Postman-style: Tabs below request line — Params, Headers, Body, Auth, Pre-request Script, Tests */}
+                <div className="border-b border-dark-700 flex items-center justify-between flex-shrink-0 bg-[var(--color-card-bg)] gap-2 min-h-0">
+                  <div className="flex items-center gap-0 overflow-y-hidden min-w-0 flex-1">
+                    {sections.map((section) => (
+                      <button
+                        key={section.id}
+                        onClick={() => {
+                          // Set active section to show corresponding content
+                          setActiveSection(section.id);
+                          // If the bottom panel is collapsed, expand it to show the content. If it's already expanded, reset its scroll position to top.
+                          if (!bottomPanelCollapsed) {
+                            setBottomPanelResetKey(prev => prev + 1);
+                          }
+                        }}
+                        className={clsx(
+                          'px-3 py-2.5 text-sm font-medium whitespace-nowrap cursor-pointer transition-all -mb-px flex-shrink-0 border-b-2',
+                          activeSection === section.id
+                            ? 'border-primary text-primary bg-transparent'
+                            : 'border-transparent text-gray-400 hover:text-white'
+                        )}
+                      >
+                        {section.label}
+                        {section.count != null && section.count > 0 && (
+                          <span className="ml-1 text-gray-500 font-normal">({section.count})</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tab content area */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar bg-probestack-bg min-h-0">
+                  {/* Tab-specific content */}
+                  {activeSection === 'params' && (
+                    <div className="p-1">
+                      {/* <div className="rounded-lg border border-dark-700  overflow-hidden"> */}
+                      <div className="px-2 py-1 text-xs text-gray-400 font-medium">
+                        Query parameters for the request URL
+                      </div>
+                      <div className="p-2">
+                        <KeyValueEditor
+                          pairs={queryParams}
+                          onChange={handleQueryParamsChange}
+                          activeEnvVars={activeEnvVars}
+                          inactiveEnvVars={inactiveEnvVars}
+                          activeEnvValues={activeEnvValues}
+                          inactiveEnvInfo={inactiveEnvInfo}
+                          globalVars={globalVars}
+                          globalValues={globalValues}
+                          isHeaders={false}
+                        />
+                      </div>
+                      {/* </div> */}
+                    </div>
+                  )}
+
+                  {activeSection === 'headers' && (
+                    <div className="p-1">
+                      {/* <div className="rounded-lg border border-dark-700 overflow-hidden"> */}
+                      <div className="px-2 py-1 text-xs text-gray-400 font-medium">
+                        Request headers (e.g. Content-Type, Authorization)
+                      </div>
+                      <div className="p-2">
+                        <KeyValueEditor
+                          pairs={headers}
+                          onChange={onHeadersChange}
+                          activeEnvVars={activeEnvVars}
+                          inactiveEnvVars={inactiveEnvVars}
+                          activeEnvValues={activeEnvValues}
+                          inactiveEnvInfo={inactiveEnvInfo}
+                          globalVars={globalVars}
+                          globalValues={globalValues}
+                          isHeaders={true}
+                        />
+                      </div>
+                      {/* </div> */}
+                    </div>
+                  )}
+
+                  {activeSection === 'body' && (
+                    <div className="p-5">
+                      {(method === 'POST' || method === 'PUT' || method === 'PATCH') ? (
+                        <>
+                          {/* Postman-style body type: none | form-data | x-www-form-urlencoded | raw */}
+                          <div className="flex items-center gap-4 mb-2 -mt-4 flex-wrap">
+                            {['none', 'form-data', 'x-www-form-urlencoded', 'raw'].map((type) => (
+                              <label key={type}>
+                                <input
+                                  type="radio"
+                                  name="bodyType"
+                                  checked={bodyType === type}
+                                  onChange={() => handleBodyTypeRadioChange(type)}
+                                  className="mr-2"
+                                />
+                                {type === 'x-www-form-urlencoded' ? 'x-www-form-urlencoded' : type.charAt(0).toUpperCase() + type.slice(1)}
+                              </label>
+                            ))}
+                            {bodyType === 'raw' && (
+                              <select
+                                value={rawBodyFormat}
+                                onChange={(e) => setRawBodyFormat(e.target.value)}
+                                className="rounded-md text-xs text-gray-300  px-3 focus:outline-none focus:border-primary/50 cursor-pointer"
+                              >
+                                <option value="json" className='bg-dark-800'>JSON</option>
+                                <option value="text" className='bg-dark-800'>Text</option>
+                              </select>
+                            )}
                           </div>
-                          <div className="p-4">
-                            <AuthPanel
-                              authType={authType}
-                              onAuthTypeChange={onAuthTypeChange}
-                              authData={authData}
-                              onAuthDataChange={onAuthDataChange}
+                          {bodyType === 'raw' ? (
+                            rawBodyFormat === 'json' ? (
+                              <JsonEditorWithVariables
+                                value={body}
+                                onChange={(val) => {
+                                  onBodyChange(val);
+                                  validateRequestBodyJson(val);
+                                }}
+                                placeholder={rawBodyFormat === 'json' ? '{\n  "key": "value"\n}' : 'Enter request body...'}
+                                activeEnvVars={activeEnvVars}
+                                inactiveEnvVars={inactiveEnvVars}
+                                activeEnvValues={activeEnvValues}
+                                inactiveEnvInfo={inactiveEnvInfo}
+                                globalVars={globalVars}
+                                globalValues={globalValues}
+                              />
+                            ) : (
+                              <div className="rounded-lg border border-dark-700 overflow-hidden ">
+                                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-card-bg)] border-b border-dark-700 text-xs text-gray-400">
+                                  <span className="font-medium text-gray-300 ">Text</span>
+                                </div>
+                                <VariableHighlightInput
+                                  value={body}
+                                  onChange={(val) => {
+                                    onBodyChange(val);
+                                    validateRequestBodyJson(val);
+                                  }}
+                                  onBlur={() => validateRequestBodyJson(body)}
+                                  placeholder="Enter request body..."
+                                  multiline
+                                  activeEnvVars={activeEnvVars}
+                                  inactiveEnvVars={inactiveEnvVars}
+                                  activeEnvValues={activeEnvValues}
+                                  inactiveEnvInfo={inactiveEnvInfo}
+                                  globalVars={globalVars}
+                                  globalValues={globalValues}
+                                  className="w-full h-64 p-4 font-mono text-sm focus:outline-none resize-none text-gray-300 bg-transparent leading-relaxed"
+                                  inputClassName="h-full"
+                                />
+                                {bodyJsonError && (
+                                  <div className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3" />
+                                    {bodyJsonError}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          ) : bodyType === 'none' ? (
+                            <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
+                              This request does not have a body
+                            </div>
+) : bodyType === 'form-data' ? (
+  <div className="mt-3">
+<FormDataEditor
+  pairs={formDataForFormData}
+  onChange={(newData) => {
+    setFormDataForFormData(newData);
+    onFormDataChange(newData);
+  }}
+/>
+  </div>
+) : bodyType === 'x-www-form-urlencoded' ? (
+  <div className="mt-3 space-y-2">
+    <div className="flex items-center justify-between">
+      <label className="flex items-center gap-2 text-xs text-gray-400">
+        <input
+          type="checkbox"
+          checked={advancedUrlEncoded}
+          onChange={(e) => onAdvancedUrlEncodedChange?.(e.target.checked)}
+        />
+        Enable advanced array/nested syntax
+      </label>
+      <span className="text-[10px] text-gray-500">
+        (e.g. `user[0].name`, `colors[]`)
+      </span>
+    </div>
+<KeyValueEditor
+  pairs={formDataForUrlEncoded}
+  onChange={(newData) => {
+    setFormDataForUrlEncoded(newData);
+    onFormDataChange(newData);
+  }}
+  activeEnvVars={activeEnvVars}
+  inactiveEnvVars={inactiveEnvVars}
+  activeEnvValues={activeEnvValues}
+  inactiveEnvInfo={inactiveEnvInfo}
+  globalVars={globalVars}
+  globalValues={globalValues}
+  isHeaders={false}
+/>
+  </div>
+) : (
+  // Fallback for any other bodyType (should not happen)
+  <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg">
+    Unsupported body type
+  </div>
+)}
+                        </>
+                      ) : (
+                        <div className="h-48 flex items-center justify-center text-gray-500 text-sm border border-dark-700 rounded-lg ">
+                          Body not supported for {method} requests
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeSection === 'auth' && (
+                    <div className="p-5">
+                      <div className="rounded-lg border border-dark-700">
+                        <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] text-xs text-gray-400 font-medium">
+                          Authentication type and credentials for the request
+                        </div>
+                        <div className="p-4">
+                          <AuthPanel
+                            authType={authType}
+                            onAuthTypeChange={onAuthTypeChange}
+                            authData={authData}
+                            onAuthDataChange={onAuthDataChange}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSection === 'pre-request' && (
+                    <div className="p-5">
+                      <div className="rounded-lg border border-dark-700  overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
+                          <span className="text-xs text-gray-400 font-medium">Pre-request Script</span>
+                          <span className="text-xs text-gray-500">Runs before the request is sent</span>
+                        </div>
+                        <textarea
+                          value={preRequestScript}
+                          onChange={(e) => onPreRequestScriptChange && onPreRequestScriptChange(e.target.value)}
+                          className="w-full h-80 p-4 font-mono text-sm bg-probestack-bg focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
+                          placeholder="// Add custom JavaScript code here\n// Example: pm.environment.set('token', 'abc123');"
+                          spellCheck={false}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSection === 'tests' && (
+                    <div className="p-5">
+                      <div className="rounded-lg border border-dark-700  overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
+                          <span className="text-xs text-gray-400 font-medium">Tests</span>
+                          <span className="text-xs text-gray-500">Runs after the response is received</span>
+                        </div>
+                        <textarea
+                          value={tests}
+                          onChange={(e) => onTestsChange && onTestsChange(e.target.value)}
+                          className="w-full h-80 p-4 font-mono text-sm  focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
+                          placeholder="// Add test scripts here\n// Example: pm.test('Status code is 200', () => {\n//   pm.response.to.have.status(200);\n// });"
+                          spellCheck={false}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSection === 'mcp' && isMcpRequest && (
+                    <div className="p-5 space-y-4">
+                      <div className="rounded-lg border border-dark-700 p-4">
+                        <div className="mb-3 text-sm text-gray-300">
+                          <span className="font-medium">MCP Protocol</span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Uses JSON‑RPC 2.0 over HTTP. Set URL to your MCP server endpoint and craft JSON‑RPC requests.
+                          </p>
+                          <pre className="mt-2 text-xs bg-dark-800 p-2 rounded border border-dark-700">
+                            {`{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}`}
+                          </pre>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1">Server URL</label>
+                            <input
+                              type="text"
+                              value={mcpServerUrl}
+                              onChange={(e) => handleMcpServerUrlChange(e.target.value)}
+                              placeholder="http://localhost:3001"
+                              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                             />
                           </div>
-                        </div>
-                      </div>
-                    )}
 
-                    {activeSection === 'pre-request' && (
-                      <div className="p-5">
-                        <div className="rounded-lg border border-dark-700  overflow-hidden">
-                          <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
-                            <span className="text-xs text-gray-400 font-medium">Pre-request Script</span>
-                            <span className="text-xs text-gray-500">Runs before the request is sent</span>
-                          </div>
-                          <textarea
-                            value={preRequestScript}
-                            onChange={(e) => onPreRequestScriptChange && onPreRequestScriptChange(e.target.value)}
-                            className="w-full h-80 p-4 font-mono text-sm bg-probestack-bg focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
-                            placeholder="// Add custom JavaScript code here\n// Example: pm.environment.set('token', 'abc123');"
-                            spellCheck={false}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {activeSection === 'tests' && (
-                      <div className="p-5">
-                        <div className="rounded-lg border border-dark-700  overflow-hidden">
-                          <div className="px-4 py-2.5 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
-                            <span className="text-xs text-gray-400 font-medium">Tests</span>
-                            <span className="text-xs text-gray-500">Runs after the response is received</span>
-                          </div>
-                          <textarea
-                            value={tests}
-                            onChange={(e) => onTestsChange && onTestsChange(e.target.value)}
-                            className="w-full h-80 p-4 font-mono text-sm  focus:outline-none focus:ring-0 border-0 resize-none text-gray-300 placeholder:text-gray-500"
-                            placeholder="// Add test scripts here\n// Example: pm.test('Status code is 200', () => {\n//   pm.response.to.have.status(200);\n// });"
-                            spellCheck={false}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {activeSection === 'mcp' && isMcpRequest && (
-                      <div className="p-5 space-y-4">
-                        <div className="rounded-lg border border-dark-700 p-4">
-                          <div className="mb-3 text-sm text-gray-300">
-                            <span className="font-medium">MCP Protocol</span>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Uses JSON‑RPC 2.0 over HTTP. Set URL to your MCP server endpoint and craft JSON‑RPC requests.
-                            </p>
-                            <pre className="mt-2 text-xs bg-dark-800 p-2 rounded border border-dark-700">
-                              {`{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}`}
-                            </pre>
+                          <div>
+                            <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1">Transport</label>
+                            <select
+                              value={mcpTransport}
+                              onChange={(e) => handleMcpTransportChange(e.target.value)}
+                              className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            >
+                              <option value="http">HTTP (Streamable)</option>
+                              <option value="sse">SSE</option>
+                            </select>
                           </div>
 
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1">Server URL</label>
-                              <input
-                                type="text"
-                                value={mcpServerUrl}
-                                onChange={(e) => handleMcpServerUrlChange(e.target.value)}
-                                placeholder="http://localhost:3001"
-                                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs text-gray-400 uppercase tracking-wider mb-1">Transport</label>
-                              <select
-                                value={mcpTransport}
-                                onChange={(e) => handleMcpTransportChange(e.target.value)}
-                                className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                              >
-                                <option value="http">HTTP (Streamable)</option>
-                                <option value="sse">SSE</option>
-                              </select>
-                            </div>
-
-                            <div className="flex gap-3 pt-2">
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const response = await fetch(mcpServerUrl, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', params: {}, id: Date.now() }),
-                                    });
-                                    await response.json();
-                                    toast.success('Ping successful');
-                                  } catch (err) {
-                                    toast.error('Ping failed');
+                          <div className="flex gap-3 pt-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const startTime = Date.now();
+                                  const response = await fetch(mcpServerUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Accept': 'application/json, text/event-stream',
+                                    },
+                                    body: JSON.stringify({ jsonrpc: '2.0', method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'forgeq', version: '1.0' } }, id: Date.now() }),
+                                  });
+                                  const elapsed = Date.now() - startTime;
+                                  const contentType = response.headers.get('content-type') || '';
+                                  let data;
+                                  if (contentType.includes('text/event-stream')) {
+                                    const text = await response.text();
+                                    const dataLines = text.split('\n').filter(l => l.startsWith('data: ')).map(l => l.slice(6));
+                                    const results = dataLines.map(l => { try { return JSON.parse(l); } catch(e) { return null; } }).filter(Boolean);
+                                    data = results.length === 1 ? results[0] : { responses: results };
+                                  } else {
+                                    data = await response.json();
                                   }
-                                }}
-                                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-                              >
-                                Ping Server
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const response = await fetch(mcpServerUrl, {
+                                  const sessionId = response.headers.get('mcp-session-id');
+                                  const serverName = data?.result?.serverInfo?.name || data?.responses?.[0]?.result?.serverInfo?.name || 'unknown';
+                                  toast.success('Ping OK - Server: ' + serverName + (sessionId ? ' (session started)' : ''));
+                                  const mcpResponse = {
+                                    status: response.status,
+                                    statusText: response.statusText || 'OK',
+                                    time: elapsed,
+                                    size: JSON.stringify(data).length,
+                                    data: data,
+                                    headers: [...response.headers.entries()].map(([key, value]) => ({ key, value })),
+                                    testResults: [],
+                                    testScriptError: null,
+                                  };
+                                  onUpdateTab(activeRequestIndex, { ...currentReq, response: mcpResponse, mcpSessionId: sessionId || currentReq?.mcpSessionId });
+                                  setBottomPanelCollapsed(false);
+                                  setBottomPanelTab('response');
+                                } catch (err) {
+                                  toast.error('Ping failed: ' + (err.message || 'Connection refused'));
+                                  const errorResponse = { status: 0, statusText: 'Connection Failed', time: 0, size: 0, data: err.message || 'Connection refused', headers: [], testResults: [], testScriptError: null };
+                                  onUpdateTab(activeRequestIndex, { ...currentReq, response: errorResponse });
+                                  setBottomPanelCollapsed(false);
+                                  setBottomPanelTab('response');
+                                }
+                              }}
+                              className="px-4 py-2 rounded-lg text-sm font-medium bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+                            >
+                              Ping Server
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const startTime = Date.now();
+                                  let sessionId = currentReq?.mcpSessionId;
+                                  if (!sessionId) {
+                                    const initResp = await fetch(mcpServerUrl, {
                                       method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', params: {}, id: Date.now() }),
+                                      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
+                                      body: JSON.stringify({ jsonrpc: '2.0', method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'forgeq', version: '1.0' } }, id: Date.now() }),
                                     });
-                                    await response.json();
-                                    toast.success('Tools listed');
-                                  } catch (err) {
-                                    toast.error('Failed to list tools');
+                                    sessionId = initResp.headers.get('mcp-session-id');
+                                    await initResp.text();
+                                    if (sessionId) {
+                                      await fetch(mcpServerUrl, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'mcp-session-id': sessionId },
+                                        body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
+                                      }).then(r => r.text()).catch(() => {});
+                                    }
                                   }
-                                }}
-                                className="px-4 py-2 rounded-lg text-sm font-medium bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-                              >
-                                List Tools
-                              </button>
-                            </div>
+                                  const hdrs = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
+                                  if (sessionId) hdrs['mcp-session-id'] = sessionId;
+                                  const response = await fetch(mcpServerUrl, { method: 'POST', headers: hdrs, body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', params: {}, id: Date.now() }) });
+                                  const elapsed = Date.now() - startTime;
+                                  const contentType = response.headers.get('content-type') || '';
+                                  let data;
+                                  if (contentType.includes('text/event-stream')) {
+                                    const text = await response.text();
+                                    const dataLines = text.split('\n').filter(l => l.startsWith('data: ')).map(l => l.slice(6));
+                                    const results = dataLines.map(l => { try { return JSON.parse(l); } catch(e) { return null; } }).filter(Boolean);
+                                    data = results.length === 1 ? results[0] : { responses: results };
+                                  } else {
+                                    data = await response.json();
+                                  }
+                                  const toolCount = data?.result?.tools?.length || 0;
+                                  const toolNames = (data?.result?.tools || []).map(t => t.name).slice(0, 5).join(', ');
+                                  toast.success(toolCount + ' tools found' + (toolNames ? ': ' + toolNames : ''));
+                                  const mcpResponse = {
+                                    status: response.status,
+                                    statusText: response.statusText || 'OK',
+                                    time: elapsed,
+                                    size: JSON.stringify(data).length,
+                                    data: data,
+                                    headers: [...response.headers.entries()].map(([key, value]) => ({ key, value })),
+                                    testResults: [],
+                                    testScriptError: null,
+                                  };
+                                  onUpdateTab(activeRequestIndex, { ...currentReq, response: mcpResponse, mcpSessionId: sessionId || currentReq?.mcpSessionId });
+                                  setBottomPanelCollapsed(false);
+                                  setBottomPanelTab('response');
+                                } catch (err) {
+                                  toast.error('Failed to list tools: ' + (err.message || 'Connection refused'));
+                                  const errorResponse = { status: 0, statusText: 'Connection Failed', time: 0, size: 0, data: err.message || 'Connection refused', headers: [], testResults: [], testScriptError: null };
+                                  onUpdateTab(activeRequestIndex, { ...currentReq, response: errorResponse });
+                                  setBottomPanelCollapsed(false);
+                                  setBottomPanelTab('response');
+                                }
+                              }}
+                              className="px-4 py-2 rounded-lg text-sm font-medium bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+                            >
+                              List Tools
+                            </button>
                           </div>
+
                         </div>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                  </div>
-                </>
-              )}
+                </div>
+              </>
+            )}
       </div> {/* closes the inner flex-col div */}
 
       {/* Bottom Panel & Save Modal – only for request tabs */}
       {!isWorkspaceDetails && !isCollectionRun && !isCollectionRunResults && !isLoadTestRunning && !isLoadTestResults && !isMockEditor && !isMockWizard && (
         <>
           <ResizableBottomPanel
-           key={bottomPanelResetKey}
+            key={bottomPanelResetKey}
             defaultHeight={360}
             minHeight={48}
             maxHeight={480}
@@ -1943,14 +2170,14 @@ onClick={() => {
                 {['response', 'logs', 'validation', 'collection-run', ...(isMockEndpoint ? [] : ['debug'])].map((tab) => (
                   <button
                     key={tab}
-                      onClick={() => {
-    // If panel is collapsed, expand it first
-    if (bottomPanelCollapsed) {
-      setBottomPanelCollapsed(false);
-    }
-    // Then switch to the selected tab
-    setBottomPanelTab(tab);
-  }}
+                    onClick={() => {
+                      // If panel is collapsed, expand it first
+                      if (bottomPanelCollapsed) {
+                        setBottomPanelCollapsed(false);
+                      }
+                      // Then switch to the selected tab
+                      setBottomPanelTab(tab);
+                    }}
                     className={clsx(
                       'px-3 py-3 text-sm font-medium -mb-px cursor-pointer transition-colors rounded-t capitalize whitespace-nowrap flex-shrink-0',
                       bottomPanelTab === tab
@@ -1966,35 +2193,35 @@ onClick={() => {
               </div>
 
               {/* Save Response button */}
-  {effectiveResponse && effectiveResponse.historyId && !isLoading && (
-  <button
-    type="button"
-    onClick={async () => {
-      if (isSavingResponse) return;
-      setIsSavingResponse(true);
-      try {
-        const requestId = currentReq?.id;
-        if (!requestId) {
-          toast.error('Request ID missing');
-          return;
-        }
-        await onSaveResponse?.(requestId, effectiveResponse.historyId, null);
-      } finally {
-        setIsSavingResponse(false);
-      }
-    }}
-    disabled={isSavingResponse}
-    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-primary/80 hover:text-primary cursor-pointer transition-colors mr-2"
-    title="Save this response"
-  >
-    {isSavingResponse ? (
-      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-    ) : (
-      <Save className="w-3.5 h-3.5" />
-    )}
-    Save
-  </button>
-)}
+              {effectiveResponse && effectiveResponse.historyId && !isLoading && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (isSavingResponse) return;
+                    setIsSavingResponse(true);
+                    try {
+                      const requestId = currentReq?.id;
+                      if (!requestId) {
+                        toast.error('Request ID missing');
+                        return;
+                      }
+                      await onSaveResponse?.(requestId, effectiveResponse.historyId, null);
+                    } finally {
+                      setIsSavingResponse(false);
+                    }
+                  }}
+                  disabled={isSavingResponse}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-primary/80 hover:text-primary cursor-pointer transition-colors mr-2"
+                  title="Save this response"
+                >
+                  {isSavingResponse ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save
+                </button>
+              )}
 
 
               <button
@@ -2124,10 +2351,21 @@ onClick={() => {
                               </div>
 
                               {responseTab === 'body' ? (
-                                <div className=" bg-[var(--color-input-bg)] rounded-lg p-4 font-mono text-sm overflow-auto max-h-96 border border-dark-700">
-                                  <pre className="text-gray-300 whitespace-pre-wrap break-all">
-                                    {formatResponseBody(effectiveResponse.data)}
-                                  </pre>
+                                <div className="bg-[var(--color-input-bg)] rounded-lg font-mono text-sm overflow-hidden border border-dark-700">
+                                  {/* SSE: Postman-style collapsible event cards */}
+                                  {effectiveResponse.sseEvents && effectiveResponse.sseEvents.length > 0 ? (
+                                    <SseEventViewer
+                                      events={effectiveResponse.sseEvents}
+                                      skipped={effectiveResponse.sseSkipped || 0}
+                                      totalCount={effectiveResponse.sseTotalCount || 0}
+                                    />
+                                  ) : (
+                                    <div className="p-4 overflow-auto max-h-96">
+                                      <pre className="text-gray-300 whitespace-pre-wrap break-all">
+                                        {formatResponseBody(effectiveResponse.data)}
+                                      </pre>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <div className="bg-[var(--color-input-bg)] rounded-lg p-4 overflow-auto max-h-96 border border-dark-700">
@@ -2159,11 +2397,11 @@ onClick={() => {
                       }
 
                       return (
-                          <EmptyState
-            icon={Terminal}
-            title="Execute a request to see response"
-            description="Output will be formatted as JSON by default"
-          />
+                        <EmptyState
+                          icon={Terminal}
+                          title="Execute a request to see response"
+                          description="Output will be formatted as JSON by default"
+                        />
                       );
                     })()}
                   </>
@@ -2181,13 +2419,13 @@ onClick={() => {
                           {/* Items in group */}
                           <div className="space-y-2 mt-2">
                             {items.map((item) => {
-                              console.log("item",item);
+                              console.log("item", item);
                               const isExpanded = expandedLogId === item.historyId;
                               const fullDetails = logDetails[item.historyId];
                               const isLoading = loadingLogDetails[item.historyId];
                               const executedAt = item.executed_at ? new Date(item.executed_at) : null;
-                              console.log("time",executedAt);
-                              
+                              console.log("time", executedAt);
+
                               return (
                                 <div key={item.historyId || `log-${item.date}`} className="border border-dark-700 rounded-lg overflow-visible">
                                   {/* Summary row – same layout as collection run */}
@@ -2219,7 +2457,7 @@ onClick={() => {
 
                                     {/* Request name */}
                                     <span className="text-xs text-gray-300 truncate flex-1">{item.url}</span>
-                                    
+
 
                                     {/* Status badge */}
                                     {item.status > 0 ? (
@@ -2327,10 +2565,10 @@ onClick={() => {
                       ))
                     ) : (
                       <EmptyState
-            icon={History}
-            title="No execution logs yet"
-            description="Send a request to see its history here"
-          />
+                        icon={History}
+                        title="No execution logs yet"
+                        description="Send a request to see its history here"
+                      />
                     )}
                   </div>
                 )}
@@ -2391,10 +2629,10 @@ onClick={() => {
                       </>
                     ) : (
                       <EmptyState
-            icon={CheckCircle2}
-            title="No validation results"
-            description="Execute a request to see test results"
-          />
+                        icon={CheckCircle2}
+                        title="No validation results"
+                        description="Execute a request to see test results"
+                      />
                     )}
                   </div>
                 )}
@@ -2608,10 +2846,10 @@ onClick={() => {
                       </>
                     ) : (
                       <EmptyState
-            icon={Play}
-            title="No collection run yet"
-            description="Right-click a collection and select 'Run Collection' to start"
-          />
+                        icon={Play}
+                        title="No collection run yet"
+                        description="Right-click a collection and select 'Run Collection' to start"
+                      />
                     )}
                   </div>
                 )}
@@ -2664,28 +2902,28 @@ onClick={() => {
       )}
 
       {/* Portal Tooltip */}
-{hoveredTab && createPortal(
-  <div
-    className="fixed z-[99999] px-3 py-2 text-xs rounded shadow-lg bg-probestack-bg border border-dark-700 pointer-events-none"
-    style={{
-      left: hoveredTab.left,
-      top: hoveredTab.top,
-      transform: 'translateX(-50%)',
-      color: 'var(--color-text-primary)',
-    }}
-  >
-    <div className="font-semibold mb-1">{hoveredTab.name}</div>
-    {hoveredTab.url && (
-      <div className="text-gray-400 textxs break-all max-w-[250px]">
-        {hoveredTab.url}
-      </div>
-    )}
-    <div 
-      className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 rotate-45 bg-probestack-bg border-t border-l border-dark-700"
-    ></div>
-  </div>,
-  document.body
-)}
+      {hoveredTab && createPortal(
+        <div
+          className="fixed z-[99999] px-3 py-2 text-xs rounded shadow-lg bg-probestack-bg border border-dark-700 pointer-events-none"
+          style={{
+            left: hoveredTab.left,
+            top: hoveredTab.top,
+            transform: 'translateX(-50%)',
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          <div className="font-semibold mb-1">{hoveredTab.name}</div>
+          {hoveredTab.url && (
+            <div className="text-gray-400 textxs break-all max-w-[250px]">
+              {hoveredTab.url}
+            </div>
+          )}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 rotate-45 bg-probestack-bg border-t border-l border-dark-700"
+          ></div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

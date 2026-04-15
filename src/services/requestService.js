@@ -131,11 +131,34 @@ export const executeRequest = (id, data) =>
   requestApi.post(`${BASE}/${id}/execute`, data);
 
 /**
+ * POST /api/v1/requests/{id}/execute-multipart
+ * Execute request with actual file uploads (multipart/form-data)
+ * Files are sent as multipart parts where part name = form-data key
+ * @param {string} id - UUID of the request
+ * @param {FormData} formData - FormData object with files and optional environmentId
+ * @returns {Promise} Axios response with ExecutionResult
+ */
+export const executeRequestWithFiles = (id, formData) =>
+  requestApi.post(`${BASE}/${id}/execute-multipart`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+/**
  * POST /requests/execute?collectionId={collectionId}
  * Execute all requests in a collection
  */
 export const executeCollection = (collectionId) =>
   requestApi.post(`${BASE}/execute?collectionId=${collectionId}`);
+
+/**
+ * POST /api/v1/requests/{id}/save-sse-execution
+ * Save SSE execution result to history without re-executing
+ * @param {string} id - UUID of the request
+ * @param {Object} executionData - { url, method, status_code, status_text, response_time_ms, response_size_bytes, response_body, is_success }
+ * @returns {Promise} Axios response with saved ExecutionResult (includes history_id)
+ */
+export const saveSseExecution = (id, executionData) =>
+  requestApi.post(`${BASE}/${id}/save-sse-execution`, executionData);
 
 /**
  * GET /api/v1/requests/{id}/history
@@ -259,6 +282,15 @@ export const saveResponseFromHistory = (requestId, historyId, name) =>
     name: name || undefined,
   });
 
+/**
+ * GET /api/v1/requests/{id}/saved-responses/{responseId}
+ * Get a single saved response with resolved externalized bodies
+ * @param {string} requestId - UUID of the parent request
+ * @param {string} responseId - UUID of the saved response
+ */
+export const fetchSavedResponse = (requestId, responseId) =>
+  requestApi.get(`${BASE}/${requestId}/saved-responses/${responseId}`);
+
   /**
  * PATCH /api/v1/requests/{id}/saved-responses/{responseId}
  * Update the name of a saved response
@@ -277,3 +309,55 @@ export const updateSavedResponseName = (requestId, responseId, name) =>
  */
 export const deleteSavedResponse = (requestId, responseId) =>
   requestApi.delete(`${BASE}/${requestId}/saved-responses/${responseId}`);
+
+// ==================== SHARE LINK APIs ====================
+
+/**
+ * POST /api/v1/requests/{id}/share
+ * Create a shareable link for a request (Postman-style Copy Link)
+ * @param {string} requestId - UUID of the request to share
+ * @param {Object} data - optional { expires_at: "ISO date" } (null = never expires)
+ * @returns {Promise} ShareLinkResponse with share_url
+ */
+export const createShareLink = (requestId, data = {}) =>
+  requestApi.post(`${BASE}/${requestId}/share`, data);
+
+/**
+ * GET /api/v1/requests/{id}/share
+ * Get all active share links for a request
+ * @param {string} requestId - UUID of the request
+ * @returns {Promise} Array of ShareLinkResponse
+ */
+export const getShareLinks = (requestId) =>
+  requestApi.get(`${BASE}/${requestId}/share`);
+
+/**
+ * DELETE /api/v1/requests/{id}/share/{shareId}
+ * Revoke (deactivate) a share link
+ * @param {string} requestId - UUID of the request
+ * @param {string} shareId - UUID of the share link to revoke
+ */
+export const revokeShareLink = (requestId, shareId) =>
+  requestApi.delete(`${BASE}/${requestId}/share/${shareId}`);
+
+/**
+ * GET /api/v1/requests/shared/{workspaceId}/request/{requestId}?token=...
+ * Access a shared request via Postman-style URL
+ * @param {string} workspaceId - workspace UUID from share URL
+ * @param {string} requestId - request UUID from share URL
+ * @param {string} token - share token from URL
+ * @returns {Promise} SharedRequestResponse with request, share_info, collection_name, workspace_name
+ */
+export const accessSharedRequest = (workspaceId, requestId, token) =>
+  requestApi.get(`${BASE}/shared/${workspaceId}/request/${requestId}`, {
+    params: { token, action: 'share', source: 'copy-link' },
+  });
+
+/**
+ * GET /api/v1/requests/shared/token/{shareToken}
+ * Access a shared request by token only (simplified)
+ * @param {string} shareToken - the share token
+ * @returns {Promise} SharedRequestResponse
+ */
+export const accessSharedRequestByToken = (shareToken) =>
+  requestApi.get(`${BASE}/shared/token/${shareToken}`);

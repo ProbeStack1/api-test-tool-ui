@@ -1,25 +1,14 @@
-import { dashboardApi } from '../lib/apiClient'; // adjust import based on your actual dashboardApi location
+import { dashboardApi } from '../lib/apiClient';
 
 const DASHBOARD_BASE = '/api/v1/dashboard/summary';
 
-/**
- * Normalize dashboard summary response
- */
 const normalizeDashboardSummary = (data) => ({
   userId: data.userId,
-  summary: data.summary,            // { collections, requests, environments }
-  modules: data.modules,             // { mockServers, workspaces, testSpecs, libraryItems, ... }
+  summary: data.summary,
+  modules: data.modules,
   lastUpdated: data.lastUpdated,
 });
 
-/**
- * Fetch dashboard summary for the authenticated user.
- * The X-User-Id header should be automatically added by the dashboardApi interceptor.
- *
- * @param {string[]} [modules] - optional array of module names to include (e.g., ['mockServers', 'testSpecs']).
- *                                If omitted, all available modules are returned.
- * @returns {Promise<Object>} normalized dashboard summary object.
- */
 export const getDashboardSummary = (modules = []) => {
   const params = modules.length ? { modules: modules.join(',') } : {};
   return dashboardApi
@@ -27,54 +16,35 @@ export const getDashboardSummary = (modules = []) => {
     .then((res) => normalizeDashboardSummary(res.data));
 };
 
-// ----------------------------------------------------------------------
-// Convenience helpers to extract specific counts (optional)
-// ----------------------------------------------------------------------
+export const getTotalCollections = (d) =>
+  d?.summary?.collections?.total ?? 0;
 
-/**
- * Get total collections from dashboard summary.
- */
-export const getTotalCollections = (dashboardData) =>
-  dashboardData?.summary?.collections?.total ?? 0;
+export const getTotalFolders = (d) =>
+  d?.summary?.collections?.totalFolders ?? 0;
 
-/**
- * Get total folders from dashboard summary.
- */
-export const getTotalFolders = (dashboardData) =>
-  dashboardData?.summary?.collections?.totalFolders ?? 0;
+export const getTotalRequests = (d) =>
+  d?.summary?.requests?.total ?? 0;
 
-/**
- * Get total requests from dashboard summary.
- */
-export const getTotalRequests = (dashboardData) =>
-  dashboardData?.summary?.requests?.total ?? 0;
+export const getRequestsByMethod = (d) =>
+  d?.summary?.requests?.byMethod ?? {};
 
-/**
- * Get request breakdown by method.
- */
-export const getRequestsByMethod = (dashboardData) =>
-  dashboardData?.summary?.requests?.byMethod ?? {};
+export const getTotalEnvironments = (d) =>
+  d?.summary?.environments?.total ?? 0;
 
-/**
- * Get total environments.
- */
-export const getTotalEnvironments = (dashboardData) =>
-  dashboardData?.summary?.environments?.total ?? 0;
+export const getActiveEnvironments = (d) =>
+  d?.summary?.environments?.active ?? 0;
 
-/**
- * Get active environments.
- */
-export const getActiveEnvironments = (dashboardData) =>
-  dashboardData?.summary?.environments?.active ?? 0;
+export const getModuleCount = (d, moduleName) =>
+  d?.modules?.[moduleName]?.count ?? 0;
 
-/**
- * Get count from a specific module (e.g., 'mockServers', 'workspaces', 'testSpecs', 'libraryItems').
- */
-export const getModuleCount = (dashboardData, moduleName) =>
-  dashboardData?.modules?.[moduleName]?.count ?? 0;
+export const getModuleDetails = (d, moduleName) =>
+  d?.modules?.[moduleName]?.details ?? {};
 
-/**
- * Get additional details from a module.
- */
-export const getModuleDetails = (dashboardData, moduleName) =>
-  dashboardData?.modules?.[moduleName]?.details ?? {};
+export const getRequestTypeBreakdown = (d) => {
+  const details = d?.modules?.requestTypes?.details ?? {};
+  const http = details.http ?? {};
+  const mcp = details.mcp ?? {};
+  const httpTotal = Object.values(http).reduce((sum, v) => sum + v, 0);
+  const mcpTotal = Object.values(mcp).reduce((sum, v) => sum + v, 0);
+  return { http, mcp, httpTotal, mcpTotal };
+};

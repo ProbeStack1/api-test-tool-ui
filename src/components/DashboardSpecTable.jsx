@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { 
-  Loader2, Building2, ChevronLeft, ChevronRight, Search, Activity, 
-  Zap, CheckCircle, Server, Variable, Columns, ChevronDown, ChevronUp, 
-  Folder, FileCode, TestTube, Check, Calendar, AlertCircle, ChevronsRight,
-  BarChart3, Hash, ListChecks,
-  XCircle
+  Loader2, ChevronLeft, ChevronRight, Search, Activity, 
+  Zap, CheckCircle, Variable, Columns, ChevronDown, ChevronUp, 
+  Folder, FileCode, Check, Calendar, AlertCircle, ChevronsRight,
+  BarChart3, Hash, ListChecks, XCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
-import { listTestSpecs } from '../services/testSpecificationService';
-import { listTestCases } from '../services/testSpecificationService';
-import { getDashboardSummary, getTotalCollections, getTotalRequests, getModuleCount, getTotalEnvironments } from '../services/deshboardService';
+import { listTestSpecs, listTestCases } from '../services/testSpecificationService';
+import {
+  getDashboardSummary, getTotalCollections, getTotalFolders, getTotalRequests,
+  getModuleCount, getModuleDetails, getTotalEnvironments, getActiveEnvironments,
+  getRequestTypeBreakdown
+} from '../services/deshboardService';
 import CollectionRunsTable from './CollectionRunsTable';
 import LoadTestRunsTable from './LoadTestRunsTable';
 import ActivityChart from './dashboard/ActivityChart';
@@ -23,19 +25,104 @@ import PerformanceScore from './dashboard/PerformanceScore';
 import ThroughputPulse from './dashboard/ThroughputPulse';
 import MethodCards from './dashboard/MethodStats';
 
+/* ── Fallback when API is down ────────────────────────────────── */
 const DUMMY_DASHBOARD_DATA = {
-  modules: {
-    testSpecs: { count: 12 },
-    libraryItems: { count: 8 },
-    mockServers: { count: 4 },
-    environments: { count: 6 },
+  summary: {
+    collections: { total: 0, totalFolders: 0 },
+    requests: { total: 0, byMethod: {} },
+    environments: { total: 0, active: 0 },
   },
-  collections: { total: 24 },
-  requests: { total: 156 },
+  modules: {
+    collectionTypes: { count: 0, details: {} },
+    functionalTestRuns: { count: 0, details: {} },
+    loadTestRuns: { count: 0, details: {} },
+    scheduledRuns: { count: 0, details: {} },
+    requestTypes: { count: 0, details: { http: {}, mcp: {} } },
+  },
 };
 
 const DUMMY_SPECS = [];
 
+/* ── Method pill colours ──────────────────────────────────────── */
+const METHOD_PILL = {
+  GET:     'text-green-400  bg-green-400/10',
+  POST:    'text-blue-400   bg-blue-400/10',
+  PUT:     'text-yellow-400 bg-yellow-400/10',
+  DELETE:  'text-red-400    bg-red-400/10',
+  PATCH:   'text-purple-400 bg-purple-400/10',
+  HEAD:    'text-gray-400   bg-gray-400/10',
+  OPTIONS: 'text-orange-400 bg-orange-400/10',
+};
+
+/* ── Metric Card ──────────────────────────────────────────────── */
+function MetricCard({ m }) {
+  const barTotal = m.proportionBar?.reduce((s, x) => s + x.value, 0) ?? 0;
+  return (
+    <div
+      data-testid={`metric-card-${m.label.toLowerCase().replace(/\s+/g, '-')}`}
+      className="bg-dark-800/40 border border-dark-700 rounded-lg p-4 hover:bg-dark-800/60 hover:border-l-[3px] transition-all border-l-[3px]"
+      style={{ borderLeftColor: m.accentHex }}
+    >
+      {/* header with icon on right */}
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-sm font-bold uppercase tracking-wider text-gray-500">{m.label}</span>
+        <div className={clsx('p-1.5 rounded-md', m.iconBg)}>
+          <m.icon className={clsx('w-5.5 h-5.5', m.iconColor)} />
+        </div>
+      </div>
+
+      {/* value */}
+      <div className="text-2xl font-bold text-white tabular-nums">{m.value}</div>
+      <div className="text-sm text-gray-500 mt-0.5">{m.subtitle}</div>
+
+      {/* tags (simple key→value pills) */}
+      {m.tags?.length > 0 && (
+        <div className="mt-3 pt-2.5 border-t border-dark-700/50 flex flex-wrap gap-1.5">
+          {m.tags.map((t, i) => (
+            <span key={i} className={clsx('inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded', t.colorClass)}>
+              {t.label} <span className="opacity-70 font-normal">{t.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* sections — for Requests card with HTTP / MCP nested methods */}
+      {m.sections?.filter(s => s.total > 0).length > 0 && (
+        <div className="mt-3 pt-2.5 border-t border-dark-700/50 space-y-2.5">
+          {m.sections.filter(s => s.total > 0).map((s, i) => (
+            <div key={i}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded', s.titleColor)}>{s.title}</span>
+                <span className="text-[11px] text-gray-400 font-mono">{s.total}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(s.methods)
+                  .filter(([, v]) => v > 0)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([method, count]) => (
+                    <span key={method} className={clsx('text-[9px] font-mono px-1.5 py-0.5 rounded', METHOD_PILL[method] || 'text-gray-400 bg-dark-700/60')}>
+                      {method} {count}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* proportion bar */}
+      {barTotal > 0 && (
+        <div className="w-full h-1 rounded-full bg-dark-700/40 overflow-hidden flex mt-2.5">
+          {m.proportionBar.filter(s => s.value > 0).map((seg, i) => (
+            <div key={i} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(seg.value / barTotal) * 100}%`, backgroundColor: seg.hex }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================ */
 export default function DashboardSpecTable({ 
   projects, 
   workspaceRuns, 
@@ -58,7 +145,7 @@ export default function DashboardSpecTable({
   const [loadingTestCases, setLoadingTestCases] = useState({});
   const [expandedDetailsSpecId, setExpandedDetailsSpecId] = useState(null);
 
-  // Column visibility – rich set
+  // Column visibility
   const [columnVisibilityOpen, setColumnVisibilityOpen] = useState(false);
   const columnVisibilityRef = useRef(null);
   const buttonRef = useRef(null);
@@ -207,19 +294,110 @@ export default function DashboardSpecTable({
     }
   };
 
+  /* ── Metrics from dashboard API ─────────────────────────────── */
   const metricsData = useMemo(() => {
     if (!dashboardData) return [];
+
+    const colDetails   = getModuleDetails(dashboardData, 'collectionTypes');
+    const funcDetails  = getModuleDetails(dashboardData, 'functionalTestRuns');
+    const loadDetails  = getModuleDetails(dashboardData, 'loadTestRuns');
+    const schedDetails = getModuleDetails(dashboardData, 'scheduledRuns');
+    const reqBreak     = getRequestTypeBreakdown(dashboardData);
+
     return [
-      { label: 'Specifications', value: getModuleCount(dashboardData, 'testSpecs').toString(), change: 'total specifications', icon: Activity, color: 'text-blue-400', bgColor: 'bg-blue-400/10' },
-      { label: 'Collections', value: getTotalCollections(dashboardData).toString(), change: 'total collections', icon: Folder, color: 'text-indigo-400', bgColor: 'bg-indigo-400/10' },
-      { label: 'Requests', value: getTotalRequests(dashboardData).toString(), change: 'total requests', icon: FileCode, color: 'text-cyan-400', bgColor: 'bg-cyan-400/10' },
-      { label: 'Test Cases', value: (loadTestRuns?.length || 0).toString(), change: 'total load test runs', icon: TestTube, color: 'text-pink-400', bgColor: 'bg-pink-400/10' },
-      { label: 'Load Testing', value: getModuleCount(dashboardData, 'libraryItems').toString(), change: 'test files', icon: Zap, color: 'text-purple-400', bgColor: 'bg-purple-400/10' },
-      { label: 'Functional Testing', value: getModuleCount(dashboardData, 'testSpecs').toString(), change: 'collections', icon: CheckCircle, color: 'text-green-400', bgColor: 'bg-green-400/10' },
-      { label: 'Mocked Services', value: getModuleCount(dashboardData, 'mockServers').toString(), change: 'active mocks', icon: Server, color: 'text-amber-400', bgColor: 'bg-amber-400/10' },
-      { label: 'Variables', value: getTotalEnvironments(dashboardData).toString(), change: 'environments', icon: Variable, color: 'text-teal-400', bgColor: 'bg-teal-400/10' },
+      {
+        label: 'Collections',
+        value: getTotalCollections(dashboardData),
+        subtitle: `${getTotalFolders(dashboardData)} folders`,
+        icon: Folder,
+        iconColor: 'text-indigo-400',
+        iconBg: 'bg-indigo-400/10',
+        accentHex: '#818cf8',
+        tags: Object.entries(colDetails).filter(([, v]) => v > 0).map(([k, v]) => ({
+          label: k.toUpperCase(),
+          value: v,
+          colorClass: k === 'http' ? 'text-cyan-400 bg-cyan-400/10' : 'text-amber-400 bg-amber-400/10',
+        })),
+        proportionBar: [
+          { value: colDetails.http ?? 0, hex: '#22d3ee' },
+          { value: colDetails.mcp ?? 0, hex: '#fbbf24' },
+        ],
+      },
+      {
+        label: 'Requests',
+        value: getTotalRequests(dashboardData),
+        subtitle: 'total requests',
+        icon: FileCode,
+        iconColor: 'text-cyan-400',
+        iconBg: 'bg-cyan-400/10',
+        accentHex: '#22d3ee',
+        sections: [
+          { title: 'HTTP', titleColor: 'text-cyan-400 bg-cyan-400/10', total: reqBreak.httpTotal, methods: reqBreak.http },
+          { title: 'MCP', titleColor: 'text-amber-400 bg-amber-400/10', total: reqBreak.mcpTotal, methods: reqBreak.mcp },
+        ],
+        proportionBar: [
+          { value: reqBreak.httpTotal, hex: '#22d3ee' },
+          { value: reqBreak.mcpTotal, hex: '#fbbf24' },
+        ],
+      },
+      {
+        label: 'Functional Runs',
+        value: getModuleCount(dashboardData, 'functionalTestRuns'),
+        subtitle: `${funcDetails.completed ?? 0} completed`,
+        icon: CheckCircle,
+        iconColor: 'text-green-400',
+        iconBg: 'bg-green-400/10',
+        accentHex: '#4ade80',
+        tags: Object.entries(funcDetails).filter(([, v]) => v > 0).map(([k, v]) => ({
+          label: k.charAt(0).toUpperCase() + k.slice(1),
+          value: v,
+          colorClass: k === 'completed' ? 'text-green-400 bg-green-400/10' : k === 'failed' ? 'text-red-400 bg-red-400/10' : 'text-gray-400 bg-gray-400/10',
+        })),
+      },
+      {
+        label: 'Load Tests',
+        value: getModuleCount(dashboardData, 'loadTestRuns'),
+        subtitle: `${loadDetails.passed ?? 0} passed, ${loadDetails.failed ?? 0} failed`,
+        icon: Zap,
+        iconColor: 'text-purple-400',
+        iconBg: 'bg-purple-400/10',
+        accentHex: '#c084fc',
+        tags: Object.entries(loadDetails).filter(([, v]) => v > 0).map(([k, v]) => ({
+          label: k.charAt(0).toUpperCase() + k.slice(1),
+          value: v,
+          colorClass: k === 'passed' ? 'text-green-400 bg-green-400/10' : k === 'failed' ? 'text-red-400 bg-red-400/10' : 'text-gray-400 bg-gray-400/10',
+        })),
+        proportionBar: [
+          { value: loadDetails.passed ?? 0, hex: '#4ade80' },
+          { value: loadDetails.failed ?? 0, hex: '#f87171' },
+        ],
+      },
+      {
+        label: 'Scheduled Runs',
+        value: getModuleCount(dashboardData, 'scheduledRuns'),
+        subtitle: `${schedDetails.active ?? 0} active`,
+        icon: Calendar,
+        iconColor: 'text-blue-400',
+        iconBg: 'bg-blue-400/10',
+        accentHex: '#60a5fa',
+        tags: Object.entries(schedDetails).filter(([, v]) => v > 0).map(([k, v]) => ({
+          label: k.charAt(0).toUpperCase() + k.slice(1),
+          value: v,
+          colorClass: k === 'active' ? 'text-green-400 bg-green-400/10' : k === 'paused' ? 'text-yellow-400 bg-yellow-400/10' : 'text-gray-400 bg-gray-400/10',
+        })),
+      },
+      {
+        label: 'Environments',
+        value: getTotalEnvironments(dashboardData),
+        subtitle: `${getActiveEnvironments(dashboardData)} active`,
+        icon: Variable,
+        iconColor: 'text-teal-400',
+        iconBg: 'bg-teal-400/10',
+        accentHex: '#2dd4bf',
+        tags: [],
+      },
     ];
-  }, [dashboardData, loadTestRuns]);
+  }, [dashboardData]);
 
   const tableRows = useMemo(() => {
     return specs.map((spec) => ({
@@ -265,17 +443,20 @@ export default function DashboardSpecTable({
     setExpandedDetailsSpecId(expandedDetailsSpecId === specId ? null : specId);
   };
 
+  /* ── Skeletons ──────────────────────────────────────────────── */
   const MetricsSkeleton = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {[...Array(8)].map((_, i) => (
-        <div key={i} className="bg-dark-800/50 border border-dark-700 rounded-xl p-4 animate-pulse">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="h-3 bg-dark-600 rounded w-20 mb-2"></div>
-              <div className="h-7 bg-dark-600 rounded w-12 mb-1"></div>
-              <div className="h-3 bg-dark-600 rounded w-24"></div>
-            </div>
-            <div className="w-9 h-9 bg-dark-600 rounded-lg"></div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="bg-dark-800/40 border border-dark-700 rounded-lg p-4 animate-pulse border-l-[3px] border-l-dark-600">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 bg-dark-600 rounded-md" />
+            <div className="h-3 bg-dark-600 rounded w-20" />
+          </div>
+          <div className="h-7 bg-dark-600 rounded w-12 mb-1" />
+          <div className="h-3 bg-dark-600 rounded w-24" />
+          <div className="mt-3 pt-2.5 border-t border-dark-700/50 flex gap-2">
+            <div className="h-4 bg-dark-600 rounded w-14" />
+            <div className="h-4 bg-dark-600 rounded w-14" />
           </div>
         </div>
       ))}
@@ -289,7 +470,7 @@ export default function DashboardSpecTable({
           <thead>
             <tr className="bg-dark-700/60 border-b border-dark-700">
               {Array(cols).fill(null).map((_, i) => (
-                <th key={i} className="px-8 py-4"><div className="h-3 bg-dark-600 rounded w-20"></div></th>
+                <th key={i} className="px-8 py-4"><div className="h-3 bg-dark-600 rounded w-20" /></th>
               ))}
             </tr>
           </thead>
@@ -297,7 +478,7 @@ export default function DashboardSpecTable({
             {[...Array(3)].map((_, i) => (
               <tr key={i} className="border-b border-dark-700">
                 {Array(cols).fill(null).map((_, j) => (
-                  <td key={j} className="px-8 py-4"><div className="h-4 bg-dark-600/50 rounded w-24"></div></td>
+                  <td key={j} className="px-8 py-4"><div className="h-4 bg-dark-600/50 rounded w-24" /></td>
                 ))}
               </tr>
             ))}
@@ -356,7 +537,7 @@ export default function DashboardSpecTable({
           {tc.requestBodySample && (
             <div className="mt-2">
               <button onClick={() => setShowReq(v => !v)} className="text-xs text-blue-400 hover:text-blue-300">
-                {showReq ? '▼' : '▶'} Request Sample
+                {showReq ? '\u25BC' : '\u25B6'} Request Sample
               </button>
               {showReq && (
                 <pre className="mt-1.5 text-xs bg-dark-900 p-2 rounded overflow-auto max-h-40 font-mono text-gray-300">
@@ -368,7 +549,7 @@ export default function DashboardSpecTable({
           {tc.responseSample && (
             <div className="mt-2">
               <button onClick={() => setShowRes(v => !v)} className="text-xs text-green-400 hover:text-green-300">
-                {showRes ? '▼' : '▶'} Response Sample
+                {showRes ? '\u25BC' : '\u25B6'} Response Sample
               </button>
               {showRes && (
                 <pre className="mt-1.5 text-xs bg-dark-900 p-2 rounded overflow-auto max-h-40 font-mono text-gray-300">
@@ -401,6 +582,7 @@ export default function DashboardSpecTable({
     return breakdown;
   };
 
+  /* ================================================================ */
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-probestack-bg">
       <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50">
@@ -420,66 +602,55 @@ export default function DashboardSpecTable({
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        {/* Metrics Cards */}
+        {/* ── Metric Cards ────────────────────────────────────── */}
         <div className="mb-6">
           {loadingDashboard ? <MetricsSkeleton /> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {metricsData.map((metric, index) => (
-                <div key={index} className="bg-dark-700/20 border border-dark-700 rounded-xl p-4 hover:border-primary/50 transition-all">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{metric.label}</div>
-                      <div className="text-2xl font-bold text-white mb-1">{metric.value}</div>
-                      <div className="text-xs font-medium text-green-400">{metric.change}</div>
-                    </div>
-                    <div className={`p-2 rounded-lg ${metric.bgColor} ${metric.color}`}>
-                      <metric.icon className="h-5 w-5" />
-                    </div>
-                  </div>
-                </div>
+                <MetricCard key={index} m={metric} />
               ))}
             </div>
           )}
         </div>
 
-        {/* Charts Section  */}
-{/* Row 1 */}
-<div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-  <div className="lg:col-span-2">
-    <ActivityChart workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} />
-  </div>
-  <div className="lg:col-span-1">
-    <StatusRing workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} />
-  </div>
-</div>
+        {/* ── Charts ──────────────────────────────────────────── */}
+        {/* Row 1 */}
+        <div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <ActivityChart workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} />
+          </div>
+          <div className="lg:col-span-1">
+            <StatusRing workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} />
+          </div>
+        </div>
 
-{/* Row 2 */}
-<div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-  <div className="lg:col-span-1">
-    <PerformanceScore workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} />
-  </div>
-  <div className="lg:col-span-2">
-    <LatencyChart loadTestRuns={loadTestRuns} />
-  </div>
-</div>
+        {/* Row 2 */}
+        <div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-1">
+            <PerformanceScore workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} />
+          </div>
+          <div className="lg:col-span-2">
+            <LatencyChart loadTestRuns={loadTestRuns} />
+          </div>
+        </div>
 
-{/* Row 3 */}
-<div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-  <MethodCards dashboardData={dashboardData} workspaceRuns={workspaceRuns} />
-  <ThroughputPulse loadTestRuns={loadTestRuns} />
-</div>
+        {/* Row 3 */}
+        <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <MethodCards dashboardData={dashboardData} workspaceRuns={workspaceRuns} />
+          <ThroughputPulse loadTestRuns={loadTestRuns} />
+        </div>
 
-        {/* Recent Collection Runs */}
+        {/* ── Recent Collection Runs ──────────────────────────── */}
         <div className="mt-8">
           <CollectionRunsTable runs={workspaceRuns} onViewDetails={onViewRunResults} loading={loadingRuns} />
         </div>
 
-        {/* Recent Load Test Runs */}
+        {/* ── Recent Load Test Runs ───────────────────────────── */}
         <div className="mt-8">
           {loadingLoadRuns ? <TableSkeleton cols={6} /> : <LoadTestRunsTable runs={loadTestRuns || []} onViewDetails={onViewLoadTestRun} />}
         </div>
 
-        {/* Specifications Table */}
+        {/* ── Specifications Table ────────────────────────────── */}
         <div className="mt-8">
           <div className="border border-dark-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between bg-probestack-bg">
@@ -599,7 +770,6 @@ export default function DashboardSpecTable({
                                       <>
                                         <div className="bg-dark-800/40 rounded-xl p-5 border border-dark-700">
                                           <div className="flex flex-wrap items-center justify-between gap-4">
-                                            {/* Left side: Total count */}
                                             <div className="flex items-center gap-3">
                                               <div className="p-2 rounded-lg bg-primary/10">
                                                 <Hash className="w-5 h-5 text-primary" />
@@ -609,11 +779,7 @@ export default function DashboardSpecTable({
                                                 <div className="text-2xl font-bold text-white">{testCaseList.length}</div>
                                               </div>
                                             </div>
-
-                                            {/* Divider */}
                                             <div className="h-10 w-px bg-dark-600 hidden sm:block" />
-
-                                            {/* Method breakdown grid */}
                                             <div className="flex flex-wrap gap-4">
                                               {Object.entries(methodBreakdown).filter(([_, count]) => count > 0).map(([method, count]) => {
                                                 let colorClass = '';
@@ -636,8 +802,6 @@ export default function DashboardSpecTable({
                                                 );
                                               })}
                                             </div>
-
-                                            {/* View Details button */}
                                             <button
                                               onClick={(e) => toggleDetails(item.id, e)}
                                               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors border border-primary/30"

@@ -1068,7 +1068,8 @@ const fetchAllRuns = useCallback(async () => {
   try {
     const res = await listRunHistory(0, 50);
     const runs = Array.isArray(res.data) ? res.data : (res.data?.content ?? []);
-    const sorted = [...runs].sort((a, b) =>
+    const filtered = runs.filter(r => r.workspaceId === activeWorkspaceId);
+    const sorted = [...filtered].sort((a, b) =>
       new Date(b.startedAt ?? b.createdAt ?? 0) - new Date(a.startedAt ?? a.createdAt ?? 0)
     );
     setWorkspaceRuns(sorted);
@@ -1085,12 +1086,14 @@ useEffect(() => {
 // Fetch load test runs from the load test service (global history)
 useEffect(() => {
   const fetchLoadTestRuns = async () => {
+    if (!activeWorkspaceId) return;
     setLoadingLoadRuns(true);
     try {
-      const response = await listLoadTestHistory(0, 100); // get up to 100 recent runs
+      const response = await listLoadTestHistory(0, 100);
       const runs = Array.isArray(response.data) ? response.data : (response.data?.content ?? []);
-      runs.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-      setLoadTestRuns(runs);
+      const filtered = runs.filter(r => r.workspaceId === activeWorkspaceId);
+      filtered.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+      setLoadTestRuns(filtered);
     } catch (err) {
       console.error('Failed to fetch load test runs:', err);
     } finally {
@@ -1098,7 +1101,7 @@ useEffect(() => {
     }
   };
   fetchLoadTestRuns();
-}, []); // runs once on mount
+}, [activeWorkspaceId]);
 
  
 const [activeRequestIndex, setActiveRequestIndex] = useState(0);
@@ -3501,6 +3504,7 @@ isLoading={currentRequest?.isLoading}
                 substituteVariables={substituteVariables}
                 collectionRunResults={collectionRunResults}
                 onRunCollection={handleRunCollection}
+                onFunctionalRunComplete={() => { fetchAllRuns(); }} 
                 testFiles={testFiles}
                 onTestFilesChange={setTestFiles}
                 mockApis={mockApis}

@@ -1,6 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Download, ChevronDown, Loader2, X, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
+import { toast } from 'sonner';
+import { downloadHtmlReport, downloadJsonReport, downloadJUnitReport, triggerDownload } from '../../services/functionalTestService';
 
 /* ── Status Strip (thin pass/fail bar) ───────────────────────── */
 function StatusStrip({ passed, failed, skipped = 0 }) {
@@ -236,13 +238,28 @@ export default function CollectionRunResultsView({ results, onClose }) {
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
   const [statusFilter, setStatusFilter] = useState('all');
+  const [exportFormat, setExportFormat] = useState('json');
+  const [exporting, setExporting] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!results) return null;
 
   const {
     collectionName, source, iterations, duration, totalRequests, passed, failed,
     skipped = 0, errors, avgResponseTime, totalAssertions = 0, passedAssertions = 0,
-    failedAssertions = 0, errorMessage = null, results: requestResults = [],
+    failedAssertions = 0, errorMessage = null, results: requestResults = [],runId,
   } = results;
 
   const filteredResults = requestResults.filter(result => {
@@ -257,10 +274,82 @@ export default function CollectionRunResultsView({ results, onClose }) {
     return true;
   });
 
+  const handleExport = async () => {
+    if (!runId) {
+      toast.error('Run ID not available');
+      return;
+    }
+    setExporting(true);
+    try {
+      let res;
+      const ext = { json: '.json', html: '.html', junit: '.xml' };
+      if (exportFormat === 'json') res = await downloadJsonReport(runId);
+      else if (exportFormat === 'html') res = await downloadHtmlReport(runId);
+      else res = await downloadJUnitReport(runId);
+      triggerDownload(res.data, `report-${runId}${ext[exportFormat]}`);
+      toast.success(`${exportFormat.toUpperCase()} report downloaded`);
+    } catch (err) {
+      toast.error('Download failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const formatLabel = exportFormat === 'json' ? 'JSON' : exportFormat === 'html' ? 'HTML' : 'JUnit';
+
+
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-dark-800/80 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto space-y-8">
 
+        {/* Header with Close and Export buttons */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white">Run Results: {collectionName}</h2>
+          <div className="flex items-center gap-3">
+            {/* Export Dropdown + Button */}
+            <div className="relative flex items-center" ref={dropdownRef}>
+              <button
+                onClick={handleExport}
+                disabled={!runId || exporting}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium bg-primary/20 text-primary rounded-l-lg border border-primary/30 hover:bg-primary/30 transition-colors disabled:opacity-50"
+              >
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Export ({formatLabel})
+              </button>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-2 py-2 bg-primary/20 border-l-0 border border-primary/30 rounded-r-lg hover:bg-primary/30 transition-colors"
+              >
+                <ChevronDown className={clsx('w-4 h-4 text-primary transition-transform', dropdownOpen && 'rotate-180')} />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-32 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-10">
+                  {['json', 'html', 'junit'].map((fmt) => (
+                    <button
+                      key={fmt}
+                      onClick={() => {
+                        setExportFormat(fmt);
+                        setDropdownOpen(false);
+                      }}
+                      className={clsx(
+                        'w-full text-left px-3 py-2 text-sm hover:bg-dark-700 transition-colors',
+                        exportFormat === fmt ? 'text-primary bg-primary/10' : 'text-gray-300'
+                      )}
+                    >
+                      {fmt.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
         {/* Summary Card */}
         <div className="rounded-xl border border-dark-700 bg-dark-800/40 p-6">
           <div className="flex items-center justify-between mb-5">

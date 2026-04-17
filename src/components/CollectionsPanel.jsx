@@ -498,10 +498,7 @@ function NewFolderModal({ isOpen, onClose, onCreate, parentItem }) {
   );
 }
 
-function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProject, fileName }) {
-  const [selectedWorkspace, setSelectedWorkspace] = useState('');
-  const [isAddingNewWorkspace, setIsAddingNewWorkspace] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, activeWorkspaceId, fileName }) {
   const modalRef = useRef(null);
 
   useEffect(() => {
@@ -513,30 +510,15 @@ function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProjec
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedWorkspace(projects[0]?.id || '');
-      setIsAddingNewWorkspace(false);
-      setNewWorkspaceName('');
-    }
-  }, [isOpen, projects]);
-
   if (!isOpen) return null;
 
-  const handleImport = () => {
-    const workspace = projects.find(p => p.id === selectedWorkspace);
-    if (!workspace) return;
-    onImport(workspace.id, workspace.name);
-    onClose();
-  };
+  const currentProject = projects.find(p => p.id === activeWorkspaceId);
+  const hasProject = !!currentProject;
 
-  const handleAddNewWorkspace = () => {
-    if (newWorkspaceName.trim()) {
-      const newWorkspace = onAddProject(newWorkspaceName.trim());
-      setSelectedWorkspace(newWorkspace.id);
-      setIsAddingNewWorkspace(false);
-      setNewWorkspaceName('');
-    }
+  const handleImport = () => {
+    if (!hasProject) return;
+    onImport(currentProject.id, currentProject.name);
+    onClose();
   };
 
   return (
@@ -577,56 +559,13 @@ function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProjec
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Import to Project
             </label>
-            {!isAddingNewWorkspace ? (
-              <div className="space-y-2">
-                <select
-                  value={selectedWorkspace}
-                  onChange={(e) => setSelectedWorkspace(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                  {projects.map((ws) => (
-                    <option key={ws.id} value={ws.id}>
-                      {ws.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingNewWorkspace(true)}
-                  className="text-sm text-primary hover:underline"
-                >
-                  + Create new project
-                </button>
+            {!hasProject ? (
+              <div className="text-sm text-red-400 bg-red-500/10 p-2 rounded border border-red-500/30">
+                No project selected. Please select a project first.
               </div>
             ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
-                  placeholder="New project name"
-                  className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddNewWorkspace();
-                  }}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleAddNewWorkspace}
-                    className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90"
-                  >
-                    Create
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingNewWorkspace(false)}
-                    className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                </div>
+              <div className="text-sm text-gray-300 bg-dark-800/60 p-2 rounded border border-dark-700">
+                {currentProject.name}
               </div>
             )}
           </div>
@@ -643,7 +582,7 @@ function ImportWorkspaceModal({ isOpen, onClose, onImport, projects, onAddProjec
           <button
             type="button"
             onClick={handleImport}
-            disabled={!selectedWorkspace}
+            disabled={!hasProject}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Import
@@ -680,7 +619,7 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
     { id: 'run-collection', label: 'Run Collection', icon: Play },
     { id: 'add-request', label: 'Add Request', icon: FilePlus },
     { id: 'add-folder', label: 'Add Folder', icon: FolderPlus },
-    { id: 'save', label: 'Save', icon: Save },
+    // { id: 'save', label: 'Save', icon: Save },
     { id: 'share', label: 'Share', icon: Share2 },
     { id: 'rename', label: 'Rename', icon: Edit3 },
     { id: 'clone', label: 'Clone', icon: Copy },
@@ -788,6 +727,18 @@ export default function CollectionsPanel({
   const [showImportWorkspaceModal, setShowImportWorkspaceModal] = useState(false);
   const [importFileData, setImportFileData] = useState(null);
   const [expandedSavedResponses, setExpandedSavedResponses] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const confirmRef = useRef(null);
+
+  useEffect(() => {
+  const handleClickOutsideConfirm = (e) => {
+    if (deleteConfirm && !confirmRef.current?.contains(e.target)) {
+      setDeleteConfirm(null);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutsideConfirm);
+  return () => document.removeEventListener('mousedown', handleClickOutsideConfirm);
+}, [deleteConfirm]);
 
   // Filter collections by workspace and type
   const workspaceCollections = useMemo(() => {
@@ -1278,7 +1229,19 @@ export default function CollectionsPanel({
     } else {
       toast.info('Share is currently supported for individual requests only.');
     }
-  } else if (actionId === 'delete') {
+  }  else if (actionId === 'delete') {
+  setDeleteConfirm({
+    item: item,
+    type: item.nodeType === 'collection' ? 'collection' : item.type,
+    x: contextMenu.x,
+    y: contextMenu.y
+  });
+}
+  };
+
+  const handleDeleteConfirmed = async () => {
+  if (!deleteConfirm) return;
+  const item = deleteConfirm.item;
   const loadingToast = toast.loading(`Deleting ${item.type}...`);
 
   let apiCall;
@@ -1289,7 +1252,7 @@ export default function CollectionsPanel({
 
   try {
     await apiCall;
-    // Remove from UI only after successful API call
+    // Remove from UI
     const removeItemById = (items, id) => {
       for (let i = 0; i < items.length; i++) {
         if (items[i].id === id) {
@@ -1306,9 +1269,10 @@ export default function CollectionsPanel({
     toast.success(`Deleted ${item.type} successfully`, { id: loadingToast });
   } catch (err) {
     toast.error(err.response?.data?.message || err.message || 'Failed to delete item', { id: loadingToast });
+  } finally {
+    setDeleteConfirm(null);
   }
-}
-  };
+};
 
 const handleCreateCollection = async (name, description, workspaceId, workspaceName) => {
   if (!workspaceId) {
@@ -1887,7 +1851,7 @@ const handleCreateFolder = async (name) => {
       const newCollection = {
         id: collectionId,
         name: finalName,
-        type: 'collection',
+        type: collectionType,
         project: workspaceId,
         projectName: workspaceName,
         items,
@@ -2065,7 +2029,35 @@ const handleCreateFolder = async (name) => {
         projects={projects}
         onAddProject={onAddProject}
         fileName={importFileData?.fileName}
+        activeWorkspaceId={activeWorkspaceId} 
       />
+
+      {deleteConfirm && (
+  <div
+    ref={confirmRef}
+    className="fixed z-50 min-w-[180px] p-3 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+    style={{ left: deleteConfirm.x, top: deleteConfirm.y }}
+  >
+    <p className="text-xs text-gray-300 mb-3">
+      Delete this {deleteConfirm.type}? This action cannot be undone.
+    </p>
+    <div className="flex justify-end gap-2">
+      <button
+        onClick={() => setDeleteConfirm(null)}
+        className="px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handleDeleteConfirmed}
+        className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+      >
+        Delete
+      </button>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

@@ -552,10 +552,24 @@ function formatBody(data) {
 }
 
 /* ── Inline Result View ──────────────────────────────────────── */
-function InlineResultView({ result, onClose }) {
+function InlineResultView({ result, onClose, runId }) {
   const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
   const [statusFilter, setStatusFilter] = useState('all');
+  const [exportFormat, setExportFormat] = useState('json'); // 'json', 'html', 'junit'
+  const [exporting, setExporting] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+   useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!result) return null;
 
@@ -578,17 +592,79 @@ function InlineResultView({ result, onClose }) {
 
   const MC_INLINE = { GET: 'text-green-400', POST: 'text-yellow-400', PUT: 'text-blue-400', DELETE: 'text-[#ff0000]', PATCH: 'text-purple-400' };
 
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden" data-testid="inline-result-view">
-      <div className="flex items-center justify-between px-6 py-3 border-b border-dark-700 bg-dark-900/40 shrink-0">
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-[#00ff5e]" />
-          <h2 className="text-sm font-semibold text-white">Run Complete</h2>
+  // Export handlers
+  const handleExport = async () => {
+    if (!runId) {
+      toast.error('Run ID not available');
+      return;
+    }
+    setExporting(true);
+    try {
+      let res;
+      const ext = { json: '.json', html: '.html', junit: '.xml' };
+      if (exportFormat === 'json') res = await downloadJsonReport(runId);
+      else if (exportFormat === 'html') res = await downloadHtmlReport(runId);
+      else res = await downloadJUnitReport(runId);
+      triggerDownload(res.data, `report-${runId}${ext[exportFormat]}`);
+      toast.success(`${exportFormat.toUpperCase()} report downloaded`);
+    } catch (err) {
+      toast.error('Download failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const formatLabel = exportFormat === 'json' ? 'JSON' : exportFormat === 'html' ? 'HTML' : 'JUnit';
+
+return (
+  <div className="flex-1 flex flex-col overflow-hidden" data-testid="inline-result-view">
+    <div className="flex items-center justify-between px-6 py-3 border-b border-dark-700 bg-dark-900/40 shrink-0">
+      <div className="flex items-center gap-3">
+        <CheckCircle2 className="w-5 h-5 text-[#00ff5e]" />
+        <h2 className="text-sm font-semibold text-white">Run Complete</h2>
+      </div>
+      <div className="flex items-center gap-3">
+        {/* Export Dropdown + Button */}
+        <div className="relative flex items-center" ref={dropdownRef}>
+          <button
+            onClick={handleExport}
+            disabled={!runId || exporting}
+            className="flex items-center cursor-pointer gap-1.5 px-4 py-1.5 text-sm font-medium bg-primary/20 text-primary rounded-l-lg border border-primary/30 hover:bg-primary/30 transition-colors disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Export ({formatLabel})
+          </button>
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="px-2 py-2 cursor-pointer bg-primary/20 border-l-0 border border-primary/30 rounded-r-lg hover:bg-primary/30 transition-colors"
+          >
+            <ChevronDown className={clsx('w-4 h-4 text-primary transition-transform', dropdownOpen && 'rotate-180')} />
+          </button>
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full mt-1 w-32 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-10">
+              {['json', 'html', 'junit'].map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => {
+                    setExportFormat(fmt);
+                    setDropdownOpen(false);
+                  }}
+                  className={clsx(
+                    'w-full text-left px-3 py-2 text-sm hover:bg-dark-700 transition-colors',
+                    exportFormat === fmt ? 'text-primary bg-primary/10' : 'text-gray-300'
+                  )}
+                >
+                  {fmt.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-dark-700 rounded-lg hover:bg-dark-700/50 transition-colors" data-testid="close-results-btn">
+        <button onClick={onClose} className="flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-dark-700 rounded-lg hover:bg-dark-700/50 transition-colors" data-testid="close-results-btn">
           <X className="w-4 h-4" /> Back to Config
         </button>
       </div>
+    </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-dark-800/80 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto space-y-8">
@@ -763,7 +839,17 @@ function ReportDownloader() {
 /* ═══════════════════════════════════════════════════════════════
    ██  MAIN PANEL
    ═══════════════════════════════════════════════════════════════ */
-export default function FunctionalTestPanel({ collections = [], activeWorkspaceId, onRunComplete, testFiles = [] }) {
+export default function FunctionalTestPanel({ 
+  collections = [], 
+  activeWorkspaceId, 
+  onRunComplete, 
+  testFiles = [],
+  // New props:
+  functionalRunPhase = 'config',
+  functionalRunResult = null,
+  onStartFunctionalRun,
+  onResetFunctionalRun,
+}) {
   const [sourceMode, setSourceMode] = useState('workspace');
   const [selectedId, setSelectedId] = useState(null);
   const [collPath, setCollPath] = useState('');
@@ -792,12 +878,6 @@ export default function FunctionalTestPanel({ collections = [], activeWorkspaceI
   const [isUploadingGcs, setIsUploadingGcs] = useState(false);
   const fileRef = useRef(null);
 
-  // Phase: 'config' | 'running' | 'results'
-  const [phase, setPhase] = useState('config');
-  const [runResultData, setRunResultData] = useState(null);
-  const activeRunId = useRef(null);
-  const pollRef = useRef(null);
-
   // schedule states
   const [schedules, setSchedules] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
@@ -807,27 +887,6 @@ export default function FunctionalTestPanel({ collections = [], activeWorkspaceI
 
   const wsCols = useMemo(() => collections.filter(c => c.project === activeWorkspaceId), [collections, activeWorkspaceId]);
   const isWorkspaceActive = sourceMode === 'workspace' && (!!selectedId || !!parsed);
-
-  /* ── Polling for running phase ─────────────────────────────── */
-  useEffect(() => {
-    if (phase !== 'running' || !activeRunId.current) return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const { data } = await getRunStatus(activeRunId.current);
-        if (cancelled) return;
-        if (data.status === 'DONE' || data.status === 'FAILED') {
-          handleRunComplete(data);
-        } else {
-          pollRef.current = setTimeout(poll, 1500);
-        }
-      } catch {
-        if (!cancelled) pollRef.current = setTimeout(poll, 2000);
-      }
-    };
-    poll();
-    return () => { cancelled = true; clearTimeout(pollRef.current); };
-  }, [phase]);
 
   /* ── actions ───────────────────────────────────────────────── */
   const clearAll = () => {
@@ -909,101 +968,33 @@ export default function FunctionalTestPanel({ collections = [], activeWorkspaceI
     finally { setIsGenTests(false); }
   };
 
-  const startRun = async () => {
-    if (!collPath || isRunning) return;
-    setIsRunning(true);
-    try {
-      const selectedTestCases = tcData?.testCases?.filter(tc => includedTcIds.includes(tc.id)) || [];
-      const res = await startFunctionalRun(collPath, {
-        collectionName: parsed?.collectionName || '',
-        workspaceId: activeWorkspaceId,
-        source: 'MANUAL',
-        iterations: iter, delayMs: delay, timeoutMs: timeout, bail, insecure,
-        folder: folder || null, environmentPath: envPath || null,
-        includedTestCases: selectedTestCases,
-      });
-      activeRunId.current = res.data.runId;
-      setPhase('running');
-    } catch (e) { toast.error('Run failed: ' + (e.response?.data?.message || e.message)); }
-    finally { setIsRunning(false); }
-  };
-
-  const handleRunComplete = (data) => {
-    const result = data?.result;
-    if (!result) {
-      setPhase('config');
-      activeRunId.current = null;
-      if (data?.status === 'FAILED') toast.error('Run failed');
-      return;
-    }
-
-    const total = result.totalRequests || 0;
-    const passed = result.passedRequests || 0;
-    const failed = result.failedRequests || 0;
-
-    if (data?.status === 'DONE') {
-      toast.success(`Run complete: ${passed}/${total} passed, ${failed} failed`);
-    } else {
-      toast.error('Run failed');
-    }
-
-    // Map results to CollectionRunResultsView-compatible format
-    const mappedRequests = (result.results || []).map((r, idx) => {
-      const hdrsToArr = (m) => m ? Object.entries(m).map(([key, value]) => ({ key, value })) : [];
-      return {
-        requestId: 'req-' + idx,
-        requestName: r.itemName || r.name || '',
-        method: r.method || '',
-        url: r.url || '',
-        status: r.statusCode || 0,
-        statusText: r.statusText || '',
-        time: Math.round(r.responseTimeMs || 0),
-        size: r.responseSizeBytes || 0,
-        success: r.passed !== undefined ? r.passed : (r.statusCode >= 200 && r.statusCode < 300),
-        passed: r.passed,
-        skipped: r.skipped || false,
-        error: r.error || null,
-        assertions: r.assertions || [],
-        fullDetails: {
-          request_headers: hdrsToArr(r.requestHeaders),
-          request_body: r.requestBody || null,
-          response_headers: hdrsToArr(r.responseHeaders),
-          response_body: r.responseBody || '',
-        },
-      };
-    });
-
-    const totalAssertions = mappedRequests.reduce((s, r) => s + (r.assertions?.length || 0), 0);
-    const passedAssertions = mappedRequests.reduce((s, r) => s + (r.assertions?.filter(a => a.passed)?.length || 0), 0);
-    const avgResponseTime = total > 0 ? Math.round((result.totalTimeMs || 0) / total) : 0;
-
-    setRunResultData({
-      collectionName: parsed?.collectionName || result.collectionName || 'Functional Test Run',
+const startRun = async () => {
+  if (!collPath || isRunning) return;
+  setIsRunning(true);
+  try {
+    const selectedTestCases = tcData?.testCases?.filter(tc => includedTcIds.includes(tc.id)) || [];
+    const res = await startFunctionalRun(collPath, {
+      collectionName: parsed?.collectionName || '',
+      workspaceId: activeWorkspaceId,
       source: 'MANUAL',
-      iterations: iter,
-      duration: result.totalTimeMs || 0,
-      totalRequests: total,
-      passed,
-      failed,
-      skipped: result.skippedRequests || 0,
-      errors: failed,
-      avgResponseTime,
-      totalAssertions,
-      passedAssertions,
-      failedAssertions: totalAssertions - passedAssertions,
-      results: mappedRequests,
+      iterations: iter, delayMs: delay, timeoutMs: timeout, bail, insecure,
+      folder: folder || null, environmentPath: envPath || null,
+      includedTestCases: selectedTestCases,
     });
-    setPhase('results');
-    activeRunId.current = null;
+    const runId = res.data.runId;
+    if (onStartFunctionalRun) onStartFunctionalRun(runId);
+  } catch (e) {
+    toast.error('Run failed: ' + (e.response?.data?.message || e.message));
+  } finally {
+    setIsRunning(false);
+  }
+};
 
-    // Notify parent to refresh dashboard data immediately
-    if (onRunComplete) onRunComplete();
-  };
 
-  const handleCloseResults = () => {
-    setPhase('config');
-    setRunResultData(null);
-  };
+
+const handleCloseResults = () => {
+  if (onResetFunctionalRun) onResetFunctionalRun();
+};
 
   // ── Schedule actions ──
   const loadSchedules = async () => {
@@ -1064,13 +1055,19 @@ export default function FunctionalTestPanel({ collections = [], activeWorkspaceI
     <div className="flex-1 flex flex-col overflow-hidden" data-testid="functional-test-panel">
 
       {/* RUNNING PHASE */}
-      {phase === 'running' && <RunSkeleton />}
+      {functionalRunPhase === 'running' && <RunSkeleton />}
 
       {/* RESULTS PHASE */}
-      {phase === 'results' && <InlineResultView result={runResultData} onClose={handleCloseResults} />}
+      {functionalRunPhase === 'results' && functionalRunResult && (
+  <InlineResultView 
+  result={functionalRunResult} 
+  onClose={handleCloseResults} 
+  runId={functionalRunResult.runId} 
+  />
+)}
 
       {/* CONFIG PHASE */}
-      {phase === 'config' && (
+      {functionalRunPhase === 'config' && (
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="max-w-5xl mx-auto p-6 space-y-5">
 

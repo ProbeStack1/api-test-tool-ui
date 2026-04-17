@@ -56,33 +56,7 @@ const CARD_ANIM_STYLES = `
 .scroll-reveal.revealed { opacity: 1; transform: translateY(0); }
 `;
 
-/* ── Scroll reveal hook ───────────────────────────────────────── */
-function useScrollReveal() {
-  const ref = useRef(null);
-  const [revealed, setRevealed] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setRevealed(true); observer.disconnect(); } },
-      { threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return { ref, revealed };
-}
 
-/* ── Scroll reveal row wrapper ────────────────────────────────── */
-function RevealRow({ children, className, delay = 0 }) {
-  const { ref, revealed } = useScrollReveal();
-  return (
-    <div ref={ref} className={clsx('scroll-reveal', revealed && 'revealed', className)}
-      style={{ transitionDelay: `${delay}ms` }}>
-      {children}
-    </div>
-  );
-}
 
 /* ── Background cube SVG (right top corner) ───────────────────── */
 function BgCube() {
@@ -463,7 +437,7 @@ export default function DashboardSpecTable({
           {loadingDashboard ? <MetricsSkeleton /> : dashboardData ? (
             <>
               {/* ── ROW 1: Collections + Requests (2 cards) ───── */}
-              <RevealRow className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4" delay={0}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
 
                 {/* Collections */}
                 <div data-testid="metric-card-collections" className="dash-card relative overflow-hidden bg-dark-800/40 border border-dark-700 rounded-xl p-5 transition-all duration-200 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5 flex flex-col">
@@ -520,10 +494,10 @@ export default function DashboardSpecTable({
                     </div>
                   </div>
                 </div>
-              </RevealRow>
+              </div>
 
               {/* ── ROW 2: Functional + Load + Scheduled (equal height) ── */}
-              <RevealRow className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4" delay={100}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4" >
 
                 {/* Functional Runs */}
                 <div data-testid="metric-card-functional-runs" className={cardCls} style={{ borderLeftColor: '#4ade80' }}>
@@ -605,10 +579,10 @@ export default function DashboardSpecTable({
                     )}
                   </div>
                 </div>
-              </RevealRow>
+              </div>
 
               {/* ── ROW 3: Mock Servers + Test Specs + Environments (equal height) ── */}
-              <RevealRow className="grid grid-cols-1 lg:grid-cols-3 gap-4" delay={200}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" >
 
                 {/* Mock Servers */}
                 <div data-testid="metric-card-mock-servers" className={cardCls} style={{ borderLeftColor: '#fb923c' }}>
@@ -654,48 +628,48 @@ export default function DashboardSpecTable({
                   </div>
                   <div className="text-sm text-gray-500"><span className="text-teal-400 font-medium">{getActiveEnvironments(dashboardData)}</span> active</div>
                 </div>
-              </RevealRow>
+              </div>
             </>
           ) : null}
         </div>
 
         {/* ── Charts Section ──────────────────────────────────── */}
-        <RevealRow className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4" delay={300}>
+        <div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4" >
         {/* <div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4"> */}
           <div className="lg:col-span-2"><ActivityChart workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} /></div>
           <div className="lg:col-span-1"><StatusRing workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} /></div>
         {/* </div> */}
-        </RevealRow>
+        </div>
 
-<RevealRow className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4" delay={400}>
+<div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4" >
         {/* <div className="mb-4 grid grid-cols-1 lg:grid-cols-3 gap-4"> */}
           <div className="lg:col-span-1"><PerformanceScore workspaceRuns={workspaceRuns} loadTestRuns={loadTestRuns} /></div>
           <div className="lg:col-span-2"><LatencyChart loadTestRuns={loadTestRuns} /></div>
         {/* </div> */}
-        </RevealRow>
+        </div>
 
-        <RevealRow className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4" delay={500}>
+        <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4" >
         {/* <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4"> */}
           <MethodCards dashboardData={dashboardData} workspaceRuns={workspaceRuns} />
           <ThroughputPulse loadTestRuns={loadTestRuns} />
         {/* </div> */}
-          </RevealRow>
+          </div>
         {/* ── Recent Collection Runs ──────────────────────────── */}
-        <RevealRow className="mt-8" delay={600}>
+        <div className="mt-8" >
         {/* <div className="mt-8"> */}
           {loadingLoadRuns ? <TableSkeleton cols={6} /> :<CollectionRunsTable runs={workspaceRuns} onViewDetails={onViewRunResults} loading={loadingRuns} />}
           {/* </div> */}
-          </RevealRow>
+          </div>
 
         {/* ── Recent Load Test Runs ───────────────────────────── */}
-        <RevealRow className="mt-8" delay={700}>
+        <div className="mt-8">
         {/* <div className="mt-8"> */}
           {loadingLoadRuns ? <TableSkeleton cols={6} /> : <LoadTestRunsTable runs={loadTestRuns || []} onViewDetails={onViewLoadTestRun} />}
           {/* </div> */}
-          </RevealRow>
+          </div>
 
         {/* ── Specifications Table ────────────────────────────── */}
-        <RevealRow className="mt-8" delay={800}>
+        <div className="mt-8">
         {/* <div className="mt-8"> */}
           <div className="border border-dark-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between bg-probestack-bg">
@@ -855,7 +829,7 @@ export default function DashboardSpecTable({
             )}
           </div>
         {/* </div> */}
-        </RevealRow>
+        </div>
       </div>
     </div>
   );

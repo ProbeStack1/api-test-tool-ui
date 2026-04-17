@@ -23,6 +23,7 @@ import { uploadCollection as uploadFunctionalCollection } from '../services/func
 import { uploadCollection as uploadLoadCollection } from '../services/loadTestService';
 import SpecLibraryPanel from './sidebar/SpecLibraryPanel';
 import FunctionalTestPanel from './FunctionalTestPanel';
+import { getRunStatus } from '../services/functionalTestService';
 import { fetchRequestHistory ,saveResponseFromHistory,  updateSavedResponseName,  deleteSavedResponse, } from '../services/requestService';
 import { toast } from 'sonner';
 import MCPPanel from './sidebar/MCPPanel';
@@ -157,6 +158,11 @@ const [mcpTestResult, setMcpTestResult] = useState(null);
 const [mcpTesting, setMcpTesting] = useState(false);
 
 const [refreshCollectionsKey, setRefreshCollectionsKey] = useState(0);
+
+const [functionalRunPhase, setFunctionalRunPhase] = useState('config'); // 'config', 'running', 'results'
+const [functionalRunId, setFunctionalRunId] = useState(null);
+const [functionalRunResult, setFunctionalRunResult] = useState(null);
+const functionalPollRef = useRef(null);
 
 const handleSaveResponse = useCallback(async (requestId, historyId, customName) => {
   if (!requestId || !historyId) {
@@ -307,19 +313,19 @@ const handleViewLoadTestResults = (run) => {
     return;
   }
 
-  // First navigate to the Collections view
+  // First, navigate to Collections to ensure we are in the correct context
   navigate('/workspace/collections');
 
-  // After a short delay, add the tab (ensures the context has switched)
+  // Wait for the context to switch and tabs to load
   setTimeout(() => {
     // Check if a tab with this loadTestId already exists
-    const existingTabIndex = requests.findIndex(
+    const existingIndex = requests.findIndex(
       tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
     );
-
-    if (existingTabIndex !== -1) {
-      onTabSelect(existingTabIndex);
+    if (existingIndex !== -1) {
+      onTabSelect(existingIndex);
     } else {
+      // Create a new results tab
       const resultsTab = {
         id: `load-test-results-${loadTestId}-${Date.now()}`,
         type: 'load-test-results',
@@ -328,7 +334,7 @@ const handleViewLoadTestResults = (run) => {
       };
       onNewTab(resultsTab);
     }
-  }, 100);
+  }, 300); // 300ms is enough for the context switch and IndexedDB load
 };
 
 
@@ -351,6 +357,83 @@ useEffect(() => {
     setSelectedLoadCollectionId(workspaceCollections[0].id);
   }
 }, [workspaceCollections]);
+
+useEffect(() => {
+  if (functionalRunPhase !== 'running' || !functionalRunId) return;
+  let cancelled = false;
+  const poll = async () => {
+    try {
+      const { data } = await getRunStatus(functionalRunId);
+      if (cancelled) return;
+      if (data.status === 'DONE' || data.status === 'FAILED') {
+        const result = data?.result;
+        if (result) {
+          // Map results to same format as CollectionRunResultsView
+          const mappedRequests = (result.results || []).map((r, idx) => {
+            const hdrsToArr = (m) => m ? Object.entries(m).map(([key, value]) => ({ key, value })) : [];
+            return {
+              requestId: `req-${idx}`,
+              requestName: r.itemName || r.name || '',
+              method: r.method || '',
+              url: r.url || '',
+              status: r.statusCode || 0,
+              statusText: r.statusText || '',
+              time: Math.round(r.responseTimeMs || 0),
+              size: r.responseSizeBytes || 0,
+              success: r.passed !== undefined ? r.passed : (r.statusCode >= 200 && r.statusCode < 300),
+              passed: r.passed,
+              skipped: r.skipped || false,
+              error: r.error || null,
+              assertions: r.assertions || [],
+              fullDetails: {
+                request_headers: hdrsToArr(r.requestHeaders),
+                request_body: r.requestBody || null,
+                response_headers: hdrsToArr(r.responseHeaders),
+                response_body: r.responseBody || '',
+              },
+            };
+          });
+          const totalAssertions = mappedRequests.reduce((s, r) => s + (r.assertions?.length || 0), 0);
+          const passedAssertions = mappedRequests.reduce((s, r) => s + (r.assertions?.filter(a => a.passed)?.length || 0), 0);
+          const avgResponseTime = result.totalRequests > 0 ? Math.round((result.totalTimeMs || 0) / result.totalRequests) : 0;
+          const runResultData = {
+            runId: functionalRunId, 
+            collectionName: result.collectionName || 'Functional Test Run',
+            source: 'MANUAL',
+            iterations: 1, // iterations can be stored in state if needed
+            duration: result.totalTimeMs || 0,
+            totalRequests: result.totalRequests || 0,
+            passed: result.passedRequests || 0,
+            failed: result.failedRequests || 0,
+            skipped: result.skippedRequests || 0,
+            errors: result.failedRequests || 0,
+            avgResponseTime,
+            totalAssertions,
+            passedAssertions,
+            failedAssertions: totalAssertions - passedAssertions,
+            results: mappedRequests,
+          };
+          setFunctionalRunResult(runResultData);
+          setFunctionalRunPhase('results');
+          toast.success(`Run complete: ${runResultData.passed}/${runResultData.totalRequests} passed`);
+        } else {
+          setFunctionalRunPhase('config');
+          toast.error('Run failed');
+        }
+        setFunctionalRunId(null);
+        return;
+      }
+      functionalPollRef.current = setTimeout(poll, 1500);
+    } catch (err) {
+      if (!cancelled) functionalPollRef.current = setTimeout(poll, 2000);
+    }
+  };
+  poll();
+  return () => {
+    cancelled = true;
+    clearTimeout(functionalPollRef.current);
+  };
+}, [functionalRunPhase, functionalRunId]);
 
 const handleShowLoadTestResults = (loadTestId) => {
   // Check if a tab with this loadTestId already exists
@@ -1567,456 +1650,469 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
       {/* Main Content Area - Forgeq layout (flex-1 min-h-0 so footer stays at bottom) */}
       <main className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         {/* Left sidebar - Forgeq w-72, background-light/30 */}
-<aside
-  className={clsx(
-    'border-r border-dark-700 flex flex-col bg-dark-800/30 flex-shrink-0 overflow-hidden',
-    sidebarCollapsed ? 'w-0' : ''
-  )}
-  style={!sidebarCollapsed ? { width: sidebarWidth } : {}}
->
-          <div className="px-3 py-1 border-b border-dark-700/50 flex items-center justify-between shrink-0">
-<h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-  {topMenuActive === 'testing'
-    ? 'Testing'
-    : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
-</h2>
-            {!sidebarCollapsed && (
-              <button
-                onClick={() => setSidebarCollapsed(true)}
-                className="p-1.5 rounded-lg transition-colors text-gray-500 hover:text-white hover:bg-dark-700/50"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 flex flex-col">
-            {topMenuActive === 'collections' && (
-              <div className="flex-1 min-h-0 flex flex-col">
-<CollectionsPanel 
-  onSelectEndpoint={onSelectEndpoint}
-  existingTabRequests={requests}
-  projects={projects}
-  onAddProject={onAddProject}
-  onCollectionsChange={onCollectionsChange} 
-  onRunCollection={onRunCollection}
-  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
-  currentUserId={currentUserId}
-  activeWorkspaceId={activeWorkspaceId} 
-  onOpenCollectionRun={onOpenCollectionRun}
-  selectedRequestId={currentRequest?.id}
-        collectionType="http"
-  collections={collections}
-  onOpenSavedResponse={handleOpenSavedResponse}
-  onUpdateSavedResponseName={updateSavedResponseName}
-  onDeleteSavedResponse={deleteSavedResponse} 
-  activeSavedResponseId={currentRequest?.id?.startsWith('saved-') ? currentRequest.id : null}
-/>
-              </div>
-            )}
-
-{topMenuActive === 'history' && (
-  <div className="flex-1 flex flex-col p-4">
-    {/* Sticky dropdown */}
-    <div className="sticky top-0 z-10 mb-4 bg-dark-800/90 backdrop-blur-sm rounded-lg">
-      <HistoryTypeDropdown
-        value={selectedHistoryType}
-        onChange={setSelectedHistoryType}
-        options={[
-          { id: 'request', label: 'Request' },
-          { id: 'functional', label: 'Functional Test' },
-          { id: 'load', label: 'Load Test' },
-          { id: 'tracing', label: 'Tracing' },
-        ]}
-      />
-    </div>
-    {/* Scrollable history items */}
-    <div className="flex-1 overflow-y-auto custom-scrollbar">
-      {selectedHistoryType === 'request' && (
-        <HistoryItemList
-          items={history}
-          loading={false}
-          onItemClick={handleHistoryItemClick}
-          getTooltipContent={getRequestTooltipContent}
-          groupByDate
-          onDeleteHistoryItem={onDeleteHistoryItem}
-          onDeleteGroup={handleDeleteGroup}
-        />
+{topMenuActive !== 'dashboard' && (
+  <>
+    <aside
+      className={clsx(
+        'border-r border-dark-700 flex flex-col bg-dark-800/30 flex-shrink-0 overflow-hidden',
+        sidebarCollapsed ? 'w-0' : ''
       )}
-      {selectedHistoryType === 'functional' && (
-        <HistoryItemList
-          items={workspaceRuns}
-          loading={loadingRuns}
-          onItemClick={(run) => onViewRunResults(run, false)} 
-          getTooltipContent={getFunctionalTooltipContent}
-          groupByDate
-        />
-      )}
-      {selectedHistoryType === 'load' && (
-        <HistoryItemList
-          items={loadTestRuns}
-          loading={loadingLoadRuns}
-          onItemClick={handleViewLoadTestResults}
-          getTooltipContent={getLoadTooltipContent}
-          groupByDate
-        />
-      )}
-      {selectedHistoryType === 'tracing' && (
-        <div className="text-center py-8 text-gray-500 text-xs">
-          Tracing history coming soon.
-        </div>
-      )}
-    </div>
-  </div>
-)}
-
-            {topMenuActive === 'environments' && (
-  <EnvironmentList
-    environments={environments}
-    selectedEnvironment={selectedEnvironment}
-    onEnvironmentChange={onEnvironmentChange}
-    variablesScope={variablesScope}
-    setVariablesScope={setVariablesScope}
-    variablesSavedMessage={variablesSavedMessage}
-    showVariablesSaved={showVariablesSaved}
-    onSaveEnvironmentVariables={onSaveEnvironmentVariables}
-    onSaveGlobalVariables={onSaveGlobalVariables}
-    onCreateEnvironment={onCreateEnvironment}
-    onActivateEnvironment={onActivateEnvironment}
-    onRenameEnvironment={onRenameEnvironment}
-    onDeleteEnvironment={onDeleteEnvironment}
-    environmentVariablesDirty={environmentVariablesDirty}
-        globalEnvironment={globalEnvironment} 
-    globalVariablesDirty={globalVariablesDirty}
-    onGlobalVariablesChange={onGlobalVariablesChange} 
-  />
-)}
-{topMenuActive === 'testing' && (
-  <div className="flex-1 flex flex-col p-4">
-    <div className="space-y-3.5">
-      {testingSubTabs.map((tab) => {
-        const Icon = tab.icon;
-        return (
+      style={!sidebarCollapsed ? { width: sidebarWidth } : {}}
+    >
+      <div className="px-3 py-1 border-b border-dark-700/50 flex items-center justify-between shrink-0">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+          {topMenuActive === 'testing'
+            ? 'Testing'
+            : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
+        </h2>
+        {!sidebarCollapsed && (
           <button
-            key={tab.id}
-            type="button"
-            onClick={() => setTestingSubTab(tab.id)}
-            className={clsx(
-              'w-full flex items-center gap-2 text-left px-5 py-3 rounded-xl text-md font-medium transition-all border border-dark-600',
-              testingSubTab === tab.id
-                ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-dark-800 '
-            )}
+            onClick={() => setSidebarCollapsed(true)}
+            className="p-1.5 rounded-lg transition-colors text-gray-500 hover:text-white hover:bg-dark-700/50"
           >
-            <Icon className="w-4 h-4 shrink-0" />
-            <span>{tab.label}</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
-        );
-      })}
-    </div>
-  </div>
-)}
-{topMenuActive === 'mock-service' && (
-  <div className="flex-1 flex flex-col min-h-0">
-    {/* Create Mock Service Button */}
-    <div className="shrink-0 px-4 py-1.5 border-b border-dark-700/50">
-<button
-  type="button"
-  onClick={() => {
-    const newTab = {
-      id: `mock-wizard-${Date.now()}`,
-      type: 'mock-wizard',
-      name: 'New Mock Service',
-      step: 'config',
-      configData: null,
-      isEdit: false,
-    };
-    onNewTab(newTab);
-  }}
-  className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
->
-  <Plus className="w-4 h-4" />
-  Create Mock Service
-</button>
-    </div>
-
-    {/* Search */}
-    <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-        <input
-          type="text"
-          placeholder="Search mock servers..."
-          value={mockSearch}
-          onChange={(e) => setMockSearch(e.target.value)}
-          className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-        />
+        )}
       </div>
-    </div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 flex flex-col">
+        {topMenuActive === 'collections' && (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <CollectionsPanel 
+              onSelectEndpoint={onSelectEndpoint}
+              existingTabRequests={requests}
+              projects={projects}
+              onAddProject={onAddProject}
+              onCollectionsChange={onCollectionsChange} 
+              onRunCollection={onRunCollection}
+              onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+              currentUserId={currentUserId}
+              activeWorkspaceId={activeWorkspaceId} 
+              onOpenCollectionRun={onOpenCollectionRun}
+              selectedRequestId={currentRequest?.id}
+              collectionType="http"
+              collections={collections}
+              onOpenSavedResponse={handleOpenSavedResponse}
+              onUpdateSavedResponseName={updateSavedResponseName}
+              onDeleteSavedResponse={deleteSavedResponse} 
+              activeSavedResponseId={currentRequest?.id?.startsWith('saved-') ? currentRequest.id : null}
+            />
+          </div>
+        )}
 
-{/* Mock Servers Tree */}
-<div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
-  {mockServers && mockServers.length > 0 ? (
-    <div className="space-y-2">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Mocks</h3>
-      {mockServers.map((mock) => {
-        const isExpanded = expandedMockServers[mock.id];
-        const filteredEndpoints = mock.endpoints?.filter(ep =>
-          ep.path.toLowerCase().includes(mockSearch.toLowerCase()) ||
-          ep.method.toLowerCase().includes(mockSearch.toLowerCase())
-        ) || [];
-        const hasVisibleEndpoints = filteredEndpoints.length > 0;
-
-        const isActiveMock = selectedMockServerId === mock.id;
-
-        return (
-          <div key={mock.id} className="select-none">
-            {/* Mock Server Row */}
-            <div
-              className={clsx(
-                'flex items-center gap-1 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50',
-                isActiveMock && 'bg-primary/10 border-l-2 border-primary'
-              )}
-              onClick={() => setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }))}
-            >
-              {/* Expand/collapse chevron */}
-              <div
-                className="w-4 h-4 flex items-center justify-center shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }));
-                }}
-              >
-                {isExpanded ? (
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                ) : (
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-                )}
-              </div>
-
-              <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
-              {editingMockId === mock.id ? (
-                <input
-                  type="text"
-                  value={editingMockName}
-                  onChange={(e) => setEditingMockName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      onRenameMockServer(mock.id, editingMockName.trim());
-                      setEditingMockId(null);
-                      setEditingMockName('');
-                    } else if (e.key === 'Escape') {
-                      setEditingMockId(null);
-                      setEditingMockName('');
-                    }
-                  }}
-                  onBlur={() => {
-                    if (editingMockName.trim() && editingMockName !== mock.name) {
-                      onRenameMockServer(mock.id, editingMockName.trim());
-                    }
-                    setEditingMockId(null);
-                    setEditingMockName('');
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  autoFocus
-                  className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
+        {topMenuActive === 'history' && (
+          <div className="flex-1 flex flex-col p-4">
+            {/* Sticky dropdown */}
+            <div className="sticky top-0 z-10 mb-4 bg-dark-800/90 backdrop-blur-sm rounded-lg">
+              <HistoryTypeDropdown
+                value={selectedHistoryType}
+                onChange={setSelectedHistoryType}
+                options={[
+                  { id: 'request', label: 'Request' },
+                  { id: 'functional', label: 'Functional Test' },
+                  { id: 'load', label: 'Load Test' },
+                  { id: 'tracing', label: 'Tracing' },
+                ]}
+              />
+            </div>
+            {/* Scrollable history items */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {selectedHistoryType === 'request' && (
+                <HistoryItemList
+                  items={history}
+                  loading={false}
+                  onItemClick={handleHistoryItemClick}
+                  getTooltipContent={getRequestTooltipContent}
+                  groupByDate
+                  onDeleteHistoryItem={onDeleteHistoryItem}
+                  onDeleteGroup={handleDeleteGroup}
                 />
-              ) : (
-                <span className="text-xs font-medium text-gray-200 flex-1 truncate">{mock.name}</span>
               )}
-              <span className="text-[10px] text-gray-500">
-                {mock.endpoints?.length || 0} endpoint{(mock.endpoints?.length || 0) !== 1 ? 's' : ''}
-              </span>
+              {selectedHistoryType === 'functional' && (
+                <HistoryItemList
+                  items={workspaceRuns}
+                  loading={loadingRuns}
+                  onItemClick={(run) => onViewRunResults(run, false)} 
+                  getTooltipContent={getFunctionalTooltipContent}
+                  groupByDate
+                />
+              )}
+              {selectedHistoryType === 'load' && (
+                <HistoryItemList
+                  items={loadTestRuns}
+                  loading={loadingLoadRuns}
+                  onItemClick={handleViewLoadTestResults}
+                  getTooltipContent={getLoadTooltipContent}
+                  groupByDate
+                />
+              )}
+              {selectedHistoryType === 'tracing' && (
+                <div className="text-center py-8 text-gray-500 text-xs">
+                  Tracing history coming soon.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
+        {topMenuActive === 'environments' && (
+          <EnvironmentList
+            environments={environments}
+            selectedEnvironment={selectedEnvironment}
+            onEnvironmentChange={onEnvironmentChange}
+            variablesScope={variablesScope}
+            setVariablesScope={setVariablesScope}
+            variablesSavedMessage={variablesSavedMessage}
+            showVariablesSaved={showVariablesSaved}
+            onSaveEnvironmentVariables={onSaveEnvironmentVariables}
+            onSaveGlobalVariables={onSaveGlobalVariables}
+            onCreateEnvironment={onCreateEnvironment}
+            onActivateEnvironment={onActivateEnvironment}
+            onRenameEnvironment={onRenameEnvironment}
+            onDeleteEnvironment={onDeleteEnvironment}
+            environmentVariablesDirty={environmentVariablesDirty}
+            globalEnvironment={globalEnvironment} 
+            globalVariablesDirty={globalVariablesDirty}
+            onGlobalVariablesChange={onGlobalVariablesChange} 
+          />
+        )}
+
+        {topMenuActive === 'testing' && (
+          <div className="flex-1 flex flex-col p-4">
+            <div className="space-y-3.5">
+              {testingSubTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setTestingSubTab(tab.id)}
+                    className={clsx(
+                      'w-full flex items-center gap-2 text-left px-5 py-3 rounded-xl text-md font-medium transition-all border border-dark-600',
+                      testingSubTab === tab.id
+                        ? 'bg-primary/15 text-primary border border-primary/40 shadow-sm'
+                        : 'text-gray-400 hover:text-white hover:bg-dark-800 '
+                    )}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {topMenuActive === 'mock-service' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Create Mock Service Button */}
+            <div className="shrink-0 px-4 py-1.5 border-b border-dark-700/50">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMockMenu({ x: e.clientX, y: e.clientY, mock });
+                onClick={() => {
+                  const newTab = {
+                    id: `mock-wizard-${Date.now()}`,
+                    type: 'mock-wizard',
+                    name: 'New Mock Service',
+                    step: 'config',
+                    configData: null,
+                    isEdit: false,
+                  };
+                  onNewTab(newTab);
                 }}
-                className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
-                title="Actions"
+                className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-[var(--color-input-bg)] hover:bg-dark-700 text-gray-300 hover:text-white border border-dark-600 transition-colors"
               >
-                <MoreHorizontal className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
+                Create Mock Service
               </button>
             </div>
 
-            {/* Endpoints List */}
-            {isExpanded && hasVisibleEndpoints && (
-              <div className="ml-6 space-y-0.5 mt-0.5">
-                {filteredEndpoints.map((ep) => (
-<div
-  key={ep.id}
-  className={clsx(
-    'flex items-center gap-1 py-1 px-2 rounded-sm group cursor-pointer',
-    selectedMockEndpointId === ep.id
-      ? 'bg-primary/10 border-primary'          // selected: no hover class
-      : 'hover:bg-dark-700/30'                  // non‑selected: hover effect only
-  )}
-  onClick={() => onSelectMockEndpoint(mock, ep)}
->
-                    <span
-                      className={clsx(
-                        'text-[10px] font-bold w-9 text-right shrink-0',
-                        ep.method === 'GET' && 'text-green-400',
-                        ep.method === 'POST' && 'text-yellow-400',
-                        ep.method === 'PUT' && 'text-blue-400',
-                        ep.method === 'DELETE' && 'text-red-400',
-                        !['GET','POST','PUT','DELETE'].includes(ep.method) && 'text-purple-400'
-                      )}
-                    >
-                      {ep.method}
-                    </span>
-                    <span className="text-xs text-gray-300 truncate flex-1">{ep.path}</span>
-                    <span className="text-[10px] text-gray-500">{ep.responseStatus || 200}</span>
-                  </div>
-                ))}
+            {/* Search */}
+            <div className="shrink-0 px-3 py-2 border-b border-dark-700/50">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search mock servers..."
+                  value={mockSearch}
+                  onChange={(e) => setMockSearch(e.target.value)}
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-8 pr-3 py-2 text-xs text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              </div>
+            </div>
+
+            {/* Mock Servers Tree */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 min-h-0">
+              {mockServers && mockServers.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Available Mocks</h3>
+                  {mockServers.map((mock) => {
+                    const isExpanded = expandedMockServers[mock.id];
+                    const filteredEndpoints = mock.endpoints?.filter(ep =>
+                      ep.path.toLowerCase().includes(mockSearch.toLowerCase()) ||
+                      ep.method.toLowerCase().includes(mockSearch.toLowerCase())
+                    ) || [];
+                    const hasVisibleEndpoints = filteredEndpoints.length > 0;
+
+                    const isActiveMock = selectedMockServerId === mock.id;
+
+                    return (
+                      <div key={mock.id} className="select-none">
+                        {/* Mock Server Row */}
+                        <div
+                          className={clsx(
+                            'flex items-center gap-1 py-1.5 pr-2 rounded-md group cursor-pointer hover:bg-dark-700/50',
+                            isActiveMock && 'bg-primary/10 border-l-2 border-primary'
+                          )}
+                          onClick={() => setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }))}
+                        >
+                          {/* Expand/collapse chevron */}
+                          <div
+                            className="w-4 h-4 flex items-center justify-center shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedMockServers(prev => ({ ...prev, [mock.id]: !prev[mock.id] }));
+                            }}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+                            )}
+                          </div>
+
+                          <Folder className="w-4 h-4 shrink-0 text-amber-500/90" />
+                          {editingMockId === mock.id ? (
+                            <input
+                              type="text"
+                              value={editingMockName}
+                              onChange={(e) => setEditingMockName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  onRenameMockServer(mock.id, editingMockName.trim());
+                                  setEditingMockId(null);
+                                  setEditingMockName('');
+                                } else if (e.key === 'Escape') {
+                                  setEditingMockId(null);
+                                  setEditingMockName('');
+                                }
+                              }}
+                              onBlur={() => {
+                                if (editingMockName.trim() && editingMockName !== mock.name) {
+                                  onRenameMockServer(mock.id, editingMockName.trim());
+                                }
+                                setEditingMockId(null);
+                                setEditingMockName('');
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              className="w-full bg-dark-900 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          ) : (
+                            <span className="text-xs font-medium text-gray-200 flex-1 truncate">{mock.name}</span>
+                          )}
+                          <span className="text-[10px] text-gray-500">
+                            {mock.endpoints?.length || 0} endpoint{(mock.endpoints?.length || 0) !== 1 ? 's' : ''}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMockMenu({ x: e.clientX, y: e.clientY, mock });
+                            }}
+                            className="p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-white hover:bg-dark-600"
+                            title="Actions"
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Endpoints List */}
+                        {isExpanded && hasVisibleEndpoints && (
+                          <div className="ml-6 space-y-0.5 mt-0.5">
+                            {filteredEndpoints.map((ep) => (
+                              <div
+                                key={ep.id}
+                                className={clsx(
+                                  'flex items-center gap-1 py-1 px-2 rounded-sm group cursor-pointer',
+                                  selectedMockEndpointId === ep.id
+                                    ? 'bg-primary/10 border-primary'
+                                    : 'hover:bg-dark-700/30'
+                                )}
+                                onClick={() => onSelectMockEndpoint(mock, ep)}
+                              >
+                                <span
+                                  className={clsx(
+                                    'text-[10px] font-bold w-9 text-right shrink-0',
+                                    ep.method === 'GET' && 'text-green-400',
+                                    ep.method === 'POST' && 'text-yellow-400',
+                                    ep.method === 'PUT' && 'text-blue-400',
+                                    ep.method === 'DELETE' && 'text-red-400',
+                                    !['GET','POST','PUT','DELETE'].includes(ep.method) && 'text-purple-400'
+                                  )}
+                                >
+                                  {ep.method}
+                                </span>
+                                <span className="text-xs text-gray-300 truncate flex-1">{ep.path}</span>
+                                <span className="text-[10px] text-gray-500">{ep.responseStatus || 200}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 text-xs">
+                  No mock servers yet. Create one to get started.
+                </div>
+              )}
+            </div>
+
+            {/* Mock Menu (Delete, Rename, Toggle) */}
+            {mockMenu && (
+              <div
+                className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl mock-menu"
+                style={{ left: mockMenu.x, top: mockMenu.y }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleRunMockServer(mockMenu.mock);
+                    setMockMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+                >
+                  <Play className="w-4 h-4" />
+                  Run
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingMockId(mockMenu.mock.id);
+                    setEditingMockName(mockMenu.mock.name);
+                    setMockMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenMockEditorForExisting(mockMenu.mock);
+                    setMockMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Edit / Add endpoints
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteConfirm({ mockId: mockMenu.mock.id, x: mockMenu.x, y: mockMenu.y });
+                    setMockMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
               </div>
             )}
-          </div>
-        );
-      })}
-    </div>
-  ) : (
-    <div className="text-center py-8 text-gray-500 text-xs">
-      No mock servers yet. Create one to get started.
-    </div>
-  )}
-</div>
 
-    {/* Mock Menu (Delete, Rename, Toggle) */}
-    {mockMenu && (
-      <div
-        className="fixed z-50 min-w-[180px] py-1 rounded-lg border border-dark-700 bg-dark-800 shadow-xl mock-menu"
-        style={{ left: mockMenu.x, top: mockMenu.y }}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            handleRunMockServer(mockMenu.mock);
-            setMockMenu(null);
-          }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-        >
-          <Play className="w-4 h-4" />
-          Run
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setEditingMockId(mockMenu.mock.id);
-            setEditingMockName(mockMenu.mock.name);
-            setMockMenu(null);
-          }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-        >
-          <Edit3 className="w-4 h-4" />
-          Rename
-        </button>
-<button
-  type="button"
-  onClick={() => {
-    handleOpenMockEditorForExisting(mockMenu.mock);
-    setMockMenu(null);
-  }}
-  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
->
-  <Plus className="w-4 h-4" />
-  Edit / Add endpoints
-</button>
-        <button
-          type="button"
-          onClick={() => {
-            setDeleteConfirm({ mockId: mockMenu.mock.id, x: mockMenu.x, y: mockMenu.y });
-            setMockMenu(null);
-          }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete
-        </button>
-      </div>
-    )}
-
-    {/* Delete Confirmation */}
-    {deleteConfirm && (
-      <div
-        ref={confirmRef}
-        className="fixed z-50 min-w-[180px] p-3 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
-        style={{ left: deleteConfirm.x, top: deleteConfirm.y }}
-      >
-        <p className="text-xs text-gray-300 mb-3">Delete this mock server?</p>
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => setDeleteConfirm(null)}
-            className="px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => {
-              onDeleteMockServer(deleteConfirm.mockId);
-              setDeleteConfirm(null);
-            }}
-            className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    )}
-  </div>
-)}
-
-{topMenuActive === 'mcp-test' && (
-<CollectionsPanel 
-  onSelectEndpoint={onSelectEndpoint}
-  existingTabRequests={requests}
-  projects={projects}
-  onAddProject={onAddProject}
-  onCollectionsChange={setMcpCollections}
-  onRunCollection={onRunCollection}
-  onOpenWorkspaceDetails={onOpenWorkspaceDetails}
-  currentUserId={currentUserId}
-  activeWorkspaceId={activeWorkspaceId} 
-  onOpenCollectionRun={onOpenCollectionRun}
-    selectedRequestId={currentRequest?.id}
-        collectionType="mcp"
-    collections={mcpCollections}
-/>
-)}
-
-            {topMenuActive === 'settings-general' && (
-              <div className="flex-1 flex flex-col p-4">
-                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
-                  <h3 className="text-sm font-semibold text-gray-200">Settings - General</h3>
-                  <p className="text-xs text-gray-500 mt-2">General Project settings are available here.</p>
+            {/* Delete Confirmation */}
+            {deleteConfirm && (
+              <div
+                ref={confirmRef}
+                className="fixed z-50 min-w-[180px] p-3 rounded-lg border border-dark-700 bg-dark-800 shadow-xl"
+                style={{ left: deleteConfirm.x, top: deleteConfirm.y }}
+              >
+                <p className="text-xs text-gray-300 mb-3">Delete this mock server?</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setDeleteConfirm(null)}
+                    className="px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-dark-700 hover:bg-dark-600 rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDeleteMockServer(deleteConfirm.mockId);
+                      setDeleteConfirm(null);
+                    }}
+                    className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             )}
-            {topMenuActive === 'settings-certificates' && (
-              <div className="flex-1 flex flex-col p-4">
-                <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
-                  <h3 className="text-sm font-semibold text-gray-200">Settings - Certificates</h3>
-                  <p className="text-xs text-gray-500 mt-2">Manage certificates for secure request execution.</p>
-                </div>
-              </div>
-            )}
           </div>
-        </aside>
+        )}
+
+        {topMenuActive === 'mcp-test' && (
+          <CollectionsPanel 
+            onSelectEndpoint={onSelectEndpoint}
+            existingTabRequests={requests}
+            projects={projects}
+            onAddProject={onAddProject}
+            onCollectionsChange={setMcpCollections}
+            onRunCollection={onRunCollection}
+            onOpenWorkspaceDetails={onOpenWorkspaceDetails}
+            currentUserId={currentUserId}
+            activeWorkspaceId={activeWorkspaceId} 
+            onOpenCollectionRun={onOpenCollectionRun}
+            selectedRequestId={currentRequest?.id}
+            collectionType="mcp"
+            collections={mcpCollections}
+          />
+        )}
+
+        {topMenuActive === 'settings-general' && (
+          <div className="flex-1 flex flex-col p-4">
+            <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
+              <h3 className="text-sm font-semibold text-gray-200">Settings - General</h3>
+              <p className="text-xs text-gray-500 mt-2">General Project settings are available here.</p>
+            </div>
+          </div>
+        )}
+        {topMenuActive === 'settings-certificates' && (
+          <div className="flex-1 flex flex-col p-4">
+            <div className="rounded-xl border border-dark-700 bg-dark-800/50 p-6">
+              <h3 className="text-sm font-semibold text-gray-200">Settings - Certificates</h3>
+              <p className="text-xs text-gray-500 mt-2">Manage certificates for secure request execution.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </aside>
+    {!sidebarCollapsed && (
+      <div
+        className="w-1 cursor-ew-resize bg-transparent hover:bg-primary/50 transition-colors flex-shrink-0"
+        onMouseDown={startResize}
+      />
+    )}
+    {sidebarCollapsed && (
+      <button
+        onClick={() => setSidebarCollapsed(false)}
+        className="absolute left-0 top-[calc(64px+52px)] z-10 p-1.5 bg-dark-800 border-r border-b border-dark-700 rounded-r text-gray-500 hover:text-white hover:bg-dark-700/50"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    )}
+  </>
+)}
   {!sidebarCollapsed && (
   <div
     className="w-1 cursor-ew-resize bg-transparent hover:bg-primary/50 transition-colors flex-shrink-0"
     onMouseDown={startResize}
   />
 )}
-        {sidebarCollapsed && (
-          <button
-            onClick={() => setSidebarCollapsed(false)}
-            className="absolute left-0 top-[calc(64px+52px)] z-10 p-1.5 bg-dark-800 border-r border-b border-dark-700 rounded-r text-gray-500 hover:text-white hover:bg-dark-700/50"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
+ 
 
         {/* Center + Right: Request builder and Execution Insights side by side */}
         <section className="flex-1 flex min-h-0 overflow-hidden min-w-0">
@@ -2053,14 +2149,28 @@ topMenuActive === 'testing' ? (
     )}
 
     {/* Functional Testing */}
-    {testingSubTab === 'functional' && (
-      <FunctionalTestPanel
-        collections={collections}
-        activeWorkspaceId={activeWorkspaceId}
-        onRunCollectionWithOrder={onRunCollectionWithOrder}
-        testFiles={testFiles}
-      />
-    )}
+{testingSubTab === 'functional' && (
+  <FunctionalTestPanel
+    collections={collections}
+    activeWorkspaceId={activeWorkspaceId}
+    onRunCollectionWithOrder={onRunCollectionWithOrder}
+    testFiles={testFiles}
+    // New props:
+    functionalRunPhase={functionalRunPhase}
+    functionalRunResult={functionalRunResult}
+    onStartFunctionalRun={(runId) => {
+      setFunctionalRunId(runId);
+      setFunctionalRunPhase('running');
+      setFunctionalRunResult(null);
+    }}
+    onResetFunctionalRun={() => {
+      setFunctionalRunPhase('config');
+      setFunctionalRunId(null);
+      setFunctionalRunResult(null);
+      if (functionalPollRef.current) clearTimeout(functionalPollRef.current);
+    }}
+  />
+)}
 
     {/* Load Testing */}
     {testingSubTab === 'load' && (

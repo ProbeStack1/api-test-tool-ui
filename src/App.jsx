@@ -151,6 +151,11 @@ const sanitizeTabForStorage = (tab) => {
     const jsonString = safeStringify(tab);
     if (!jsonString) return null;
     const parsed = JSON.parse(jsonString);
+     // For collection-run-results tabs, keep the results field
+    if (parsed.type === 'collection-run-results') {
+      const { response, isLoading, ...essential } = parsed;
+      return essential;
+    }
     // Remove any large transient fields that might have survived (though safeStringify should have handled them)
     const { response, isLoading, results, ...essential } = parsed;
     return essential;
@@ -585,13 +590,7 @@ const runData = {
 };
 
 const handleLoadTestComplete = async (loadTestId) => {
-  try {
-    const response = await getLoadTestReport(loadTestId);
-    const completedRun = response.data;
-    setLoadTestRuns(prev => [completedRun, ...prev]);
-  } catch (err) {
-    console.error('Failed to fetch completed load test report:', err);
-  }
+  await fetchLoadTestRuns();
 };
 
 const flattenRequests = (items) => {
@@ -642,6 +641,7 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
   const sourceResults = runData.requests || runData.results || [];
 
   const mappedResults = {
+    runId: runId,
     collectionName: runData.collectionName || collection?.name || 'Collection',
     source: runData.source || 'manual',
     environment: runData.options?.environment ? 'provided' : 'No Environment',
@@ -1084,24 +1084,24 @@ useEffect(() => {
   fetchAllRuns();
 }, [activeWorkspaceId, fetchAllRuns]);
 // Fetch load test runs from the load test service (global history)
-useEffect(() => {
-  const fetchLoadTestRuns = async () => {
-    if (!activeWorkspaceId) return;
-    setLoadingLoadRuns(true);
-    try {
-      const response = await listLoadTestHistory(0, 100);
-      const runs = Array.isArray(response.data) ? response.data : (response.data?.content ?? []);
-      const filtered = runs.filter(r => r.workspaceId === activeWorkspaceId);
-      filtered.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-      setLoadTestRuns(filtered);
-    } catch (err) {
-      console.error('Failed to fetch load test runs:', err);
-    } finally {
-      setLoadingLoadRuns(false);
-    }
-  };
-  fetchLoadTestRuns();
+const fetchLoadTestRuns = useCallback(async () => {
+  if (!activeWorkspaceId) return;
+  setLoadingLoadRuns(true);
+  try {
+    const response = await listLoadTestHistory(0, 100);
+    const runs = Array.isArray(response.data) ? response.data : (response.data?.content ?? []);
+    const sorted = [...runs].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    setLoadTestRuns(sorted);
+  } catch (err) {
+    console.error('Failed to fetch load test runs:', err);
+  } finally {
+    setLoadingLoadRuns(false);
+  }
 }, [activeWorkspaceId]);
+
+useEffect(() => {
+  fetchLoadTestRuns();
+}, [fetchLoadTestRuns]);
 
  
 const [activeRequestIndex, setActiveRequestIndex] = useState(0);

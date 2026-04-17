@@ -110,7 +110,7 @@ export default function MethodCards({ dashboardData = null, workspaceRuns = [] }
           </div>
           <h3 className="text-sm font-semibold text-white">HTTP Methods</h3>
         </div>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.04] text-dark-400 font-mono">{total} reqs</span>
+        {/* <span className="text-sm px-2 py-0.5 rounded-full bg-white/[0.04] text-dark-400 font-mono">{total} reqs</span> */}
       </div>
 
       <div className={`grid gap-2 ${methods.length >= 5 ? 'grid-cols-5' : methods.length >= 3 ? 'grid-cols-3' : methods.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -132,7 +132,7 @@ export default function MethodCards({ dashboardData = null, workspaceRuns = [] }
                 <div className="relative">
                   <MiniRing percent={m.percent} color={m.color} />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[9px] font-bold text-white font-mono">
+                    <span className="text-sm font-bold text-white font-mono">
                       {m.count > 0 ? m.percent.toFixed(0) + '%' : '—'}
                     </span>
                   </div>
@@ -153,7 +153,7 @@ export default function MethodCards({ dashboardData = null, workspaceRuns = [] }
               <div className="text-lg font-bold text-white" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
                 <AnimCount value={m.count} duration={1000 + i * 200} />
               </div>
-              <div className="text-[9px] text-dark-500">{m.label}</div>
+              <div className="text-xs text-dark-400">{m.label}</div>
             </div>
           </div>
         ))}

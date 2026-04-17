@@ -2502,6 +2502,7 @@ topMenuActive === 'testing' ? (
     loadingLoadRuns={loadingLoadRuns}
     onViewRunResults={onViewRunResults}
     onViewLoadTestRun={handleViewLoadTestResults} 
+    workspaceId={activeWorkspaceId}
   />
             ) :
 

@@ -48,17 +48,17 @@ export default function LatencyChart({ loadTestRuns = [] }) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-[#c084fc]/10">
-            <Clock className="w-3.5 h-3.5 text-[#c084fc]" />
+            <Clock className="w-4 h-4 text-[#8000ff]" />
           </div>
           <h3 className="text-sm font-semibold text-white">Latency Percentiles</h3>
         </div>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#c084fc]/10 text-[#c084fc] font-medium">Recent Runs</span>
+        <span className="text-sm px-2 py-0.5 rounded-full bg-[#8000ff]/10 text-[#8000ff] font-medium">Recent Runs</span>
       </div>
       <ResponsiveContainer width="100%" height={180}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#232942" vertical={false} />
-          <XAxis dataKey="name" tick={{ fill: '#8890aa', fontSize: 10 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: '#8890aa', fontSize: 10 }} axisLine={false} tickLine={false} width={35} unit="ms" />
+          <XAxis dataKey="name" tick={{ fill: '#8890aa', fontSize: 11 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: '#8890aa', fontSize: 11 }} axisLine={false} tickLine={false} width={35} unit="ms" />
           <Tooltip content={<ChartTooltip />} />
           <Line type="monotone" dataKey="avg" stroke="#1fbf9a" strokeWidth={1.5} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} name="Avg" />
           <Line type="monotone" dataKey="p95" stroke="#ffb400" strokeWidth={1.5} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} name="P95" strokeDasharray="4 2" />
@@ -66,7 +66,7 @@ export default function LatencyChart({ loadTestRuns = [] }) {
         </LineChart>
       </ResponsiveContainer>
       <div className="flex items-center justify-center gap-5 mt-3">
-        <div className="flex items-center gap-1.5 text-[10px] text-dark-400">
+        <div className="flex items-center gap-1.5 text-xs text-dark-400">
           <div className="w-3 h-[1.5px] bg-[#1fbf9a] rounded-full" />Avg
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-dark-400">

@@ -120,7 +120,7 @@ function GaugeArc({ score, maxScore = 100 }) {
             />
             <text
               x={cx + (outerR + 10) * Math.cos(angle)} y={cy + (outerR + 10) * Math.sin(angle)}
-              fill="#575757" fontSize="8" textAnchor="middle" dominantBaseline="middle"
+              fill="#5a617a" fontSize="12" textAnchor="middle" dominantBaseline="middle"
             >
               {tick}
             </text>
@@ -195,13 +195,13 @@ export default function PerformanceScore({ workspaceRuns = [], loadTestRuns = []
   return (
     <div ref={ref} className="bg-dark-700/20 border border-dark-700 rounded-xl p-5 hover:border-primary/30 transition-all">
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-4">
           <div className="p-1.5 rounded-lg bg-[#ff5b1f]/10">
-            <Gauge className="w-3.5 h-3.5 text-[#ff5b1f]" />
+            <Gauge className="w-4 h-4 text-[#ff5b1f]" />
           </div>
           <h3 className="text-sm font-semibold text-white">Performance Score</h3>
         </div>
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+        <span className={`text-sm px-2 py-0.5 rounded-full font-medium ${
           score >= 90 ? 'bg-[#1fbf9a]/10 text-[#00ff5e]' :
           score >= 75 ? 'bg-[#ffb400]/10 text-[#ffb300]' :
           'bg-[#ff4444]/10 text-[#ff0000]'
@@ -219,13 +219,13 @@ export default function PerformanceScore({ workspaceRuns = [], loadTestRuns = []
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mt-3">
+      <div className="grid grid-cols-3 gap-2 mt-3 mb-2">
         {metrics.map(m => (
           <div key={m.name} className="text-center rounded-lg bg-white/[0.02] border border-white/[0.03] py-2 px-1">
             <div className={`text-sm font-bold ${m.good ? 'text-[#00ff5e]' : 'text-[#ffb400]'}`} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
               {m.value}
             </div>
-            <div className="text-xs text-dark-500 mt-0.5">{m.name}</div>
+            <div className="text-xs text-dark-400 mt-0.5">{m.name}</div>
           </div>
         ))}
       </div>

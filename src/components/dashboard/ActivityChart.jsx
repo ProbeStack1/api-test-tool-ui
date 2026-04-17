@@ -58,7 +58,7 @@ export default function ActivityChart({ workspaceRuns = [], loadTestRuns = [] })
           </div>
           <h3 className="text-sm font-semibold text-white">Test Activity</h3>
         </div>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1fbf9a]/10 text-[#1fbf9a] font-medium">7 Days</span>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-[#1fbf9a]/10 text-[#09ff00] font-medium">7 Days</span>
       </div>
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart data={chartData}>
@@ -73,18 +73,18 @@ export default function ActivityChart({ workspaceRuns = [], loadTestRuns = [] })
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#232942" vertical={false} />
-          <XAxis dataKey="name" tick={{ fill: '#8890aa', fontSize: 10 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: '#8890aa', fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+          <XAxis dataKey="name" tick={{ fill: '#8890aa', fontSize: 12 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: '#8890aa', fontSize: 12 }} axisLine={false} tickLine={false} width={28} />
           <Tooltip content={<ChartTooltip />} />
           <Area type="monotone" dataKey="functional" stroke="#ff5b1f" fill="url(#actFunctional)" strokeWidth={1.5} dot={false} name="Functional" />
           <Area type="monotone" dataKey="load" stroke="#4a9fff" fill="url(#actLoad)" strokeWidth={1.5} dot={false} name="Load Tests" />
         </AreaChart>
       </ResponsiveContainer>
       <div className="flex items-center justify-center gap-5 mt-3">
-        <div className="flex items-center gap-1.5 text-[10px] text-dark-400">
+        <div className="flex items-center gap-1.5 text-xs text-dark-400">
           <div className="w-3 h-[1.5px] bg-[#ff5b1f] rounded-full" />Functional
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-dark-400">
+        <div className="flex items-center gap-1.5 text-xs text-dark-400">
           <div className="w-3 h-[1.5px] bg-[#4a9fff] rounded-full" />Load Tests
         </div>
       </div>

@@ -9,8 +9,10 @@ const normalizeDashboardSummary = (data) => ({
   lastUpdated: data.lastUpdated,
 });
 
-export const getDashboardSummary = (modules = []) => {
-  const params = modules.length ? { modules: modules.join(',') } : {};
+export const getDashboardSummary = (workspaceId, modules = []) => {
+  const params = {};
+  if (workspaceId) params.workspaceId = workspaceId;
+  if (modules.length) params.modules = modules.join(',');
   return dashboardApi
     .get(DASHBOARD_BASE, { params })
     .then((res) => normalizeDashboardSummary(res.data));
@@ -47,4 +49,32 @@ export const getRequestTypeBreakdown = (d) => {
   const httpTotal = Object.values(http).reduce((sum, v) => sum + v, 0);
   const mcpTotal = Object.values(mcp).reduce((sum, v) => sum + v, 0);
   return { http, mcp, httpTotal, mcpTotal };
+};
+
+export const getMockServerDetails = (d) => {
+  const details = d?.modules?.mockServers?.details ?? {};
+  return {
+    count: d?.modules?.mockServers?.count ?? 0,
+    endpointsByMethod: details.endpointsByMethod ?? {},
+  };
+};
+
+export const getFunctionalRunDetails = (d) => {
+  const details = d?.modules?.functionalTestRuns?.details ?? {};
+  return {
+    count: d?.modules?.functionalTestRuns?.count ?? 0,
+    completed: details.completed ?? 0,
+    scheduled: details.scheduled ?? {},
+    manual: details.manual ?? {},
+  };
+};
+
+export const getScheduledRunDetails = (d) => {
+  const details = d?.modules?.scheduledRuns?.details ?? {};
+  return {
+    count: d?.modules?.scheduledRuns?.count ?? 0,
+    active: details.active ?? 0,
+    paused: details.paused ?? 0,
+    totalExecutions: details.totalExecutions ?? 0,
+  };
 };

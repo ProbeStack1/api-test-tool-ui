@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Plus, Edit3, Trash2, Download, X, FileCode, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import clsx from 'clsx';
@@ -9,47 +9,136 @@ import {
   updateLibraryItem,
   deleteLibraryItem,
   importLibraryItem,
+  getLibraryItem,
+  listArchivedLibraryItems,
+  restoreLibraryItem,
+  permanentDeleteLibraryItem,
 } from '../../services/specLibraryService';
+import DeleteWithRetentionModal from '../common/DeleteWithRetentionModal';
+import { ArchivedItemsView, ArchiveViewTrigger } from '../common/ArchivedItemsPanel';
 
 const MONACO_OPTIONS = {
   fontSize: 13,
   lineHeight: 20,
   minimap: { enabled: false },
-  wordWrap: "on",
+  wordWrap: 'on',
   scrollBeyondLastLine: false,
   smoothScrolling: true,
   automaticLayout: true,
   tabSize: 2,
   insertSpaces: true,
-  renderWhitespace: "selection",
+  renderWhitespace: 'selection',
   bracketPairColorization: { enabled: true },
   formatOnPaste: true,
   formatOnType: true,
 };
 
-export default function SpecLibraryPanel({ projects, currentUserId }) {
+export default function SpecLibraryPanel({ projects, currentUserId, activeWorkspaceId }) {
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [editorContent, setEditorContent] = useState('');
   const [isEditorDirty, setIsEditorDirty] = useState(false);
+  const [contentLoading, setContentLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isDark, setIsDark] = useState(true);
+  const editorWrapperRef = useRef(null);
 
-  // For import: selected workspace
+  // Observe the document's data-theme attribute so Monaco can follow the app theme.
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDark(root.getAttribute('data-theme') !== 'light');
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    setIsDark(root.getAttribute('data-theme') !== 'light');
+    return () => observer.disconnect();
+  }, []);
+
+  /**
+   * Converts any CSS color (rgb / rgba / hex / named) to a 6-digit hex string.
+   * Monaco's colors config only accepts `#RRGGBB` or `#RRGGBBAA`.
+   */
+  const toHex = (color) => {
+    if (!color) return null;
+    if (color.startsWith('#')) return color.length === 7 ? color : null;
+    const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (!m) return null;
+    const [, r, g, b] = m;
+    const h = (n) => Number(n).toString(16).padStart(2, '0');
+    return `#${h(r)}${h(g)}${h(b)}`;
+  };
+
+  /**
+   * Register a custom Monaco theme `probestack-dark` that inherits from
+   * vs-dark but overrides `editor.background` with the ACTUAL computed
+   * background of the wrapper div — so Monaco visually matches the
+   * `bg-probestack-bg` color the app uses.
+   * Light theme is left as the stock Monaco `light` theme (white editor).
+   */
+  const handleBeforeMount = (monaco) => {
+    if (!isDark) return; // only needed for dark theme
+    const wrapper = editorWrapperRef.current;
+    const computedBg = wrapper ? window.getComputedStyle(wrapper).backgroundColor : null;
+    const hex = toHex(computedBg) || '#0f1419';
+    try {
+      monaco.editor.defineTheme('probestack-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': hex,
+          'editorGutter.background': hex,
+          'minimap.background': hex,
+        },
+      });
+    } catch {
+      /* already defined — ignore */
+    }
+  };
+
+  // Import flow
   const [importWorkspaceId, setImportWorkspaceId] = useState(projects[0]?.id || '');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importItemId, setImportItemId] = useState(null);
 
-  const isOwner = (item) => item.createdBy === currentUserId;
-  console.log("current user:", currentUserId);
-  console.log("library items:", items);
-    
-  const canEdit = selectedItem && isOwner(selectedItem);
+  // Archive state
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteAnchorRect, setDeleteAnchorRect] = useState(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archivePollKey, setArchivePollKey] = useState(0);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiveVisible, setArchiveVisible] = useState(false);
+
+  const openArchive = () => {
+    setSelectedItem(null);
+    setShowArchive(true);
+    requestAnimationFrame(() => setArchiveVisible(true));
+  };
+  const closeArchive = () => {
+    setArchiveVisible(false);
+    setTimeout(() => setShowArchive(false), 280);
+  };
+
+  // An item is editable if the current user created it OR is a member of the
+  // workspace that owns it (matches backend access validation).
+  const workspaceIds = useMemo(
+    () => new Set((projects || []).map(p => p.id)),
+    [projects],
+  );
+  const canEditItem = (item) => {
+    if (!item) return false;
+    if (item.createdBy && currentUserId && item.createdBy === currentUserId) return true;
+    if (item.workspaceId && workspaceIds.has(item.workspaceId)) return true;
+    return false;
+  };
+  const canEditSelected = canEditItem(selectedItem);
 
   useEffect(() => {
     loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   const loadItems = async () => {
@@ -60,6 +149,9 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
       if (selectedItem) {
         const stillExists = data.find(i => i.id === selectedItem.id);
         if (!stillExists) setSelectedItem(null);
+      } else if (!showArchive && data.length > 0) {
+        // Auto-select the first item so users land on an editor (not a blank state).
+        setSelectedItem(data[0]);
       }
     } catch (err) {
       // toast.error('Failed to load library');
@@ -68,19 +160,49 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
     }
   };
 
-  // When selected item changes, update editor content and reset dirty flag
+  // Hydrate content whenever a library item is selected. The list endpoint
+  // does not return content (it lives in GCS), so we fetch it on demand.
   useEffect(() => {
-    if (selectedItem) {
+    let cancelled = false;
+    if (!selectedItem) {
+      setEditorContent('');
+      setIsEditorDirty(false);
+      return undefined;
+    }
+    // If the selected object already carries content (e.g. just created),
+    // use it directly — no extra network call.
+    if (selectedItem.content) {
       setEditorContent(selectedItem.content);
       setIsEditorDirty(false);
-    } else {
-      setEditorContent('');
+      return undefined;
     }
-  }, [selectedItem]);
+    setContentLoading(true);
+    setEditorContent('');
+    (async () => {
+      try {
+        const full = await getLibraryItem(selectedItem.id);
+        if (cancelled) return;
+        setEditorContent(full.content || '');
+        setIsEditorDirty(false);
+        // Update the list so that re-selection is instant next time.
+        setItems(prev => prev.map(it => it.id === full.id ? full : it));
+      } catch {
+        if (!cancelled) toast.error('Failed to load library item content');
+      } finally {
+        if (!cancelled) setContentLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedItem?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async (newItem) => {
+    const workspaceId = activeWorkspaceId || projects[0]?.id;
+    if (!workspaceId) {
+      toast.error('No workspace available — create a workspace first');
+      return;
+    }
     try {
-      const created = await createLibraryItem(newItem);
+      const created = await createLibraryItem({ ...newItem, workspaceId });
       setItems(prev => [created, ...prev]);
       setSelectedItem(created);
       toast.success('Library item created');
@@ -115,16 +237,55 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this library item?')) return;
+  const openDeleteModal = (e, item) => {
+    const rect = e?.currentTarget?.getBoundingClientRect?.() ?? null;
+    setDeleteAnchorRect(rect);
+    setDeleteTarget(item);
+  };
+
+  const handleConfirmArchive = async (retentionDays) => {
+    if (!deleteTarget) return;
+    setArchiveBusy(true);
     try {
-      await deleteLibraryItem(id);
-      setItems(prev => prev.filter(item => item.id !== id));
-      if (selectedItem?.id === id) setSelectedItem(null);
-      toast.success('Deleted');
+      await deleteLibraryItem(deleteTarget.id, retentionDays);
+      setItems(prev => prev.filter(item => item.id !== deleteTarget.id));
+      if (selectedItem?.id === deleteTarget.id) setSelectedItem(null);
+      toast.success(`Archived — auto-purge in ${retentionDays} day${retentionDays !== 1 ? 's' : ''}`);
+      setDeleteTarget(null);
+      setArchivePollKey(k => k + 1);
     } catch (err) {
-      toast.error('Delete failed');
+      toast.error('Archive failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setArchiveBusy(false);
     }
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (!deleteTarget) return;
+    setArchiveBusy(true);
+    try {
+      await permanentDeleteLibraryItem(deleteTarget.id);
+      setItems(prev => prev.filter(item => item.id !== deleteTarget.id));
+      if (selectedItem?.id === deleteTarget.id) setSelectedItem(null);
+      toast.success('Permanently deleted');
+      setDeleteTarget(null);
+      setArchivePollKey(k => k + 1);
+    } catch (err) {
+      toast.error('Delete failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setArchiveBusy(false);
+    }
+  };
+
+  const handleRestoreFromArchive = async (id) => {
+    const restored = await restoreLibraryItem(id);
+    setItems(prev => {
+      if (prev.find(i => i.id === restored.id)) return prev;
+      return [restored, ...prev];
+    });
+  };
+  const handlePermanentDeleteFromArchive = async (id) => {
+    await permanentDeleteLibraryItem(id);
   };
 
   const handleImportClick = (itemId) => {
@@ -169,29 +330,40 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
     URL.revokeObjectURL(url);
   };
 
+  const canActOnArchived = (item) => canEditItem(item);
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[var(--color-input-bg)]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-card-bg)] flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-white">Specification Library</h2>
           <p className="text-sm text-gray-400">Shared organization specifications</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
-        >
-          <Plus className="h-4 w-4" />
-          Create New
-        </button>
+        <div className="flex items-center gap-2">
+          <ArchiveViewTrigger
+            active={showArchive}
+            onToggle={() => (showArchive ? closeArchive() : openArchive())}
+            fetchArchived={listArchivedLibraryItems}
+            pollKey={archivePollKey}
+            label="Archive"
+          />
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium text-sm hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/25"
+            data-testid="library-create-btn"
+          >
+            <Plus className="h-4 w-4" />
+            Create New
+          </button>
+        </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main */}
       <div className="flex-1 flex min-h-0">
-        {/* Left Sidebar */}
+        {/* Sidebar */}
         <aside className="w-72 border-r border-dark-700 bg-[var(--color-card-bg)] flex flex-col">
-          {/* Search */}
-          <div className="p-4 border-b border-dark-700">
+          <div className="px-4 py-2 border-b border-dark-700">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <input
@@ -200,11 +372,11 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg pl-10 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                data-testid="library-search"
               />
             </div>
           </div>
 
-          {/* Items List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {loading ? (
               <div className="text-center py-8 text-gray-500 text-sm">Loading...</div>
@@ -213,65 +385,64 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
                 {search ? 'No library items match your search' : 'No library items yet.\nCreate one to get started.'}
               </div>
             ) : (
-              items.map(item => (
-                <div
-                  key={item.id}
-                  className={clsx(
-                    'group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-all',
-                    selectedItem?.id === item.id
-                      ? 'bg-primary/10 border border-primary/30'
-                      : 'hover:bg-dark-700/50 border border-transparent'
-                  )}
-                  onClick={() => setSelectedItem(item)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <FileCode className="h-4 w-4 text-primary flex-shrink-0" />
-                      <span className="text-sm font-medium text-white truncate">
-                        {item.name}
-                      </span>
+              items.map(item => {
+                const editable = canEditItem(item);
+                return (
+                  <div
+                    key={item.id}
+                    className={clsx(
+                      'group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-all',
+                      selectedItem?.id === item.id
+                        ? 'bg-primary/10 border border-primary/30'
+                        : 'hover:bg-dark-700/50 border border-transparent'
+                    )}
+                    onClick={() => { if (showArchive) closeArchive(); setSelectedItem(item); }}
+                    data-testid={`library-item-${item.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <FileCode className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-medium text-white truncate">{item.name}</span>
+                      </div>
+                      {item.description && (
+                        <p className="text-xs text-gray-400 mt-0.5 ml-6 truncate">{item.description}</p>
+                      )}
                     </div>
-                    {item.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 ml-6 truncate">{item.description}</p>
+
+                    {editable && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingItem(item); }}
+                          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-600"
+                          title="Edit metadata"
+                          data-testid={`library-edit-${item.id}`}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openDeleteModal(e, item); }}
+                          className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10"
+                          title="Delete…"
+                          data-testid={`library-delete-${item.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     )}
                   </div>
-
-                  {isOwner(item) && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingItem(item);
-                        }}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-600"
-                        title="Edit metadata"
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(item.id);
-                        }}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </aside>
 
-        {/* Right Main Area */}
-        <main className="flex-1 flex flex-col min-h-0">
+        {/* Main area */}
+        {/* Main area — editor always mounted; archive slides up over it. */}
+        <div className="flex-1 relative flex flex-col min-h-0">
+          <main className="flex-1 flex flex-col min-h-0">
           {selectedItem ? (
             <>
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-dark-700 bg-[var(--color-input-bg)]">
+              <div className="px-6 py-1 border-b border-dark-700 bg-[var(--color-input-bg)]">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-white">{selectedItem.name}</h3>
@@ -284,10 +455,15 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
                           {selectedItem.category}
                         </span>
                       )}
+                      {!canEditSelected && (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-gray-500/10 text-gray-400 border border-gray-500/20">
+                          Read-only
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {isEditorDirty && canEdit && (
+                    {isEditorDirty && canEditSelected && (
                       <button
                         onClick={handleUpdateContent}
                         className="p-2 rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors"
@@ -307,22 +483,34 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
                 </div>
               </div>
 
-              {/* Content Editor */}
-              <div className="flex-1 min-h-0">
-                <Editor
-                  value={editorContent}
-                  language="json"
-                  theme="vs-dark"
-                  options={{ ...MONACO_OPTIONS, readOnly: !canEdit }}
-                  onChange={(value) => {
-                    if (canEdit) {
-                      setEditorContent(value || '');
-                      setIsEditorDirty(true);
-                    }
-                  }}
-                  height="100%"
-                />
-              </div>
+              {contentLoading ? (
+                <div className={clsx(
+                  'flex-1 flex items-center justify-center text-sm text-gray-500',
+                  isDark && 'bg-probestack-bg'
+                )}>
+                  Loading content…
+                </div>
+              ) : (
+                <div ref={editorWrapperRef} className={clsx(
+                  'flex-1 min-h-0',
+                  isDark && 'bg-probestack-bg'
+                )}>
+                  <Editor
+                    value={editorContent}
+                    language="json"
+                    theme={isDark ? 'probestack-dark' : 'light'}
+                    beforeMount={handleBeforeMount}
+                    options={{ ...MONACO_OPTIONS, readOnly: !canEditSelected }}
+                    onChange={(value) => {
+                      if (canEditSelected) {
+                        setEditorContent(value || '');
+                        setIsEditorDirty(true);
+                      }
+                    }}
+                    height="100%"
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-500">
@@ -333,9 +521,29 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
             </div>
           )}
         </main>
+
+        {/* Archive slide-up panel */}
+        {showArchive && (
+          <div
+            className="absolute inset-0 z-20 flex flex-col transition-transform duration-[280ms] ease-out will-change-transform shadow-2xl"
+            style={{ transform: archiveVisible ? 'translateY(0%)' : 'translateY(100%)' }}
+            data-testid="archive-slide-panel"
+          >
+            <ArchivedItemsView
+              title="Archived Library Items"
+              onClose={closeArchive}
+              fetchArchived={listArchivedLibraryItems}
+              onRestore={handleRestoreFromArchive}
+              onPermanentDelete={handlePermanentDeleteFromArchive}
+              canAct={canActOnArchived}
+              refreshKey={archivePollKey}
+            />
+          </div>
+        )}
+        </div>
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Create / edit metadata */}
       {(showCreateModal || editingItem) && (
         <LibraryItemModal
           item={editingItem}
@@ -353,7 +561,19 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
         />
       )}
 
-      {/* Import Workspace Selector Modal */}
+      {/* Delete / archive popover (anchored) */}
+      <DeleteWithRetentionModal
+        open={!!deleteTarget}
+        anchorRect={deleteAnchorRect}
+        itemName={deleteTarget?.name}
+        itemType="Library Item"
+        onCancel={() => { if (!archiveBusy) { setDeleteTarget(null); setDeleteAnchorRect(null); } }}
+        onArchive={handleConfirmArchive}
+        onDelete={handleConfirmPermanentDelete}
+        busy={archiveBusy}
+      />
+
+      {/* Import workspace selector */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowImportModal(false)} />
@@ -366,9 +586,7 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
               className="w-full bg-dark-900/60 border border-dark-700 rounded-lg px-3 py-2.5 text-sm text-white mb-6"
             >
               {projects.length > 0 ? (
-                projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))
+                projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
               ) : (
                 <option value="" disabled>No workspaces available</option>
               )}
@@ -395,7 +613,6 @@ export default function SpecLibraryPanel({ projects, currentUserId }) {
   );
 }
 
-// Modal for creating/editing metadata (name, description, category)
 function LibraryItemModal({ item, onClose, onSave }) {
   const [name, setName] = useState(item?.name || '');
   const [description, setDescription] = useState(item?.description || '');
@@ -406,25 +623,16 @@ function LibraryItemModal({ item, onClose, onSave }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Name is required');
-      return;
-    }
-    if (!isEditing && !content.trim()) {
-      toast.error('Content is required');
-      return;
-    }
+    if (!name.trim()) { toast.error('Name is required'); return; }
+    if (!isEditing && !content.trim()) { toast.error('Content is required'); return; }
     const data = { name: name.trim(), description: description.trim(), category: category.trim() };
-    if (!isEditing) {
-      data.content = content.trim();
-    }
+    if (!isEditing) data.content = content.trim();
     onSave(data);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-[var(--color-input-bg)] border border-dark-600 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-        {/* Header */}
         <div className="bg-[var(--color-card-bg)] flex items-center justify-between px-5 py-4 border-b border-dark-700 sticky top-0 z-10">
           <h3 className="text-base font-semibold text-white">
             {isEditing ? 'Edit Library Item' : 'Create Library Item'}
@@ -439,10 +647,7 @@ function LibraryItemModal({ item, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
               <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+                type="text" value={name} onChange={(e) => setName(e.target.value)} required
                 placeholder="Enter item name"
                 className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500"
               />
@@ -450,9 +655,7 @@ function LibraryItemModal({ item, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
               <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
+                value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
                 placeholder="Optional description"
                 className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500"
               />
@@ -460,9 +663,7 @@ function LibraryItemModal({ item, onClose, onSave }) {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
               <input
-                type="text"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                type="text" value={category} onChange={(e) => setCategory(e.target.value)}
                 placeholder="e.g., API, Database, etc."
                 className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500"
               />
@@ -471,10 +672,7 @@ function LibraryItemModal({ item, onClose, onSave }) {
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Content (JSON) *</label>
                 <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  required
-                  rows={8}
+                  value={content} onChange={(e) => setContent(e.target.value)} required rows={8}
                   placeholder='{\n  "key": "value"\n}'
                   className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder:text-gray-500"
                 />
@@ -482,19 +680,13 @@ function LibraryItemModal({ item, onClose, onSave }) {
             )}
           </div>
 
-          {/* Footer – matches header style */}
           <div className="bg-[var(--color-card-bg)] flex items-center justify-end gap-2 px-5 py-4 border-t border-dark-700">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700"
-            >
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-dark-700">
               Cancel
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white"
-            >
+            <button type="submit"
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white">
               {isEditing ? 'Update' : 'Create'}
             </button>
           </div>

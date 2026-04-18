@@ -1,65 +1,128 @@
-import {testSpecificationApi} from '../lib/apiClient';
+import { testSpecificationApi } from '../lib/apiClient';
 
-const TEST_SPECIFICATION_BASE = '/api/v1/test-specs/library';
+const BASE = '/api/v1/test-specs/library';
+const SPEC_BASE = '/api/v1/test-specs/spec';
 
 /**
  * Normalize a library item from backend to frontend shape.
- * Backend: { id, name, description, category, content, isActive }
- * Frontend: { id, name, description, category, content, isActive }
+ * NOTE: The new backend stores JSON spec content in GCS. Metadata endpoints
+ *       (list/get) no longer return the `content` field — it must be fetched
+ *       via GET /library/{id}/content. We keep `content` populated on the
+ *       normalized object so the existing UI keeps working.
  */
-export const normalizeLibraryItem = (item) => ({
+export const normalizeLibraryItem = (item, content = undefined) => ({
   id: item.id,
   name: item.name,
   description: item.description || '',
   category: item.category || '',
-  content: item.content,
-  isActive: item.isActive,
-  createdBy: item.createdBy, 
+  content: content !== undefined ? content : (item.content ?? ''),
+  gcsPath: item.gcsPath,
+  contentHash: item.contentHash,
+  fileSize: item.fileSize,
+  // Preserve legacy `isActive` for any consumer that still reads it.
+  isActive: item.status ? item.status === 'ACTIVE' : item.isActive,
+  status: item.status,                     // ACTIVE | ARCHIVED
+  archiveExpiresAt: item.archiveExpiresAt, // OffsetDateTime ISO
+  archiveRetentionDays: item.archiveRetentionDays,
+  workspaceId: item.workspaceId,
+  createdBy: item.createdBy,
+  lastUpdatedBy: item.lastUpdatedBy,
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
 });
 
-/**
- * List all library items (optionally filtered by q).
- * GET /test-specs/library?q=
- */
+/** GET /test-specs/library?search= */
 export const listLibraryItems = (q = '') =>
-  testSpecificationApi.get(TEST_SPECIFICATION_BASE, {
-    params: { q }
-  }).then(res => (res.data || []).map(normalizeLibraryItem));
+  testSpecificationApi
+    .get(BASE, { params: q ? { search: q } : {} })
+    .then((res) => (res.data || []).map((i) => normalizeLibraryItem(i)));
+
+/** GET /test-specs/library/archived */
+export const listArchivedLibraryItems = () =>
+  testSpecificationApi
+    .get(`${BASE}/archived`)
+    .then((res) => (res.data || []).map((i) => normalizeLibraryItem(i)));
+
+/** GET /test-specs/library/{id}/content → raw JSON string */
+export const getLibraryItemContent = (libraryItemId) =>
+  testSpecificationApi
+    .get(`${BASE}/${libraryItemId}/content`, { transformResponse: [(data) => data] })
+    .then((res) => (typeof res.data === 'string' ? res.data : JSON.stringify(res.data)));
 
 /**
- * Create a new library item.
- * POST /test-specs/library
- * Request body: { name, description, category, content }
- */
-export const createLibraryItem = (data) =>
-  testSpecificationApi.post(TEST_SPECIFICATION_BASE, data).then(res => normalizeLibraryItem(res.data));
-
-/**
- * Get a single library item by ID.
  * GET /test-specs/library/{libraryItemId}
+ * Fetches metadata + content in parallel to preserve the previous response shape.
  */
-export const getLibraryItem = (libraryItemId) =>
-  testSpecificationApi.get(`${TEST_SPECIFICATION_BASE}/${libraryItemId}`).then(res => normalizeLibraryItem(res.data));
+export const getLibraryItem = async (libraryItemId) => {
+  const [metaRes, content] = await Promise.all([
+    testSpecificationApi.get(`${BASE}/${libraryItemId}`),
+    getLibraryItemContent(libraryItemId).catch(() => ''),
+  ]);
+  return normalizeLibraryItem(metaRes.data, content);
+};
 
 /**
- * Update a library item.
- * PATCH /test-specs/library/{libraryItemId}
- * Request body: partial { name, description, category, content }
+ * POST /test-specs/library
+ * Body: { workspaceId, name, description, category, content }
+ * The new backend REQUIRES `workspaceId` — callers must supply it.
  */
-export const updateLibraryItem = (libraryItemId, data) =>
-  testSpecificationApi.patch(`${TEST_SPECIFICATION_BASE}/${libraryItemId}`, data).then(res => normalizeLibraryItem(res.data));
+export const createLibraryItem = async (data) => {
+  const res = await testSpecificationApi.post(BASE, data);
+  return normalizeLibraryItem(res.data, data.content);
+};
 
 /**
- * Delete a library item.
- * DELETE /test-specs/library/{libraryItemId}
+ * PUT /test-specs/library/{libraryItemId}
+ * Backend supports partial update of { name, description, category, content }.
  */
-export const deleteLibraryItem = (libraryItemId) =>
-  testSpecificationApi.delete(`${TEST_SPECIFICATION_BASE}/${libraryItemId}`);
+export const updateLibraryItem = async (libraryItemId, data) => {
+  const res = await testSpecificationApi.put(`${BASE}/${libraryItemId}`, data);
+  let content;
+  if (data && Object.prototype.hasOwnProperty.call(data, 'content')) {
+    content = data.content;
+  } else {
+    try { content = await getLibraryItemContent(libraryItemId); } catch { content = ''; }
+  }
+  return normalizeLibraryItem(res.data, content);
+};
+
+/**
+ * DELETE /test-specs/library/{libraryItemId}?retentionDays=N
+ * Soft-delete (archive). Returns the archived library item.
+ */
+export const deleteLibraryItem = (libraryItemId, retentionDays) =>
+  testSpecificationApi
+    .delete(`${BASE}/${libraryItemId}`, {
+      params: retentionDays != null ? { retentionDays } : {},
+    })
+    .then((res) => (res.data ? normalizeLibraryItem(res.data) : null));
+
+/** POST /test-specs/library/{libraryItemId}/restore */
+export const restoreLibraryItem = (libraryItemId) =>
+  testSpecificationApi
+    .post(`${BASE}/${libraryItemId}/restore`)
+    .then((res) => normalizeLibraryItem(res.data));
+
+/** DELETE /test-specs/library/{libraryItemId}/permanent */
+export const permanentDeleteLibraryItem = (libraryItemId) =>
+  testSpecificationApi.delete(`${BASE}/${libraryItemId}/permanent`);
 
 /**
  * Import a library item into a workspace as a test spec.
- * POST /test-specs/library/{libraryItemId}/import
- * Request body: { workspaceId }
+ * The legacy POST /library/{id}/import endpoint no longer exists — instead we
+ * create a test spec whose source is LIBRARY. We preserve the same public
+ * signature `importLibraryItem(libraryItemId, workspaceId)` so the existing UI
+ * keeps working unchanged.
  */
-export const importLibraryItem = (libraryItemId, workspaceId) =>
-  testSpecificationApi.post(`${TEST_SPECIFICATION_BASE}/${libraryItemId}/import`, { workspaceId }).then(res => res.data); // returns a TestSpec object
+export const importLibraryItem = async (libraryItemId, workspaceId) => {
+  // Need the library item's name for the new spec.
+  const metaRes = await testSpecificationApi.get(`${BASE}/${libraryItemId}`);
+  const name = metaRes.data?.name || 'Imported Spec';
+  const res = await testSpecificationApi.post(SPEC_BASE, {
+    source: 'library',
+    name,
+    sourceId: libraryItemId,
+    workspaceId,
+  });
+  return res.data;
+};

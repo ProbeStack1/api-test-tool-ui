@@ -677,3 +677,65 @@
   color: inherit !important;
   background-color: inherit !important;
 }
+
+/* Toast slide animations */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+[data-sonner-toast] {
+  animation: slide-in-right 0.3s ease-out forwards !important;
+}
+[data-sonner-toast][data-removing="true"] {
+  animation: slide-out-right 0.2s ease-in forwards !important;
+}
+
+/* Make toast a flex container */
+[data-sonner-toast] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+/* Content (text) should come first in visual order */
+[data-sonner-toast] [data-content] {
+  order: 1 !important;
+  flex: 1 !important;
+}
+
+/* Close button should come last and stay on right */
+[data-sonner-toast] button[data-close-button] {
+  order: 2 !important;
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 4px 6px !important;
+  background: transparent !important;
+  border: none !important;
+  color: currentColor !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  opacity: 0.7 !important;
+  flex-shrink: 0 !important;
+}
+
+[data-sonner-toast] button[data-close-button]:hover {
+  opacity: 1 !important;
+}
+
+/* Theme text color */
+[data-sonner-toast] {
+  color: white !important;
+}
+[data-theme="light"] [data-sonner-toast] {
+  color: black !important;
+}

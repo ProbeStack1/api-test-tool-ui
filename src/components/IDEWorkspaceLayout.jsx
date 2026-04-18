@@ -2140,12 +2140,20 @@ topMenuActive === 'testing' ? (
   <div className="flex-1 flex flex-col min-h-0 overflow-auto p-6">
     {/* Library */}
     {testingSubTab === 'library' && (
-      <SpecLibraryPanel projects={projects} currentUserId={currentUserId} />
+      <SpecLibraryPanel 
+      projects={projects} 
+      currentUserId={currentUserId} 
+      activeWorkspaceId={activeWorkspaceId}
+      />
     )}
 
     {/* Generate Testcases */}
     {testingSubTab === 'generate' && (
-      <GenerateTestCase projects={projects} activeWorkspaceId={activeWorkspaceId} />
+      <GenerateTestCase 
+      projects={projects} 
+      activeWorkspaceId={activeWorkspaceId} 
+      currentUserId={currentUserId}
+      />
     )}
 
     {/* Functional Testing */}

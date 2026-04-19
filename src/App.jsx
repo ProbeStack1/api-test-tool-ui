@@ -334,7 +334,7 @@ const handleOpenWorkspaceDetails = (workspaceId) => {
 
 const handleSelectWorkspace = async (workspaceId) => {
   // Save current tabs (as before)
-  if (activeWorkspaceId && (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service')) {
+  if (activeWorkspaceId && (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test' || currentActiveMenu === 'history')) {
     await saveContextualTabsToDB(activeWorkspaceId, currentActiveMenu, requests, activeRequestIndex);
   } else if (activeWorkspaceId) {
     await saveWorkspaceTabsToDB(activeWorkspaceId, requests, activeRequestIndex);
@@ -345,7 +345,7 @@ const handleSelectWorkspace = async (workspaceId) => {
   localStorage.setItem('probestack_active_workspace_id', workspaceId);
 
   // Load tabs for new workspace
-  if (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test') {
+  if (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test' || currentActiveMenu === 'history') {
     const saved = await loadContextualTabsFromDB(workspaceId, currentActiveMenu);
     if (saved) {
       setRequests(saved.tabs);
@@ -355,6 +355,7 @@ const handleSelectWorkspace = async (workspaceId) => {
         setRequests([createEmptyRequest()]);
         setActiveRequestIndex(0);
       } else {
+        // mock-service / mcp-test / history → start empty
         setRequests([]);
         setActiveRequestIndex(0);
       }
@@ -609,7 +610,7 @@ const flattenRequests = (items) => {
   return requests;
 };
 
-const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldNavigate = true, refresh = true) => {
+const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldNavigate = true, refresh = true, forceHistory = false) => {
   if (!runData) {
     console.error('Cannot open results tab – runData is null');
     return;
@@ -617,6 +618,12 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
 
   // Extract unique run identifier (functional test runId, or fallback to collectionId + timestamp)
   const runId = runData.runId || runData.id || `${collectionId}-${Date.now()}`;
+
+  // Decide destination context once — used for both early-return and fresh-tab paths.
+  // `forceHistory` is set by callers that are "view-existing-run" flows (history sidebar,
+  // runs tables) so results land in History regardless of where the click happened.
+  const destContext = (forceHistory || currentActiveMenu === 'history') ? 'history' : 'collections';
+  const destPath = destContext === 'history' ? '/workspace/history' : '/workspace/collections';
 
   // Check if a tab with this runId already exists
   const existingTabIndex = requests.findIndex(
@@ -627,7 +634,7 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     // Switch to existing tab and navigate
     onTabSelect(existingTabIndex);
     if (shouldNavigate) {
-      navigate('/workspace/collections');
+      navigate(destPath);
     }
     return;
   }
@@ -700,9 +707,10 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     newActiveIndex = newRequests.length - 1;
   }
 
-  // Save to the collections context (so it survives navigation)
+  // Save to the current tracked context (history when user is viewing from history sidebar,
+  // else collections) so the results tab survives navigation and doesn't leak across menus.
   if (activeWorkspaceId) {
-    saveContextualTabs(activeWorkspaceId, 'collections', newRequests, newActiveIndex);
+    saveContextualTabs(activeWorkspaceId, destContext, newRequests, newActiveIndex);
   }
 
   // Update the actual state
@@ -714,12 +722,17 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
     });
     setActiveRequestIndex(tabIndex);
   } else {
+    // Snapshot the correct new-tab index BEFORE the state update — `prev.length`
+    // inside `setActiveRequestIndex` was broken (prev is a number, not an array)
+    // which caused the newly opened results tab to not actually become active
+    // (fell back to requests[0] = the stale request tab).
+    const appendedIndex = requests.length;
     setRequests(prev => [...prev, resultsTab]);
-    setActiveRequestIndex(prev => prev.length);
+    setActiveRequestIndex(appendedIndex);
   }
 
   if (shouldNavigate) {
-    navigate('/workspace/collections');
+    navigate(destPath);
   }
 
   if (refresh) {
@@ -736,7 +749,9 @@ const handleViewFunctionalRunResults = async (run, shouldNavigate = true) => {
   try {
     const response = await getRunHistoryDetail(runId);
     const runData = response.data;
-    handleOpenCollectionRunResults(runData, runData.collectionId, -1, shouldNavigate, false);
+    // forceHistory=true → always opens inside History view (from history sidebar
+    // or from CollectionRunsTable rows), not the current Collections context.
+    handleOpenCollectionRunResults(runData, runData.collectionId, -1, shouldNavigate, false, true);
   } catch (err) {
     toast.error('Failed to load run details');
   }
@@ -1106,6 +1121,30 @@ useEffect(() => {
  
 const [activeRequestIndex, setActiveRequestIndex] = useState(0);
 
+// Tracks the last active SAVED request's collection/folder so both the "+"
+// button (when current tab isn't saved) and the history "Try" button know
+// where to create a real sibling request in the backend. Declared early so
+// downstream handler definitions can reference it.
+const lastSavedContextRef = useRef(null);
+
+// Track the last active SAVED request's collection/folder + protocol. Used by
+// the "+" button (when active tab isn't saved) and by the history "Try"
+// button to decide where new sibling requests should live.
+useEffect(() => {
+  const active = requests[activeRequestIndex];
+  if (!active || !active.id) return;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const collectionId = active.collectionId || active.collection_id;
+  const folderId = active.folderId || active.folder_id || null;
+  const looksSaved = uuidPattern.test(active.id) && !!collectionId;
+  if (!looksSaved) return;
+  lastSavedContextRef.current = {
+    collectionId,
+    folderId,
+    isMcp: (active.protocol || '').toUpperCase() === 'MCP' || active.type === 'mcp-request',
+  };
+}, [requests, activeRequestIndex]);
+
   const currentRequest = requests[activeRequestIndex] || requests[0];
   const method = currentRequest?.method ?? 'GET';
   const url = currentRequest?.url ?? '';
@@ -1304,7 +1343,7 @@ const loadData = async () => {
     workspaces = wsRes.data.map(normalizeWorkspace);
     setProjects(workspaces);
 
-    // ✅ Load ALL contextual tabs from IndexedDB (collections, mock-service, mcp-test)
+    // ✅ Load ALL contextual tabs from IndexedDB (collections, mock-service, mcp-test, history)
     const allContextual = {};
     for (const ws of workspaces) {
       allContextual[ws.id] = {};
@@ -1322,6 +1361,11 @@ const loadData = async () => {
       const mcpData = await loadContextualTabsFromDB(ws.id, 'mcp-test');
       if (mcpData) {
         allContextual[ws.id]['mcp-test'] = mcpData;
+      }
+
+      const historyData = await loadContextualTabsFromDB(ws.id, 'history');
+      if (historyData) {
+        allContextual[ws.id]['history'] = historyData;
       }
     }
     setContextualTabs(allContextual);
@@ -1442,7 +1486,7 @@ const loadData = async () => {
       const workspaceName = workspaces.find(w => w.id === activeId)?.name || activeId;
       setActiveWorkspaceId(activeId);
       const initialMenu = getActiveMenu();
-      if (initialMenu === 'collections' || initialMenu === 'mock-service' || initialMenu === 'mcp-test') {
+      if (initialMenu === 'collections' || initialMenu === 'mock-service' || initialMenu === 'mcp-test' || initialMenu === 'history') {
         const saved = contextualTabs[activeId]?.[initialMenu];
         if (saved) {
           setRequests(saved.tabs);
@@ -2374,49 +2418,285 @@ const handleSaveRequest = async (saveData) => {
   };
 
 const handleNewTab = (tabData) => {
-  if (tabData) {
+  // Defensive: if something (e.g. `onClick={onNewTab}`) passed us a React
+  // SyntheticEvent or other non-tab object, treat it as "no args" instead of
+  // pushing the event as a tab. A real tab object always has an `id` string.
+  const hasRealTabData = tabData
+    && typeof tabData === 'object'
+    && typeof tabData.id === 'string'
+    && !tabData.nativeEvent;      // SyntheticEvent has .nativeEvent
+
+  if (hasRealTabData) {
     setRequests(prev => {
       const newRequests = [...prev, tabData];
       setActiveRequestIndex(newRequests.length - 1);
       return newRequests;
     });
-  } else {
-    const uniqueName = generateUniqueRequestName();
-    let newRequest;
-    
-    // ✅ Use pathname directly – it’s always correct
-    const isMcpContext = pathname.includes('/workspace/mcp-test');
-    
-    console.log('🔍 [handleNewTab] Debug:', { pathname, isMcpContext });
-    
-    if (isMcpContext) {
-      console.log('✅ Creating MCP‑specific request');
-      newRequest = {
-        ...createEmptyRequest(),
-        name: uniqueName,
-        type: 'mcp-request',    // triggers the extra dropdown
-        mcpType: 'sse',         // default transport
-      };
-    } else {
-      console.log('✅ Creating normal HTTP request');
-      newRequest = {
-        ...createEmptyRequest(),
-        name: uniqueName
-      };
+    return;
+  }
+
+  // "+" button clicked (no explicit tabData). Protocol is decided STRICTLY by
+  // the current URL: Collections → HTTP, MCP → MCP. The app stores HTTP and
+  // MCP collections in two SEPARATE state arrays (`collections` vs
+  // `mcpCollections`) because the backend enforces a one-protocol-per-
+  // collection rule. We must therefore create the new sibling inside a
+  // collection that belongs to the CORRECT protocol's array — otherwise the
+  // backend rejects with "HTTP requests cannot be created inside MCP
+  // collections" (or vice versa).
+  const isMcpPath = pathname.includes('/workspace/mcp-test');
+  const eligibleCollections = isMcpPath ? mcpCollections : collections;
+  const protocolLabel = isMcpPath ? 'MCP' : 'HTTP';
+
+  // Flat-scan helper: does `collectionId` exist inside the eligible-protocol
+  // collections list? (Checked at top level only — a request's
+  // collectionId always points to a collection root, never to a folder.)
+  const collectionIdExistsInEligible = (cid) =>
+    !!cid && eligibleCollections.some((c) => c.id === cid);
+
+  const active = requests[activeRequestIndex];
+  const activeCollectionId = active?.collectionId || active?.collection_id || null;
+  const activeFolderId = active?.folderId || active?.folder_id || null;
+  const activeHasUuid = !!active?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(active.id);
+  // `activeLooksSaved` also requires the active tab's collection to belong to
+  // the CURRENT protocol. If the user switched menus and their last saved
+  // request's collection belongs to the other protocol, we don't reuse it.
+  const activeLooksSaved = activeHasUuid && collectionIdExistsInEligible(activeCollectionId);
+
+  // eslint-disable-next-line no-console
+  console.log('[handleNewTab +] diagnostic:', {
+    pathname,
+    isMcpPath,
+    protocolLabel,
+    activeId: active?.id,
+    activeCollectionId,
+    activeFolderId,
+    activeLooksSaved,
+    eligibleCollectionsCount: eligibleCollections.length,
+  });
+
+  // (1) Current tab is saved inside a collection of the right protocol.
+  if (activeLooksSaved) {
+    createSiblingRequest({
+      collectionId: activeCollectionId,
+      folderId: activeFolderId,
+      protocol: protocolLabel,
+      isMcp: isMcpPath,
+    }).catch(() => pushDummyNewTab());
+    return;
+  }
+
+  // (2) Fall back to the last tracked saved context — BUT only if that
+  //     breadcrumb's collection is in the eligible protocol array too.
+  const ctx = lastSavedContextRef.current;
+  if (ctx && collectionIdExistsInEligible(ctx.collectionId)) {
+    createSiblingRequest({
+      collectionId: ctx.collectionId,
+      folderId: ctx.folderId || null,
+      protocol: protocolLabel,
+      isMcp: isMcpPath,
+    }).catch(() => pushDummyNewTab());
+    return;
+  }
+
+  // (3) Final fallback: pick the first collection of the correct protocol so
+  //     the request still lands somewhere sensible. If none exists, create a
+  //     plain dummy tab (old behaviour) so the user can Save manually.
+  const firstEligible = eligibleCollections[0];
+  if (firstEligible && firstEligible.id) {
+    createSiblingRequest({
+      collectionId: firstEligible.id,
+      folderId: null,
+      protocol: protocolLabel,
+      isMcp: isMcpPath,
+    }).catch(() => pushDummyNewTab());
+    return;
+  }
+
+  pushDummyNewTab();
+};
+
+// Original dummy-tab creation (extracted so it can be reused as a fallback).
+const pushDummyNewTab = () => {
+  const uniqueName = generateUniqueRequestName();
+  const isMcpContext = pathname.includes('/workspace/mcp-test');
+  const newRequest = isMcpContext
+    ? { ...createEmptyRequest(), name: uniqueName, type: 'mcp-request', mcpType: 'sse' }
+    : { ...createEmptyRequest(), name: uniqueName };
+
+  setRequests(prev => {
+    const newRequests = [...prev, newRequest];
+    setActiveRequestIndex(newRequests.length - 1);
+    return newRequests;
+  });
+  setPristineRequests(prevPristine => ({
+    ...prevPristine,
+    [newRequest.id]: JSON.parse(JSON.stringify(newRequest)),
+  }));
+  setResponse(null);
+  setError(null);
+};
+
+// Shared helper: inserts a saved request into the correct collections tree at
+// the target collection/folder. Mirrors the tree-insert logic inside
+// handleSaveRequest. The `isMcp` flag decides which state (HTTP `collections`
+// or `mcpCollections`) to update — they are maintained separately because
+// the backend enforces one protocol per collection.
+const insertRequestIntoCollectionsTree = (targetCollectionId, targetFolderId, savedRequest, isMcp = false) => {
+  const setter = isMcp ? setMcpCollections : setCollections;
+  setter(prev => {
+    const newCollections = [...prev];
+    const collectionIndex = newCollections.findIndex(col => col.id === targetCollectionId);
+    if (collectionIndex === -1) return prev;
+    const collection = newCollections[collectionIndex];
+
+    if (!targetFolderId) {
+      if (!collection.items) collection.items = [];
+      if (!collection.items.some(item => item.id === savedRequest.id)) {
+        collection.items.push(savedRequest);
+      }
+      return newCollections;
     }
-    
+
+    const addToFolder = (items) => {
+      if (!items) return false;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type === 'folder' && item.id === targetFolderId) {
+          if (!item.items) item.items = [];
+          if (!item.items.some(sub => sub.id === savedRequest.id)) {
+            item.items.push(savedRequest);
+          }
+          return true;
+        }
+        if (item.items && addToFolder(item.items)) return true;
+      }
+      return false;
+    };
+
+    const added = addToFolder(collection.items);
+    if (!added) {
+      if (!collection.items) collection.items = [];
+      if (!collection.items.some(item => item.id === savedRequest.id)) {
+        collection.items.push(savedRequest);
+      }
+    }
+    return newCollections;
+  });
+};
+
+// Creates a real backend-saved request inside the given collection/folder and
+// opens it as a new active tab. Used by the "+" button (empty prefill) and the
+// Try button on history tabs (prefill = historical request details).
+const createSiblingRequest = async ({ collectionId, folderId, protocol, isMcp, prefill = {} }) => {
+  const uniqueName = prefill.name || generateUniqueRequestName();
+  // Default body differs by protocol (MCP needs a JSON-RPC snippet).
+  const defaultMcpBody = '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}';
+  const body = prefill.body != null ? prefill.body : (isMcp ? defaultMcpBody : '{\n  \n}');
+
+  const payload = {
+    name: uniqueName,
+    method: prefill.method || (isMcp ? 'POST' : 'GET'),
+    url: prefill.url || '',
+    headers: prefill.headers || [],
+    query_params: prefill.queryParams || [],
+    body_type: prefill.bodyType || 'raw',
+    body_content: body,
+    auth_type: prefill.authType || 'none',
+    auth_config: prefill.authData || {},
+    pre_request_script: prefill.preRequestScript || '',
+    test_script: prefill.tests || '',
+    collection_id: collectionId,
+    folder_id: folderId || null,
+    protocol: protocol || 'HTTP',
+  };
+
+  try {
+    const res = await createRequest(payload);
+    const savedRequest = normalizeRequest(res.data);
+    // Augment with any client-only fields needed for the tab shell.
+    if (isMcp) {
+      savedRequest.type = 'mcp-request';
+      if (!savedRequest.mcpType) savedRequest.mcpType = 'sse';
+    }
+
+    // Open as new active tab + seed pristine snapshot + insert into tree.
     setRequests(prev => {
-      const newRequests = [...prev, newRequest];
-      setActiveRequestIndex(newRequests.length - 1);
-      return newRequests;
+      const next = [...prev, savedRequest];
+      setActiveRequestIndex(next.length - 1);
+      return next;
     });
-    setPristineRequests(prevPristine => ({
-      ...prevPristine,
-      [newRequest.id]: JSON.parse(JSON.stringify(newRequest))
+    setPristineRequests(prev => ({
+      ...prev,
+      [savedRequest.id]: JSON.parse(JSON.stringify(savedRequest)),
     }));
+    insertRequestIntoCollectionsTree(collectionId, folderId || null, savedRequest, isMcp);
     setResponse(null);
     setError(null);
+    toast.success('New request created');
+    return savedRequest;
+  } catch (err) {
+    console.error('[createSiblingRequest] error:', err);
+    toast.error(err?.response?.data?.message || 'Failed to create request');
+    throw err;
   }
+};
+
+// Try button (on a read-only history preview tab) → create a real saved
+// request inside the last tracked saved collection/folder, pre-filled with
+// the history entry's method/url/headers/body. If no saved context has been
+// tracked yet, fall back to the original editable-copy-as-dummy behaviour so
+// the user still gets a usable tab.
+const handleTryFromHistory = (historyReq) => {
+  // History entries have no protocol discriminator today → default HTTP.
+  const isMcp = (historyReq.protocol || '').toUpperCase() === 'MCP'
+    || historyReq.type === 'mcp-request';
+  const eligible = isMcp ? mcpCollections : collections;
+  const collectionIdExistsInEligible = (cid) =>
+    !!cid && eligible.some((c) => c.id === cid);
+
+  // Pick the target collection: breadcrumb first (only if it matches the
+  // history entry's protocol), else first eligible collection.
+  const ctx = lastSavedContextRef.current;
+  let targetCollectionId = null;
+  let targetFolderId = null;
+  if (ctx && collectionIdExistsInEligible(ctx.collectionId)) {
+    targetCollectionId = ctx.collectionId;
+    targetFolderId = ctx.folderId || null;
+  } else if (eligible[0] && eligible[0].id) {
+    targetCollectionId = eligible[0].id;
+    targetFolderId = null;
+  }
+
+  if (!targetCollectionId) {
+    // No matching collection exists → fall back to in-memory editable copy.
+    const editableCopy = {
+      ...historyReq,
+      id: `editable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: `${historyReq.name} (Edit)`,
+      response: null,
+      readOnly: false,
+    };
+    handleNewTab(editableCopy);
+    return;
+  }
+
+  createSiblingRequest({
+    collectionId: targetCollectionId,
+    folderId: targetFolderId,
+    protocol: isMcp ? 'MCP' : 'HTTP',
+    isMcp,
+    prefill: {
+      name: `${historyReq.method || 'GET'} ${historyReq.url || ''}`.slice(0, 80).trim() || 'History Request',
+      method: historyReq.method,
+      url: historyReq.url,
+      headers: historyReq.headers,
+      queryParams: historyReq.queryParams,
+      body: historyReq.body,
+      bodyType: historyReq.bodyType,
+      authType: historyReq.authType,
+      authData: historyReq.authData,
+    },
+  }).catch(() => { /* toast already shown */ });
 };
 
   const handleTabSelect = (index) => {
@@ -3236,28 +3516,28 @@ useEffect(() => {
   // Save tabs whenever they change (requests or active index)
 useEffect(() => {
   if (!activeWorkspaceId) return;
-  if (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test') {
+  if (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test' || currentActiveMenu === 'history') {
     saveContextualTabs(activeWorkspaceId, currentActiveMenu, requests, activeRequestIndex);
   } else {
     saveWorkspaceTabs(activeWorkspaceId, requests, activeRequestIndex);
   }
 }, [requests, activeRequestIndex, activeWorkspaceId, currentActiveMenu]);
 
-// Handle context switching between 'collections' and 'mock-service'
+// Handle context switching between 'collections' / 'mock-service' / 'mcp-test' / 'history'
 useEffect(() => {
   if (!activeWorkspaceId) return;
   const prevContext = currentContextRef.current;
-  const newContext = (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test') ? currentActiveMenu : null;
+  const newContext = (currentActiveMenu === 'collections' || currentActiveMenu === 'mock-service' || currentActiveMenu === 'mcp-test' || currentActiveMenu === 'history') ? currentActiveMenu : null;
 
   if (prevContext === newContext) return;
 
   // Save current tabs to previous context if it was a tracked context
-  if (prevContext === 'collections' || prevContext === 'mock-service' || prevContext === 'mcp-test') {
+  if (prevContext === 'collections' || prevContext === 'mock-service' || prevContext === 'mcp-test' || prevContext === 'history') {
   saveContextualTabs(activeWorkspaceId, prevContext, requests, activeRequestIndex);
 }
 
   // Load tabs for new context if it is a tracked context
-if (newContext === 'collections' || newContext === 'mock-service' || newContext === 'mcp-test') {
+if (newContext === 'collections' || newContext === 'mock-service' || newContext === 'mcp-test' || newContext === 'history') {
   const saved = contextualTabs[activeWorkspaceId]?.[newContext];
     if (saved) {
       setRequests(saved.tabs);
@@ -3266,7 +3546,7 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
       if (newContext === 'collections') {
         setRequests([createEmptyRequest()]);
         setActiveRequestIndex(0);
-      } else { // mock-service
+      } else { // mock-service / mcp-test / history → start empty
         setRequests([]);
         setActiveRequestIndex(0);
       }
@@ -3457,6 +3737,7 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
                 activeRequestIndex={activeRequestIndex}
                 onTabSelect={handleTabSelect}
                 onNewTab={handleNewTab}
+                onTryFromHistory={handleTryFromHistory}
                 onCloseTab={handleCloseTab}
                 onTabRename={handleTabRename}
                 method={method}

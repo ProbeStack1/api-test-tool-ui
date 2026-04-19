@@ -1,7 +1,7 @@
 import { testSpecificationApi } from '../lib/apiClient';
 
-const BASE = '/api/v1/test-specs/library';
-const SPEC_BASE = '/api/v1/test-specs/spec';
+const BASE = '/api/v1/testspec/library';
+const SPEC_BASE = '/api/v1/testspec/spec';
 
 /**
  * Normalize a library item from backend to frontend shape.
@@ -31,26 +31,26 @@ export const normalizeLibraryItem = (item, content = undefined) => ({
   updatedAt: item.updatedAt,
 });
 
-/** GET /test-specs/library?search= */
+/** GET /testspec/library?search= */
 export const listLibraryItems = (q = '') =>
   testSpecificationApi
     .get(BASE, { params: q ? { search: q } : {} })
     .then((res) => (res.data || []).map((i) => normalizeLibraryItem(i)));
 
-/** GET /test-specs/library/archived */
+/** GET /testspec/library/archived */
 export const listArchivedLibraryItems = () =>
   testSpecificationApi
     .get(`${BASE}/archived`)
     .then((res) => (res.data || []).map((i) => normalizeLibraryItem(i)));
 
-/** GET /test-specs/library/{id}/content → raw JSON string */
+/** GET /testspec/library/{id}/content → raw JSON string */
 export const getLibraryItemContent = (libraryItemId) =>
   testSpecificationApi
     .get(`${BASE}/${libraryItemId}/content`, { transformResponse: [(data) => data] })
     .then((res) => (typeof res.data === 'string' ? res.data : JSON.stringify(res.data)));
 
 /**
- * GET /test-specs/library/{libraryItemId}
+ * GET /testspec/library/{libraryItemId}
  * Fetches metadata + content in parallel to preserve the previous response shape.
  */
 export const getLibraryItem = async (libraryItemId) => {
@@ -62,7 +62,7 @@ export const getLibraryItem = async (libraryItemId) => {
 };
 
 /**
- * POST /test-specs/library
+ * POST /testspec/library
  * Body: { workspaceId, name, description, category, content }
  * The new backend REQUIRES `workspaceId` — callers must supply it.
  */
@@ -72,7 +72,7 @@ export const createLibraryItem = async (data) => {
 };
 
 /**
- * PUT /test-specs/library/{libraryItemId}
+ * PUT /testspec/library/{libraryItemId}
  * Backend supports partial update of { name, description, category, content }.
  */
 export const updateLibraryItem = async (libraryItemId, data) => {
@@ -87,7 +87,7 @@ export const updateLibraryItem = async (libraryItemId, data) => {
 };
 
 /**
- * DELETE /test-specs/library/{libraryItemId}?retentionDays=N
+ * DELETE /testspec/library/{libraryItemId}?retentionDays=N
  * Soft-delete (archive). Returns the archived library item.
  */
 export const deleteLibraryItem = (libraryItemId, retentionDays) =>
@@ -97,13 +97,13 @@ export const deleteLibraryItem = (libraryItemId, retentionDays) =>
     })
     .then((res) => (res.data ? normalizeLibraryItem(res.data) : null));
 
-/** POST /test-specs/library/{libraryItemId}/restore */
+/** POST /testspec/library/{libraryItemId}/restore */
 export const restoreLibraryItem = (libraryItemId) =>
   testSpecificationApi
     .post(`${BASE}/${libraryItemId}/restore`)
     .then((res) => normalizeLibraryItem(res.data));
 
-/** DELETE /test-specs/library/{libraryItemId}/permanent */
+/** DELETE /testspec/library/{libraryItemId}/permanent */
 export const permanentDeleteLibraryItem = (libraryItemId) =>
   testSpecificationApi.delete(`${BASE}/${libraryItemId}/permanent`);
 

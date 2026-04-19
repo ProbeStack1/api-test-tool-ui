@@ -69,7 +69,7 @@ export const testFileApi = axios.create({
 addUserIdInterceptor(testFileApi);
 
 export const testSpecificationApi = axios.create({
-  baseURL: `${BASE_API_URL}/api/v1/test-specs`,
+  baseURL: `${BASE_API_URL}/api/v1/testspec`,
   headers: { 'Content-Type': 'application/json' }
 });
 addUserIdInterceptor(testSpecificationApi);

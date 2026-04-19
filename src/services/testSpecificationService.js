@@ -1,6 +1,6 @@
 import { testSpecificationApi } from '../lib/apiClient';
 
-const BASE = '/api/v1/test-specs/spec';
+const BASE = '/api/v1/testspec/spec';
 
 /**
  * Normalize a test spec from backend to frontend shape.
@@ -30,7 +30,7 @@ export const normalizeTestSpec = (spec, content = undefined) => ({
 
 export const normalizeTestCase = (tc) => ({ ...tc });
 
-/** GET /test-specs/spec?workspaceId=&search=&limit=&offset= */
+/** GET /testspec/spec?workspaceId=&search=&limit=&offset= */
 export const listTestSpecs = (workspaceId, params = {}) => {
   const { q, search, ...rest } = params;
   const searchParam = search ?? q;
@@ -44,7 +44,7 @@ export const listTestSpecs = (workspaceId, params = {}) => {
     }));
 };
 
-/** GET /test-specs/spec/archived?workspaceId=&limit=&offset= */
+/** GET /testspec/spec/archived?workspaceId=&limit=&offset= */
 export const listArchivedTestSpecs = (workspaceId, params = {}) =>
   testSpecificationApi
     .get(`${BASE}/archived`, { params: { workspaceId, ...params } })
@@ -55,14 +55,14 @@ export const listArchivedTestSpecs = (workspaceId, params = {}) =>
       items: (res.data.items || []).map((s) => normalizeTestSpec(s)),
     }));
 
-/** GET /test-specs/spec/{testSpecId}/content → raw JSON string */
+/** GET /testspec/spec/{testSpecId}/content → raw JSON string */
 export const getTestSpecContent = (testSpecId) =>
   testSpecificationApi
     .get(`${BASE}/${testSpecId}/content`, { transformResponse: [(data) => data] })
     .then((res) => (typeof res.data === 'string' ? res.data : JSON.stringify(res.data)));
 
 /**
- * GET /test-specs/spec/{testSpecId}
+ * GET /testspec/spec/{testSpecId}
  * Fetches metadata AND content in parallel so callers get a unified object
  * that matches the previous (pre-GCS) response shape.
  */
@@ -75,7 +75,7 @@ export const getTestSpec = async (testSpecId) => {
 };
 
 /**
- * POST /test-specs/spec
+ * POST /testspec/spec
  * Accepts the same payload shape as before:
  *   { source: 'upload' | 'url' | 'library', name, workspaceId,
  *     content?, importUrl?, sourceId? }
@@ -93,7 +93,7 @@ export const createTestSpec = async (data) => {
 };
 
 /**
- * PUT /test-specs/spec/{testSpecId}
+ * PUT /testspec/spec/{testSpecId}
  * Backend supports partial update of { name, content } via PUT.
  */
 export const updateTestSpec = async (testSpecId, data) => {
@@ -108,7 +108,7 @@ export const updateTestSpec = async (testSpecId, data) => {
 };
 
 /**
- * DELETE /test-specs/spec/{testSpecId}?retentionDays=N
+ * DELETE /testspec/spec/{testSpecId}?retentionDays=N
  * Soft-delete (archive). Returns the archived spec entity.
  */
 export const deleteTestSpec = (testSpecId, retentionDays) =>
@@ -118,13 +118,13 @@ export const deleteTestSpec = (testSpecId, retentionDays) =>
     })
     .then((res) => (res.data ? normalizeTestSpec(res.data) : null));
 
-/** POST /test-specs/spec/{testSpecId}/restore */
+/** POST /testspec/spec/{testSpecId}/restore */
 export const restoreTestSpec = (testSpecId) =>
   testSpecificationApi
     .post(`${BASE}/${testSpecId}/restore`)
     .then((res) => normalizeTestSpec(res.data));
 
-/** DELETE /test-specs/spec/{testSpecId}/permanent */
+/** DELETE /testspec/spec/{testSpecId}/permanent */
 export const permanentDeleteTestSpec = (testSpecId) =>
   testSpecificationApi.delete(`${BASE}/${testSpecId}/permanent`);
 
@@ -144,7 +144,7 @@ export const isUnchangedContentError = (err) => {
 };
 
 /**
- * POST /test-specs/spec/{testSpecId}/generate?force=&includeNegativeTests=&...
+ * POST /testspec/spec/{testSpecId}/generate?force=&includeNegativeTests=&...
  *
  * Returns { generated, deleted, testCases }.
  * When force=false and the spec content hash is unchanged, the backend
@@ -186,7 +186,7 @@ export const generateTestCases = (testSpecId, {
       testCases: (res.data?.testCases || []).map(normalizeTestCase),
     }));
 
-/** GET /test-specs/spec/{testSpecId}/test-cases?limit=&offset= */
+/** GET /testspec/spec/{testSpecId}/test-cases?limit=&offset= */
 export const listTestCases = (testSpecId, params = {}) =>
   testSpecificationApi.get(`${BASE}/${testSpecId}/test-cases`, { params }).then((res) => ({
     total: res.data.total,

@@ -237,6 +237,7 @@ export default function APIExecutionStudio({
   isMcpContext = false,
   onSaveResponse,
   readOnly = false,
+  onTryFromHistory,
   formData = [],
   onFormDataChange,
   advancedUrlEncoded = false,
@@ -1375,7 +1376,7 @@ useEffect(() => {
           {!hideNewButton && (
             <button
               type="button"
-              onClick={onNewTab}
+              onClick={() => onNewTab()}
               className="flex items-center justify-center gap-1.5 px-3 h-9 shrink-0 text-gray-400 bg-probestack-bg cursor-pointer hover:text-primary hover:bg-primary/10 border-r border-dark-700 transition-colors text-xs font-semibold tracking-wide"
               title="New request"
             >
@@ -1700,7 +1701,15 @@ useEffect(() => {
                       <button
                         type="button"
                         onClick={() => {
-                          // Create an editable copy of this saved response
+                          // Preferred path: delegate to the parent so the Try
+                          // button creates a REAL backend-saved sibling request
+                          // inside the last tracked saved collection/folder,
+                          // pre-filled with this history entry's request data.
+                          if (typeof onTryFromHistory === 'function') {
+                            onTryFromHistory(currentReq);
+                            return;
+                          }
+                          // Fallback: in-memory editable copy (legacy behaviour).
                           const editableCopy = {
                             ...currentReq,
                             id: `editable-${Date.now()}-${Math.random().toString(36).slice(2)}`,

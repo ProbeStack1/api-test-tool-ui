@@ -38,6 +38,7 @@ export default function IDEWorkspaceLayout({
   activeRequestIndex,
   onTabSelect,
   onNewTab,
+  onTryFromHistory,
   onCloseTab,
   onTabRename,
   method,
@@ -149,6 +150,25 @@ const [loadingSpecs, setLoadingSpecs] = useState(false);
 const [loadingLibrary, setLoadingLibrary] = useState(false);
 const [fileSelectionContext, setFileSelectionContext] = useState({ context: null, selectedFile: null });
 const [selectedHistoryType, setSelectedHistoryType] = useState('request');
+
+// Derive the history/run/load-test ID of the currently active tab so the
+// left History sidebar can highlight the matching row.
+const activeHistoryItemId = useMemo(() => {
+  if (!currentRequest) return null;
+  // REST request tab opened from history (id shape: `history-<historyId>`)
+  if (typeof currentRequest.id === 'string' && currentRequest.id.startsWith('history-')) {
+    return currentRequest.id.slice('history-'.length);
+  }
+  // Functional / collection-run result tab → match by runId
+  if (currentRequest.type === 'collection-run-results' && currentRequest.runId) {
+    return currentRequest.runId;
+  }
+  // Load-test result tab → match by loadTestId
+  if (currentRequest.type === 'load-test-results' && currentRequest.loadTestId) {
+    return currentRequest.loadTestId;
+  }
+  return null;
+}, [currentRequest]);
 const [isPreparingCollection, setIsPreparingCollection] = useState(false);
 const [isPreparingLoadCollection, setIsPreparingLoadCollection] = useState(false);
 // MCP Test states
@@ -313,28 +333,46 @@ const handleViewLoadTestResults = (run) => {
     return;
   }
 
-  // First, navigate to Collections to ensure we are in the correct context
-  navigate('/workspace/collections');
+  // If the same tab is already open, just focus it.
+  const existingIndex = requests.findIndex(
+    tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
+  );
+  if (existingIndex !== -1) {
+    onTabSelect(existingIndex);
+    // Only navigate if we're not already on History, to avoid a pointless
+    // route push that re-triggers sidebar data fetches (flicker).
+    if (!location.pathname.includes('/workspace/history')) {
+      navigate('/workspace/history');
+    }
+    return;
+  }
 
-  // Wait for the context to switch and tabs to load
+  // New tab. If we're already on History, open immediately — no setTimeout /
+  // navigate round-trip (that combo caused the left-sidebar history list to
+  // appear to refresh/flicker when clicking a load-test row).
+  const resultsTab = {
+    id: `load-test-results-${loadTestId}-${Date.now()}`,
+    type: 'load-test-results',
+    name: `Load Test Results: ${run.collectionName || run.testName || 'Load Test'}`,
+    loadTestId: loadTestId,
+  };
+
+  if (location.pathname.includes('/workspace/history')) {
+    onNewTab(resultsTab);
+    return;
+  }
+
+  // Coming from a different menu (e.g., LoadTestRunsTable on some other view)
+  // — navigate to History first, then create the tab after the context
+  // switch completes.
+  navigate('/workspace/history');
   setTimeout(() => {
-    // Check if a tab with this loadTestId already exists
-    const existingIndex = requests.findIndex(
+    const existingAfter = requests.findIndex(
       tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
     );
-    if (existingIndex !== -1) {
-      onTabSelect(existingIndex);
-    } else {
-      // Create a new results tab
-      const resultsTab = {
-        id: `load-test-results-${loadTestId}-${Date.now()}`,
-        type: 'load-test-results',
-        name: `Load Test Results: ${run.collectionName || run.testName || 'Load Test'}`,
-        loadTestId: loadTestId,
-      };
-      onNewTab(resultsTab);
-    }
-  }, 300); // 300ms is enough for the context switch and IndexedDB load
+    if (existingAfter !== -1) onTabSelect(existingAfter);
+    else onNewTab(resultsTab);
+  }, 300);
 };
 
 
@@ -1241,18 +1279,26 @@ const handleDeleteLibraryItem = async (item) => {
 
 const HISTORY_TAB_ID = 'history-details-tab';
 
-// Handle click on a history item
+// Handle click on a history item — opens a read-only preview tab inside the
+// History context (not Collections). Save/Send are hidden by ApiExecutionStudio
+// when `readOnly: true`; a "Try" button appears instead which spawns an
+// editable copy as a fresh non-readOnly tab (same UX as saved responses).
 const handleHistoryItemClick = async (historyItem) => {
   if (!onFetchHistoryEntry) return;
   try {
     const response = await onFetchHistoryEntry(historyItem.historyId);
     const fullDetails = response.data;
 
+    // Unique ID per click — each history item opens its own tab (no shared
+    // HISTORY_TAB_ID reuse so users can compare multiple history entries).
+    const tabId = `history-${historyItem.historyId || Date.now()}`;
+
     // Build a request object from the history details
     const newRequest = {
-      id: HISTORY_TAB_ID,                       // fixed ID for history tab
+      id: tabId,
       name: `${fullDetails.method} ${fullDetails.url}`,
-      type: 'request',                          // regular request type
+      type: 'request',                          // regular request type (read-only)
+      readOnly: true,                           // hides Save/Send, shows Try
       method: fullDetails.method,
       url: fullDetails.url,
       queryParams: [],                          // will be parsed from URL automatically
@@ -1289,12 +1335,12 @@ const handleHistoryItemClick = async (historyItem) => {
       }
     };
 
-    // Check if the history tab already exists
-    const existingIndex = requests.findIndex(r => r.id === HISTORY_TAB_ID);
+    // If the same history entry is already open, just focus it; else create a new tab.
+    const existingIndex = requests.findIndex(r => r.id === tabId);
     if (existingIndex !== -1) {
-      onUpdateTab(existingIndex, newRequest);   // update existing tab
+      onTabSelect ? onTabSelect(existingIndex) : onUpdateTab(existingIndex, newRequest);
     } else {
-      onNewTab(newRequest);                     // create new tab (first time)
+      onNewTab(newRequest);
     }
   } catch (err) {
     toast.error('Failed to load request details');
@@ -1393,6 +1439,7 @@ function HistoryItemList({
   groupByDate,
   onDeleteHistoryItem,
   onDeleteGroup,
+  activeItemId,
 }) {
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: null });
   const [expandedGroups, setExpandedGroups] = useState({});
@@ -1498,10 +1545,16 @@ function HistoryItemList({
             <div className="space-y-1 mt-1">
               {groupItems.map((item, idx) => {
                 const itemId = getItemId(item);
+                const isActive = activeItemId && itemId && activeItemId === itemId;
                 return (
 <div
   key={itemId || idx}
-  className="relative group px-2 py-1.5 hover:bg-dark-700/50 rounded cursor-pointer transition-colors"
+  className={clsx(
+    'relative group px-2 py-1.5 rounded cursor-pointer transition-colors',
+    isActive
+      ? 'bg-primary/15 border-l-2 border-primary -ml-0.5 pl-[calc(0.5rem-2px)]'
+      : 'hover:bg-dark-700/50'
+  )}
   {...createTooltipHandler(item)}
 >
   <div className="flex items-start justify-between">
@@ -1725,6 +1778,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
                   groupByDate
                   onDeleteHistoryItem={onDeleteHistoryItem}
                   onDeleteGroup={handleDeleteGroup}
+                  activeItemId={activeHistoryItemId}
                 />
               )}
               {selectedHistoryType === 'functional' && (
@@ -1734,6 +1788,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
                   onItemClick={(run) => onViewRunResults(run, false)} 
                   getTooltipContent={getFunctionalTooltipContent}
                   groupByDate
+                  activeItemId={activeHistoryItemId}
                 />
               )}
               {selectedHistoryType === 'load' && (
@@ -1743,6 +1798,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
                   onItemClick={handleViewLoadTestResults}
                   getTooltipContent={getLoadTooltipContent}
                   groupByDate
+                  activeItemId={activeHistoryItemId}
                 />
               )}
               {selectedHistoryType === 'tracing' && (
@@ -2630,6 +2686,7 @@ topMenuActive === 'testing' ? (
                 activeRequestIndex={activeRequestIndex}
                 onTabSelect={onTabSelect}
                 onNewTab={onNewTab}
+                onTryFromHistory={onTryFromHistory}
                 onCloseTab={onCloseTab}
                 onTabRename={onTabRename}
                 method={method}

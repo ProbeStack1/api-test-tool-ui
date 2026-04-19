@@ -26,7 +26,7 @@ export default function LoadTestRunsTable({ runs = [], onViewDetails }) {
   const buttonRef = useRef(null);
   const dropdownMenuRef = useRef(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
-  const itemsPerPage = 10;
+  const itemsPerPage = 5;
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: null });
 
   const [visibleColumns, setVisibleColumns] = useState(() => {

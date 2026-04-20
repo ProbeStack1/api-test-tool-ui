@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Rocket, Terminal } from 'lucide-react';
+import { toast } from 'sonner';
+import { bootstrapUser } from '../../services/userService';
+import StartTestingModal from './StartTestingModal';
 
 const API_LINES = [
   { method: 'POST', endpoint: '/api/v1/users', status: '201', time: '45ms', ok: true },
@@ -86,7 +89,12 @@ function RocketButton({ onClick, children }) {
   const handleClick = useCallback(() => {
     if (isLaunching) return;
     setIsLaunching(true);
-    setTimeout(() => { onClick?.(); }, 600);
+    setTimeout(() => {
+      onClick?.();
+      // Reset the launching animation so the button is reusable if the
+      // user closes the modal without submitting.
+      setTimeout(() => setIsLaunching(false), 200);
+    }, 600);
   }, [isLaunching, onClick]);
 
   return (
@@ -124,7 +132,45 @@ function RocketButton({ onClick, children }) {
 }
 
 export default function HeroSection() {
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Preferred email source on open:
+  //   1) ?email=... on URL (parent product deep-links us)
+  //   2) userEmail in localStorage (returning visitor)
+  //   3) empty — modal's input has its own placeholder
+  const prefill =
+    new URL(window.location.href).searchParams.get('email') ||
+    localStorage.getItem('userEmail') ||
+    'admin@forgecrux.com';
+
+  // Called by the modal's onSubmit. Throws on failure so the modal stays
+  // open and renders the inline error — catch block lets us distinguish
+  // "hard failure" (bad email / ForgeCrux 404) from "transient failure"
+  // (network blip) where returning users can still proceed.
+  const handleBootstrap = async (email) => {
+    const cached = localStorage.getItem('userEmail');
+    const toastId = toast.loading('Syncing your account…');
+    try {
+      const u = await bootstrapUser(email);
+      toast.success(`Welcome, ${u.name || u.email}`, { id: toastId });
+      // Full reload so every component picks up the new userId / email /
+      // role. Guarantees a clean workspace for the new user.
+      window.location.href = '/workspace';
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not sync account',
+                  { id: toastId, duration: 6000 });
+      // Returning users: if they typed the same email that's already
+      // cached and they have a valid userId, let them in anyway so a
+      // flaky ForgeCrux doesn't block the demo.
+      if (cached && localStorage.getItem('userId') &&
+          cached.toLowerCase() === email.toLowerCase()) {
+        setTimeout(() => { window.location.href = '/workspace'; }, 1200);
+      } else {
+        throw err; // keep modal open for the user to retry
+      }
+    }
+  };
 
   return (
     <section data-testid="hero-section" className="relative z-10 shrink-0 overflow-hidden border-b landing-border">
@@ -140,7 +186,7 @@ export default function HeroSection() {
             data-testid="hero-title"
             className="text-2xl sm:text-4xl md:text-5xl whitespace-nowrap font-bold mb-5 animate-fade-in-up animation-delay-100 gradient-text font-display leading-tight"
           >
-            API Testing & Verification Hub
+            API Testing &amp; Verification Hub
           </h1>
 
           <p className="text-md md:text-lg landing-text-secondary mb-10 max-w-xl mx-auto animate-fade-in-up animation-delay-200 leading-relaxed">
@@ -148,12 +194,7 @@ export default function HeroSection() {
           </p>
 
           <div className="animate-fade-in-up animation-delay-300">
-            <RocketButton
-  onClick={() => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    navigate('/workspace');
-  }}
->
+            <RocketButton onClick={() => setModalOpen(true)}>
               Start Testing
             </RocketButton>
           </div>
@@ -163,6 +204,13 @@ export default function HeroSection() {
           <TerminalAnimation />
         </div>
       </div>
+
+      <StartTestingModal
+        open={modalOpen}
+        initialEmail={prefill}
+        onSubmit={handleBootstrap}
+        onClose={() => setModalOpen(false)}
+      />
     </section>
   );
 }

@@ -3653,14 +3653,14 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
     </button>
 
     {/* Theme Toggle */}
-    <button
+    {/* <button
       type="button"
       onClick={toggleTheme}
       aria-label="Toggle theme"
       className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
     >
       {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-    </button>
+    </button> */}
 
     {/* Profile Dropdown */}
     <div className="relative" ref={userMenuRef}>
@@ -3682,13 +3682,13 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
               <User className="w-4 h-4" />
               Profile
             </button>
-            <button
+            {/* <button
               onClick={() => { setIsUserMenuOpen(false); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
             >
               <BookOpen className="w-4 h-4" />
               Knowledgebase
-            </button>
+            </button> */}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors text-left"

@@ -1,7 +1,7 @@
 import React, { useEffect, useState,useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {  History, LayoutGrid, Layers, ChevronRight, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen, Activity } from 'lucide-react';
+import {  History, LayoutGrid, Layers, ChevronRight, ChevronLeft, Search, Plus, ChevronDown, BarChart3, Save, MoreVertical, MoreHorizontal, Trash2, FileSearch, Play, Upload, FolderOpen, X, Folder, Loader2, Building2, FileCode, Check, Edit3, Bot, BookOpen, Activity } from 'lucide-react';
 import APIExecutionStudio from './APIExecutionStudio';
 import IDEExecutionInsights from './IDEExecutionInsights';
 import CodeSnippetPanel from './CodeSnippetPanel';
@@ -26,9 +26,46 @@ import FunctionalTestPanel from './FunctionalTestPanel';
 import { getRunStatus } from '../services/functionalTestService';
 import { fetchRequestHistory ,saveResponseFromHistory,  updateSavedResponseName,  deleteSavedResponse, } from '../services/requestService';
 import { toast } from 'sonner';
-import MCPPanel from './sidebar/MCPPanel';
+import MCPPanel, { MCPProvider, MCPSidebar, MCPMainContent, useMCP } from './MCPPanel';
 import RightPanelProjects from './RightPanelProjects';
 import RightPanelAI from './RightPanelAI';
+
+// Wraps the <main> subtree with MCPProvider only when the MCP Test tab is
+// active. Keeps all other tabs free of MCP side effects.
+function ConditionalMCPProvider({ active, workspaceId, children }) {
+  if (!active) return <>{children}</>;
+  return <MCPProvider workspaceId={workspaceId}>{children}</MCPProvider>;
+}
+
+// Right-sidebar Code panel for the MCP tab. Reads the Bridge's current
+// request from `MCPContext.bridgeRequest` and feeds it to the shared
+// <CodeSnippetPanel /> so users get cURL / JS / Python / Java / HTTPie /
+// Postman CLI / axios snippets for the actual MCP call. Read-only — edits
+// in the snippet don't mutate Bridge state.
+function McpCodeSnippetPanel() {
+  const { bridgeRequest } = useMCP();
+  const req = bridgeRequest || {
+    method: 'POST',
+    url: '',
+    queryParams: [],
+    headers: [],
+    body: '',
+    authType: 'none',
+    authData: {},
+  };
+  return (
+    <CodeSnippetPanel
+      method={req.method}
+      url={req.url}
+      queryParams={req.queryParams}
+      headers={req.headers}
+      body={req.body}
+      authType={req.authType}
+      authData={req.authData}
+      onRequestUpdate={() => { /* read-only for MCP tab */ }}
+    />
+  );
+}
 
 export default function IDEWorkspaceLayout({
   history,
@@ -1702,15 +1739,48 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
 
       {/* Main Content Area - Forgeq layout (flex-1 min-h-0 so footer stays at bottom) */}
       <main className="flex-1 flex overflow-hidden min-h-0 min-w-0">
+        {/* ── Shared MCP state provider — only active for the MCP Test tab ── */}
+        <ConditionalMCPProvider active={topMenuActive === 'mcp-test'} workspaceId={activeWorkspaceId}>
         {/* Left sidebar - Forgeq w-72, background-light/30 */}
 {topMenuActive !== 'dashboard' && (
   <>
+    {sidebarCollapsed ? (
+      /* Collapsed rail — slim 40px strip so the user can clearly see the
+         sidebar is minimised and click anywhere on the rail to expand.
+         Replaces the old absolutely-positioned chevron which was hard
+         to find, especially inside the MCP workspace layout. */
+      <aside
+        role="button"
+        tabIndex={0}
+        onClick={() => setSidebarCollapsed(false)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSidebarCollapsed(false); }}
+        title="Expand sidebar"
+        className="w-10 border-r border-dark-700 bg-dark-800/60 hover:bg-dark-700/60 transition-colors flex-shrink-0 flex flex-col items-center py-2 cursor-pointer group select-none"
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(false); }}
+          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+          title="Expand sidebar"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+        <div
+          className="mt-3 text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500 group-hover:text-gray-200 transition-colors"
+          style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+        >
+          {topMenuActive === 'testing'
+            ? 'Testing'
+            : topMenuItems.find(m => m.id === topMenuActive)?.label
+              || (topMenuActive === 'settings-general' ? 'Settings' :
+                  topMenuActive === 'settings-certificates' ? 'Certificates' : 'Workspace')}
+        </div>
+      </aside>
+    ) : (
     <aside
       className={clsx(
         'border-r border-dark-700 flex flex-col bg-dark-800/30 flex-shrink-0 overflow-hidden',
-        sidebarCollapsed ? 'w-0' : ''
       )}
-      style={!sidebarCollapsed ? { width: sidebarWidth } : {}}
+      style={{ width: sidebarWidth }}
     >
       <div className="px-3 py-1 border-b border-dark-700/50 flex items-center justify-between shrink-0">
         <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
@@ -1718,14 +1788,13 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
             ? 'Testing'
             : topMenuItems.find(m => m.id === topMenuActive)?.label || (topMenuActive === 'settings-general' ? 'Settings - General' : topMenuActive === 'settings-certificates' ? 'Settings - Certificates' : 'Workspace')}
         </h2>
-        {!sidebarCollapsed && (
-          <button
-            onClick={() => setSidebarCollapsed(true)}
-            className="p-1.5 rounded-lg transition-colors text-gray-500 hover:text-white hover:bg-dark-700/50"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
+        <button
+          onClick={() => setSidebarCollapsed(true)}
+          className="p-1.5 rounded-lg transition-colors text-gray-500 hover:text-white hover:bg-dark-700/50"
+          title="Collapse sidebar"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 flex flex-col">
         {topMenuActive === 'collections' && (
@@ -2111,21 +2180,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
         )}
 
         {topMenuActive === 'mcp-test' && (
-          <CollectionsPanel 
-            onSelectEndpoint={onSelectEndpoint}
-            existingTabRequests={requests}
-            projects={projects}
-            onAddProject={onAddProject}
-            onCollectionsChange={setMcpCollections}
-            onRunCollection={onRunCollection}
-            onOpenWorkspaceDetails={onOpenWorkspaceDetails}
-            currentUserId={currentUserId}
-            activeWorkspaceId={activeWorkspaceId} 
-            onOpenCollectionRun={onOpenCollectionRun}
-            selectedRequestId={currentRequest?.id}
-            collectionType="mcp"
-            collections={mcpCollections}
-          />
+          <MCPSidebar />
         )}
 
         {topMenuActive === 'settings-general' && (
@@ -2146,19 +2201,12 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
         )}
       </div>
     </aside>
+    )}
     {!sidebarCollapsed && (
       <div
         className="w-1 cursor-ew-resize bg-transparent hover:bg-primary/50 transition-colors flex-shrink-0"
         onMouseDown={startResize}
       />
-    )}
-    {sidebarCollapsed && (
-      <button
-        onClick={() => setSidebarCollapsed(false)}
-        className="absolute left-0 top-[calc(64px+52px)] z-10 p-1.5 bg-dark-800 border-r border-b border-dark-700 rounded-r text-gray-500 hover:text-white hover:bg-dark-700/50"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
     )}
   </>
 )}
@@ -2679,6 +2727,9 @@ topMenuActive === 'testing' ? (
     workspaceId={activeWorkspaceId}
   />
             ) :
+ topMenuActive === 'mcp-test' ? (
+              <MCPMainContent />
+            ) :
 
  (
               <APIExecutionStudio
@@ -2815,24 +2866,28 @@ onAdvancedUrlEncodedChange={(val) => {
 )}
 
 {rightPanelOpen === 'code' && (
-  <CodeSnippetPanel
-    method={method}
-    url={url}
-    queryParams={queryParams}
-    headers={headers}
-    body={body}
-    authType={authType}
-    authData={authData}
-    onRequestUpdate={(parsed) => {
-      if (parsed.method) onMethodChange(parsed.method);
-      if (parsed.url) onUrlChange(parsed.url);
-      if (parsed.queryParams) onQueryParamsChange(parsed.queryParams);
-      if (parsed.headers) onHeadersChange(parsed.headers);
-      if (parsed.body !== undefined) onBodyChange(parsed.body);
-      if (parsed.authType) onAuthTypeChange(parsed.authType);
-      if (parsed.authData) onAuthDataChange(parsed.authData);
-    }}
-  />
+  topMenuActive === 'mcp-test'
+    ? <McpCodeSnippetPanel />
+    : (
+      <CodeSnippetPanel
+        method={method}
+        url={url}
+        queryParams={queryParams}
+        headers={headers}
+        body={body}
+        authType={authType}
+        authData={authData}
+        onRequestUpdate={(parsed) => {
+          if (parsed.method) onMethodChange(parsed.method);
+          if (parsed.url) onUrlChange(parsed.url);
+          if (parsed.queryParams) onQueryParamsChange(parsed.queryParams);
+          if (parsed.headers) onHeadersChange(parsed.headers);
+          if (parsed.body !== undefined) onBodyChange(parsed.body);
+          if (parsed.authType) onAuthTypeChange(parsed.authType);
+          if (parsed.authData) onAuthDataChange(parsed.authData);
+        }}
+      />
+    )
 )}
   {rightPanelOpen === 'insights' && (
     <IDEExecutionInsights
@@ -2946,6 +3001,7 @@ onAdvancedUrlEncodedChange={(val) => {
   </div>
 </div>
         </section>
+          </ConditionalMCPProvider>
       </main>
 
       {/* Footer - same as Forgeq / Migration page */}

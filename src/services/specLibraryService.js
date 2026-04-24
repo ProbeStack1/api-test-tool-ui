@@ -1,7 +1,7 @@
 import { testSpecificationApi } from '../lib/apiClient';
 
-const BASE = '/api/v1/testspec/library';
-const SPEC_BASE = '/api/v1/testspec/spec';
+const BASE = '/api/v1/testspecs/library';
+const SPEC_BASE = '/api/v1/testspecs/spec';
 
 /**
  * Normalize a library item from backend to frontend shape.

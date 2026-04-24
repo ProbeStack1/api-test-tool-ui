@@ -1,6 +1,6 @@
 import { testSpecificationApi } from '../lib/apiClient';
 
-const BASE = '/api/v1/testspec/spec';
+const BASE = '/api/v1/testspecs/spec';
 
 /**
  * Normalize a test spec from backend to frontend shape.

@@ -30,17 +30,24 @@ export default function MockServerEditor({
   const [saving, setSaving] = useState(false);
   const [mockUrl, setMockUrl] = useState(initialData?.mockUrl ? `/api/v1/mocks/${initialData.mockUrl}` : null);
   const [expandedEndpoints, setExpandedEndpoints] = useState({});
-  const [readOnly, setReadOnly] = useState(isEdit); // start read‑only for edit, editable for new
+  const [readOnly, setReadOnly] = useState(isEdit);
   const [mockId, setMockId] = useState(initialData?.id || null);
 
-  // Resizable split state
   const containerRef = useRef(null);
   const leftPanelRef = useRef(null);
   const [leftWidthPercent, setLeftWidthPercent] = useState(70);
   const [isDragging, setIsDragging] = useState(false);
   const [isLeftPanelWide, setIsLeftPanelWide] = useState(true);
 
-  // Initialize delay from existing mock server
+  // Helper: normalize path (add leading slash, remove duplicate slashes)
+  const normalizePath = (p) => {
+    if (!p) return '/';
+    let clean = p.trim();
+    if (!clean.startsWith('/')) clean = '/' + clean;
+    clean = clean.replace(/\/{2,}/g, '/');
+    return clean;
+  };
+
   useEffect(() => {
     if (isEdit && initialData?.delayMs !== undefined) {
       const delay = initialData.delayMs;
@@ -64,7 +71,7 @@ export default function MockServerEditor({
             initialData.endpoints.map(ep => ({
               id: ep.id,
               method: ep.method || 'GET',
-              path: ep.path || '',
+              path: normalizePath(ep.path || ''),
               statusCode: ep.responseStatus || 200,
               responseBody: ep.responseBody || '{}',
               requestBodySample: ep.requestBodySample || '',
@@ -78,38 +85,87 @@ export default function MockServerEditor({
         } else if (config) {
           if (config.creationType === 'scratch') {
             setEndpoints([createEmptyEndpoint()]);
-          } else if (config.creationType === 'collection') {
-            const requestsRes = await fetchRequests({ collectionId: config.selectedCollectionId });
-            const requests = requestsRes.data || [];
-            const endpointsList = await Promise.all(
-              requests.map(async (req) => {
-                const requestId = req.request_id || req.requestId || req.id;
-                let latest = null;
-                try {
-                  const execRes = await getLatestExecution(requestId);
-                  latest = execRes.data;
-                } catch (err) {}
-                const path = extractPath(req.url || req.path || '');
-                return {
-                  id: `col-${requestId}`,
-                  method: req.method || 'GET',
-                  path,
-                  statusCode: latest?.statusCode || 200,
-                  responseBody: latest?.responseBody || '{}',
-                  requestBodySample: req.body || '',
-                  validationMode: 'NONE',
-                  validateMethod: true,
-                  delayMs: 0,
-                  requestId: requestId,
-                  originalRequest: req,
-                  showRequestBody: !!req.body,
-                };
-              })
-            );
-            setEndpoints(endpointsList);
-          } else if (config.creationType === 'import') {
-            const endpointsList = parsePostmanToEndpoints(config.importFileContent);
-            setEndpoints(endpointsList.length ? endpointsList : [createEmptyEndpoint()]);
+          } 
+          else if (config.creationType === 'collection') {
+            const selectedCollection = collections.find(c => c.id === config.selectedCollectionId);
+            if (!selectedCollection || !selectedCollection.items) {
+              toast.error('Collection not found or empty');
+              setEndpoints([createEmptyEndpoint()]);
+              return;
+            }
+            
+            // Recursive function to collect all requests with full folder path
+            const collectRequestsWithFullPath = (items, currentFolderPath = '') => {
+              let endpointsList = [];
+              for (const item of items) {
+                if (item.type === 'folder') {
+                  const newPath = currentFolderPath ? `${currentFolderPath}/${item.name}` : item.name;
+                  endpointsList.push(...collectRequestsWithFullPath(item.items, newPath));
+                } 
+                else if (item.type === 'request') {
+                  let basePath = item.url || item.path || '';
+                  if (basePath.startsWith('http')) {
+                    try {
+                      basePath = new URL(basePath).pathname;
+                    } catch(e) {
+                      basePath = '';
+                    }
+                  }
+                  if (!basePath) basePath = '/' + (item.name || 'endpoint');
+                  if (!basePath.startsWith('/')) basePath = '/' + basePath;
+                  
+                  let fullPath = currentFolderPath ? `/${currentFolderPath}${basePath}` : basePath;
+                  fullPath = normalizePath(fullPath);
+                  
+                  let responseBody = item.responseBody || '{}';
+                  try { JSON.parse(responseBody); } catch(e) { responseBody = '{}'; }
+                  
+                  let requestBodySample = item.body || '';
+                  if (requestBodySample.trim()) {
+                    try { JSON.parse(requestBodySample); } catch(e) { requestBodySample = ''; }
+                  }
+                  
+                  endpointsList.push({
+                    id: `col-${item.id}`,
+                    method: item.method || 'GET',
+                    path: fullPath,
+                    statusCode: 200,
+                    responseBody: responseBody,
+                    requestBodySample: requestBodySample,
+                    validationMode: 'NONE',
+                    validateMethod: true,
+                    delayMs: 0,
+                    requestId: item.id,
+                    originalRequest: item,
+                    showRequestBody: !!requestBodySample,
+                  });
+                }
+              }
+              return endpointsList;
+            };
+            
+            let endpointsList = collectRequestsWithFullPath(selectedCollection.items);
+            // Deduplicate by method + path
+            const uniqueMap = new Map();
+            for (const ep of endpointsList) {
+              const key = `${ep.method}|${ep.path}`;
+              if (!uniqueMap.has(key)) uniqueMap.set(key, ep);
+            }
+            const uniqueEndpoints = Array.from(uniqueMap.values());
+            setEndpoints(uniqueEndpoints.length ? uniqueEndpoints : [createEmptyEndpoint()]);
+          } 
+          else if (config.creationType === 'import') {
+            let endpointsList = parsePostmanToEndpoints(config.importFileContent);
+            // Deduplicate
+            const uniqueMap = new Map();
+            for (const ep of endpointsList) {
+              const key = `${ep.method}|${normalizePath(ep.path)}`;
+              if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, { ...ep, path: normalizePath(ep.path) });
+              }
+            }
+            const uniqueEndpoints = Array.from(uniqueMap.values());
+            setEndpoints(uniqueEndpoints.length ? uniqueEndpoints : [createEmptyEndpoint()]);
           }
         } else {
           setEndpoints([createEmptyEndpoint()]);
@@ -117,14 +173,14 @@ export default function MockServerEditor({
       } catch (err) {
         console.error('Failed to load endpoints:', err);
         toast.error('Failed to load endpoints');
+        setEndpoints([createEmptyEndpoint()]);
       } finally {
         setLoading(false);
       }
     };
     loadEndpoints();
-  }, [isEdit, initialData, config]);
+  }, [isEdit, initialData, config, collections]);
 
-  // Observe left panel width for responsive layout
   useEffect(() => {
     if (!leftPanelRef.current) return;
     const resizeObserver = new ResizeObserver(entries => {
@@ -135,7 +191,6 @@ export default function MockServerEditor({
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Drag handlers
   const startDrag = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -216,10 +271,17 @@ export default function MockServerEditor({
     for (const ep of endpoints) {
       try {
         JSON.parse(ep.responseBody);
-        if (ep.requestBodySample && ep.requestBodySample.trim()) JSON.parse(ep.requestBodySample);
       } catch (e) {
-        toast.error(`Invalid JSON in endpoint ${ep.path}`);
+        toast.error(`Invalid JSON in response body of endpoint ${ep.path}`);
         return;
+      }
+      if (ep.requestBodySample && ep.requestBodySample.trim() && ep.validationMode !== 'NONE') {
+        try {
+          JSON.parse(ep.requestBodySample);
+        } catch (e) {
+          toast.error(`Invalid JSON in request body of endpoint ${ep.path}`);
+          return;
+        }
       }
     }
 
@@ -245,21 +307,30 @@ export default function MockServerEditor({
         setSaving(false);
       }
     } else {
+      // Deduplicate again before sending to backend (safety)
+      const uniqueMap = new Map();
+      for (const ep of endpoints) {
+        const key = `${ep.method}|${normalizePath(ep.path)}`;
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, {
+            method: ep.method,
+            path: normalizePath(ep.path),
+            statusCode: ep.statusCode,
+            responseBody: ep.responseBody,
+            requestBodySample: ep.requestBodySample,
+            validationMode: ep.validationMode,
+            validateMethod: ep.validateMethod !== false,
+            delayMs: ep.delayMs,
+            requestId: ep.requestId,
+          });
+        }
+      }
+      const uniqueEndpoints = Array.from(uniqueMap.values());
       const mockData = {
         name: name.trim(),
         visibility: isPrivate ? 'private' : 'public',
         delay,
-        endpoints: endpoints.map(ep => ({
-          method: ep.method,
-          path: ep.path.startsWith('/') ? ep.path : `/${ep.path}`,
-          statusCode: ep.statusCode,
-          responseBody: ep.responseBody,
-          requestBodySample: ep.requestBodySample,
-          validationMode: ep.validationMode,
-          validateMethod: ep.validateMethod !== false,
-          delayMs: ep.delayMs,
-          requestId: ep.requestId,
-        })),
+        endpoints: uniqueEndpoints,
         collectionId: config?.selectedCollectionId,
       };
       try {
@@ -285,29 +356,18 @@ export default function MockServerEditor({
 
   return (
     <div className="flex-1 flex overflow-hidden" ref={containerRef}>
-      {/* Left panel: Endpoints list – resizable width */}
-      <div
-        ref={leftPanelRef}
-        className="flex flex-col p-4 overflow-y-auto custom-scrollbar"
-        style={{ width: `${leftWidthPercent}%` }}
-      >
+      <div ref={leftPanelRef} className="flex flex-col p-4 overflow-y-auto custom-scrollbar" style={{ width: `${leftWidthPercent}%` }}>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white">Endpoints</h2>
             {!readOnly && (
-              <button
-                type="button"
-                onClick={addEndpoint}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
+              <button onClick={addEndpoint} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-lg hover:bg-primary/30">
                 <Plus size={14} /> Add Endpoint
               </button>
             )}
           </div>
           {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : (
             endpoints.map((ep, idx) => (
               <EndpointEditor
@@ -327,59 +387,28 @@ export default function MockServerEditor({
         </div>
       </div>
 
-      {/* Draggable Divider */}
-      <div
-        className="w-0.5 bg-dark-700 hover:bg-primary/50 cursor-col-resize transition-colors relative group flex-shrink-0"
-        onMouseDown={startDrag}
-      >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity">
-          <GripVertical className="w-5 h-5 text-gray-400" />
-        </div>
+      <div className="w-0.5 bg-dark-700 hover:bg-primary/50 cursor-col-resize transition-colors relative group flex-shrink-0" onMouseDown={startDrag}>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><GripVertical className="w-5 h-5 text-gray-400" /></div>
       </div>
 
-      {/* Right panel: Settings */}
       <div className="flex-1 p-4 space-y-5 overflow-y-auto border-l border-dark-700">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Mock Server Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={readOnly}
-            className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
-          />
+          <label className="block text-sm font-medium text-gray-300 mb-2">Mock Server Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={readOnly} className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60" />
         </div>
 
         <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium text-gray-200">Private</div>
-            <div className="text-xs text-gray-500">Only people with access can call this mock server</div>
-          </div>
+          <div><div className="text-sm font-medium text-gray-200">Private</div><div className="text-xs text-gray-500">Only people with access can call this mock server</div></div>
           <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isPrivate}
-              onChange={(e) => setIsPrivate(e.target.checked)}
-              disabled={readOnly}
-              className="sr-only peer"
-            />
+            <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} disabled={readOnly} className="sr-only peer" />
             <div className="w-11 h-6 bg-dark-700 rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full disabled:opacity-60"></div>
           </label>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Response Delay
-          </label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Response Delay</label>
           <div className="flex items-center gap-3">
-            <select
-              value={delayOption}
-              onChange={(e) => setDelayOption(e.target.value)}
-              disabled={readOnly}
-              className="flex-1 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-            >
+            <select value={delayOption} onChange={(e) => setDelayOption(e.target.value)} disabled={readOnly} className="flex-1 bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white">
               <option value="none">No delay</option>
               <option value="200">200ms</option>
               <option value="300">300ms</option>
@@ -387,15 +416,7 @@ export default function MockServerEditor({
             </select>
             {delayOption === 'custom' && (
               <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  step="50"
-                  value={customDelayMs}
-                  onChange={(e) => setCustomDelayMs(Number(e.target.value))}
-                  disabled={readOnly}
-                  className="w-20 border border-dark-700 rounded-lg px-2 py-2 text-sm text-white text-center bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-                />
+                <input type="number" min="0" step="50" value={customDelayMs} onChange={(e) => setCustomDelayMs(Number(e.target.value))} disabled={readOnly} className="w-20 border border-dark-700 rounded-lg px-2 py-2 text-sm text-white text-center bg-dark-800" />
                 <span className="text-sm text-gray-400">ms</span>
               </div>
             )}
@@ -410,20 +431,9 @@ export default function MockServerEditor({
         )}
 
         {readOnly ? (
-          <button
-            type="button"
-            onClick={handleEdit}
-            className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm flex items-center justify-center gap-2"
-          >
-            <Edit className="w-4 h-4" /> Edit Mock Server
-          </button>
+          <button onClick={handleEdit} className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm flex items-center justify-center gap-2"><Edit className="w-4 h-4" /> Edit Mock Server</button>
         ) : (
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
+          <button onClick={handleSave} disabled={saving} className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm disabled:opacity-50">
             {saving ? <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> : null}
             {isEdit ? 'Update Mock Server' : 'Create Mock Server'}
           </button>
@@ -433,15 +443,13 @@ export default function MockServerEditor({
   );
 }
 
-// EndpointEditor component with responsive two‑column layout
+// EndpointEditor component (unchanged, but included for completeness)
 function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate, onRemove, canRemove, isTwoColumn, disabled }) {
   const [jsonErrors, setJsonErrors] = useState({});
   const [showRequestBody, setShowRequestBody] = useState(endpoint.showRequestBody ?? false);
 
   useEffect(() => {
-    if (endpoint.requestBodySample && !showRequestBody) {
-      setShowRequestBody(true);
-    }
+    if (endpoint.requestBodySample && !showRequestBody) setShowRequestBody(true);
   }, [endpoint.requestBodySample, showRequestBody]);
 
   const validateJson = (field, value) => {
@@ -459,11 +467,8 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
   };
 
   const handleChange = (field, value) => {
-    if (validateJson(field, value)) {
-      onUpdate(field, value);
-    } else {
-      onUpdate(field, value);
-    }
+    validateJson(field, value);
+    onUpdate(field, value);
   };
 
   const toggleRequestBody = () => {
@@ -472,14 +477,11 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
       setShowRequestBody(false);
     } else {
       setShowRequestBody(true);
-      if (!endpoint.requestBodySample) {
-        onUpdate('requestBodySample', '');
-      }
+      if (!endpoint.requestBodySample) onUpdate('requestBodySample', '');
     }
   };
 
   const isGet = endpoint.method === 'GET';
-
   const getMethodClass = (method) => {
     switch (method) {
       case 'GET': return 'text-green-400 bg-green-400/10 border-green-400/20';
@@ -489,7 +491,6 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
       default: return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
     }
   };
-
   const getStatusClass = (statusCode) => {
     if (statusCode >= 200 && statusCode < 300) return 'text-green-400';
     if (statusCode >= 300) return 'text-red-400';
@@ -498,189 +499,34 @@ function EndpointEditor({ endpoint, index, isExpanded, onToggleExpand, onUpdate,
 
   return (
     <div className="border border-dark-700 rounded-lg bg-dark-800/40 overflow-hidden">
-      {/* Header row */}
       <div className="flex items-center gap-2 p-3 hover:bg-dark-700/30 cursor-pointer" onClick={onToggleExpand}>
-        <div className="shrink-0">
-          {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
-        </div>
+        <div className="shrink-0">{isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}</div>
         <div className="flex-1 grid grid-cols-[100px_1fr_80px] gap-3 items-center">
-          <select
-            value={endpoint.method}
-            onChange={(e) => {
-              e.stopPropagation();
-              handleChange('method', e.target.value);
-            }}
-            disabled={disabled}
-            className={`border rounded px-2 py-1.5 text-sm ${getMethodClass(endpoint.method)} focus:outline-none focus:ring-2 focus:ring-primary/50 bg-dark-800 disabled:opacity-60`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <option value="GET" className="text-green-400 bg-dark-800">GET</option>
-            <option value="POST" className="text-yellow-400 bg-dark-800">POST</option>
-            <option value="PUT" className="text-blue-400 bg-dark-800">PUT</option>
-            <option value="DELETE" className="text-red-400 bg-dark-800">DELETE</option>
-            <option value="PATCH" className="text-purple-400 bg-dark-800">PATCH</option>
+          <select value={endpoint.method} onChange={(e) => { e.stopPropagation(); handleChange('method', e.target.value); }} disabled={disabled} className={`border rounded px-2 py-1.5 text-sm ${getMethodClass(endpoint.method)} focus:outline-none focus:ring-2 focus:ring-primary/50 bg-dark-800 disabled:opacity-60`} onClick={(e) => e.stopPropagation()}>
+            <option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option><option value="PATCH">PATCH</option>
           </select>
-
-          <input
-            type="text"
-            placeholder="/path"
-            value={endpoint.path}
-            onChange={(e) => {
-              e.stopPropagation();
-              handleChange('path', e.target.value);
-            }}
-            disabled={disabled}
-            className="border border-dark-700 rounded px-3 py-1.5 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-            onClick={(e) => e.stopPropagation()}
-          />
-
-          <input
-            type="number"
-            min="100"
-            max="599"
-            value={endpoint.statusCode}
-            onChange={(e) => {
-              e.stopPropagation();
-              handleChange('statusCode', Number(e.target.value) || 200);
-            }}
-            disabled={disabled}
-            className={`border border-dark-700 rounded px-2 py-1.5 text-sm text-center w-20 bg-dark-800 ${getStatusClass(endpoint.statusCode)} focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60`}
-            placeholder="200"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <input type="text" placeholder="/path" value={endpoint.path} onChange={(e) => { e.stopPropagation(); handleChange('path', e.target.value); }} disabled={disabled} className="border border-dark-700 rounded px-3 py-1.5 text-sm text-white bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50" onClick={(e) => e.stopPropagation()} />
+          <input type="number" min="100" max="599" value={endpoint.statusCode} onChange={(e) => { e.stopPropagation(); handleChange('statusCode', Number(e.target.value) || 200); }} disabled={disabled} className={`border border-dark-700 rounded px-2 py-1.5 text-sm text-center w-20 bg-dark-800 ${getStatusClass(endpoint.statusCode)} focus:outline-none focus:ring-2 focus:ring-primary/50`} placeholder="200" onClick={(e) => e.stopPropagation()} />
         </div>
-        {canRemove && !disabled && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="text-gray-500 hover:text-red-400 transition-colors shrink-0"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
+        {canRemove && !disabled && <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-gray-500 hover:text-red-400"><Trash2 size={16} /></button>}
       </div>
-
-      {/* Expanded content */}
       {isExpanded && (
         <div className="p-3 pt-0 border-t border-dark-700 space-y-3">
-          {/* Request & Response Body – responsive layout */}
           {!isGet && showRequestBody ? (
             <div className={isTwoColumn ? 'grid grid-cols-2 gap-4' : 'flex flex-col space-y-4'}>
-              {/* Left: Request Body */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-gray-500">Request Body (JSON)</label>
-                  {!disabled && (
-                    <button
-                      type="button"
-                      onClick={toggleRequestBody}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  placeholder="Request body (JSON)"
-                  value={endpoint.requestBodySample}
-                  onChange={(e) => handleChange('requestBodySample', e.target.value)}
-                  rows={4}
-                  disabled={disabled}
-                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-                />
-                {jsonErrors.requestBodySample && (
-                  <p className="text-red-400 text-xs mt-1">{jsonErrors.requestBodySample}</p>
-                )}
-              </div>
-
-              {/* Right: Response Body */}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Response Body (JSON)</label>
-                <textarea
-                  placeholder="{}"
-                  value={endpoint.responseBody}
-                  onChange={(e) => handleChange('responseBody', e.target.value)}
-                  rows={4}
-                  disabled={disabled}
-                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-                />
-                {jsonErrors.responseBody && (
-                  <p className="text-red-400 text-xs mt-1">{jsonErrors.responseBody}</p>
-                )}
-              </div>
+              <div><div className="flex items-center justify-between mb-1"><label className="text-xs text-gray-500">Request Body (JSON)</label>{!disabled && <button onClick={toggleRequestBody} className="text-xs text-primary hover:underline">Remove</button>}</div><textarea value={endpoint.requestBodySample} onChange={(e) => handleChange('requestBodySample', e.target.value)} rows={4} disabled={disabled} className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y" />{jsonErrors.requestBodySample && <p className="text-red-400 text-xs mt-1">{jsonErrors.requestBodySample}</p>}</div>
+              <div><label className="block text-xs text-gray-500 mb-1">Response Body (JSON)</label><textarea value={endpoint.responseBody} onChange={(e) => handleChange('responseBody', e.target.value)} rows={4} disabled={disabled} className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y" />{jsonErrors.responseBody && <p className="text-red-400 text-xs mt-1">{jsonErrors.responseBody}</p>}</div>
             </div>
           ) : (
             <>
-              {!isGet && !showRequestBody && !disabled && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={toggleRequestBody}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    + Add Request Body
-                  </button>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Response Body (JSON)</label>
-                <textarea
-                  placeholder="{}"
-                  value={endpoint.responseBody}
-                  onChange={(e) => handleChange('responseBody', e.target.value)}
-                  rows={4}
-                  disabled={disabled}
-                  className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-                />
-                {jsonErrors.responseBody && (
-                  <p className="text-red-400 text-xs mt-1">{jsonErrors.responseBody}</p>
-                )}
-              </div>
+              {!isGet && !showRequestBody && !disabled && <div className="flex justify-end"><button onClick={toggleRequestBody} className="text-xs text-primary hover:underline">+ Add Request Body</button></div>}
+              <div><label className="block text-xs text-gray-500 mb-1">Response Body (JSON)</label><textarea value={endpoint.responseBody} onChange={(e) => handleChange('responseBody', e.target.value)} rows={4} disabled={disabled} className="w-full border border-dark-700 rounded px-3 py-2 text-sm font-mono text-white bg-dark-800 resize-y" />{jsonErrors.responseBody && <p className="text-red-400 text-xs mt-1">{jsonErrors.responseBody}</p>}</div>
             </>
           )}
-
-          {/* Validation Options */}
           <div className="flex items-center gap-4 pt-2">
-            <label className="flex items-center gap-2 text-xs text-gray-300">
-              <input
-                type="checkbox"
-                checked={endpoint.validateMethod}
-                onChange={(e) => handleChange('validateMethod', e.target.checked)}
-                disabled={disabled}
-                className="rounded text-primary focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
-              />
-              Validate HTTP method
-            </label>
-
-            {!isGet && (
-              <div>
-                <select
-                  value={endpoint.validationMode}
-                  onChange={(e) => handleChange('validationMode', e.target.value)}
-                  disabled={disabled}
-                  className="bg-dark-800 border border-dark-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-                >
-                  <option value="NONE">No body validation</option>
-                  <option value="EXACT_MATCH">Exact match</option>
-                  <option value="JSON_SCHEMA">JSON schema</option>
-                </select>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-gray-500">Delay (ms)</span>
-              <input
-                type="number"
-                min="0"
-                value={endpoint.delayMs}
-                onChange={(e) => handleChange('delayMs', Number(e.target.value))}
-                disabled={disabled}
-                className="w-16 border border-dark-700 rounded px-2 py-1 text-xs text-white text-center bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60"
-              />
-            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" checked={endpoint.validateMethod} onChange={(e) => handleChange('validateMethod', e.target.checked)} disabled={disabled} className="rounded text-primary" /> Validate HTTP method</label>
+            {!isGet && <select value={endpoint.validationMode} onChange={(e) => handleChange('validationMode', e.target.value)} disabled={disabled} className="bg-dark-800 border border-dark-700 rounded px-2 py-1 text-xs text-white"><option value="NONE">No body validation</option><option value="EXACT_MATCH">Exact match</option><option value="JSON_SCHEMA">JSON schema</option></select>}
+            <div className="flex items-center gap-2 ml-auto"><span className="text-xs text-gray-500">Delay (ms)</span><input type="number" min="0" value={endpoint.delayMs} onChange={(e) => handleChange('delayMs', Number(e.target.value))} disabled={disabled} className="w-16 border border-dark-700 rounded px-2 py-1 text-xs text-white text-center bg-dark-800" /></div>
           </div>
         </div>
       )}

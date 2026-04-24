@@ -5,19 +5,33 @@ import { Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
 
 /**
  * Read-only, syntax-tinted JSON viewer.
- * Tokens are highlighted via a lightweight regex, no external lib.
+ * Placeholder tokens are wrapped in letters (P…P) so the later
+ * number regex cannot accidentally match the placeholder index.
  */
 function highlight(text) {
   if (!text) return '';
-  return text
-    .replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  const frags = [];
+  const place = (html) => {
+    frags.push(html);
+    return `\x01P${frags.length - 1}P\x02`;
+  };
+
+  const escaped = text.replace(/[&<>]/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  const tokenised = escaped
     .replace(/("(?:\\.|[^"\\])*")(\s*:)?/g,
       (_, s, colon) =>
         colon
-          ? `<span class="text-sky-300">${s}</span>${colon}`
-          : `<span class="text-emerald-300">${s}</span>`)
-    .replace(/\b(true|false|null)\b/g, '<span class="text-amber-300">$1</span>')
-    .replace(/\b(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\b/g, '<span class="text-violet-300">$1</span>');
+          ? place(`<span class="text-sky-300">${s}</span>`) + colon
+          : place(`<span class="text-emerald-300">${s}</span>`))
+    .replace(/\b(true|false|null)\b/g,
+      (m) => place(`<span class="text-amber-300">${m}</span>`))
+    .replace(/\b(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\b/g,
+      (m) => place(`<span class="text-violet-300">${m}</span>`));
+
+  return tokenised.replace(/\x01P(\d+)P\x02/g,
+    (_, i) => frags[Number(i)]);
 }
 
 export default function JsonViewer({ data, title, expandDefault = false, maxHeight = 360, className }) {

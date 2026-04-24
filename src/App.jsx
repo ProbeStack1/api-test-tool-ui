@@ -1082,8 +1082,28 @@ const fetchAllRuns = useCallback(async () => {
   setLoadingRuns(true);
   try {
     const res = await listRunHistory(0, 50);
-    const runs = Array.isArray(res.data) ? res.data : (res.data?.content ?? []);
+    console.log('🔍 [DEBUG] Full response:', res);
+    console.log('🔍 [DEBUG] res.data:', res.data);
+    
+    let runs = [];
+    if (Array.isArray(res.data)) {
+      runs = res.data;
+    } else if (res.data?.items) {
+      runs = res.data.items;
+    } else if (res.data?.content) {
+      runs = res.data.content;
+    } else if (res.data?.data) {
+      runs = res.data.data;
+    } else {
+      runs = [];
+    }
+    
+    console.log('🔍 [DEBUG] Parsed runs (before filter):', runs);
+    console.log('🔍 [DEBUG] activeWorkspaceId:', activeWorkspaceId);
+    
     const filtered = runs.filter(r => r.workspaceId === activeWorkspaceId);
+    console.log('🔍 [DEBUG] Filtered runs:', filtered);
+    
     const sorted = [...filtered].sort((a, b) =>
       new Date(b.startedAt ?? b.createdAt ?? 0) - new Date(a.startedAt ?? a.createdAt ?? 0)
     );
@@ -3607,7 +3627,7 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
       {showProbeStack ? "ProbeStack" : "ForgeQ"}
     </span>
     <span className="text-[0.65rem] text-gray-400 leading-tight whitespace-nowrap">
-      A ForgeCrux Company
+      A ProbeStack Product
     </span>
   </div>
 </div>

@@ -39,40 +39,51 @@ export const extractPath = (url) => {
   return '/';
 };
 
-const extractResponseExample = (request) => {
-  if (!request.response) return null;
-  const responses = request.response;
-  const example = responses.find(r => r.status === '200' || r.status === '201') || responses[0];
-  if (example && example.body) {
-    let body = example.body;
-    try {
-      if (typeof body === 'string') body = JSON.parse(body);
-      body = JSON.stringify(body, null, 2);
-    } catch {}
-    return {
-      statusCode: parseInt(example.status, 10) || 200,
-      body: body || '{}',
-    };
+// ✅ FIX: Accept the whole item (which contains both request and response)
+const extractResponseExample = (item) => {
+  // In Postman v2.1, response is at the same level as request
+  if (!item.response || !Array.isArray(item.response) || item.response.length === 0) return null;
+  
+  // Prefer 200/201 responses, otherwise take the first
+  const example = item.response.find(r => r.status === '200' || r.status === '201') || item.response[0];
+  if (!example || !example.body) return null;
+  
+  let body = example.body;
+  try {
+    if (typeof body === 'string') body = JSON.parse(body);
+    body = JSON.stringify(body, null, 2);
+  } catch(e) {
+    // If parsing fails, keep the raw string
   }
-  return null;
+  
+  return {
+    statusCode: parseInt(example.status, 10) || 200,
+    body: body || '{}',
+  };
 };
 
 export const parsePostmanToEndpoints = (postmanJson) => {
   const endpoints = [];
+  
   const traverse = (item) => {
     if (item.request) {
       const req = item.request;
       const path = extractPath(req.url);
       const method = (req.method || 'GET').toUpperCase();
+      
       let requestBody = '';
       if (req.body && req.body.raw) requestBody = req.body.raw;
+      
       let responseBody = '{}';
       let statusCode = 200;
-      const example = extractResponseExample(req);
+      
+      // ✅ Pass the whole item, not just req
+      const example = extractResponseExample(item);
       if (example) {
         statusCode = example.statusCode;
         responseBody = example.body;
       }
+      
       endpoints.push({
         id: `import-${Date.now()}-${Math.random()}`,
         method,
@@ -89,6 +100,7 @@ export const parsePostmanToEndpoints = (postmanJson) => {
       item.item.forEach(sub => traverse(sub));
     }
   };
+  
   (postmanJson.item || []).forEach(traverse);
   return endpoints;
 };

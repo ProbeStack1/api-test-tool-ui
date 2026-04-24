@@ -1,30 +1,38 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { Image as ImageIcon, Maximize2, X, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
-import dashboard01 from "../../assets/landingPageGallary/Dashboard01.png";
-import dashboard02 from "../../assets/landingPageGallary/Dashboard02.png";
-import dashboard03 from "../../assets/landingPageGallary/Dashboard03.png";
-import dashboard04 from "../../assets/landingPageGallary/Dashboard04.png";
-import chatbot01 from "../../assets/landingPageGallary/chatbot01.png";
-import chatbot02 from "../../assets/landingPageGallary/chatbot02.png";
-import chatbot03 from "../../assets/landingPageGallary/chatbot03.png";
-import chatbot04 from "../../assets/landingPageGallary/chatbot04.png";
-import collection01 from "../../assets/landingPageGallary/Collection01.png"
-import collection02 from "../../assets/landingPageGallary/Collection02.png"
-import history01 from "../../assets/landingPageGallary/history01.png"
-import history02 from "../../assets/landingPageGallary/history02.png"
-import mcp01 from "../../assets/landingPageGallary/mcp01.png"
-import mcp02 from "../../assets/landingPageGallary/mcp02.png"
-import mcp03 from "../../assets/landingPageGallary/mcp03.png"
-import mcp04 from "../../assets/landingPageGallary/mcp04.png"
-import mcp05 from "../../assets/landingPageGallary/mcp05.png"
-import mcp06 from "../../assets/landingPageGallary/mcp06.png"
-import mock01 from "../../assets/landingPageGallary/mock01.png"
-import mock02 from "../../assets/landingPageGallary/mock02.png"
-import spec01 from "../../assets/landingPageGallary/spec01.png"
-import spec02 from "../../assets/landingPageGallary/spec02.png"
-import spec03 from "../../assets/landingPageGallary/spec03.png"
-import spec04 from "../../assets/landingPageGallary/spec04.png"
+// Corrected imports with exact case
+import dashboard01 from "../../assets/landingPageGallary/dashboard01.PNG";
+import dashboard02 from "../../assets/landingPageGallary/dashboard02.PNG";
+import dashboard03 from "../../assets/landingPageGallary/dashboard03.PNG";
+import dashboard04 from "../../assets/landingPageGallary/dashboard04.PNG";
+
+import chatbot01 from "../../assets/landingPageGallary/chatbot01.PNG";
+import chatbot02 from "../../assets/landingPageGallary/chatbot02.PNG";
+import chatbot03 from "../../assets/landingPageGallary/chatbot03.PNG";
+import chatbot04 from "../../assets/landingPageGallary/chatbot04.PNG";
+import chatbot05 from "../../assets/landingPageGallary/chatbot05.PNG";
+
+import collection01 from "../../assets/landingPageGallary/collection01.PNG";
+import collection02 from "../../assets/landingPageGallary/collection02.PNG";
+
+import history01 from "../../assets/landingPageGallary/history01.PNG";
+import history02 from "../../assets/landingPageGallary/history02.PNG";
+
+import mcp01 from "../../assets/landingPageGallary/mcp01.PNG";
+import mcp02 from "../../assets/landingPageGallary/mcp02.PNG";
+import mcp03 from "../../assets/landingPageGallary/mcp03.PNG";
+import mcp04 from "../../assets/landingPageGallary/mcp04.PNG";
+import mcp05 from "../../assets/landingPageGallary/mcp05.PNG";
+import mcp06 from "../../assets/landingPageGallary/mcp06.PNG";
+
+import mock01 from "../../assets/landingPageGallary/mock01.PNG";
+import mock02 from "../../assets/landingPageGallary/mock02.PNG";
+
+import spec01 from "../../assets/landingPageGallary/spec01.PNG";
+import spec02 from "../../assets/landingPageGallary/spec02.PNG";
+import spec03 from "../../assets/landingPageGallary/spec03.PNG";
+import spec04 from "../../assets/landingPageGallary/spec04.PNG";
 
 /**
  * Category data with multiple images each.

@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { Image as ImageIcon, Maximize2, X, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
-// Corrected imports with exact case
-import dashboard01 from "../../assets/landingPageGallary/dashboard01.PNG";
-import dashboard02 from "../../assets/landingPageGallary/dashboard02.PNG";
+import dashboard01 from "../../assets/landingPageGallary/Dashboard01.PNG";
+import dashboard02 from "../../assets/landingPageGallary/Dashboard02.PNG";
 import dashboard03 from "../../assets/landingPageGallary/dashboard03.PNG";
-import dashboard04 from "../../assets/landingPageGallary/dashboard04.PNG";
+import dashboard04 from "../../assets/landingPageGallary/Dashboard04.PNG";
 
 import chatbot01 from "../../assets/landingPageGallary/chatbot01.PNG";
 import chatbot02 from "../../assets/landingPageGallary/chatbot02.PNG";
@@ -13,7 +12,7 @@ import chatbot03 from "../../assets/landingPageGallary/chatbot03.PNG";
 import chatbot04 from "../../assets/landingPageGallary/chatbot04.PNG";
 import chatbot05 from "../../assets/landingPageGallary/chatbot05.PNG";
 
-import collection01 from "../../assets/landingPageGallary/collection01.PNG";
+import collection01 from "../../assets/landingPageGallary/Collection01.PNG";
 import collection02 from "../../assets/landingPageGallary/collection02.PNG";
 
 import history01 from "../../assets/landingPageGallary/history01.PNG";

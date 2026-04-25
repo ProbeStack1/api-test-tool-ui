@@ -13,7 +13,7 @@
 import axios from 'axios';
 
 // Base URL for production APIs
-const BASE_API_URL = 'https://prod.forgeq.probestack.io';
+const BASE_API_URL = 'https://forgeq.probestack.io';
 
 // Safety net — if something reads USER_ID before the user has bootstrapped
 // (e.g. a component mounts during the split-second before HomePage finishes

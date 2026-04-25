@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info, Activity  } from 'lucide-react';
+import {Loader2 , Sun, Moon, User, LogOut, ChevronDown, Search as SearchIcon, BookOpen, Settings, History, LayoutGrid, Layers, BarChart3,Check , Bot,Plus,Info, Activity, Globe  } from 'lucide-react';
 import clsx from 'clsx';
 import { USER_ID } from '././lib/apiClient';
 import { executeScript } from './utils/scriptExecutor';
@@ -95,6 +95,8 @@ const [loadingLoadRuns, setLoadingLoadRuns] = useState(false);
 const [showProbeStack, setShowProbeStack] = useState(false);
 const [probeStackDisappearing, setProbeStackDisappearing] = useState(false);
 const [logoVibrate, setLogoVibrate] = useState(false);
+
+const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: '' });
 
 useEffect(() => {
   let timer;
@@ -3660,18 +3662,34 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
   </div>
   
   <div className="flex items-center gap-3">
-    {/* Workspace Dropdown */}
+    
+  {/* Globe button */}
+  <button
+    type="button"
+    onClick={() => window.location.href = 'https://probestack.io'}
+    onMouseEnter={(e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setTooltip({ show: true, x: rect.left + rect.width / 2, y: rect.bottom + 38, content: 'Go to ProbeStack main page' });
+    }}
+    onMouseLeave={() => setTooltip({ show: false })}
+    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 cursor-pointer hover:bg-dark-700 hover:text-white transition-colors"
+  >
+    <Globe className="w-4 h-4" />
+  </button>
 
-    {/* Settings Button */}
-    <button
-      type="button"
-      onClick={() => navigate('/settings')}
-      aria-label="Settings"
-      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-dark-700 hover:text-white transition-colors"
-    >
-      <Settings className="w-4 h-4" />
-    </button>
-
+  {/* Settings button */}
+  <button
+    type="button"
+    onClick={() => navigate('/settings')}
+    onMouseEnter={(e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setTooltip({ show: true, x: rect.left + rect.width / 2, y: rect.bottom + 38, content: 'Settings' });
+    }}
+    onMouseLeave={() => setTooltip({ show: false })}
+    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 cursor-pointer hover:bg-dark-700 hover:text-white transition-colors"
+  >
+    <Settings className="w-4 h-4" />
+  </button>
     {/* Theme Toggle */}
     {/* <button
       type="button"
@@ -3883,6 +3901,18 @@ onShowChatbot={handleShowChatbot}
   requestInfo={chatbotRequestInfo}
   currentPath={pathname}  
 />
+
+{/* Custom tooltip portal */}
+{tooltip.show && ReactDOM.createPortal(
+  <div
+    className="fixed z-[9999] bg-gray-900 text-white text-xs rounded-md py-1 px-2 shadow-lg border border-gray-700 whitespace-nowrap pointer-events-none"
+    style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%) translateY(-100%)' }}
+  >
+    {tooltip.content}
+    <div className="absolute left-1/2 -translate-x-1/2 top-full -mt-1 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+  </div>,
+  document.body
+)}
 
       </main>
     </div>

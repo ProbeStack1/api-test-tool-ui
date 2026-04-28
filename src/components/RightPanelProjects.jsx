@@ -41,7 +41,7 @@ export default function RightPanelProjects({
           </div>
           <button
             type="button"
-            onClick={() => navigate('/workspace/projects-management?mode=create')}
+            onClick={() => navigate('/project/projects-management?mode=create')}
             className="p-1.5 rounded-md text-gray-500 hover:text-white hover:bg-dark-700 transition-colors flex items-center gap-1"
             title="Create new project"
           >
@@ -91,7 +91,7 @@ export default function RightPanelProjects({
                 {/* Member management icon – visible ONLY for the active project */}
                 {isActive && (
                   <button
-                    onClick={() => navigate(`/workspace/projects-management?mode=details&projectId=${project.id}`)}
+                    onClick={() => navigate(`/project/projects-management?mode=details&projectId=${project.id}`)}
                     className="p-1.5 rounded-md text-gray-500 hover:text-white hover:bg-dark-600 transition-colors"
                     title="Manage members"
                   >

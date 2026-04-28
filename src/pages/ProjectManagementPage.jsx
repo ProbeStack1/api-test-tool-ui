@@ -145,7 +145,7 @@ export default function ProjectManagementPage({
       toast.loading('Redirecting to collections...', { id: 'redirect-loading' });
       setTimeout(() => {
         toast.dismiss('redirect-loading');
-        navigate(`/workspace/collections?projectId=${project.id}`);
+        navigate(`/project/collections?projectId=${project.id}`);
       }, 300);
     });
   };
@@ -167,9 +167,9 @@ export default function ProjectManagementPage({
 
   const toggleMode = () => {
     if (showCreateForm) {
-      navigate(`/workspace/projects-management?mode=details&projectId=${projectId}`);
+      navigate(`/project/projects-management?mode=details&projectId=${projectId}`);
     } else {
-      navigate('/workspace/projects-management?mode=create');
+      navigate('/project/projects-management?mode=create');
     }
   };
 
@@ -179,7 +179,7 @@ export default function ProjectManagementPage({
     <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
       <div className="px-6 pt-4">
         <button
-          onClick={() => navigate('/workspace/collections')}
+          onClick={() => navigate('/project/collections')}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -339,7 +339,7 @@ export default function ProjectManagementPage({
                   onWorkspaceUpdate={onWorkspaceUpdate}
                   onWorkspaceDelete={(workspaceId) => {
                     onWorkspaceDelete(workspaceId);
-                    navigate('/workspace/collections');
+                    navigate('/project/collections');
                   }}
                 />
               </div>

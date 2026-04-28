@@ -156,7 +156,7 @@ export default function HeroSection() {
       toast.success(`Welcome, ${u.name || u.email}`, { id: toastId });
       // Full reload so every component picks up the new userId / email /
       // role. Guarantees a clean workspace for the new user.
-      window.location.href = '/workspace';
+      window.location.href = '/project';
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not sync account',
                   { id: toastId, duration: 6000 });
@@ -165,7 +165,7 @@ export default function HeroSection() {
       // flaky ForgeCrux doesn't block the demo.
       if (cached && localStorage.getItem('userId') &&
           cached.toLowerCase() === email.toLowerCase()) {
-        setTimeout(() => { window.location.href = '/workspace'; }, 1200);
+        setTimeout(() => { window.location.href = '/project'; }, 1200);
       } else {
         throw err; // keep modal open for the user to retry
       }

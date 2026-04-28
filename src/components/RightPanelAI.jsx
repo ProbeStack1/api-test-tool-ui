@@ -41,6 +41,72 @@ export default function RightPanelAI({
     }
   }, [chatHistory]);
 
+  // Helper: Parse AI response into four sections
+  const parseAIAnalysis = (content) => {
+    const sections = {
+      overview: '',
+      suggestions: [],
+      security: [],
+      performance: [],
+    };
+
+    // Split by headings (## or **)
+    const headingPattern = /(?:\*\*|##)\s*(Overview|Suggestions|Security|Performance)\s*(?:\*\*|##)/gi;
+    let lastIndex = 0;
+    let matches = [...content.matchAll(headingPattern)];
+
+    if (matches.length === 0) {
+      // No headings found – treat whole content as overview
+      sections.overview = content.trim();
+      return sections;
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      const heading = match[1].toLowerCase();
+      const start = match.index + match[0].length;
+      const end = i + 1 < matches.length ? matches[i + 1].index : content.length;
+      let sectionText = content.substring(start, end).trim();
+
+      // Remove trailing markdown bullets or line breaks
+      sectionText = sectionText.replace(/^[\s*-]+/gm, '').trim();
+
+      switch (heading) {
+        case 'overview':
+          sections.overview = sectionText;
+          break;
+        case 'suggestions':
+          sections.suggestions = sectionText
+            .split(/\n+/)
+            .filter(line => line.trim().length > 0)
+            .map(line => line.replace(/^[-*•]\s*/, '').trim());
+          break;
+        case 'security':
+          sections.security = sectionText
+            .split(/\n+/)
+            .filter(line => line.trim().length > 0)
+            .map(line => line.replace(/^[-*•]\s*/, '').trim());
+          break;
+        case 'performance':
+          sections.performance = sectionText
+            .split(/\n+/)
+            .filter(line => line.trim().length > 0)
+            .map(line => line.replace(/^[-*•]\s*/, '').trim());
+          break;
+        default:
+          break;
+      }
+    }
+
+    // Fallback if any section is missing
+    if (!sections.overview) sections.overview = 'Analysis generated, but no overview section found.';
+    if (sections.suggestions.length === 0) sections.suggestions.push('No specific suggestions provided.');
+    if (sections.security.length === 0) sections.security.push('No security notes provided.');
+    if (sections.performance.length === 0) sections.performance.push('No performance notes provided.');
+
+    return sections;
+  };
+
   const generateAnalysis = async () => {
     setIsAiLoading(true);
     setStatusLine('Setting things up…');
@@ -62,12 +128,8 @@ export default function RightPanelAI({
           else if (s.phase === 'switch') setStatusLine(`Switching to ${s.providerLabel}…`);
         },
       });
-      setAiResponse({
-        overview: resp.content,
-        suggestions: [],
-        security: [],
-        performance: [],
-      });
+      const parsed = parseAIAnalysis(resp.content);
+      setAiResponse(parsed);
     } catch (e) {
       // Static fallback so the panel never goes empty
       setAiResponse({
@@ -214,7 +276,7 @@ export default function RightPanelAI({
             {activeTab === 'analysis' && (
               <div className="space-y-3">
                 <div className="rounded-md p-3 border border-dark-700">
-                  <p className="text-sm text-gray-300 break-words">{aiResponse.overview}</p>
+                  <p className="text-sm text-gray-300 break-words whitespace-pre-wrap">{aiResponse.overview}</p>
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Request Details</h4>

@@ -273,27 +273,23 @@ const buildPristineFromRequests = (reqs) => {
 
 // Helper to compute environment overrides for collection/load runs
 const getEnvironmentOverrides = () => {
-  const activeEnvironment = environments.find(e => e.isActive);
   const combined = {};
 
+  // 1. Global variables first (lowest precedence)
+  if (globalEnvironment) {
+    (globalEnvironment.variables || []).forEach(v => {
+      if (v.key && v.value) combined[v.key] = v.value;
+    });
+  }
+
+  // 2. Workspace active env overrides global (Global env skip)
+  const activeEnvironment = environments.find(
+    e => e.isActive && e.environmentType !== 'global'
+  );
   if (activeEnvironment) {
-    // Add active environment variables
     (activeEnvironment.variables || []).forEach(v => {
       if (v.key && v.value) combined[v.key] = v.value;
     });
-    // If active environment is not global, also add global variables
-    if (activeEnvironment.environment_type !== 'global' && globalEnvironment) {
-      (globalEnvironment.variables || []).forEach(v => {
-        if (v.key && v.value) combined[v.key] = v.value;
-      });
-    }
-  } else {
-    // No active environment – use only global variables
-    if (globalEnvironment) {
-      (globalEnvironment.variables || []).forEach(v => {
-        if (v.key && v.value) combined[v.key] = v.value;
-      });
-    }
   }
 
   return combined;
@@ -477,7 +473,7 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
     setActiveRequestIndex(newActiveIndex);
     saveToCollectionsContext(newRequests, newActiveIndex);
     // Navigate so the tab becomes visible
-    navigate('/workspace/collections');
+    navigate('/project/collections');
   }
 
   try {
@@ -502,7 +498,7 @@ const handleRunLoadTest = async (collectionId, config, configTabIndex) => {
     // If replacement, navigate after ID is set
     if (configTabIndex >= 0) {
       setTimeout(() => {
-        navigate('/workspace/collections');
+        navigate('/project/collections');
       }, 100);
     }
 
@@ -625,7 +621,7 @@ const handleOpenCollectionRunResults = (runData, collectionId, tabIndex, shouldN
   // `forceHistory` is set by callers that are "view-existing-run" flows (history sidebar,
   // runs tables) so results land in History regardless of where the click happened.
   const destContext = (forceHistory || currentActiveMenu === 'history') ? 'history' : 'collections';
-  const destPath = destContext === 'history' ? '/workspace/history' : '/workspace/collections';
+  const destPath = destContext === 'history' ? '/project/history' : '/project/collections';
 
   // Check if a tab with this runId already exists
   const existingTabIndex = requests.findIndex(
@@ -1193,7 +1189,9 @@ const [environments, setEnvironments] = useState(() => [{ id: 'no-env', name: 'N
 const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('no-env');
 
 const { activeEnvVars, inactiveEnvVars, activeEnvValues, inactiveEnvInfo } = useVariableMaps(
-  environments.filter(e => e.workspaceId === activeWorkspaceId)
+  environments.filter(
+    e => e.environmentType === 'global' || e.workspaceId === activeWorkspaceId
+  )
 );
 
   // Variables state with localStorage persistence
@@ -1566,9 +1564,15 @@ const loadData = async () => {
     setEnvironments([{ id: 'no-env', name: 'No Environment' }, ...uniqueEnvs]);
 
     if (uniqueEnvs.length > 0) {
-      const activeEnv = uniqueEnvs.find(e => e.isActive) || uniqueEnvs[0];
-      setSelectedEnvironmentId(activeEnv.id);
-      setEnvironmentVariables(activeEnv.variables || []);
+      const workspaceScopedEnvs = uniqueEnvs.filter(e => e.environmentType !== 'global');
+      const activeEnv = workspaceScopedEnvs.find(e => e.isActive);
+      if (activeEnv) {
+        setSelectedEnvironmentId(activeEnv.id);
+        setEnvironmentVariables(activeEnv.variables || []);
+      } else {
+        setSelectedEnvironmentId('no-env');
+        setEnvironmentVariables([]);
+      }
     } else {
       setSelectedEnvironmentId('no-env');
       setEnvironmentVariables([]);
@@ -1689,7 +1693,7 @@ updateActiveRequest('response', null);
   });
 
   // Active environment variables (override global)
-  const activeEnv = environments.find(e => e.isActive);
+const activeEnv = environments.find(e => e.isActive && e.environmentType !== 'global');
   if (activeEnv) {
     (activeEnv.variables || []).forEach(v => {
       if (v.key && v.value != null) effectiveVariables[v.key] = v.value;
@@ -2162,13 +2166,13 @@ const res = {
   const loadHistoryItem = (item) => {
     updateActiveRequest('url', item.url);
     updateActiveRequest('method', item.method);
-    navigate('/workspace');
+    navigate('/project');
   };
 
   const handleImport = (api) => {
     updateActiveRequest('url', api.url);
     updateActiveRequest('method', 'GET');
-    navigate('/workspace');
+    navigate('/project');
   };
 
 const handleSelectEndpoint = (endpoint, skipNavigate = false) => {
@@ -2465,7 +2469,7 @@ const handleNewTab = (tabData) => {
   // collection that belongs to the CORRECT protocol's array — otherwise the
   // backend rejects with "HTTP requests cannot be created inside MCP
   // collections" (or vice versa).
-  const isMcpPath = pathname.includes('/workspace/mcp-test');
+  const isMcpPath = pathname.includes('/project/mcp-test');
   const eligibleCollections = isMcpPath ? mcpCollections : collections;
   const protocolLabel = isMcpPath ? 'MCP' : 'HTTP';
 
@@ -2540,7 +2544,7 @@ const handleNewTab = (tabData) => {
 // Original dummy-tab creation (extracted so it can be reused as a fallback).
 const pushDummyNewTab = () => {
   const uniqueName = generateUniqueRequestName();
-  const isMcpContext = pathname.includes('/workspace/mcp-test');
+  const isMcpContext = pathname.includes('/project/mcp-test');
   const newRequest = isMcpContext
     ? { ...createEmptyRequest(), name: uniqueName, type: 'mcp-request', mcpType: 'sse' }
     : { ...createEmptyRequest(), name: uniqueName };
@@ -3159,13 +3163,15 @@ const handleCreateEnvironment = async (desiredName) => {
 
 const handleActivateEnvironment = async (envId) => {
   if (envId === 'no-env') {
-    // Find current active environment
-    const activeEnv = environments.find(e => e.isActive);
+    // Global ko ignore — sirf workspace active env dhoondho
+    const activeEnv = environments.find(e => e.isActive && e.environmentType !== 'global');
     if (activeEnv) {
       try {
         await deactivateEnvironment(activeEnv.id);
-        // Update state: no active environment
-        setEnvironments(prev => prev.map(env => ({ ...env, isActive: false })));
+        // Global ka isActive kabhi mat chedo
+        setEnvironments(prev => prev.map(env =>
+          env.environmentType === 'global' ? env : { ...env, isActive: false }
+        ));
         setSelectedEnvironmentId('no-env');
         setEnvironmentVariables([]);
         setEnvironmentVariablesDirty(false);
@@ -3175,7 +3181,6 @@ const handleActivateEnvironment = async (envId) => {
         toast.error(err.response?.data?.message || 'Failed to deactivate environment');
       }
     } else {
-      // Already no active environment, just ensure selection is 'no-env'
       setSelectedEnvironmentId('no-env');
       setEnvironmentVariables([]);
       setEnvironmentVariablesDirty(false);
@@ -3185,11 +3190,11 @@ const handleActivateEnvironment = async (envId) => {
 
   try {
     await activateEnvironment(envId);
-    // Update local state: set this env active, others inactive, and also select it for editing
-    setEnvironments(prev => prev.map(env => ({
-      ...env,
-      isActive: env.id === envId
-    })));
+    // Global ka isActive kabhi mat flip karo
+    setEnvironments(prev => prev.map(env => {
+      if (env.environmentType === 'global') return env;
+      return { ...env, isActive: env.id === envId };
+    }));
     setSelectedEnvironmentId(envId);
     const env = environments.find(e => e.id === envId);
     if (env) {
@@ -3417,7 +3422,7 @@ const handleMockServerRun = (runData) => {
   setCollectionRunResults(runData);
 };
 
-  const isWorkspace = pathname.startsWith('/workspace');
+  const isWorkspace = pathname.startsWith('/project');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
   const userMenuRef = useRef(null);
@@ -3481,27 +3486,27 @@ const filteredMockServers = useMemo(() => {
 
   // Top menu navigation items
   const topMenuItems = [
-    { id: 'history', label: 'History', path: '/workspace/history', icon: History },
-    { id: 'collections', label: 'Collections', path: '/workspace/collections', icon: LayoutGrid },
-    { id: 'environments', label: 'Variables', path: '/workspace/variables', icon: Layers },
-    { id: 'mcp-test', label: 'MCP', path: '/workspace/mcp-test', icon: Activity },
-    { id: 'testing', label: 'Testing', path: '/workspace/testing', icon: BarChart3 },
-    { id: 'mock-service', label: 'Mock', path: '/workspace/mock-service', icon: Layers },
-    { id: 'ai-assisted', label: 'AI-Assisted', path: '/workspace/ai-assisted', icon: Bot },
-    { id: 'dashboard', label: 'Dashboard', path: '/workspace/dashboard', icon: BarChart3 },
+    { id: 'history', label: 'History', path: '/project/history', icon: History },
+    { id: 'collections', label: 'Collections', path: '/project/collections', icon: LayoutGrid },
+    { id: 'environments', label: 'Variables', path: '/project/variables', icon: Layers },
+    { id: 'mcp-test', label: 'MCP', path: '/project/mcp-test', icon: Activity },
+    { id: 'testing', label: 'Testing', path: '/project/testing', icon: BarChart3 },
+    { id: 'mock-service', label: 'Mock', path: '/project/mock-service', icon: Layers },
+    { id: 'ai-assisted', label: 'AI-Assisted', path: '/project/ai-assisted', icon: Bot },
+    { id: 'dashboard', label: 'Dashboard', path: '/project/dashboard', icon: BarChart3 },
   ];
 
   // Determine active menu based on current path
   const getActiveMenu = () => {
-    if (pathname.includes('/workspace/profile')) return null; // Profile pages don't highlight navigation
-    if (pathname.includes('/workspace/history')) return 'history';
-    if (pathname.includes('/workspace/mcp-test')) return 'mcp-test';
-    if (pathname.includes('/workspace/variables')) return 'environments';
-    if (pathname.includes('/workspace/testing')) return 'testing';
-    if (pathname.includes('/workspace/mock-service')) return 'mock-service';
-    if (pathname.includes('/workspace/ai-assisted')) return 'ai-assisted';
-    if (pathname.includes('/workspace/dashboard')) return 'dashboard';
-    if (pathname.includes('/workspace/collections')) return 'collections';
+    if (pathname.includes('/project/profile')) return null; // Profile pages don't highlight navigation
+    if (pathname.includes('/project/history')) return 'history';
+    if (pathname.includes('/project/mcp-test')) return 'mcp-test';
+    if (pathname.includes('/project/variables')) return 'environments';
+    if (pathname.includes('/project/testing')) return 'testing';
+    if (pathname.includes('/project/mock-service')) return 'mock-service';
+    if (pathname.includes('/project/ai-assisted')) return 'ai-assisted';
+    if (pathname.includes('/project/dashboard')) return 'dashboard';
+    if (pathname.includes('/project/collections')) return 'collections';
     return 'collections';
   };
  const [currentActiveMenu, setCurrentActiveMenu] = useState(() => getActiveMenu());
@@ -3714,7 +3719,7 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
         <div className="absolute right-0 mt-2 w-48 rounded-lg border border-dark-700 bg-dark-800/95 shadow-xl overflow-hidden z-50">
           <div className="py-1">
             <button
-              onClick={() => { navigate('/workspace/profile'); setIsUserMenuOpen(false); }}
+              onClick={() => { navigate('/project/profile'); setIsUserMenuOpen(false); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-dark-700 transition-colors text-left"
             >
               <User className="w-4 h-4" />
@@ -3746,12 +3751,12 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
           <Route path="/reports" element={<Reports history={history} />} />
           <Route path="/explore" element={<Explore onImport={handleImport} />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/workspace/profile" element={<Profile />} />
-          <Route path="/workspace/profile/support" element={<ProfileSupport />} />
-          <Route path="/workspace/profile/support/ticket" element={<ProfileSupportTicket />} />
+          <Route path="/project/profile" element={<Profile />} />
+          <Route path="/project/profile/support" element={<ProfileSupport />} />
+          <Route path="/project/profile/support/ticket" element={<ProfileSupportTicket />} />
           <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
           <Route
-  path="/workspace/projects-management"
+  path="/project/projects-management"
   element={
     <ProjectManagementPage
       projects={projects}
@@ -3765,7 +3770,7 @@ if (newContext === 'collections' || newContext === 'mock-service' || newContext 
   }
 />
           <Route
-            path="/workspace/*"
+            path="/project/*"
             element={
               <TestingToolPage
                 history={history}

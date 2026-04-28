@@ -77,7 +77,7 @@ export default function VariablesEditor({
         setEditEnv(env);
         setEditEnvName(env.name);
       } else {
-        navigate('/workspace/variables', { replace: true });
+        navigate('/project/variables', { replace: true });
         setShowEditForm(false);
       }
     } else {
@@ -92,7 +92,7 @@ export default function VariablesEditor({
     if (action === 'create') {
       setShowInlineCreate(true);
       // Remove query param from URL
-      navigate('/workspace/variables', { replace: true });
+      navigate('/project/variables', { replace: true });
     }
   }, [query, navigate]);
 
@@ -302,7 +302,7 @@ export default function VariablesEditor({
                     return;
                   }
                   await onUpdateEnvironment(editEnv.id, editEnvName.trim());
-                  navigate('/workspace/variables', { replace: true });
+                  navigate('/project/variables', { replace: true });
                   setShowEditForm(false);
                 }}
                 className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium"
@@ -311,7 +311,7 @@ export default function VariablesEditor({
               </button>
               <button
                 onClick={() => {
-                  navigate('/workspace/variables', { replace: true });
+                  navigate('/project/variables', { replace: true });
                   setShowEditForm(false);
                 }}
                 className="px-4 py-2 bg-dark-700 text-gray-300 rounded-lg text-sm font-medium"

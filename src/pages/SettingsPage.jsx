@@ -180,7 +180,7 @@ const handleSave = async (section) => {
       {/* Back Button */}
       <div className="px-6 pt-4">
         <button
-          onClick={() => navigate("/workspace/collections")}
+          onClick={() => navigate("/project/collections")}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />

@@ -40,7 +40,7 @@ export default function AcceptInvitationPage() {
           setCountdown(prev => {
             if (prev <= 1) {
               clearInterval(timer);
-              navigate('/workspace/collections');
+              navigate('/project/collections');
               return 0;
             }
             return prev - 1;

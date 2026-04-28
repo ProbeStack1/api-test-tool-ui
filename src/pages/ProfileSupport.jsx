@@ -25,7 +25,7 @@ const supportCards = [
       "Explore detailed technical guides, release notes, and product documentation.",
     icon: BookOpen,
     cta: "Learn more",
-    path: "/workspace/knowledgebase",
+    path: "/project/knowledgebase",
   },
   {
     title: "Community Forum",
@@ -53,7 +53,7 @@ export const ProfileSupport = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/workspace/knowledgebase?q=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/project/knowledgebase?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
@@ -192,13 +192,13 @@ export const ProfileSupport = () => {
                 className="border-dark-700 hover:bg-dark-700"
                 asChild
               >
-                <Link to="/workspace/knowledgebase">
+                <Link to="/project/knowledgebase">
                   <HelpCircle className="mr-2 h-4 w-4" />
                   View FAQs
                 </Link>
               </Button>
               <Button variant="default" asChild>
-                <Link to="/workspace/profile/support/ticket">
+                <Link to="/project/profile/support/ticket">
                   Raise Support Ticket
                 </Link>
               </Button>

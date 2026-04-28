@@ -378,8 +378,8 @@ const handleViewLoadTestResults = (run) => {
     onTabSelect(existingIndex);
     // Only navigate if we're not already on History, to avoid a pointless
     // route push that re-triggers sidebar data fetches (flicker).
-    if (!location.pathname.includes('/workspace/history')) {
-      navigate('/workspace/history');
+    if (!location.pathname.includes('/project/history')) {
+      navigate('/project/history');
     }
     return;
   }
@@ -394,7 +394,7 @@ const handleViewLoadTestResults = (run) => {
     loadTestId: loadTestId,
   };
 
-  if (location.pathname.includes('/workspace/history')) {
+  if (location.pathname.includes('/project/history')) {
     onNewTab(resultsTab);
     return;
   }
@@ -402,7 +402,7 @@ const handleViewLoadTestResults = (run) => {
   // Coming from a different menu (e.g., LoadTestRunsTable on some other view)
   // — navigate to History first, then create the tab after the context
   // switch completes.
-  navigate('/workspace/history');
+  navigate('/project/history');
   setTimeout(() => {
     const existingAfter = requests.findIndex(
       tab => tab.type === 'load-test-results' && tab.loadTestId === loadTestId
@@ -530,26 +530,26 @@ const handleShowLoadTestResults = (loadTestId) => {
   }
 };
   const getTopMenuFromPath = (pathname) => {
-    if (pathname.includes('/workspace/history')) return 'history';
-    if (pathname.includes('/workspace/variables')) return 'environments';
-    if (pathname.includes('/workspace/mcp-test')) return 'mcp-test'; 
-    if (pathname.includes('/workspace/testing')) return 'testing';
-    if (pathname.includes('/workspace/mock-service')) return 'mock-service';
-    if (pathname.includes('/workspace/ai-assisted')) return 'ai-assisted';
-    if (pathname.includes('/workspace/dashboard')) return 'dashboard';
-    if (pathname.includes('/workspace/settings/general')) return 'settings-general';
-    if (pathname.includes('/workspace/settings/certificates')) return 'settings-certificates';
+    if (pathname.includes('/project/history')) return 'history';
+    if (pathname.includes('/project/variables')) return 'environments';
+    if (pathname.includes('/project/mcp-test')) return 'mcp-test'; 
+    if (pathname.includes('/project/testing')) return 'testing';
+    if (pathname.includes('/project/mock-service')) return 'mock-service';
+    if (pathname.includes('/project/ai-assisted')) return 'ai-assisted';
+    if (pathname.includes('/project/dashboard')) return 'dashboard';
+    if (pathname.includes('/project/settings/general')) return 'settings-general';
+    if (pathname.includes('/project/settings/certificates')) return 'settings-certificates';
     return 'collections';
   };
   const getPathFromTopMenu = (menuId) => {
-    if (menuId === 'history') return '/workspace/history';
-    if (menuId === 'environments') return '/workspace/variables';
-    if (menuId === 'mcp-test') return '/workspace/mcp-test';
-    if (menuId === 'testing') return '/workspace/testing';
-    if (menuId === 'mock-service') return '/workspace/mock-service';
-    if (menuId === 'ai-assisted') return '/workspace/ai-assisted';
-    if (menuId === 'dashboard') return '/workspace/dashboard';
-    return '/workspace/collections';
+    if (menuId === 'history') return '/project/history';
+    if (menuId === 'environments') return '/project/variables';
+    if (menuId === 'mcp-test') return '/project/mcp-test';
+    if (menuId === 'testing') return '/project/testing';
+    if (menuId === 'mock-service') return '/project/mock-service';
+    if (menuId === 'ai-assisted') return '/project/ai-assisted';
+    if (menuId === 'dashboard') return '/project/dashboard';
+    return '/project/collections';
   };
   const [expandedMockServers, setExpandedMockServers] = useState({});
   const [topMenuActive, setTopMenuActive] = useState(() => getTopMenuFromPath(location.pathname));
@@ -668,8 +668,8 @@ useEffect(() => {
   useEffect(() => () => { if (variablesSavedTimeoutRef.current) clearTimeout(variablesSavedTimeoutRef.current); }, []);
 
   useEffect(() => {
-    if (location.pathname === '/workspace' || location.pathname === '/workspace/') {
-      navigate('/workspace/collections', { replace: true });
+    if (location.pathname === '/project' || location.pathname === '/project/') {
+      navigate('/project/collections', { replace: true });
       return;
     }
     setTopMenuActive(getTopMenuFromPath(location.pathname));
@@ -2294,14 +2294,14 @@ topMenuActive === 'testing' ? (
             <button
               type="button"
               onClick={() => setLoadCollectionSource('workspace')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${loadCollectionSource === 'workspace' ? 'bg-primary text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${loadCollectionSource === 'workspace' ? ' text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
             >
-              From workspace
+              From Existing Collection
             </button>
             <button
               type="button"
               onClick={() => setLoadCollectionSource('upload')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${loadCollectionSource === 'upload' ? 'bg-primary text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${loadCollectionSource === 'upload' ? ' text-white border-primary' : 'bg-transparent text-gray-400 border-dark-600 hover:border-gray-500'}`}
             >
               Upload file
             </button>
@@ -2844,22 +2844,22 @@ onAdvancedUrlEncodedChange={(val) => {
     activeEnvId={environments.find(e => e.isActive)?.id || 'no-env'}
     globalEnv={globalEnvironment}
     onNavigateToVariables={() => {
-      navigate('/workspace/variables');
+      navigate('/project/variables');
       setRightPanelOpen(null);
     }}
     onCreateEnvironmentWithRedirect={() => {
-      navigate('/workspace/variables?action=create');
+      navigate('/project/variables?action=create');
       setRightPanelOpen(null);
     }}
     onEditEnvironment={(envId) => {
       onEnvironmentChange(envId);
-      navigate('/workspace/variables');
+      navigate('/project/variables');
       setRightPanelOpen(null);
     }}
     onActivateEnvironment={onActivateEnvironment}
     onShowGlobal={() => {
       setVariablesScope('global-scope');
-      navigate('/workspace/variables');
+      navigate('/project/variables');
       setRightPanelOpen(null);
     }}
   />

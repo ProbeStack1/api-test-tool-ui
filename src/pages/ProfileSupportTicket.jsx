@@ -199,7 +199,7 @@ export const ProfileSupportTicket = () => {
             className="mb-8"
           >
             <Link
-              to="/workspace/profile/support"
+              to="/project/profile/support"
               className="inline-flex items-center text-sm font-medium text-gray-400 hover:text-primary transition-colors"
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
@@ -245,7 +245,7 @@ export const ProfileSupportTicket = () => {
                 We&apos;ve received your ticket and will respond as soon as possible.
               </p>
               <Button variant="outline" asChild className="mt-4">
-                <Link to="/workspace/profile/support">Back to Help Center</Link>
+                <Link to="/project/profile/support">Back to Help Center</Link>
               </Button>
             </motion.div>
           ) : (
@@ -411,7 +411,7 @@ export const ProfileSupportTicket = () => {
                 Contact us
               </Link>{" "}
               or check our{" "}
-              <Link to="/workspace/profile/support" className="text-primary hover:underline font-medium">
+              <Link to="/project/profile/support" className="text-primary hover:underline font-medium">
                 Help Center
               </Link>
               .

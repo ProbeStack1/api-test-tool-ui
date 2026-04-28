@@ -21,7 +21,7 @@ export default function CTASection() {
     try {
       const u = await bootstrapUser(email);
       toast.success(`Welcome, ${u.name || u.email}`, { id: toastId });
-      window.location.href = '/workspace';
+      window.location.href = '/project';
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not sync account', {
         id: toastId,
@@ -29,7 +29,7 @@ export default function CTASection() {
       });
       if (cached && localStorage.getItem('userId') && cached.toLowerCase() === email.toLowerCase()) {
         setTimeout(() => {
-          window.location.href = '/workspace';
+          window.location.href = '/project';
         }, 1200);
       } else {
         throw err;

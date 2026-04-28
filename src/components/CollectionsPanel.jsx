@@ -1242,7 +1242,7 @@ export default function CollectionsPanel({
   const handleDeleteConfirmed = async () => {
   if (!deleteConfirm) return;
   const item = deleteConfirm.item;
-  const loadingToast = toast.loading(`Deleting ${item.type}...`);
+  const loadingToast = toast.loading(`Deleting Collection...`);
 
   let apiCall;
   if (item.nodeType === 'collection') apiCall = deleteCollection(item.id);

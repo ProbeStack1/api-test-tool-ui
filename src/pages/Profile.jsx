@@ -74,7 +74,7 @@ export const Profile = () => {
       {/* Back Button */}
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pt-4">
         <button
-          onClick={() => navigate("/workspace/collections")}
+          onClick={() => navigate("/project/collections")}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -119,7 +119,7 @@ export const Profile = () => {
                 variant="outline"
                 size="md"
                 className="border-primary bg-primary text-white hover:bg-primary/90 px-4 py-2"
-                onClick={() => navigate("/workspace/profile/support")}
+                onClick={() => navigate("/project/profile/support")}
               >
                 <Headphones className="h-5 w-5 mr-2" />
                 Support

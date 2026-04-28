@@ -1092,7 +1092,7 @@ const handleCloseResults = () => {
               ) : (
                 <select value={selectedId || ''} onChange={e => setSelectedId(e.target.value || null)}
                   className="flex-1 bg-dark-900/40 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary/30" data-testid="ws-select">
-                  <option value="">Select workspace collection...</option>
+                  <option value="">Select existing collection...</option>
                   {wsCols.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               )}
@@ -1296,10 +1296,10 @@ const handleCloseResults = () => {
           </div>
 
           {/* ── 4. Export Reports ─────────────────────────────── */}
-          <details className="border border-dark-700 rounded-xl bg-dark-800/40 overflow-hidden">
+          {/* <details className="border border-dark-700 rounded-xl bg-dark-800/40 overflow-hidden">
             <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-white flex items-center gap-2"><Download className="w-4 h-4" />Export Reports</summary>
             <div className="px-5 pb-4 pt-2"><ReportDownloader /></div>
-          </details>
+          </details> */}
 
         </div>
       </div>

@@ -126,15 +126,51 @@ const GuideMode = () => {
 
 /* ====== CHAT MODE ====== */
 const ChatInteractionMode = () => {
-  const [msgs, setMsgs] = useState([{ type: 'bot', content: '**Welcome!** I\'m your AI Assistant.\n\nReal-time AI is coming soon! For now:\n• Use Guide Mode for step-by-step instructions\n• Errors are analyzed automatically\n\nFeel free to type a question!' }]);
+  const [msgs, setMsgs] = useState([{ type: 'bot', content: '**Welcome!** I\'m your AI Assistant.\n\nReal-time AI is enabled. Ask anything about APIs, tests or paste an error.' }]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [statusLine, setStatusLine] = useState(null);
   const ref = useRef(null);
-  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [msgs]);
-  const send = () => { if (!input.trim() || busy) return; const m = input.trim(); setMsgs(p => [...p, { type: 'user', content: m }]); setInput(''); setBusy(true); setTimeout(() => { setMsgs(p => [...p, { type: 'bot', content: generateFollowUpResponse(m, 'general') }]); setBusy(false); }, 1200); };
+  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [msgs, statusLine]);
+  const send = async () => {
+    if (!input.trim() || busy) return;
+    const m = input.trim();
+    const next = [...msgs, { type: 'user', content: m }];
+    setMsgs(next);
+    setInput('');
+    setBusy(true);
+    setStatusLine('Setting things up…');
+    try {
+      const { chatWithAutoSwitch } = await import('./chatbot/ErrorAnalyzer');
+      const apiMessages = next
+        .filter(x => !x.isLoading)
+        .map(x => ({ role: x.type === 'bot' ? 'assistant' : 'user', content: x.content }));
+      const resp = await chatWithAutoSwitch(apiMessages, {
+        context: 'chat',
+        onProgress: (s) => {
+          if (s.phase === 'try') setStatusLine(`Trying ${s.providerLabel} · ${s.modelLabel}…`);
+          else if (s.phase === 'switch') setStatusLine(`Switching to ${s.providerLabel}…`);
+        },
+      });
+      setMsgs(p => [...p, { type: 'bot', content: resp.content }]);
+    } catch (e) {
+      const fallback = (e?.code === 'AI_ALL_PROVIDERS_FAILED')
+        ? '**All AI providers are currently busy** — please try again in a few moments.'
+        : generateFollowUpResponse(m, 'general');
+      setMsgs(p => [...p, { type: 'bot', content: fallback }]);
+    } finally {
+      setBusy(false);
+      setStatusLine(null);
+    }
+  };
   return (
     <div className="flex flex-col h-full" data-testid="chat-interaction-mode">
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar" ref={ref}>{msgs.map((m, i) => <ChatMessage key={i} msg={m} index={i} />)}{busy && <TypingIndicator />}</div>
+      {(busy && statusLine) && (
+        <div className="px-4 py-1.5 text-[10px] text-primary/80 border-t border-primary/10 bg-primary/5 truncate">
+          ⟳ {statusLine}
+        </div>
+      )}
       <ChatInputBar userInput={input} setUserInput={setInput} onSend={send} isProcessing={busy} placeholder="Type your question..." />
     </div>
   );
@@ -356,23 +392,73 @@ const AIChatbotHelper = ({ isVisible, onClose, error, response, requestInfo, cur
   }, [forceExpand]);
 
   /* ========== ERROR MODE ACTIONS ========== */
+  const [statusLine, setStatusLine] = useState(null);
+
   const handleAcceptHelp = useCallback(async () => {
     setHasAcceptedHelp(true);
     setChatMessages([{ type: 'user', content: 'Yes, please help me understand this error.' }]);
     setIsProcessing(true);
+    setStatusLine('Setting things up…');
     setChatMessages(prev => [...prev, { type: 'bot', content: 'Analyzing your error...', isLoading: true }]);
-    await new Promise(r => setTimeout(r, 2000));
-    const a = generateErrorAnalysis(activeResponse, activeError, activeRequestInfo);
-    setChatMessages(prev => { const u = [...prev]; u[u.length-1] = { type: 'bot', content: a, isLoading: false }; return u; });
+
+    let analysisText;
+    try {
+      const { analyzeErrorWithAutoSwitch } = await import('./chatbot/ErrorAnalyzer');
+      const resp = await analyzeErrorWithAutoSwitch(activeResponse, activeError, activeRequestInfo, {
+        onProgress: (s) => {
+          if (s.phase === 'try') setStatusLine(`Trying ${s.providerLabel} · ${s.modelLabel}…`);
+          else if (s.phase === 'switch') setStatusLine(`Switching to ${s.providerLabel}…`);
+        },
+      });
+      analysisText = resp?.content || generateErrorAnalysis(activeResponse, activeError, activeRequestInfo);
+    } catch (e) {
+      analysisText = (e?.code === 'AI_ALL_PROVIDERS_FAILED')
+        ? `**All AI providers busy** — falling back to a quick offline analysis.\n\n` +
+          generateErrorAnalysis(activeResponse, activeError, activeRequestInfo)
+        : generateErrorAnalysis(activeResponse, activeError, activeRequestInfo);
+    }
+
+    setChatMessages(prev => { const u = [...prev]; u[u.length-1] = { type: 'bot', content: analysisText, isLoading: false }; return u; });
     setIsProcessing(false);
+    setStatusLine(null);
   }, [activeError, activeResponse, activeRequestInfo]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!userInput.trim() || isProcessing) return;
     const m = userInput.trim();
-    setChatMessages(prev => [...prev, { type: 'user', content: m }]);
+    const nextMsgs = [...chatMessages, { type: 'user', content: m }];
+    setChatMessages(nextMsgs);
     setUserInput(''); setIsProcessing(true);
-    setTimeout(() => { setChatMessages(prev => [...prev, { type: 'bot', content: generateFollowUpResponse(m, isErrorMode ? 'error' : 'general') }]); setIsProcessing(false); }, 1500);
+    setStatusLine('Setting things up…');
+    try {
+      const { chatWithAutoSwitch } = await import('./chatbot/ErrorAnalyzer');
+      const apiMessages = nextMsgs
+        .filter(x => !x.isLoading)
+        .map(x => ({ role: x.type === 'bot' ? 'assistant' : 'user', content: x.content }));
+      const resp = await chatWithAutoSwitch(apiMessages, {
+        context: isErrorMode ? 'error' : 'chat',
+        errorContext: isErrorMode ? {
+          status: activeResponse?.status,
+          statusText: activeResponse?.statusText,
+          method: activeRequestInfo?.method,
+          url: activeRequestInfo?.url,
+          errorMessage: activeError?.message,
+        } : undefined,
+        onProgress: (s) => {
+          if (s.phase === 'try') setStatusLine(`Trying ${s.providerLabel} · ${s.modelLabel}…`);
+          else if (s.phase === 'switch') setStatusLine(`Switching to ${s.providerLabel}…`);
+        },
+      });
+      setChatMessages(prev => [...prev, { type: 'bot', content: resp.content }]);
+    } catch (e) {
+      const fallback = (e?.code === 'AI_ALL_PROVIDERS_FAILED')
+        ? '**All AI providers are busy** — please try again in a few moments.'
+        : generateFollowUpResponse(m, isErrorMode ? 'error' : 'general');
+      setChatMessages(prev => [...prev, { type: 'bot', content: fallback }]);
+    } finally {
+      setIsProcessing(false);
+      setStatusLine(null);
+    }
   };
 
   const handleDismissError = () => {
@@ -481,6 +567,11 @@ const AIChatbotHelper = ({ isVisible, onClose, error, response, requestInfo, cur
           ) : (
             <div className="flex flex-col h-full">
               <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar" ref={chatScrollRef}>{chatMessages.map((m, i) => <ChatMessage key={i} msg={m} index={i} />)}{isProcessing && chatMessages.length > 0 && !chatMessages[chatMessages.length-1]?.isLoading && <TypingIndicator />}</div>
+              {(isProcessing && statusLine) && (
+                <div className="px-4 py-1.5 text-[10px] text-primary/80 border-t border-primary/10 bg-primary/5 truncate">
+                  ⟳ {statusLine}
+                </div>
+              )}
               <ChatInputBar userInput={userInput} setUserInput={setUserInput} onSend={handleSendMessage} isProcessing={isProcessing} />
             </div>
           )

@@ -4,6 +4,7 @@ import {
   CheckCircle2, AlertTriangle, Info,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { chatWithAutoSwitch } from './chatbot/ErrorAnalyzer';
 
 export default function RightPanelAI({
   method,
@@ -21,6 +22,7 @@ export default function RightPanelAI({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [userPrompt, setUserPrompt] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
+  const [statusLine, setStatusLine] = useState(null);
   const scrollContainerRef = useRef(null);
 
   const requestSummary = useMemo(() => {
@@ -41,59 +43,101 @@ export default function RightPanelAI({
 
   const generateAnalysis = async () => {
     setIsAiLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
-    const analysis = {
-      overview: `This ${method} request to ${url} ${
-        response ? `returned ${response.status}` : 'has not been executed yet'
-      }.`,
-      suggestions: [
-        response?.status >= 400
-          ? `Status ${response.status} indicates an error. Check the URL and authentication.`
-          : 'Request appears well-formed. Consider adding error handling.',
-        requestSummary.hasAuth
-          ? 'Authentication is configured. Ensure tokens are not expired.'
-          : 'No authentication detected. Add API keys or tokens for protected endpoints.',
-        requestSummary.headersCount === 0
-          ? 'No custom headers. Add Content-Type if sending JSON payloads.'
-          : `${requestSummary.headersCount} headers are set. Verify they are necessary.`,
-        requestSummary.hasBody
-          ? 'Request includes a body. Validate the schema matches API expectations.'
-          : 'No request body. For GET requests this is fine.',
-      ],
-      security: [
-        url?.startsWith('https') ? 'Uses HTTPS – good.' : 'Uses HTTP – upgrade to HTTPS for production.',
-        requestSummary.hasAuth ? 'Authentication is present.' : 'Missing authentication – sensitive data may be exposed.',
-        'Consider rate limiting and input validation on the server side.',
-      ],
-      performance: [
-        response?.time
-          ? `Response time: ${response.time}ms. ${response.time > 500 ? 'Consider optimising.' : 'Good performance.'}`
-          : 'Execute the request to measure performance.',
-        'Use compression (gzip) and caching headers for repeated calls.',
-        'Avoid sending large payloads unnecessarily.',
-      ],
-    };
-    setAiResponse(analysis);
-    setIsAiLoading(false);
+    setStatusLine('Setting things up…');
+    try {
+      const resp = await chatWithAutoSwitch([{
+        role: 'user',
+        content: `Analyse this API request and produce 4 short sections in this exact order, each header on its own line: **Overview**, **Suggestions**, **Security**, **Performance**. Method: ${method || 'n/a'}, URL: ${url || 'n/a'}, Status: ${response?.status ?? 'not executed'}, Time: ${response?.time ?? 'n/a'}ms.`,
+      }], {
+        context: 'sidebar',
+        errorContext: {
+          method, url,
+          status: response?.status,
+          statusText: response?.statusText,
+          requestBody: typeof body === 'string' ? body : JSON.stringify(body || {}),
+          responseBody: typeof response?.body === 'string' ? response.body : JSON.stringify(response?.body || {}),
+        },
+        onProgress: (s) => {
+          if (s.phase === 'try') setStatusLine(`Trying ${s.providerLabel} · ${s.modelLabel}…`);
+          else if (s.phase === 'switch') setStatusLine(`Switching to ${s.providerLabel}…`);
+        },
+      });
+      setAiResponse({
+        overview: resp.content,
+        suggestions: [],
+        security: [],
+        performance: [],
+      });
+    } catch (e) {
+      // Static fallback so the panel never goes empty
+      setAiResponse({
+        overview: e?.code === 'AI_ALL_PROVIDERS_FAILED'
+          ? `**All AI providers busy** — showing offline analysis.\nThis ${method || ''} request to ${url || ''} ${response ? `returned ${response.status}` : 'has not been executed yet'}.`
+          : `This ${method || ''} request to ${url || ''} ${response ? `returned ${response.status}` : 'has not been executed yet'}.`,
+        suggestions: [
+          response?.status >= 400
+            ? `Status ${response.status} indicates an error. Check URL and authentication.`
+            : 'Request appears well-formed. Consider adding error handling.',
+          requestSummary.hasAuth
+            ? 'Authentication is configured. Ensure tokens are not expired.'
+            : 'No authentication detected. Add API keys or tokens for protected endpoints.',
+          requestSummary.headersCount === 0
+            ? 'No custom headers. Add Content-Type if sending JSON payloads.'
+            : `${requestSummary.headersCount} headers are set. Verify they are necessary.`,
+        ],
+        security: [
+          url?.startsWith('https') ? 'Uses HTTPS – good.' : 'Uses HTTP – upgrade to HTTPS for production.',
+          requestSummary.hasAuth ? 'Authentication is present.' : 'Missing authentication – sensitive data may be exposed.',
+        ],
+        performance: [
+          response?.time
+            ? `Response time: ${response.time}ms. ${response.time > 500 ? 'Consider optimising.' : 'Good performance.'}`
+            : 'Execute the request to measure performance.',
+        ],
+      });
+    } finally {
+      setIsAiLoading(false);
+      setStatusLine(null);
+    }
   };
 
   useEffect(() => {
     generateAnalysis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [method, url, JSON.stringify(headers), body, authType, response?.status]);
 
   const handleSendPrompt = async () => {
     if (!userPrompt.trim()) return;
-    const newMessage = { role: 'user', content: userPrompt };
-    setChatHistory(prev => [...prev, newMessage]);
+    const userText = userPrompt;
+    setChatHistory(prev => [...prev, { role: 'user', content: userText }]);
     setUserPrompt('');
     setIsAiLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const aiReply = {
-      role: 'assistant',
-      content: `I'm analyzing your request. ${userPrompt.includes('error') ? 'The error may be due to incorrect URL or missing headers.' : 'Check the response body and status code for clues.'}`,
-    };
-    setChatHistory(prev => [...prev, aiReply]);
-    setIsAiLoading(false);
+    setStatusLine('Setting things up…');
+    try {
+      const convo = [...chatHistory, { role: 'user', content: userText }];
+      const resp = await chatWithAutoSwitch(convo, {
+        context: 'sidebar',
+        errorContext: {
+          method,
+          url,
+          status: response?.status,
+          statusText: response?.statusText,
+        },
+        onProgress: (s) => {
+          if (s.phase === 'try') setStatusLine(`Trying ${s.providerLabel} · ${s.modelLabel}…`);
+          else if (s.phase === 'switch') setStatusLine(`Switching to ${s.providerLabel}…`);
+        },
+      });
+      setChatHistory(prev => [...prev, { role: 'assistant', content: resp.content }]);
+    } catch (e) {
+      const fallback = e?.code === 'AI_ALL_PROVIDERS_FAILED'
+        ? `**All AI providers are busy** — please try again in a few moments.`
+        : `AI is unreachable right now. Try again in a moment.`;
+      setChatHistory(prev => [...prev, { role: 'assistant', content: fallback }]);
+    } finally {
+      setIsAiLoading(false);
+      setStatusLine(null);
+    }
   };
 
   return (
@@ -271,6 +315,11 @@ export default function RightPanelAI({
 
       {/* Fixed Chat Input */}
       <div className="border-t border-dark-700 p-3 shrink-0">
+        {(isAiLoading && statusLine) && (
+          <div className="mb-2 px-2 py-1 rounded text-[10px] text-primary/80 bg-primary/5 border border-primary/10 truncate">
+            ⟳ {statusLine}
+          </div>
+        )}
         <div className="flex gap-2">
           <input
             type="text"

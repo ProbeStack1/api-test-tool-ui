@@ -616,7 +616,7 @@ function ContextMenu({ x, y, type, onClose, onAction }) {
   }, [onClose]);
 
   const collectionOptions = [
-    { id: 'run-collection', label: 'Run Collection', icon: Play },
+    // { id: 'run-collection', label: 'Run Collection', icon: Play },
     { id: 'add-request', label: 'Add Request', icon: FilePlus },
     { id: 'add-folder', label: 'Add Folder', icon: FolderPlus },
     // { id: 'save', label: 'Save', icon: Save },

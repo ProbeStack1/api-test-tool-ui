@@ -693,7 +693,7 @@ const testingSubTabs = [
   { id: 'generate', label: 'Test Cases', icon: FileSearch },
   { id: 'functional', label: 'Functional Test', icon: Play },
   { id: 'load', label: 'Load Test', icon: BarChart3 },
-  { id: 'MCP Test', label: 'MCP Test', icon: Activity }, // new tab
+  // { id: 'MCP Test', label: 'MCP Test', icon: Activity }, // new tab
   { id: 'tracing', label: 'Tracing', icon: Activity }, // new tab
 ];
 

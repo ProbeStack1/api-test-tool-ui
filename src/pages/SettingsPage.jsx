@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Shield, ChevronDown, ChevronUp, User, Bell, Globe, Database, Lock, FileText, Save, Check, ArrowLeft } from 'lucide-react';
+import { Settings, Shield, ChevronDown, ChevronUp, User, Bell, Globe, Database, Lock, FileText, Save, Check, ArrowLeft, Sparkles, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
-import { fetchSettings, updateGeneralSettings, updateCertificationSettings } from '../services/userSettingService';
+import {
+  fetchSettings,
+  updateGeneralSettings,
+  updateCertificationSettings,
+  fetchAiProviders,
+  fetchAiConfig,
+  updateAiConfig,
+} from '../services/userSettingService';
 
 /**
  * Settings Page - General and Certification sections with accordions
@@ -15,10 +22,12 @@ export default function SettingsPage() {
   const [isFetching, setIsFetching] = useState(true);
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
   const [isSavingCert, setIsSavingCert] = useState(false);
-  
+  const [isSavingAi, setIsSavingAi] = useState(false);
+
   // Accordion states
   const [generalOpen, setGeneralOpen] = useState(true);
   const [certificationOpen, setCertificationOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   
   // General settings state
   const [generalSettings, setGeneralSettings] = useState({
@@ -40,6 +49,17 @@ export default function SettingsPage() {
     clientCert: false,
     strictSSL: true,
   });
+
+  // AI settings state + provider catalog
+  const [aiProviders, setAiProviders] = useState([]);
+  const [aiSettings, setAiSettings] = useState({
+    provider: '',
+    model: '',
+    chatbotMode: 'error_and_chat',
+    sidebarAiEnabled: true,
+    temperature: 0.7,
+    maxOutputTokens: 2048,
+  });
   
   // Save feedback state 
   const [savedSection, setSavedSection] = useState(null);
@@ -50,10 +70,22 @@ useEffect(() => {
     try {
       setIsFetching(true);
       const response = await fetchSettings();
-      const data = response.data;  
+      const data = response.data;
       // Merge with existing state to keep all fields defined
       setGeneralSettings(prev => ({ ...prev, ...data.general }));
       setCertSettings(prev => ({ ...prev, ...data.certification }));
+
+      // AI: providers + saved per-user config (graceful failure)
+      try {
+        const [provRes, aiRes] = await Promise.all([
+          fetchAiProviders(),
+          fetchAiConfig(),
+        ]);
+        setAiProviders(provRes.data || []);
+        setAiSettings(prev => ({ ...prev, ...(aiRes.data || {}) }));
+      } catch (aiErr) {
+        console.warn('AI config not loaded:', aiErr);
+      }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
       // toast.error('Failed to load settings. Please refresh the page.');
@@ -77,6 +109,11 @@ const handleSave = async (section) => {
       const updated = await updateCertificationSettings(certSettings);
       setCertSettings(prev => ({ ...prev, ...updated }));
       toast.success('Certification settings saved successfully');
+    } else if (section === 'ai') {
+      setIsSavingAi(true);
+      const { data } = await updateAiConfig(aiSettings);
+      setAiSettings(prev => ({ ...prev, ...(data || {}) }));
+      toast.success('AI settings saved successfully');
     }
     setSavedSection(section);
     setTimeout(() => setSavedSection(null), 2000);
@@ -86,11 +123,23 @@ const handleSave = async (section) => {
   } finally {
     if (section === 'general') {
       setIsSavingGeneral(false);
-    } else {
+    } else if (section === 'certification') {
       setIsSavingCert(false);
+    } else if (section === 'ai') {
+      setIsSavingAi(false);
     }
   }
 };
+
+  const handleAiChange = (field, value) => {
+    setAiSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAiProviderChange = (providerId) => {
+    const p = aiProviders.find(x => x.id === providerId);
+    const defaultModel = p?.models?.[0]?.id || '';
+    setAiSettings(prev => ({ ...prev, provider: providerId, model: defaultModel }));
+  };
   
   const handleGeneralChange = (field, value) => {
     setGeneralSettings(prev => ({ ...prev, [field]: value }));
@@ -503,6 +552,190 @@ const handleSave = async (section) => {
                         Saving...
                       </>
                     ) : savedSection === 'certification' ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Saved
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI Assistant Accordion */}
+          <div className="rounded-xl border border-dark-700 bg-dark-800/40 overflow-hidden">
+            <button
+              onClick={() => setAiOpen(!aiOpen)}
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-dark-800/60 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-white">AI Assistant</h2>
+                  <p className="text-xs text-gray-400">Free providers, models, chatbot &amp; sidebar AI behaviour</p>
+                </div>
+              </div>
+              {aiOpen ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </button>
+
+            {aiOpen && (
+              <div className="p-4 border-t border-dark-700 space-y-4">
+                {/* Provider + Model */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Bot className="w-3.5 h-3.5" />
+                    Provider &amp; Model
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-gray-400">Provider</label>
+                      <select
+                        value={aiSettings.provider || ''}
+                        onChange={(e) => handleAiProviderChange(e.target.value)}
+                        className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 bg-dark-800"
+                      >
+                        {aiProviders.length === 0 && <option value="">Loading…</option>}
+                        {aiProviders.map(p => (
+                          <option key={p.id} value={p.id} className="bg-dark-800">{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-gray-400">Model (auto-fallback within provider)</label>
+                      <select
+                        value={aiSettings.model || ''}
+                        onChange={(e) => handleAiChange('model', e.target.value)}
+                        className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 bg-dark-800"
+                      >
+                        {(aiProviders.find(p => p.id === aiSettings.provider)?.models || []).map(m => (
+                          <option key={m.id} value={m.id} title={m.description} className="bg-dark-800">{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Behaviour */}
+                <div className="space-y-3 pt-4 border-t border-dark-700/50">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Behaviour
+                  </h3>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-gray-400">chatbot mode</label>
+                    <select
+                      value={aiSettings.chatbotMode || 'error_and_chat'}
+                      onChange={(e) => handleAiChange('chatbotMode', e.target.value)}
+                      className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 bg-dark-800"
+                    >
+                      <option value="error_and_chat" className="bg-dark-800">Error analysis + free chat</option>
+                      <option value="error_only" className="bg-dark-800">Only error analysis</option>
+                      <option value="disabled" className="bg-dark-800">Disabled</option>
+                    </select>
+                  </div>
+
+                  {/* Sidebar AI Toggle */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-300">Enable Sidebar AI (request analyser)</span>
+                    </div>
+                    <button
+                      onClick={() => handleAiChange('sidebarAiEnabled', !aiSettings.sidebarAiEnabled)}
+                      className={clsx(
+                        'w-11 h-6 rounded-full transition-colors relative',
+                        aiSettings.sidebarAiEnabled ? 'bg-primary' : 'bg-dark-700'
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'absolute top-1 w-4 h-4 rounded-full bg-white transition-all',
+                          aiSettings.sidebarAiEnabled ? 'left-6' : 'left-1'
+                        )}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Advanced */}
+                <div className="space-y-3 pt-4 border-t border-dark-700/50">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Settings className="w-3.5 h-3.5" />
+                    Advanced
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-gray-400">
+                        Temperature ({Number(aiSettings.temperature ?? 0.7).toFixed(1)})
+                      </label>
+                      <input
+                        type="range" min="0" max="1" step="0.1"
+                        value={aiSettings.temperature ?? 0.7}
+                        onChange={(e) => handleAiChange('temperature', Number(e.target.value))}
+                        className="w-full accent-primary"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-gray-400">Max output tokens</label>
+                      <input
+                        type="number" min="128" max="8192" step="64"
+                        value={aiSettings.maxOutputTokens ?? 2048}
+                        onChange={(e) => handleAiChange('maxOutputTokens', Number(e.target.value))}
+                        className="w-full border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 bg-dark-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="rounded-lg border border-dark-700 p-3 mt-4">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-primary mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-xs font-medium text-white mb-1">AI keys are managed server-side</h4>
+                      <p className="text-[11px] text-gray-400 leading-relaxed">
+                        Free-tier API keys for Gemini, Groq and OpenRouter are configured on the
+                        backend. If a chosen sub-model is busy, the server automatically tries the
+                        next sub-model of the same provider. If all sub-models fail you'll see an
+                        inline notice asking you to switch provider.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-4 border-t border-dark-700/50 flex justify-end">
+                  <button
+                    onClick={() => handleSave('ai')}
+                    disabled={isSavingAi}
+                    className={clsx(
+                      'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+                      savedSection === 'ai'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-primary text-white hover:bg-primary/90',
+                      isSavingAi && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    {isSavingAi ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : savedSection === 'ai' ? (
                       <>
                         <Check className="w-4 h-4" />
                         Saved

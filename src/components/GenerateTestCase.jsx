@@ -769,6 +769,13 @@ export default function GenerateTestCase({ projects, activeWorkspaceId, currentU
 
   const activeSpec = useMemo(() => specs.find(s => s.id === activeSpecId) || null, [specs, activeSpecId]);
 
+  // Helper: pretty-print JSON if possible, else return raw
+  const prettifyJson = (raw) => {
+    if (!raw) return '';
+    try { return JSON.stringify(JSON.parse(raw), null, 2); }
+    catch { return raw; }
+  };
+
   useEffect(() => {
     const spec = specs.find(s => s.id === activeSpecId);
     if (spec && !spec.content) {
@@ -779,7 +786,7 @@ export default function GenerateTestCase({ projects, activeWorkspaceId, currentU
   }, [activeSpecId, specs]);
 
   useEffect(() => {
-    setEditorContent(activeSpec ? activeSpec.content || '' : JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2));
+    setEditorContent(activeSpec ? prettifyJson(activeSpec.content || '') : JSON.stringify(BLANK_SPEC_TEMPLATE, null, 2));
     setIsEditorDirty(false);
   }, [activeSpec]);
 
@@ -976,8 +983,9 @@ export default function GenerateTestCase({ projects, activeWorkspaceId, currentU
       let content;
       try {
         const text = await uploadedFile.text();
-        JSON.parse(text);
-        content = text;
+        const parsed = JSON.parse(text);
+        // Always send beautified JSON to backend
+        content = JSON.stringify(parsed, null, 2);
       } catch { toast.error('Invalid JSON file'); return; }
       payload = { source: 'upload', name: newSpecName.trim(), content, workspaceId: activeWorkspaceId };
 
@@ -1223,6 +1231,26 @@ export default function GenerateTestCase({ projects, activeWorkspaceId, currentU
                   <button onClick={handleSaveContent}
                     className="p-2 rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors" title="Save changes">
                     <Save className="h-4 w-4" />
+                  </button>
+                )}
+                {viewMode === 'spec' && (
+                  <button
+                    onClick={() => {
+                      try {
+                        const pretty = JSON.stringify(JSON.parse(editorContent), null, 2);
+                        if (pretty !== editorContent) {
+                          setEditorContent(pretty);
+                          setIsEditorDirty(true);
+                        }
+                        toast.success('JSON beautified');
+                      } catch {
+                        toast.error('Invalid JSON — cannot beautify');
+                      }
+                    }}
+                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-700 transition-colors text-xs font-semibold"
+                    title="Beautify JSON"
+                  >
+                    { }
                   </button>
                 )}
                 {viewMode === 'spec' && (

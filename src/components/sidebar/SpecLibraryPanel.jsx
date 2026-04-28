@@ -160,6 +160,13 @@ export default function SpecLibraryPanel({ projects, currentUserId, activeWorksp
     }
   };
 
+  // Helper: pretty-print JSON if possible, else return raw
+  const prettify = (raw) => {
+    if (!raw) return '';
+    try { return JSON.stringify(JSON.parse(raw), null, 2); }
+    catch { return raw; }
+  };
+
   // Hydrate content whenever a library item is selected. The list endpoint
   // does not return content (it lives in GCS), so we fetch it on demand.
   useEffect(() => {
@@ -172,7 +179,7 @@ export default function SpecLibraryPanel({ projects, currentUserId, activeWorksp
     // If the selected object already carries content (e.g. just created),
     // use it directly — no extra network call.
     if (selectedItem.content) {
-      setEditorContent(selectedItem.content);
+      setEditorContent(prettify(selectedItem.content));
       setIsEditorDirty(false);
       return undefined;
     }
@@ -182,7 +189,7 @@ export default function SpecLibraryPanel({ projects, currentUserId, activeWorksp
       try {
         const full = await getLibraryItem(selectedItem.id);
         if (cancelled) return;
-        setEditorContent(full.content || '');
+        setEditorContent(prettify(full.content || ''));
         setIsEditorDirty(false);
         // Update the list so that re-selection is instant next time.
         setItems(prev => prev.map(it => it.id === full.id ? full : it));
@@ -626,7 +633,12 @@ function LibraryItemModal({ item, onClose, onSave }) {
     if (!name.trim()) { toast.error('Name is required'); return; }
     if (!isEditing && !content.trim()) { toast.error('Content is required'); return; }
     const data = { name: name.trim(), description: description.trim(), category: category.trim() };
-    if (!isEditing) data.content = content.trim();
+    if (!isEditing) {
+      // Always save beautified JSON if valid; otherwise keep raw text.
+      let finalContent = content.trim();
+      try { finalContent = JSON.stringify(JSON.parse(finalContent), null, 2); } catch { /* keep raw */ }
+      data.content = finalContent;
+    }
     onSave(data);
   };
 
@@ -670,11 +682,39 @@ function LibraryItemModal({ item, onClose, onSave }) {
             </div>
             {!isEditing && (
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Content (JSON) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-300">Content (JSON) *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(content);
+                        setContent(JSON.stringify(parsed, null, 2));
+                        toast.success('JSON beautified');
+                      } catch {
+                        toast.error('Invalid JSON — cannot beautify');
+                      }
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white border border-dark-600"
+                  >
+                    Beautify
+                  </button>
+                </div>
                 <textarea
-                  value={content} onChange={(e) => setContent(e.target.value)} required rows={8}
-                  placeholder='{\n  "key": "value"\n}'
-                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder:text-gray-500"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  onBlur={() => {
+                    // Auto-beautify on blur if it's valid JSON
+                    try {
+                      const parsed = JSON.parse(content);
+                      const pretty = JSON.stringify(parsed, null, 2);
+                      if (pretty !== content) setContent(pretty);
+                    } catch { /* leave as-is, user can still submit */ }
+                  }}
+                  required
+                  rows={12}
+                  placeholder={'{\n  "key": "value"\n}'}
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-700 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder:text-gray-500 whitespace-pre"
                 />
               </div>
             )}

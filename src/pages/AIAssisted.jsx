@@ -187,7 +187,6 @@ const AIAssisted = () => {
 
   const handleDeleteSession = (sid, title, e) => {
     e.stopPropagation();
-    // Position popover just to the LEFT of the trash icon so it doesn't overflow the panel.
     const rect = e.currentTarget.getBoundingClientRect();
     const popoverWidth = 220;
     const x = Math.max(8, rect.left - popoverWidth - 8);
@@ -216,11 +215,6 @@ const AIAssisted = () => {
   };
 
   /* ============ THE BIG ONE: per-submodel send ============ */
-
-  /**
-   * Attempts each sub-model of `providerId` sequentially with progress updates.
-   * Returns the assistant text on success or throws { kind:'all_failed', attempted } when all fail.
-   */
   async function attemptProvider({ providerId, startModelId, sessionId, apiMessages }) {
     const provider = providers.find(p => p.id === providerId);
     if (!provider) throw new Error('Unknown provider: ' + providerId);
@@ -237,7 +231,6 @@ const AIAssisted = () => {
       attempted.push(mid);
       const isFirst = i === 0;
 
-      // status line
       if (isFirst) {
         setStatusLine(`Trying generation through ${provider.label} · ${ordinal(i)} sub-model (${modelLabel(providerId, mid)})…`);
       } else {
@@ -253,13 +246,11 @@ const AIAssisted = () => {
           mode: 'chat',
           messages: apiMessages,
         });
-        // Success — sync UI selection so the dropdown shows the model that actually replied
         setCurrentProvider(providerId);
         setCurrentModel(mid);
         return data;
       } catch (err) {
         // continue to next sub-model
-        // eslint-disable-next-line no-console
         console.warn('Sub-model failed', mid, err?.response?.data);
       }
     }
@@ -281,7 +272,6 @@ const AIAssisted = () => {
         providerId, startModelId: modelId, sessionId, apiMessages,
       });
 
-      // success
       setMessages(prev => [...prev, {
         id: prev.length + 1, role: 'assistant', content: data.content, timestamp: stamp(),
       }]);
@@ -295,7 +285,6 @@ const AIAssisted = () => {
       ));
     } catch (err) {
       if (err?.kind === 'all_failed') {
-        // Decide which provider to suggest next
         const remaining = providers.filter(p => p.id !== err.providerId);
         const nextProvider = remaining[0];
         if (!nextProvider) {
@@ -307,7 +296,6 @@ const AIAssisted = () => {
           fromProviderLabel: providerLabel(err.providerId),
           toProviderLabel: nextProvider.label,
           attempted: err.attempted,
-          // Stash everything needed for auto-resume on Switch click:
           pendingPrompt: promptText,
           pendingBaseMessages: baseMessages,
           pendingSessionId: sessionId,
@@ -332,7 +320,6 @@ const AIAssisted = () => {
     const promptText = input.trim();
     setInput('');
 
-    // Optimistically add user message + ensure session
     const userMsg = { id: messages.length + 1, role: 'user', content: promptText, timestamp: stamp() };
     setMessages(prev => [...prev, userMsg]);
 
@@ -345,21 +332,18 @@ const AIAssisted = () => {
       providerId: currentProvider,
       modelId: currentModel,
       sessionId: sid,
-      baseMessages: messages, // history before this user message
+      baseMessages: messages,
     });
   };
 
-  /** "Switch" button click in the popover — auto-resume prompt. */
   const handleSwitchAndResume = async () => {
     if (!popover || sending) return;
     const { pendingPrompt, pendingBaseMessages, pendingSessionId, nextProvider, nextModel } = popover;
 
-    // Update dropdowns to the new provider/model so user sees the change visually
     setCurrentProvider(nextProvider);
     setCurrentModel(nextModel);
     setPopover(null);
 
-    // Auto-resume same prompt with the new provider — runs through its sub-models
     await runChat({
       promptText: pendingPrompt,
       providerId: nextProvider,
@@ -371,17 +355,18 @@ const AIAssisted = () => {
 
   /* ============ render ============ */
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-probestack-bg text-white min-h-0">
-      {/* Header — original styling + inline provider/model switcher on the right */}
-      <div className="px-6 py-4 border-b border-dark-700 bg-dark-800/50 shrink-0">
+    <div className="h-full flex flex-col overflow-hidden bg-probestack-bg text-white">
+      {/* Header — no changes, but reduced bottom padding */}
+      <div className="px-5 py-2 border-b border-dark-700 bg-dark-800/50 shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">AI-Assisted Test Generation</h2>
-            <p className="text-sm text-gray-400 mt-1">
+            <h2 className="text-base font-semibold text-white">AI-Assisted Test Generation</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
               Create API test cases with conversational AI assistance.
             </p>
           </div>
           <div className="relative flex items-center gap-2">
+            {/* Provider & Model selects - unchanged */}
             <select
               data-testid="ai-inline-provider"
               value={currentProvider}
@@ -405,7 +390,7 @@ const AIAssisted = () => {
               {availableModels.map(m => <option key={m.id} value={m.id} className="bg-dark-800">{m.label}</option>)}
             </select>
 
-            {/* Switch-model popover — anchored just below dropdowns */}
+            {/* Switch-model popover unchanged */}
             {popover && (
               <div
                 data-testid="switch-model-popover"
@@ -429,13 +414,14 @@ const AIAssisted = () => {
                   </button>
                 </div>
                 <div className="flex items-center justify-end gap-2 p-2 border-t border-dark-700 bg-dark-900/40">
-                  <button onClick={() => setPopover(null)}
-                          className="px-3 py-1.5 text-xs text-gray-400 hover:text-white">
+                  <button onClick={() => setPopover(null)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-white">
                     Not now
                   </button>
-                  <button data-testid="popover-switch-btn"
-                          onClick={handleSwitchAndResume}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary hover:bg-primary/90 text-white text-xs font-medium">
+                  <button
+                    data-testid="popover-switch-btn"
+                    onClick={handleSwitchAndResume}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary hover:bg-primary/90 text-white text-xs font-medium"
+                  >
                     Switch & Resume <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -445,26 +431,26 @@ const AIAssisted = () => {
         </div>
       </div>
 
-      {/* Main grid (col-8 chat | col-4 sidebar) */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-12 gap-6 h-full min-h-[600px]">
-
-          {/* ============ Chat ============ */}
-          <div className="col-span-12 lg:col-span-8 flex flex-col rounded-xl overflow-hidden bg-dark-800/60 border border-dark-700 shadow-xl">
-            <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar">
+      {/* Main content area: full height, no overflow on the container itself */}
+      <div className="flex-1 min-h-0 p-3">
+        <div className="grid grid-cols-12 gap-4 h-full min-h-0">
+          {/* CHAT COLUMN — independent scrolling inside, reduced gaps */}
+          <div className="col-span-12 lg:col-span-8 flex flex-col min-h-0 bg-dark-800/60 border border-dark-700 rounded-xl shadow-xl">
+            {/* Scrollable messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
               {messages.map((message) => (
                 <div key={message.id}
-                     className={clsx('flex gap-4 items-start',
+                     className={clsx('flex gap-2 items-start',
                        message.role === 'user' ? 'justify-end' : 'max-w-[85%]')}>
                   {message.role === 'assistant' && (
-                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0 text-primary ring-1 ring-primary/30">
-                      <Bot className="w-5 h-5" />
+                    <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0 text-primary ring-1 ring-primary/30">
+                      <Bot className="w-4 h-4" />
                     </div>
                   )}
-                  <div className={clsx('flex flex-col gap-1.5',
+                  <div className={clsx('flex flex-col gap-1',
                     message.role === 'user' ? 'items-end max-w-[85%]' : '')}>
                     <div className={clsx(
-                      'p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap',
+                      'p-3 rounded-xl text-sm leading-relaxed whitespace-pre-wrap',
                       message.role === 'user'
                         ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/20'
                         : 'bg-dark-700/50 text-gray-100 rounded-tl-none border border-dark-600'
@@ -477,15 +463,14 @@ const AIAssisted = () => {
               ))}
             </div>
 
-            {/* Composer — with status line ABOVE the textarea */}
-            <div className="p-6 border-t border-dark-700 bg-dark-800/30">
-              {/* PROGRESS / STATUS LINE */}
+            {/* Chat input area — reduced top padding */}
+            <div className="p-3 border-t border-dark-700 bg-dark-800/30">
               {(sending || statusLine) && (
                 <div data-testid="ai-status-line"
-                     className="mb-3 px-3 py-2 rounded-lg border border-primary/20 bg-primary/5 flex items-center gap-2 text-[12px] text-primary/90">
+                     className="mb-2 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5 flex items-center gap-2 text-[11px] text-primary/90">
                   {sending ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" />
                       <span className="truncate">
                         <span className="text-white">{FANCY_PHRASES[phraseIdx]}…</span>
                         {statusLine && <span className="text-gray-400 ml-2">— {statusLine}</span>}
@@ -493,20 +478,20 @@ const AIAssisted = () => {
                     </>
                   ) : (
                     <>
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-yellow-300" />
+                      <AlertCircle className="w-3 h-3 shrink-0 text-yellow-300" />
                       <span className="truncate text-yellow-200">{statusLine}</span>
                     </>
                   )}
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {['Generate test for GET /api/users', 'Create assertions for status 200',
                   'Add JSON schema validation', 'Export test collection'].map((action, index) => (
                   <button key={index}
                           onClick={() => setInput(action)}
                           disabled={sending}
-                          className="px-3 py-1.5 bg-dark-700/50 rounded-lg text-xs font-medium border border-dark-600 hover:border-primary/50 hover:bg-primary/5 transition-all text-gray-300 disabled:opacity-50">
+                          className="px-2 py-1 bg-dark-700/50 rounded-lg text-[11px] font-medium border border-dark-600 hover:border-primary/50 hover:bg-primary/5 transition-all text-gray-300 disabled:opacity-50">
                     {action}
                   </button>
                 ))}
@@ -518,50 +503,51 @@ const AIAssisted = () => {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend(e); }}
                   disabled={sending}
-                  className="w-full bg-[var(--color-input-bg)] border border-dark-600 rounded-2xl p-4 pr-16 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all placeholder-gray-500 resize-none disabled:opacity-50"
-                  placeholder="Describe your API test requirements (e.g., 'Create tests for user authentication endpoints' or 'Generate assertions for JSON response validation')..."
+                  className="w-full bg-[var(--color-input-bg)] border border-dark-600 rounded-xl p-2 pr-14 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all placeholder-gray-500 resize-none disabled:opacity-50"
+                  placeholder="Describe your API test requirements..."
                   rows="2"
                 />
                 <button type="submit"
                         disabled={sending || !input.trim()}
-                        className="absolute cursor-pointer right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-primary/30 group-hover:scale-105 active:scale-95">
-                  <Send className="w-5 h-5" />
+                        className="absolute cursor-pointer right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg flex items-center justify-center transition-all shadow-lg shadow-primary/30 group-hover:scale-105 active:scale-95">
+                  <Send className="w-4 h-4" />
                 </button>
               </form>
 
-              <div className="flex justify-between items-center mt-3">
-                <div className="flex items-center gap-4">
-                  <button type="button" className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-primary transition-colors">
-                    <Paperclip className="w-4 h-4" /> Attach Spec
+              {/* <div className="flex justify-between items-center mt-2">
+                <div className="flex items-center gap-3">
+                  <button type="button" className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-primary transition-colors">
+                    <Paperclip className="w-3 h-3" /> Attach Spec
                   </button>
-                  <button type="button" className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-primary transition-colors">
-                    <Mic className="w-4 h-4" /> Voice Input
+                  <button type="button" className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-primary transition-colors">
+                    <Mic className="w-3 h-3" /> Voice Input
                   </button>
                 </div>
-                <span className="text-[10px] text-gray-500 font-mono">Press Cmd + Enter to send</span>
-              </div>
+                <span className="text-[9px] text-gray-500 font-mono">⌘ + Enter</span>
+              </div> */}
             </div>
           </div>
 
-          {/* ============ Right Sidebar (history + tips) ============ */}
-          <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
-            <section className="bg-dark-800/60 border border-dark-700 rounded-xl p-6 shadow-lg flex flex-col h-[360px]">
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                  <MessagesSquare className="w-5 h-5 text-primary" />
+          {/* RIGHT SIDEBAR — independent scrolling, reduced gaps */}
+          <div className="col-span-12 lg:col-span-4 flex flex-col gap-4 min-h-0">
+            {/* Chat History */}
+            <section className="bg-dark-800/60 border border-dark-700 rounded-xl p-3 shadow-lg flex flex-col min-h-0 h-[350px]">
+              <div className="flex items-center justify-between mb-2 shrink-0">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                  <MessagesSquare className="w-4 h-4 text-primary" />
                   Chat History
                 </h3>
                 <button data-testid="new-chat-btn"
                         onClick={handleNewChat}
-                        className="p-1.5 rounded-md bg-primary/20 hover:bg-primary/30 text-primary"
+                        className="p-1 rounded-md bg-primary/20 hover:bg-primary/30 text-primary"
                         title="New chat">
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                 {sessions.length === 0 ? (
-                  <div className="text-[11px] text-gray-500 py-8 text-center">
+                  <div className="text-[10px] text-gray-500 py-6 text-center">
                     No chats yet. Start typing — your conversations will appear here.
                   </div>
                 ) : sessions.map(s => (
@@ -569,46 +555,47 @@ const AIAssisted = () => {
                        onClick={() => loadSession(s.sessionId)}
                        data-testid={`session-${s.sessionId}`}
                        className={clsx(
-                         'group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs transition-all',
+                         'group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs transition-all',
                          activeSessionId === s.sessionId
                            ? 'bg-primary/20 border border-primary/30 text-white'
                            : 'hover:bg-dark-700/50 border border-transparent text-gray-300'
                        )}>
                     <div className="flex-1 min-w-0">
                       <div className="truncate font-medium">{s.title || 'New Chat'}</div>
-                      <div className="text-[10px] text-gray-500 truncate">
+                      <div className="text-[9px] text-gray-500 truncate">
                         {s.provider} · {s.model} · {s.messageCount || 0} msgs
                       </div>
                     </div>
                     <button onClick={(e) => handleDeleteSession(s.sessionId, s.title, e)}
                             className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 p-1"
                             title="Delete">
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="bg-dark-800/60 border border-dark-700 rounded-xl p-6 shadow-lg relative overflow-hidden">
-              <div className="absolute -bottom-6 -right-6 opacity-5">
-                <Sparkles className="w-32 h-32 text-primary" />
+            {/* Tips section — reduced padding */}
+            <section className="bg-dark-800/60 border border-dark-700 rounded-xl p-3 shadow-lg relative overflow-hidden">
+              <div className="absolute -bottom-4 -right-4 opacity-5">
+                <Sparkles className="w-24 h-24 text-primary" />
               </div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-6 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
                 AI Test Assistant Tips
               </h3>
-              <ul className="space-y-4">
+              <ul className="space-y-2">
                 {[
-                  'Be specific about HTTP methods and endpoint paths for accurate test generation.',
-                  'Mention expected response codes (200, 404, 500) for comprehensive test coverage.',
-                  'Describe your data models clearly to ensure correct validation rules.',
-                  'Include authentication requirements early for proper test scaffolding.',
-                  'Use natural language to ask for complex logic like pagination or error handling tests.',
+                  'Be specific about HTTP methods and endpoint paths.',
+                  'Mention expected response codes (200, 404, 500).',
+                  'Describe your data models clearly for validation rules.',
+                  'Include authentication requirements early.',
+                  'Ask for complex logic like pagination or error handling.'
                 ].map((tip, index) => (
-                  <li key={index} className="flex gap-3">
-                    <span className="text-primary text-xl leading-none">•</span>
-                    <p className="text-xs text-gray-400 leading-relaxed">{tip}</p>
+                  <li key={index} className="flex gap-2">
+                    <span className="text-primary text-sm leading-none">•</span>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">{tip}</p>
                   </li>
                 ))}
               </ul>
@@ -617,7 +604,7 @@ const AIAssisted = () => {
         </div>
       </div>
 
-      {/* ===== Delete Confirmation Popover (small, positioned next to trash icon) ===== */}
+      {/* Delete confirmation popover (unchanged) */}
       {deleteConfirm && (
         <div
           ref={deleteConfirmRef}

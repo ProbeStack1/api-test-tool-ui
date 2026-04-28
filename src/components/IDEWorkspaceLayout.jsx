@@ -1742,7 +1742,7 @@ const HistoryTypeDropdown = ({ value, onChange, options }) => {
         {/* ── Shared MCP state provider — only active for the MCP Test tab ── */}
         <ConditionalMCPProvider active={topMenuActive === 'mcp-test'} workspaceId={activeWorkspaceId}>
         {/* Left sidebar - Forgeq w-72, background-light/30 */}
-{topMenuActive !== 'dashboard' && (
+{topMenuActive !== 'dashboard' && topMenuActive !== 'ai-assisted' && (
   <>
     {sidebarCollapsed ? (
       /* Collapsed rail — slim 40px strip so the user can clearly see the

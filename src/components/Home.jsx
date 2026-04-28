@@ -30,7 +30,7 @@ export default function Home() {
         <HowItWorks />
         <UseCases />
         <ShowcaseGallery />
-        <Testimonials />
+        {/* <Testimonials /> */}
         <IntegrationPartners />
         <CTASection />
       </div>

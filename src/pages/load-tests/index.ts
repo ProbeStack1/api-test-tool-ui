@@ -1,0 +1,1 @@
+export { LoadTestsPage } from './LoadTestsPage';

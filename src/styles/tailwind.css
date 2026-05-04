@@ -1,0 +1,428 @@
+/**
+ * Tailwind v4 entry.
+ * What : Imports tailwind + design tokens, declares @theme for color utilities,
+ *        and adds global resets.
+ * Why  : Tailwind v4 uses CSS-first config — all custom utilities derive from
+ *        the tokens in tokens.css (single source of truth).
+ */
+
+@import 'tailwindcss';
+@import './tokens.css';
+
+/* ------------------------------------------------------------------ */
+/* @theme → maps CSS variables to Tailwind utility classes.
+   So `bg-probestack-bg`, `text-primary`, `border-border` etc. auto-exist. */
+/* ------------------------------------------------------------------ */
+@theme {
+  --color-probestack-bg: var(--color-probestack-bg);
+  --color-surface: var(--color-surface);
+  --color-elevated: var(--color-elevated);
+  --color-hover: var(--color-hover);
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-light: var(--color-primary-light);
+  --color-primary-muted: var(--color-primary-muted);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-inverse: var(--color-text-inverse);
+
+  --color-success: var(--color-success);
+  --color-success-muted: var(--color-success-muted);
+  --color-warning: var(--color-warning);
+  --color-warning-muted: var(--color-warning-muted);
+  --color-danger: var(--color-danger);
+  --color-danger-muted: var(--color-danger-muted);
+  --color-info: var(--color-info);
+  --color-info-muted: var(--color-info-muted);
+
+  --color-method-get: var(--color-method-get);
+  --color-method-post: var(--color-method-post);
+  --color-method-put: var(--color-method-put);
+  --color-method-patch: var(--color-method-patch);
+  --color-method-delete: var(--color-method-delete);
+
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Global resets & base                                                */
+/* ------------------------------------------------------------------ */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base, 14px);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Uniform text-size scale that follows --font-size-base
+ * (driven by Settings → Appearance → Font Size, 12-18px).
+ * We override Tailwind's static text-* utilities so that the WHOLE app
+ * scales when the user moves the slider — no more hardcoded sizes. */
+:root .text-xs   { font-size: calc(var(--font-size-base, 14px) * 0.857); line-height: 1.45; }
+:root .text-sm   { font-size: calc(var(--font-size-base, 14px) * 0.928); line-height: 1.45; }
+:root .text-base { font-size: var(--font-size-base, 14px);                line-height: 1.5;  }
+:root .text-lg   { font-size: calc(var(--font-size-base, 14px) * 1.143);  line-height: 1.5;  }
+:root .text-xl   { font-size: calc(var(--font-size-base, 14px) * 1.286);  line-height: 1.4;  }
+:root .text-2xl  { font-size: calc(var(--font-size-base, 14px) * 1.5);    line-height: 1.3;  }
+:root .text-3xl  { font-size: calc(var(--font-size-base, 14px) * 1.875);  line-height: 1.25; }
+:root .text-4xl  { font-size: calc(var(--font-size-base, 14px) * 2.25);   line-height: 1.2;  }
+:root .text-5xl  { font-size: calc(var(--font-size-base, 14px) * 2.75);   line-height: 1.15; }
+:root .text-6xl  { font-size: calc(var(--font-size-base, 14px) * 3.5);    line-height: 1.1;  }
+:root .text-7xl  { font-size: calc(var(--font-size-base, 14px) * 4.25);   line-height: 1.05; }
+
+/* Arbitrary fixed-px text classes (text-[10px], text-[11px] etc) ALSO
+ * scale with the slider. Each one is read once in tokens.css so the
+ * whole app responds to a single `--font-size-base` change. */
+:root .text-\[9px\]   { font-size: calc(var(--font-size-base, 14px) * 0.643); line-height: 1.45; }
+:root .text-\[10px\]  { font-size: calc(var(--font-size-base, 14px) * 0.714); line-height: 1.45; }
+:root .text-\[11px\]  { font-size: calc(var(--font-size-base, 14px) * 0.786); line-height: 1.45; }
+:root .text-\[12px\]  { font-size: calc(var(--font-size-base, 14px) * 0.857); line-height: 1.45; }
+:root .text-\[13px\]  { font-size: calc(var(--font-size-base, 14px) * 0.928); line-height: 1.45; }
+
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-probestack-bg);
+  color: var(--color-text-primary);
+  font-feature-settings: 'rlig' 1, 'calt' 1;
+}
+
+/* Thin, subtle scrollbar — same vibe as Postman / VS Code. */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+* { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+
+/* Selection */
+::selection {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Gradient helpers used by landing */
+.gradient-text {
+  background: linear-gradient(90deg, #ff5b1f, #ffb400 40%, #1fbf9a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.gradient-text-primary {
+  background: linear-gradient(
+    135deg,
+    var(--color-text-primary) 0%,
+    var(--color-primary) 50%,
+    var(--color-text-primary) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Shimmer for skeletons */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-hover) 50%,
+    var(--color-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* Live-run banner sweep */
+@keyframes sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* Indeterminate progress bar (when total step count is unknown) */
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(60%); }
+  100% { transform: translateX(220%); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Floating chatbot — concentric "radiation" pulse rings around FAB.  */
+/* Two rings phased 1s apart create an attention-drawing radar effect. */
+/* ------------------------------------------------------------------ */
+@keyframes chatbot-radiate {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { transform: scale(2.0); opacity: 0;    }
+  100% { transform: scale(2.0); opacity: 0;    }
+}
+.animate-chatbot-radiate-1 { animation: chatbot-radiate 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.animate-chatbot-radiate-2 { animation: chatbot-radiate 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; animation-delay: 1.2s; }
+
+/* ------------------------------------------------------------------ */
+/* Chatbot drawer — premium entrance: lift, fade, spring settle.      */
+/* Shared by both guide + error modes; the error variant additionally */
+/* emits a sharper red aura via @keyframes chatbot-error-aura below.  */
+/* ------------------------------------------------------------------ */
+@keyframes chatbot-drawer-in {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.92); filter: blur(6px); }
+  55%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.animate-chatbot-drawer-in {
+  animation: chatbot-drawer-in 320ms cubic-bezier(0.16, 0.84, 0.24, 1) both;
+}
+
+@keyframes chatbot-error-aura {
+  0%, 100% { box-shadow: 0 12px 40px -12px rgba(239, 68, 68, 0.35), 0 0 0 1px rgba(239, 68, 68, 0.35); }
+  50%      { box-shadow: 0 18px 50px -10px rgba(239, 68, 68, 0.55), 0 0 0 1px rgba(239, 68, 68, 0.55); }
+}
+.animate-chatbot-error-aura { animation: chatbot-error-aura 2.4s ease-in-out infinite; }
+
+@keyframes chatbot-bubble-in {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+.animate-chatbot-bubble-in { animation: chatbot-bubble-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-chatbot-drawer-in,
+  .animate-chatbot-error-aura,
+  .animate-chatbot-bubble-in { animation: none !important; }
+}
+
+/* Dashboard area-chart layer fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* NotificationsBell — premium slide-in when a new notification arrives.
+ * Combines a small drop + horizontal nudge so the dropdown reads as
+ * "appearing" rather than "switched on". 220ms keeps it snappy. */
+@keyframes notifications-slide-in {
+  0%   { opacity: 0; transform: translate(8px, -6px) scale(0.97); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+.animate-notifications-slide-in { animation: notifications-slide-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+
+/* ------------------------------------------------------------------ */
+/* Global input affordance — every text-like control gets a thin       */
+/* primary-coloured border on hover / focus instead of the default     */
+/* black-on-white outline. Keeps the entire UI feeling like Postman    */
+/* without having to repeat hover/focus utilities on every input.      */
+/*                                                                     */
+/* Scope: only inputs that DON'T already have an explicit border —     */
+/* anything wrapped in our custom <Input> wrapper (which uses          */
+/* `border-transparent`) inherits this. Components that intentionally  */
+/* paint a border (e.g. SegmentedControl) keep theirs.                 */
+/* ------------------------------------------------------------------ */
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
+textarea,
+select {
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+/* Ensure default browser outline never shows for these controls. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none !important;
+}
+
+/* Hover — thin primary tint (only when not disabled, and the border
+ * isn't already explicitly set to a different colour by the component). */
+input:not(:disabled):not([type='checkbox']):not([type='radio']):hover,
+textarea:not(:disabled):hover,
+select:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+}
+
+/* Focus — full primary border + soft glow halo. */
+input:not(:disabled):not([type='checkbox']):not([type='radio']):focus,
+input:not(:disabled):not([type='checkbox']):not([type='radio']):focus-visible,
+textarea:not(:disabled):focus,
+textarea:not(:disabled):focus-visible,
+select:not(:disabled):focus,
+select:not(:disabled):focus-visible {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+/* Disabled — flatten interaction. */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ------------------------------------------------------------------ */
+/* Global: anything intentionally clickable shows a pointer cursor.   */
+/* ------------------------------------------------------------------ */
+button:not(:disabled),
+a[href],
+[role='button']:not([aria-disabled='true']),
+select:not(:disabled),
+summary,
+label[for],
+[data-testid$='-btn']:not([disabled]),
+.cursor-pointer {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Response panel slide-in — when the user clicks Send the panel       */
+/* glides up from the bottom in 240 ms with a soft overshoot.          */
+/* ------------------------------------------------------------------ */
+@keyframes response-slide-in {
+  0%   { transform: translateY(110%); opacity: 0; }
+  60%  { transform: translateY(-2%);  opacity: 1; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+.motion-safe\:animate-response-slide-in {
+  animation: response-slide-in 0.32s cubic-bezier(.34,1.56,.64,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe\:animate-response-slide-in { animation: none !important; }
+}
+
+/* ------------------------------------------------------------------ */
+/* AppIcon — keyframes for hover / parent-group-hover / active / auto. */
+/* All animations preserve the icon SHAPE — only transforms animate.   */
+/* ------------------------------------------------------------------ */
+@keyframes icon-pop    { 0% { transform: scale(1); } 50% { transform: scale(1.22); } 100% { transform: scale(1); } }
+@keyframes icon-wiggle { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 50% { transform: rotate(10deg); } 75% { transform: rotate(-6deg); } }
+@keyframes icon-spin   { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes icon-pulse  { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.85; } }
+@keyframes icon-bounce { 0%,100% { transform: translateY(0); } 30% { transform: translateY(-4px) scale(1.08); } 60% { transform: translateY(0); } 80% { transform: translateY(-1.5px); } }
+@keyframes icon-float  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+
+/* `app-icon-anim` is applied via the `animated` prop on <AppIcon>. The icon
+ * animates on direct hover OR when ANY ancestor with `.group` is hovered —
+ * so an entire tab/button hovering plays the icon, not just the icon itself. */
+.app-icon-anim { display: inline-flex; will-change: transform; }
+.app-icon-anim > svg { transform-origin: center; }
+
+.app-icon-anim-pop:hover    > svg,
+.group:hover .app-icon-anim-pop    > svg { animation: icon-pop    0.45s cubic-bezier(.34,1.56,.64,1) both; }
+.app-icon-anim-wiggle:hover > svg,
+.group:hover .app-icon-anim-wiggle > svg { animation: icon-wiggle 0.55s ease-in-out both; }
+.app-icon-anim-spin:hover   > svg,
+.group:hover .app-icon-anim-spin   > svg { animation: icon-spin   0.7s ease-in-out both; }
+.app-icon-anim-pulse:hover  > svg,
+.group:hover .app-icon-anim-pulse  > svg { animation: icon-pulse  0.6s ease-in-out both; }
+.app-icon-anim-bounce:hover > svg,
+.group:hover .app-icon-anim-bounce > svg { animation: icon-bounce 0.55s ease-out both; }
+.app-icon-anim-float:hover  > svg,
+.group:hover .app-icon-anim-float  > svg { animation: icon-float  1.6s ease-in-out infinite; }
+
+/* `app-icon-active` keeps the preset gently playing for the active tab/icon
+ * (useful for selected sidebar rail entries). Subtler timing than hover so
+ * it never feels noisy. */
+.app-icon-active.app-icon-anim-pop    > svg { animation: icon-pop    1.6s ease-in-out infinite; }
+.app-icon-active.app-icon-anim-wiggle > svg { animation: icon-wiggle 2.2s ease-in-out infinite; }
+.app-icon-active.app-icon-anim-spin   > svg { animation: icon-spin   3.2s linear           infinite; }
+.app-icon-active.app-icon-anim-pulse  > svg { animation: icon-pulse  1.8s ease-in-out infinite; }
+.app-icon-active.app-icon-anim-bounce > svg { animation: icon-bounce 1.6s ease-in-out infinite; }
+.app-icon-active.app-icon-anim-float  > svg { animation: icon-float  1.6s ease-in-out infinite; }
+
+/* `app-icon-autoplay` plays the preset ONCE on mount; the React component
+ * remounts the wrapper (key bump) every 3s for empty-state hero icons. */
+.app-icon-autoplay.app-icon-anim-pop    > svg { animation: icon-pop    0.9s cubic-bezier(.34,1.56,.64,1) both; }
+.app-icon-autoplay.app-icon-anim-wiggle > svg { animation: icon-wiggle 1.2s ease-in-out both; }
+.app-icon-autoplay.app-icon-anim-spin   > svg { animation: icon-spin   1.4s ease-in-out both; }
+.app-icon-autoplay.app-icon-anim-pulse  > svg { animation: icon-pulse  1.2s ease-in-out both; }
+.app-icon-autoplay.app-icon-anim-bounce > svg { animation: icon-bounce 1.0s ease-out both; }
+.app-icon-autoplay.app-icon-anim-float  > svg { animation: icon-float  2.6s ease-in-out infinite; }
+
+/* Skeleton utility that actually animates (old one relied on missing keys). */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-hover);
+  border-radius: 6px;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-border) 70%, transparent) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.2s linear infinite;
+}

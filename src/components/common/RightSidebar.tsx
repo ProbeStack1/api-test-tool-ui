@@ -7,7 +7,7 @@
  * cURL     : auto-generated cURL for the active request.
  * AI       : request-aware chat (knows selected request details, auto-triggers on error).
  */
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Globe, Lock, Building2, ChevronDown, ChevronRight,EyeOff,Eye,
 } from 'lucide-react';
@@ -55,25 +55,30 @@ export const RightRail = () => {
   return (
     <aside
       data-testid="right-rail"
-      className="flex w-14 shrink-0 flex-col items-stretch gap-1 border-l border-border bg-surface py-2"
+      className="flex w-14 shrink-0 flex-col items-stretch border-l border-border bg-surface py-2"
     >
-      {RAIL.map(({ key, icon, label }) => {
+      {RAIL.map(({ key, icon, label }, idx) => {
         const active = expanded && activeTab === key;
         return (
-          <Tooltip key={key} content={label} side="left">
-            <button
-              data-testid={`right-rail-${key}`}
-              onClick={() => onClick(key)}
-              className={cn(
-                'group mx-1 flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-medium uppercase tracking-wide transition-all duration-150',
-                'text-text-secondary hover:bg-hover hover:text-text-primary',
-                active && 'bg-primary-muted text-primary',
-              )}
-            >
-              <AppIcon name={icon} animated active={active} className="h-[17px] w-[17px]" />
-              <span className="leading-tight">{label}</span>
-            </button>
-          </Tooltip>
+          <React.Fragment key={key}>
+            <Tooltip content={label} side="left">
+              <button
+                data-testid={`right-rail-${key}`}
+                onClick={() => onClick(key)}
+                className={cn(
+                  'mx-1 flex flex-col items-center gap-0.5 rounded-sm px-1 py-2.5 text-xs font-medium uppercase tracking-wide transition-all duration-150',
+                  'text-text-secondary',
+                  !active && 'hover:bg-hover hover:text-text-primary',
+                  active && 'bg-primary-muted text-primary',
+                )}
+              >
+                <AppIcon name={icon} animated active={active} className="h-[17px] w-[17px]" />
+              </button>
+            </Tooltip>
+            {idx !== RAIL.length - 1 && (
+              <div className="mx-2 border-t border-border" />
+            )}
+          </React.Fragment>
         );
       })}
     </aside>

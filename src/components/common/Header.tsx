@@ -33,24 +33,24 @@ export const Header = () => {
   return (
     <header
       data-testid="app-header"
-      className="grid h-12 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
+      className="grid h-14 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
     >
       {/* Left — brand */}
       <Link
-          to="/"
-          data-testid="app-header-logo"
-          className="flex items-center gap-0.5"
-        >
-          <Logo variant="mark" className="h-9 w-8" />
-          <div className="text-left">
-            <div className="text-xs text-text-secondary font-semibold tracking-tight leading-tight mb-[-8px]">
-              probestack
-            </div>
-            <div className="font-semibold text-xl tracking-tight leading-tight gradient-text">
-              ForgeQ
-            </div>
-          </div>
-        </Link>
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeQ
+                </div>
+              </div>
+            </Link>
 
       {/* Center — depends on mode */}
       {mode === 'top' ? <HeaderTabs /> : <SearchButton onOpen={() => setPaletteOpen(true)} />}

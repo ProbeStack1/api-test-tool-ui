@@ -62,18 +62,18 @@ export const HomeShell = () => {
           data-testid="home-sidebar"
           className="flex w-56 shrink-0 flex-col border-r border-border bg-surface"
         >
-          <div className="flex h-12 items-center gap-2 border-b border-border px-3">
+          <div className="flex h-15 items-center border-b border-border px-3 py-2">
             <Link
               to="/"
               data-testid="app-header-logo"
-              className="flex items-center gap-0.5"
+              className="flex items-center gap-1"
             >
-              <Logo variant="mark" className="h-9 w-8" />
+              <Logo variant="mark" className="h-12 w-10" />
               <div className="text-left">
-                <div className="text-xs text-text-secondary font-semibold tracking-tight leading-tight mb-[-8px]">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
                   probestack
                 </div>
-                <div className="font-semibold  text-xl tracking-tight leading-tight gradient-text">
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
                   ForgeQ
                 </div>
               </div>

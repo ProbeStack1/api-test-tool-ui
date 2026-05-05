@@ -134,10 +134,11 @@ body {
 }
 * { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
 
-/* Selection */
+/* Selection — subtle highlight (not full primary background, easier on eyes
+ * when scanning long bodies / responses). */
 ::selection {
-  background: var(--color-primary-muted);
-  color: var(--color-primary);
+  background: rgba(88, 88, 87, 0.458);
+  color: inherit;
 }
 
 /* Reduced motion respect */

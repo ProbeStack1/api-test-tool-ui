@@ -31,18 +31,32 @@ export interface KVRow {
   enabled: boolean;
   /** True for auto-generated header rows. Hidden unless eye-icon ON. */
   auto?: boolean;
+  /** Optional small pill drawn after the key cell — e.g. "Auth", "Cookie". */
+  badge?: string;
+  /** When true on a derived row, the user can edit the VALUE inline; the
+   *  parent owns the parse-back through `onEditDerived`. */
+  editable?: boolean;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 export const emptyRow = (): KVRow => ({ id: uid(), key: '', value: '', enabled: true });
 
 export const KVTable = ({
-  rows, onChange, autoRows = [], showDescription = false, onToggleDescription,
+  rows, onChange, autoRows = [], derivedRows = [], onToggleDerived, onEditDerived,
+  showDescription = false, onToggleDescription,
   testIdPrefix,
 }: {
   rows: KVRow[];
   onChange: (next: KVRow[]) => void;
   autoRows?: KVRow[];
+  /** Rows that the table renders ABOVE the user rows. They are not user
+   *  data — they're projected from another tab (e.g. Authorization) — but
+   *  unlike `autoRows` they ARE toggleable by the user. The owner controls
+   *  enable/disable through `onToggleDerived` and (for editable derived
+   *  rows) value edits through `onEditDerived`. */
+  derivedRows?: KVRow[];
+  onToggleDerived?: (rowId: string, enabled: boolean) => void;
+  onEditDerived?: (rowId: string, newValue: string) => void;
   showDescription?: boolean;
   onToggleDescription?: (next: boolean) => void;
   testIdPrefix: string;
@@ -136,11 +150,33 @@ export const KVTable = ({
             key={r.id}
             row={{ ...r, enabled: true }}
             disabled
+            isAutoRow
             cols={cols}
             showDescription={showDescription}
             onUpdate={() => {}}
             onRemove={() => {}}
             testId={`${testIdPrefix}-auto-${r.key}`}
+          />
+        ))}
+
+        {/* Derived rows (e.g. Authorization derived from the Auth tab). Not
+         *  user-typed data, but the user can still tick / untick the
+         *  checkbox to drop the header for one request. The parent owns
+         *  the disabled state via `onToggleDerived`. */}
+        {derivedRows.map((r) => (
+          <RowView
+            key={r.id}
+            row={r}
+            cols={cols}
+            isDerivedRow
+            derivedEditable={!!r.editable}
+            showDescription={showDescription}
+            onUpdate={(p) => {
+              if (typeof p.enabled === 'boolean') onToggleDerived?.(r.id, p.enabled);
+              if (typeof p.value === 'string' && r.editable) onEditDerived?.(r.id, p.value);
+            }}
+            onRemove={() => onToggleDerived?.(r.id, false)}
+            testId={`${testIdPrefix}-derived-${r.key}`}
           />
         ))}
 
@@ -162,7 +198,7 @@ export const KVTable = ({
 };
 
 const RowView = ({
-  row, cols, onUpdate, onRemove, isTrailer, disabled, showDescription, testId,
+  row, cols, onUpdate, onRemove, isTrailer, disabled, isAutoRow, isDerivedRow, derivedEditable, showDescription, testId,
 }: {
   row: KVRow;
   cols: string;
@@ -170,6 +206,9 @@ const RowView = ({
   onRemove: () => void;
   isTrailer?: boolean;
   disabled?: boolean;
+  isAutoRow?: boolean;
+  isDerivedRow?: boolean;
+  derivedEditable?: boolean;
   showDescription: boolean;
   testId: string;
 }) => (
@@ -177,14 +216,19 @@ const RowView = ({
     data-testid={testId}
     className={cn(
       'group grid items-center border-b border-border/50 last:border-b-0 hover:bg-hover/30',
-      disabled && 'opacity-60',
+      /* Auto rows (e.g. Accept-Encoding) are readonly and slightly faded. */
+      isAutoRow && 'bg-primary/[0.04] italic text-text-secondary hover:bg-primary/[0.06]',
+      /* Derived rows (e.g. Authorization from the Auth tab) look like
+       * normal user rows — same colour, same weight — but carry a small
+       * pill so users know where the value originates. */
+      disabled && !isAutoRow && !isDerivedRow && 'opacity-60',
     )}
     style={{ gridTemplateColumns: cols }}
   >
     <div className="flex justify-center">
       <input
         type="checkbox"
-        disabled={disabled || isTrailer}
+        disabled={isAutoRow || isTrailer}
         checked={row.enabled}
         onChange={(e) => onUpdate({ enabled: e.target.checked })}
         className="h-3.5 w-3.5 accent-[var(--color-primary)]"
@@ -195,14 +239,23 @@ const RowView = ({
       value={row.key}
       onChange={(v) => onUpdate({ key: v })}
       placeholder={isTrailer ? 'Key' : 'Key'}
-      disabled={disabled}
+      /* Key is always read-only on derived rows — even when value is
+       * editable — to avoid confusing the user about which auth type is
+       * active. They change the auth type via the Auth tab dropdown. */
+      disabled={disabled || isDerivedRow}
       testId={`${testId}-key`}
+      trailingBadge={isAutoRow ? 'auto' : (isDerivedRow ? (row.badge ?? 'Auth') : undefined)}
+      badgeTitle={isAutoRow ? 'Auto-added by HTTP client' : 'Linked to the Authorization tab — edits sync both ways'}
     />
     <CellInput
       value={row.value}
       onChange={(v) => onUpdate({ value: v })}
       placeholder="Value"
-      disabled={disabled}
+      /* Derived value: read-only ONLY when the auth type can't be
+       * round-tripped (digest/awsv4/etc). Editable types (bearer/basic/
+       * apikey/oauth2) accept inline edits and feed them back into the
+       * Auth tab via parseAuthRowEdit on the parent. */
+      disabled={disabled || (isDerivedRow && !derivedEditable)}
       testId={`${testId}-value`}
     />
     {showDescription && (
@@ -210,12 +263,12 @@ const RowView = ({
         value={row.description ?? ''}
         onChange={(v) => onUpdate({ description: v })}
         placeholder="Description"
-        disabled={disabled}
+        disabled={disabled || isDerivedRow}
         testId={`${testId}-description`}
       />
     )}
     <div className="flex justify-center">
-      {!isTrailer && !disabled && (
+      {!isTrailer && !disabled && !isAutoRow && !isDerivedRow && (
         <button
           onClick={onRemove}
           data-testid={`${testId}-delete`}
@@ -231,17 +284,35 @@ const RowView = ({
 
 /* Cell-style border-less variable input (used by every column). */
 const CellInput = ({
-  value, onChange, placeholder, disabled, testId,
-}: { value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean; testId?: string }) => (
-  <div className="border-r border-border/40 last:border-r-0">
-    <VariableInput
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      disabled={disabled}
-      testId={testId}
-      mode="cell"
-      mono
-    />
+  value, onChange, placeholder, disabled, testId, trailingBadge, badgeTitle,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  testId?: string;
+  trailingBadge?: string;
+  badgeTitle?: string;
+}) => (
+  <div className="flex items-center border-r border-border/40 last:border-r-0">
+    <div className="min-w-0 flex-1">
+      <VariableInput
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        testId={testId}
+        mode="cell"
+        mono
+      />
+    </div>
+    {trailingBadge && (
+      <span
+        className="mr-2 shrink-0 rounded-sm border border-primary/30 bg-primary/10 px-1 py-px text-[9px] font-semibold uppercase tracking-wider not-italic text-primary/80"
+        title={badgeTitle ?? 'Auto-generated'}
+      >
+        {trailingBadge}
+      </span>
+    )}
   </div>
 );

@@ -38,7 +38,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useSettings } from '@/stores/settings.store';
 import { useVariablesUi, type VarScope } from '@/stores/variables-ui.store';
 import {
-  listEnvironments, getEnvironment, createEnvironment, updateEnvironment, deleteEnvironment,
+  listEnvironments, listEnvironmentsFull, getEnvironment, createEnvironment, updateEnvironment, deleteEnvironment,
   activateEnvironment, deactivateEnvironment,
   exportPostmanEnvironment,
   importPostmanEnvironment,
@@ -68,9 +68,16 @@ export const VariablesWorkspacePage = () => {
   const openTab = useVariablesUi((s) => s.openTab);
 
   const { data: envs = [], isLoading } = useQuery({
-    queryKey: ['environments', ws?.id, false],
-    queryFn: () => listEnvironments(ws?.id, false),
+    /* Use the FULL list so each summary carries `variables` + `tags`
+     * (collection scope needs `tags.collectionId` to match, otherwise the
+     * page thinks no env exists and tries to recreate it → 409). */
+    queryKey: ['environments', ws?.id, false, 'full'],
+    queryFn: () => listEnvironmentsFull(ws?.id, false),
     enabled: !!ws?.id,
+    /* Always re-fetch when the user lands on the page so they don't see a
+     * stale empty state from a previous workspace. */
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const renameTab = useVariablesUi((s) => s.renameTab);
@@ -205,20 +212,34 @@ const SingletonScope = ({
   const M = SCOPE_META[kind];
   const Icon = M.icon;
 
-  const existing = useMemo(
-    () => envs.find((e) => e.scope === kind && (kind === 'GLOBAL' ? true : e.workspaceId === workspaceId)),
-    [envs, kind, workspaceId],
-  );
+  const expectedName = kind === 'GLOBAL' ? 'Globals' : `${ws?.name ?? 'Project'} variables`;
+  const expectedNameLc = expectedName.trim().toLowerCase();
+  const existing = useMemo(() => {
+    /* Primary match — singleton-scope identity (org / workspace). */
+    let hit = envs.find((e) => e.scope === kind && (kind === 'GLOBAL' ? true : e.workspaceId === workspaceId));
+    /* Fallback — match by NAME (covers older envs that pre-date the
+     * scope-aware singleton model). */
+    if (!hit) hit = envs.find((e) => e.scope === kind && e.name.trim().toLowerCase() === expectedNameLc);
+    return hit;
+  }, [envs, kind, workspaceId, expectedNameLc]);
 
   const initMut = useMutation({
     mutationFn: () => createEnvironment(
       kind === 'GLOBAL' ? null : workspaceId,
-      {
-        name: kind === 'GLOBAL' ? 'Globals' : `${ws?.name ?? 'Project'} variables`,
-        scope: kind, variables: [],
-      },
+      { name: expectedName, scope: kind, variables: [] },
     ),
-    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['environments'] }); },
+    onSuccess: async (created) => {
+      /* Optimistic insert + refetch. The optimistic write makes the
+       * editor flip out of skeleton immediately; the invalidation keeps
+       * the cache in sync with the server (which is now also returning
+       * the env after the canRead fix). */
+      qc.setQueryData<Environment[]>(['environments', workspaceId, false, 'full'], (prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        if (list.some((e) => e.id === created.id)) return list;
+        return [...list, created];
+      });
+      await qc.invalidateQueries({ queryKey: ['environments'] });
+    },
   });
 
   // Auto-create singleton silently on first visit — no Initialise button.
@@ -259,30 +280,43 @@ const CollectionScope = ({ workspaceId, envs }: { workspaceId: string; envs: Env
   }, [collections, selectedColId]);
 
   const collection: Collection | null = collections.find((c) => c.id === selectedColId) ?? null;
-  // Lenient lookup — backends sometimes round-trip the collection id under
-  // a top-level field instead of `tags.collectionId`. Match either shape so
-  // the editor can render even when the list payload omits one of them.
-  const existing = envs.find((e) => {
-    if (e.scope !== 'COLLECTION') return false;
-    const fromTag = (e.tags as any)?.collectionId;
-    const fromField = (e as any).collectionId;
-    return fromTag === selectedColId || fromField === selectedColId;
-  });
+  /* Lookup is intentionally lenient — backends sometimes round-trip the
+   * collection id under a top-level field instead of `tags.collectionId`,
+   * AND historic envs may have been created without the tag at all. We
+   * match in this priority order so we never spuriously trigger a create
+   * (which would 409 on the unique-name index):
+   *   1) tags.collectionId or top-level collectionId equals current id
+   *   2) COLLECTION-scope env whose NAME matches the auto-create name
+   *      (this is the common "env exists from older code path" case)
+   * The 409 handler in createEnvironment also has a name-fallback so even
+   * if both layers miss, we recover gracefully without surfacing an error. */
+  const expectedName = collection ? `${collection.name} variables` : 'Collection variables';
+  const expectedNameLc = expectedName.trim().toLowerCase();
+  const existing = useMemo(() => {
+    let hit = envs.find((e) => {
+      if (e.scope !== 'COLLECTION') return false;
+      const fromTag = (e.tags as any)?.collectionId;
+      const fromField = (e as any).collectionId;
+      return fromTag === selectedColId || fromField === selectedColId;
+    });
+    if (!hit && selectedColId) {
+      hit = envs.find((e) =>
+        e.scope === 'COLLECTION' &&
+        e.name.trim().toLowerCase() === expectedNameLc,
+      );
+    }
+    return hit;
+  }, [envs, selectedColId, expectedNameLc]);
   const qc = useQueryClient();
   const initMut = useMutation({
     mutationFn: () => createEnvironment(workspaceId, {
-      name: collection ? `${collection.name} variables` : 'Collection variables',
+      name: expectedName,
       scope: 'COLLECTION',
       variables: [],
       tags: { collectionId: selectedColId ?? '' } as any,
     } as any),
     onSuccess: async (created) => {
-      // Optimistically inject the freshly-created env into the list cache so
-      // the editor flips out of the "Preparing…" state IMMEDIATELY, even
-      // before the next list refetch lands. This eliminates the case where
-      // the list response still doesn't carry `tags.collectionId` and the
-      // page would otherwise spin forever.
-      qc.setQueryData<Environment[]>(['environments', workspaceId, false], (prev) => {
+      qc.setQueryData<Environment[]>(['environments', workspaceId, false, 'full'], (prev) => {
         const list = Array.isArray(prev) ? prev : [];
         if (list.some((e) => e.id === created.id)) return list;
         return [...list, created];
@@ -407,6 +441,11 @@ const EnvironmentListView = ({
     try {
       setCreatingEnv(true);
       const e = await createEnvironment(workspaceId, { name, scope: 'ENVIRONMENT', variables: [] });
+      qc.setQueryData<Environment[]>(['environments', workspaceId, false, 'full'], (prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        if (list.some((x) => x.id === e.id)) return list;
+        return [...list, e];
+      });
       await qc.invalidateQueries({ queryKey: ['environments'] });
       toast.success(`Environment "${name}" created`);
       setShowCreateModal(false);
@@ -584,6 +623,11 @@ const EnvironmentListView = ({
                                   variables: (e.variables ?? []).map(({ key, value, type, enabled, description }) =>
                                     ({ key, value, type, enabled, description })),
                                 } as any);
+                                qc.setQueryData<Environment[]>(['environments', workspaceId, false, 'full'], (prev) => {
+                                  const list = Array.isArray(prev) ? prev : [];
+                                  if (list.some((x) => x.id === c.id)) return list;
+                                  return [...list, c];
+                                });
                                 await qc.invalidateQueries({ queryKey: ['environments'] });
                                 onOpen(c);
                                 toast.success('Cloned');

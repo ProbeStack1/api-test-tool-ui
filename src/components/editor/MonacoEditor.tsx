@@ -1,29 +1,4 @@
-/**
- * MonacoEditor — Postman-grade code editor wired to our app theme.
- *
- * Why Monaco (not CodeMirror) here:
- *   The user wants the request-body experience to feel like VS Code — Monaco
- *   ships first-class JSON intellisense, format-on-paste, parentheses match,
- *   sticky scroll, and minimap. CodeMirror keeps powering the response panel
- *   (where its lighter footprint and instant render matter more); Monaco is
- *   used here for editing.
- *
- * Theme:
- *   We register two custom themes ("forgeq-dark", "forgeq-light") that read
- *   the live values of `--color-probestack-bg`, `--color-text-primary` etc.
- *   so the editor blends with whatever theme the user is on (dark / light /
- *   custom).
- *
- * `{{var}}` highlighting:
- *   We don't bother with a Monarch language fork — the built-in JSON tokens
- *   stay intact. Instead we run a regex over the document on every edit and
- *   apply *inline decorations* with status-coloured background + text colour.
- *   - active   → orange   (resolved in a currently-active environment)
- *   - inactive → yellow   (defined in an inactive env / scope)
- *   - missing  → red      (not found anywhere)
- *   The status comes from the same `useVariableIndex()` hook used everywhere
- *   else, so colours match VariableInput / CodeEditor exactly.
- */
+
 import { useEffect, useRef, useMemo, useCallback } from 'react';
 import Editor, { type OnMount, type OnChange, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
@@ -105,7 +80,14 @@ const ensureThemes = (monaco: typeof import('monaco-editor'), forceReregister = 
       'editorLineNumber.foreground':  cssVar('--color-text-muted',    '#64748b'),
       'editorLineNumber.activeForeground': cssVar('--color-primary',  '#ff5b1f'),
       'editorCursor.foreground':      cssVar('--color-primary',       '#ff5b1f'),
-      'editor.selectionBackground':   cssVar('--color-primary-muted', '#5a2a1a'),
+      /* Selection — soft tinted highlight (not a saturated primary block). */
+      'editor.selectionBackground':           '#ff5b1f24',
+      'editor.inactiveSelectionBackground':   '#ff5b1f12',
+      'editor.selectionHighlightBackground':  '#ff5b1f14',
+      'editor.wordHighlightBackground':       '#ff5b1f14',
+      'editor.wordHighlightStrongBackground': '#ff5b1f1a',
+      'editor.findMatchBackground':           '#ff5b1f33',
+      'editor.findMatchHighlightBackground':  '#ff5b1f1a',
       'editor.lineHighlightBackground': cssVar('--color-hover',        '#1a1f29'),
       'editorIndentGuide.background1':cssVar('--color-border',        '#252a35'),
       'editorBracketMatch.background':cssVar('--color-elevated',      '#1f242e'),
@@ -125,7 +107,14 @@ const ensureThemes = (monaco: typeof import('monaco-editor'), forceReregister = 
       'editorLineNumber.foreground':  cssVar('--color-text-muted',    '#94a3b8'),
       'editorLineNumber.activeForeground': cssVar('--color-primary',  '#ff5b1f'),
       'editorCursor.foreground':      cssVar('--color-primary',       '#ff5b1f'),
-      'editor.selectionBackground':   cssVar('--color-primary-muted', '#ffe4d4'),
+      /* Selection — soft tinted highlight in light mode too. */
+      'editor.selectionBackground':           '#ff5b1f33',
+      'editor.inactiveSelectionBackground':   '#ff5b1f1a',
+      'editor.selectionHighlightBackground':  '#ff5b1f1f',
+      'editor.wordHighlightBackground':       '#ff5b1f1f',
+      'editor.wordHighlightStrongBackground': '#ff5b1f29',
+      'editor.findMatchBackground':           '#ff5b1f4d',
+      'editor.findMatchHighlightBackground':  '#ff5b1f29',
       'editor.lineHighlightBackground': cssVar('--color-hover',        '#f1f5f9'),
       'editorIndentGuide.background1':cssVar('--color-border',        '#e2e8f0'),
       'editorBracketMatch.background':cssVar('--color-elevated',      '#f8fafc'),

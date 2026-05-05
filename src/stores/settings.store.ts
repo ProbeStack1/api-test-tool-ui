@@ -95,7 +95,7 @@ const DEFAULTS = {
   aiCopilotEnabled: true,
   aiGenerateFromCommentEnabled: true,
   aiGenerateShortcut: 'mod+Enter' as 'mod+Enter' | 'mod+Shift+Enter' | 'mod+G',
-  snippetVariableMode: 'show' as 'show' | 'resolve',
+  snippetVariableMode: 'resolve' as 'show' | 'resolve',
 };
 
 // Custom storage adapter backed by IndexedDB (via idb-keyval).

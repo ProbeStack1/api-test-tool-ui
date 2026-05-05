@@ -59,6 +59,86 @@ const DEFAULT_AUTO_HEADERS: KVRow[] = [
   { id: 'h_conn',      key: 'Connection',      value: 'keep-alive',          enabled: true, auto: true },
 ];
 
+/* Auth → toggleable header projection (Postman parity).
+ *
+ * Whatever the user types in the Auth tab is reflected as a regular,
+ * checkbox-toggleable row at the top of the Headers tab. The user can:
+ *   • see exactly what will hit the wire,
+ *   • untick the row to drop the header from this one request,
+ *   • re-tick to bring it back,
+ *   • EDIT the value inline for the simple auth types — those edits are
+ *     parsed back into the Auth-tab state so the two tabs always agree.
+ *
+ * Only header-bound auths produce rows. apikey/oauth2 with `addTo='query'`
+ * are intentionally skipped (those go on the URL, not in headers). */
+type DerivedAuthRow = KVRow & { editable: boolean };
+const deriveAuthHeaders = (auth: AuthConfig): DerivedAuthRow[] => {
+  const t = auth?.type;
+  const c: any = auth?.config ?? {};
+  if (!t || t === 'noauth' || t === 'inherit') return [];
+  if (t === 'bearer' && c.token) {
+    return [{ id: 'auth_bearer', key: 'Authorization', value: `Bearer ${c.token}`, enabled: true, auto: true, editable: true }];
+  }
+  if (t === 'basic' && (c.username || c.password)) {
+    let token: string;
+    try { token = btoa(`${c.username ?? ''}:${c.password ?? ''}`); }
+    catch { token = '<base64>'; }
+    return [{ id: 'auth_basic', key: 'Authorization', value: `Basic ${token}`, enabled: true, auto: true, editable: true }];
+  }
+  if (t === 'apikey' && (c.addTo ?? 'header') === 'header' && c.key) {
+    return [{ id: 'auth_apikey', key: c.key, value: c.value ?? '', enabled: true, auto: true, editable: true }];
+  }
+  if (t === 'oauth2' && (c.addTo ?? 'header') === 'header' && c.accessToken) {
+    const prefix = c.headerPrefix || 'Bearer';
+    return [{ id: 'auth_oauth2', key: 'Authorization', value: `${prefix} ${c.accessToken}`, enabled: true, auto: true, editable: true }];
+  }
+  /* digest / oauth1 / hawk / awsv4 / ntlm produce a single Authorization
+   * header too, but its computation requires the request URL + body
+   * (signature, nonce, …). Show a placeholder so the user knows something
+   * will be added on send. NOT editable — the value is generated. */
+  if (t === 'digest' || t === 'oauth1' || t === 'hawk' || t === 'awsv4' || t === 'ntlm') {
+    return [{ id: `auth_${t}`, key: 'Authorization', value: `<computed at send · ${t.toUpperCase()}>`, enabled: true, auto: true, editable: false }];
+  }
+  return [];
+};
+
+/** Inverse of `deriveAuthHeaders` — given a row id and a new value typed
+ *  in the Headers tab, return the patch we should apply to the Auth tab.
+ *  Returns null when the auth type can't be cleanly parsed back (e.g.
+ *  digest/awsv4/etc. — those use computed values). */
+const parseAuthRowEdit = (
+  rowId: string,
+  newValue: string,
+  auth: AuthConfig,
+): AuthConfig | null => {
+  switch (rowId) {
+    case 'auth_bearer': {
+      const token = newValue.replace(/^\s*Bearer\s+/i, '').trim();
+      return { type: 'bearer', config: { ...auth.config, token } };
+    }
+    case 'auth_basic': {
+      const b64 = newValue.replace(/^\s*Basic\s+/i, '').trim();
+      let username = '', password = '';
+      try {
+        const dec = atob(b64);
+        const idx = dec.indexOf(':');
+        username = idx >= 0 ? dec.slice(0, idx) : dec;
+        password = idx >= 0 ? dec.slice(idx + 1) : '';
+      } catch {/* leave empty */}
+      return { type: 'basic', config: { ...auth.config, username, password } };
+    }
+    case 'auth_apikey':
+      return { type: 'apikey', config: { ...auth.config, value: newValue } };
+    case 'auth_oauth2': {
+      const prefix = (auth.config as any)?.headerPrefix || 'Bearer';
+      const accessToken = newValue.replace(new RegExp(`^\\s*${prefix}\\s+`, 'i'), '').trim();
+      return { type: 'oauth2', config: { ...auth.config, accessToken } };
+    }
+    default:
+      return null;
+  }
+};
+
 export const RequestBuilderPage = () => {
   const ws = useWorkspaceStore((s) => s.current);
   const primaryTab = useLayout((s) => s.primaryTab);
@@ -88,6 +168,31 @@ export const RequestBuilderPage = () => {
 
   const active = open.find((o) => o.id === activeId) ?? open[0];
   const isSavedRequest = !!active?.id && active.id.includes('-') && active.id.length > 20;
+  const renameTab = useRequests((s) => s.rename);
+  const qc = useQueryClient();
+
+  /* Inline tab rename (double-click a tab → editable input). */
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const commitRename = async (id: string) => {
+    const next = renameDraft.trim();
+    setRenamingId(null);
+    const tab = open.find((t) => t.id === id);
+    if (!tab) return;
+    if (!next || next === tab.name) return;
+    renameTab(id, next);
+    /* If it's a persisted saved request, push the rename to the backend
+     * + invalidate sidebar so the tree reflects the new name immediately. */
+    const isSaved = id.includes('-') && id.length > 20;
+    if (isSaved) {
+      try {
+        await updateRequestSvc(id, { name: next } as any);
+        qc.invalidateQueries({ queryKey: ['requests'] });
+      } catch (e: any) {
+        toast.error(e?.message || 'Rename failed');
+      }
+    }
+  };
 
   const [method, setMethod] = useState<Method>(active?.method ?? 'GET');
   const [url, setUrl] = useState(active?.url ?? '');
@@ -144,6 +249,10 @@ export const RequestBuilderPage = () => {
   const [testScript, setTestScript] = useState('');
   const [showParamDesc, setShowParamDesc] = useState(false);
   const [showHeaderDesc, setShowHeaderDesc] = useState(false);
+  /* IDs of auth-derived headers the user has explicitly disabled in the
+   * Headers tab. Lets a user keep their `Authorization: Bearer …` config
+   * in the Auth tab while temporarily disabling it on this request. */
+  const [disabledAuthHeaderIds, setDisabledAuthHeaderIds] = useState<Set<string>>(() => new Set());
   const [dirty, setDirty] = useState(false);
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const autoSaveEnabled = useSettings((s) => s.autoSaveEnabled);
@@ -346,12 +455,20 @@ export const RequestBuilderPage = () => {
     expandResponse();
     try {
       const effectiveUrl = url;
+      /* If the user disabled the auth-derived row in Headers tab, skip the
+       * auth section entirely so the backend doesn't re-add it. */
+      const authDerived = deriveAuthHeaders(auth);
+      const allAuthDisabled =
+        authDerived.length > 0 && authDerived.every((r) => disabledAuthHeaderIds.has(r.id));
+      const sendAuth = allAuthDisabled
+        ? { type: 'NONE' as const }
+        : { type: (auth.type === 'noauth' ? 'NONE' : (auth.type || 'NONE').toUpperCase()), ...auth.config };
       const payload: any = {
         method,
         url: { raw: effectiveUrl },
         headers: headers.filter((h) => h.enabled && h.key).map((h) => ({ key: h.key, value: h.value, enabled: true, description: h.description })),
         body: buildBodyPayload(body),
-        auth: { type: (auth.type === 'noauth' ? 'NONE' : (auth.type || 'NONE').toUpperCase()), ...auth.config },
+        auth: sendAuth,
         preRequestScript: preScript,
         testScript,
         workspaceId: ws?.id,
@@ -480,7 +597,6 @@ export const RequestBuilderPage = () => {
   };
 
   /* ── New-as-sibling: create new request in same parent location ──── */
-  const qc = useQueryClient();
   const openRequest = useRequests((s) => s.openRequest);
   const onNewSibling = async () => {
     /* If active request belongs to a saved collection, create a real
@@ -524,21 +640,19 @@ export const RequestBuilderPage = () => {
     <div data-testid="request-builder" className="flex h-full flex-col">
       {/* Open request tabs — fixed-size tabs, scrollable container */}
       <div className="flex h-9 items-center border-b border-border bg-surface">
-        <Tooltip content="New request (sibling of active)">
-          <button
-            data-testid="new-request-tab"
-            onClick={onNewSibling}
-            className="ml-2 flex h-7 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-text-secondary transition-colors hover:border-primary/60 hover:text-primary"
-          >
-            <Plus className="h-3.5 w-3.5" /> New
-          </button>
-        </Tooltip>
+        
         <div data-testid="open-tabs-scroll" className="ml-1 flex flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap px-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-border">
           {open.map((t) => (
             <button
               key={t.id}
               data-testid={`open-tab-${t.id}`}
               onClick={() => setActive(t.id)}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setRenamingId(t.id);
+                setRenameDraft(t.name);
+              }}
+              title="Double-click to rename"
               className={cn(
                 'group flex h-7 w-[160px] shrink-0 items-center gap-1.5 rounded-t-md border-x border-t px-2 text-xs',
                 activeId === t.id
@@ -547,7 +661,23 @@ export const RequestBuilderPage = () => {
               )}
             >
               <span className={cn('shrink-0 font-mono text-[10px] font-bold', MC[t.method])}>{t.method}</span>
-              <span className="min-w-0 flex-1 truncate text-left">{t.name}</span>
+              {renamingId === t.id ? (
+                <input
+                  autoFocus
+                  data-testid={`tab-rename-${t.id}`}
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={() => void commitRename(t.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); void commitRename(t.id); }
+                    else if (e.key === 'Escape') { e.preventDefault(); setRenamingId(null); }
+                  }}
+                  className="min-w-0 flex-1 rounded border border-primary/60 bg-elevated px-1 text-xs text-text-primary outline-none"
+                />
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-left">{t.name}</span>
+              )}
               {t.dirty && <span title="Unsaved changes" className="ml-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary" data-testid={`tab-dirty-${t.id}`} />}
               <X
                 className="h-3 w-3 shrink-0 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
@@ -556,6 +686,15 @@ export const RequestBuilderPage = () => {
             </button>
           ))}
         </div>
+        <Tooltip content="New request">
+          <button
+            data-testid="new-request-tab"
+            onClick={onNewSibling}
+            className="ml-2 flex h-7 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-text-secondary transition-colors hover:border-primary/60 hover:text-primary"
+          >
+            <Plus className="h-3.5 w-3.5" /> New
+          </button>
+        </Tooltip>
       </div>
 
       {/* URL row */}
@@ -568,6 +707,7 @@ export const RequestBuilderPage = () => {
           testId="url-input"
           mode="boxed"
           mono
+          onSubmit={() => { if (!sending) void onSend('normal'); }}
         />
         {sending ? (
           <Button variant="destructive" size="md" onClick={onCancelRequest} data-testid="cancel-btn" className="shrink-0 whitespace-nowrap">
@@ -624,6 +764,31 @@ export const RequestBuilderPage = () => {
               rows={headers}
               onChange={setHeadersDirty}
               autoRows={DEFAULT_AUTO_HEADERS}
+              derivedRows={
+                /* Project the Auth tab into toggleable rows. The user can
+                 * tick / untick AND inline-edit each row right here without
+                 * leaving the Headers tab — exactly like Postman. The
+                 * credentials still live in the Auth tab; edits made here
+                 * are parsed back via parseAuthRowEdit so both tabs stay
+                 * in lockstep. */
+                deriveAuthHeaders(auth).map((r) => ({
+                  ...r,
+                  enabled: !disabledAuthHeaderIds.has(r.id),
+                  badge: 'Auth',
+                }))
+              }
+              onToggleDerived={(rowId, enabled) => {
+                setDisabledAuthHeaderIds((prev) => {
+                  const next = new Set(prev);
+                  if (enabled) next.delete(rowId); else next.add(rowId);
+                  return next;
+                });
+                markDirty();
+              }}
+              onEditDerived={(rowId, newValue) => {
+                const next = parseAuthRowEdit(rowId, newValue, auth);
+                if (next) { setAuth(next); markDirty(); }
+              }}
               showDescription={showHeaderDesc}
               onToggleDescription={setShowHeaderDesc}
               testIdPrefix="headers"

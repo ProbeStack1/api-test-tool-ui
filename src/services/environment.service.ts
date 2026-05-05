@@ -1,19 +1,3 @@
-/**
- * Environment service — UI-facing layer.
- *
- *   page  →  THIS FILE  →  api/environment.api  →  http://<env svc>
- *
- * Mirrors `environment-mgmt-svc` (port 8084). Public function names are
- * preserved 1:1 with the prior service so existing pages don't change.
- *
- * Adds two normalisers on top of the raw HTTP layer:
- *   1. `Environment.variables` defaults to [] (the Java list endpoint
- *      returns summaries without variables; pages expect the field to
- *      exist).
- *   2. `ResolveResult` — Java emits `{ values, detail }`; the UI
- *      historically reads `{ variables, layers }`. The normaliser
- *      provides BOTH shapes so old and new consumers work.
- */
 import {
   apiActivateEnvironment,
   apiCreateEnvironment,
@@ -171,7 +155,94 @@ export const createEnvironment = (
     variables: body.variables,
     tags: body.tags ?? undefined,
   };
-  return apiCreateEnvironment(workspaceId, payload).then(normEnv);
+  return apiCreateEnvironment(workspaceId, payload).then(normEnv).catch(async (err: any) => {
+    /* Idempotency: when the backend says "name already exists" (409),
+     * recover the existing env from this workspace and return it instead
+     * of bubbling up an error. This keeps every variables page resilient
+     * even when:
+     *   • list summaries don't carry `tags.collectionId` (so callers can't
+     *     match by tag and end up trying to recreate)
+     *   • the env was originally created by a different user / older code
+     *     path that didn't set the collection tag
+     *
+     * Lookup order (most → least specific):
+     *   1) by collection-tag      (tags.collectionId)
+     *   2) by NAME (case-insensitive) within the workspace+scope
+     *   3) by NAME alone
+     * On (1)/(2)/(3) we PATCH the missing collectionId tag back so the
+     * next page-load matches it cleanly through the tag path. */
+    const status = err?.response?.status ?? err?.status;
+    const msg = String(err?.response?.data?.message ?? err?.message ?? '');
+    const looksConflict = status === 409 || /already exists|ENV_NAME_TAKEN/i.test(msg);
+    if (!looksConflict) throw err;
+    try {
+      /* Use the *full* list so we get scope+name+tags hydrated. */
+      const all = await listEnvironmentsFull(workspaceId);
+      const wantTagCol = (payload.tags as any)?.collectionId as string | undefined;
+      const wantName = (payload.name ?? '').trim().toLowerCase();
+      const sameWs = (e: Environment) =>
+        workspaceId ? (e.workspaceId === workspaceId || e.scope === 'GLOBAL') : true;
+
+      let hit: Environment | undefined;
+      /* (1) collection-tag match */
+      if (wantTagCol) {
+        hit = all.find((e) => {
+          const tagId = (e.tags as any)?.collectionId ?? (e as any).collectionId;
+          return tagId === wantTagCol;
+        });
+      }
+      /* (2) name + scope + workspace match */
+      if (!hit && wantName) {
+        hit = all.find((e) =>
+          (!payload.scope || e.scope === payload.scope) &&
+          sameWs(e) &&
+          e.name.trim().toLowerCase() === wantName,
+        );
+      }
+      /* (3) name-only fallback (handles rare cross-scope duplicates) */
+      if (!hit && wantName) {
+        hit = all.find((e) => e.name.trim().toLowerCase() === wantName);
+      }
+
+      if (hit) {
+        /* If we matched by name but the existing env doesn't have the
+         * collection tag we wanted, PATCH it so future loads find it
+         * cleanly through the tag path (no more 409 → recover dance). */
+        const haveTagCol = (hit.tags as any)?.collectionId as string | undefined;
+        if (wantTagCol && !haveTagCol) {
+          try {
+            const patched = await updateEnvironment(hit.id, {
+              tags: { ...(hit.tags ?? {}), collectionId: wantTagCol },
+            } as any);
+            return patched;
+          } catch {/* tag patch is best-effort */}
+        }
+        try { return await getEnvironment(hit.id); } catch { return hit; }
+      }
+
+      /* (4) Last resort — the conflict env is invisible to us (likely
+       *     soft-deleted or owned by a different user/org on the same
+       *     workspace). Per product decision: do NOT restore from trash
+       *     (the user explicitly asked for fresh creation). Just uniquify
+       *     the name — `Foo` → `Foo (1)` → `Foo (2)` … — so the page
+       *     never blocks. The user can rename later. */
+      const baseName = (payload.name ?? '').trim();
+      if (baseName) {
+        for (let n = 1; n <= 5; n++) {
+          try {
+            return await apiCreateEnvironment(workspaceId, {
+              ...payload,
+              name: `${baseName} (${n})`,
+            }).then(normEnv);
+          } catch (e: any) {
+            const s = e?.response?.status ?? e?.status;
+            if (s !== 409) throw e;
+          }
+        }
+      }
+    } catch {/* ignore — fall through to original error */}
+    throw err;
+  });
 };
 
 export const updateEnvironment = (

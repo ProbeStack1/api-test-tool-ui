@@ -58,7 +58,7 @@ export const HeaderTabs = () => {
   return (
     <div
       data-testid="header-tabs"
-      className="flex items-center rounded-lg border border-border bg-probestack-bg p-0.5"
+      className="flex items-center rounded-md border border-border bg-probestack-bg p-0.5"
     >
       {TABS.map(({ key, label, icon: Icon, route }) => {
         const isActive = effectiveActive === key;

@@ -46,20 +46,20 @@ export const LandingNavbar = () => {
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Logo - left */}
         <Link
-          to="/"
-          data-testid="app-header-logo"
-          className="flex items-center gap-0.5"
-        >
-          <Logo variant="mark" className="h-9 w-8" />
-          <div className="text-left">
-            <div className="text-xs text-muted-foreground font-semibold tracking-tight leading-tight mb-[-8px]">
-              probestack
-            </div>
-            <div className="font-semibold text-xl tracking-tight leading-tight gradient-text">
-              ForgeQ
-            </div>
-          </div>
-        </Link>
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeQ
+                </div>
+              </div>
+            </Link>
 
         {/* Right side items */}
         <div className="flex items-center gap-1.5">

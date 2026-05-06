@@ -8,7 +8,7 @@
 import { createHttp } from '@/lib/http';
 
 const http = createHttp('integrations');
-const BASE = '/api/v1/integrations-webhooks';
+const BASE = '/api/v1/webhooks';
 
 export interface WebhookCreate {
   workspaceId: string;

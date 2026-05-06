@@ -14,7 +14,7 @@ import { createHttp } from '@/lib/http';
 import { serviceUrl } from '@/lib/env';
 
 const http = createHttp('apiDocs');
-const BASE = '/api/v1/apidocs';
+const BASE = '/api/v1/documentations';
 
 /* ─── DOCS ─────────────────────────────────────────────────────────── */
 export type DocFormat = 'MANUAL' | 'AUTO' | 'HYBRID';

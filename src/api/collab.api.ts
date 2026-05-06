@@ -5,7 +5,7 @@
 import { createHttp } from '@/lib/http';
 
 const http = createHttp('collab');
-const BASE = '/api/v1/collaboration';
+const BASE = '/api/v1/collabration';
 
 /* -------- Comments ---------- */
 export interface CommentView {

@@ -15,11 +15,22 @@ export const ProjectStandaloneLayout = () => {
   const nav = useNavigate();
   return (
     <div data-testid="project-standalone-layout" className="flex h-screen flex-col bg-probestack-bg text-text-primary">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-3">
-        <Link to="/" data-testid="project-logo" className="flex items-center gap-2 text-text-primary">
-          <Logo variant="mark" className="h-6 w-6" />
-          <span className="text-[15px] font-semibold tracking-tight">ForgeQ</span>
-        </Link>
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-3">
+        <Link
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeQ
+                </div>
+              </div>
+            </Link>
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <button

@@ -16,7 +16,7 @@
  * All toggles use the reusable <Toggle /> primitive.
  * Colors tab lets the user pick primary/secondary brand colors per theme.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Palette, Paintbrush, Layout as LayoutIcon,
@@ -30,6 +30,7 @@ import { Fieldset } from '@/components/ui/Fieldset';
 import { Toggle } from '@/components/ui/Toggle';
 import { SettingsTab as McpStudioSettingsPanel } from '@/components/integrations/tabs/SettingsTab';
 import { cn } from '@/utils/cn';
+import { formatCombo } from '@/hooks/useShortcut';
 
 type TabKey =
   | 'appearance'
@@ -48,8 +49,8 @@ const TABS: { key: TabKey; label: string; icon: React.ComponentType<{ className?
   { key: 'editor',     label: 'Editor',     icon: Code2 },
   { key: 'request',    label: 'Request',    icon: Send },
   { key: 'shortcuts',  label: 'Shortcuts',  icon: Keyboard },
-  // { key: 'data',       label: 'Data',       icon: Database },
-  // { key: 'mcp',        label: 'MCP',        icon: Plug },
+  { key: 'data',       label: 'Data',       icon: Database },
+  { key: 'mcp',        label: 'MCP',        icon: Plug },
 ];
 
 export const SettingsPage = () => {
@@ -435,45 +436,133 @@ const RequestPanel = () => {
   );
 };
 
-const SHORTCUTS: { action: string; keys: string; testId: string }[] = [
-  { action: 'Send request', keys: '⌘/Ctrl + Enter', testId: 'send' },
-  { action: 'Save request', keys: '⌘/Ctrl + S', testId: 'save' },
+/** Editable shortcuts. Only the four actions wired to GlobalShortcuts are
+ *  rebindable today; the rest are display-only until they get a hook. */
+const REBINDABLE_SHORTCUTS: { actionId: string; label: string; testId: string }[] = [
+  { actionId: 'command-palette',  label: 'Command palette',  testId: 'palette' },
+  { actionId: 'focus-url',        label: 'Focus URL bar',    testId: 'focus-url' },
+  { actionId: 'open-settings',    label: 'Open settings',    testId: 'settings' },
+  { actionId: 'toggle-left-bar',  label: 'Toggle left sidebar', testId: 'toggle-left' },
+  { actionId: 'send-request',     label: 'Send request',     testId: 'send' },
+  { actionId: 'save-request',     label: 'Save request',     testId: 'save' },
+];
+
+const READONLY_SHORTCUTS = [
   { action: 'New tab', keys: '⌘/Ctrl + T', testId: 'new-tab' },
   { action: 'Close tab', keys: '⌘/Ctrl + W', testId: 'close-tab' },
   { action: 'Next tab', keys: '⌘/Ctrl + →', testId: 'next-tab' },
   { action: 'Previous tab', keys: '⌘/Ctrl + ←', testId: 'prev-tab' },
-  { action: 'Toggle left sidebar', keys: '⌘/Ctrl + B', testId: 'toggle-left' },
   { action: 'Toggle right sidebar', keys: '⌘/Ctrl + Alt + B', testId: 'toggle-right' },
   { action: 'Toggle bottom panel', keys: '⌘/Ctrl + J', testId: 'toggle-bottom' },
-  { action: 'Command palette', keys: '⌘/Ctrl + K', testId: 'palette' },
-  { action: 'Open settings', keys: '⌘/Ctrl + ,', testId: 'settings' },
-  { action: 'Focus URL bar', keys: '⌘/Ctrl + L', testId: 'focus-url' },
 ];
 
-const ShortcutsPanel = () => (
-  <div className="space-y-6">
-    <header>
-      <h2 className="text-xl font-bold tracking-tight">Keyboard shortcuts</h2>
-      <p className="mt-1 text-xs text-text-secondary">Custom keymap editor lands in Phase 5.</p>
-    </header>
-    <Fieldset label="Actions" testId="settings-fs-shortcuts">
-      <div className="divide-y divide-border/60">
-        {SHORTCUTS.map((s) => (
-          <div
-            key={s.testId}
-            data-testid={`shortcut-${s.testId}`}
-            className="flex items-center justify-between py-2.5 text-sm"
-          >
-            <span className="text-text-primary">{s.action}</span>
-            <kbd className="rounded border border-border bg-probestack-bg px-2 py-0.5 font-mono text-[11px] text-text-secondary">
-              {s.keys}
-            </kbd>
-          </div>
-        ))}
-      </div>
-    </Fieldset>
-  </div>
-);
+/** Captures the next keypress and returns the canonical "mod+Shift+K" form. */
+const ShortcutCapture = ({
+  value, onChange, testId,
+}: { value: string; onChange: (combo: string) => void; testId: string }) => {
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Ignore lone modifier keys.
+      if (e.key === 'Control' || e.key === 'Meta' || e.key === 'Shift' || e.key === 'Alt') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const parts: string[] = [];
+      if (e.metaKey || e.ctrlKey) parts.push('mod');
+      if (e.shiftKey) parts.push('Shift');
+      if (e.altKey) parts.push('Alt');
+      // Use single-char keys as-is (lower); named keys get capitalized.
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      parts.push(k);
+      onChange(parts.join('+'));
+      setRecording(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [recording, onChange]);
+
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={() => setRecording((v) => !v)}
+      className={cn(
+        'inline-flex min-w-[110px] items-center justify-center rounded border px-2 py-0.5 font-mono text-[11px] transition-colors',
+        recording
+          ? 'border-warning bg-warning-muted text-warning animate-pulse'
+          : 'border-border bg-probestack-bg text-text-secondary hover:border-accent hover:text-accent',
+      )}
+    >
+      {recording ? 'Press keys…' : formatCombo(value)}
+    </button>
+  );
+};
+
+const ShortcutsPanel = () => {
+  const shortcuts = useSettings((s) => s.shortcuts);
+  const setShortcut = useSettings((s) => s.setShortcut);
+  const resetShortcut = useSettings((s) => s.resetShortcut);
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-xl font-bold tracking-tight">Keyboard shortcuts</h2>
+        <p className="mt-1 text-xs text-text-secondary">
+          Click a shortcut to rebind. <kbd className="font-mono">mod</kbd> resolves to ⌘ on macOS, Ctrl elsewhere.
+        </p>
+      </header>
+
+      <Fieldset label="Editable" testId="settings-fs-shortcuts-editable">
+        <div className="divide-y divide-border/60">
+          {REBINDABLE_SHORTCUTS.map((s) => (
+            <div
+              key={s.actionId}
+              data-testid={`shortcut-${s.testId}`}
+              className="flex items-center justify-between gap-3 py-2.5 text-sm"
+            >
+              <span className="text-text-primary">{s.label}</span>
+              <div className="flex items-center gap-2">
+                <ShortcutCapture
+                  value={shortcuts[s.actionId] ?? ''}
+                  onChange={(combo) => setShortcut(s.actionId, combo)}
+                  testId={`shortcut-capture-${s.testId}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => resetShortcut(s.actionId)}
+                  data-testid={`shortcut-reset-${s.testId}`}
+                  className="text-[11px] text-text-muted hover:text-accent"
+                  title="Reset to default"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Fieldset>
+
+      <Fieldset label="Coming soon" testId="settings-fs-shortcuts-readonly">
+        <div className="divide-y divide-border/60">
+          {READONLY_SHORTCUTS.map((s) => (
+            <div
+              key={s.testId}
+              data-testid={`shortcut-${s.testId}`}
+              className="flex items-center justify-between py-2.5 text-sm"
+            >
+              <span className="text-text-primary">{s.action}</span>
+              <kbd className="rounded border border-border bg-probestack-bg px-2 py-0.5 font-mono text-[11px] text-text-secondary">
+                {s.keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
+      </Fieldset>
+    </div>
+  );
+};
 
 const DataPanel = () => {
   const s = useSettings();

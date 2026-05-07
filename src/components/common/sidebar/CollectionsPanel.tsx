@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dropdown, DropdownItem, DropdownSep, DropdownLabel } from '@/components/ui/DropdownMenu';
+import { useRowContextMenu } from '@/components/ui/RowContextMenu';
+import type { RowContextItem } from '@/components/ui/RowContextMenu';
 import { cn } from '@/utils/cn';
 import { SidebarShell, ActionButton, SearchInput } from './SidebarShell';
 import { useRequests, type RequestMethod } from '@/stores/requests.store';
@@ -135,7 +137,7 @@ export const CollectionsPanel = () => {
             {!showTrash && (
               <>
                 <ActionButton icon={Plus} label="Create" testId="collections-create-btn" onClick={() => setNewCollInline(true)} />
-                <ActionButton icon={Download} label="Import" testId="collections-import-btn" onClick={() => setImportOpen(true)} />
+                <ActionButton icon={Upload} label="Import" testId="collections-import-btn" onClick={() => setImportOpen(true)} />
               </>
             )}
             <button
@@ -476,6 +478,49 @@ const CollectionNode = ({
           <DropdownItem icon={Trash2} destructive onClick={askDelete}>Delete</DropdownItem>
         </>
       )}
+      contextItems={(askDelete): RowContextItem[] => {
+        const generateDocs = async () => {
+          try {
+            toast.message('Generating API documentation…');
+            const { createDoc } = await import('@/services/apiDocs.service');
+            const doc = await createDoc({
+              workspaceId: collection.workspaceId,
+              collectionId: collection.id,
+              title: collection.name,
+              subtitle: collection.description || `Auto-generated from collection "${collection.name}"`,
+              format: 'AUTO',
+              visibility: 'WORKSPACE',
+            });
+            toast.success(`Documentation "${doc.title}" created`);
+            window.location.assign(`/projects/api-docs?docId=${doc.docId}`);
+          } catch (e: any) {
+            toast.error(e?.message ?? 'Failed to generate documentation');
+          }
+        };
+        return [
+          { groupLabel: 'Collection' },
+          { icon: FolderPlus, label: 'Add folder',  onClick: () => { if (!expanded) onToggle(); setNewInline({ parent: `col:${collection.id}`, type: 'folder' }); } },
+          { icon: FileText,   label: 'Add request', onClick: () => { if (!expanded) onToggle(); setNewInline({ parent: `col:${collection.id}`, type: 'request' }); } },
+          { separator: true },
+          { icon: PlayCircle, label: 'Run',                          onClick: () => toast.info('Collection runner is scheduled for Phase 4') },
+          { icon: BookOpen,   label: 'Generate API documentation',   onClick: generateDocs },
+          { icon: Share2,     label: 'Share',                        onClick: onShare },
+          { separator: true },
+          { icon: Copy,       label: 'Clone',  onClick: onClone },
+          { icon: Pencil,     label: 'Rename', onClick: () => setEditing(collection.id) },
+          { separator: true },
+          { groupLabel: 'Export as' },
+          { icon: Download, label: 'ForgeQ JSON (lossless)',     onClick: () => onExport('FORGEQ', 'ForgeQ JSON') },
+          { icon: Download, label: 'Postman v2.1',               onClick: () => onExport('POSTMAN_V2_1', 'Postman v2.1') },
+          { icon: Download, label: 'OpenAPI 3.0',                onClick: () => onExport('OPENAPI_3', 'OpenAPI 3.0') },
+          { icon: Download, label: 'Insomnia v4',                onClick: () => onExport('INSOMNIA_V4', 'Insomnia v4') },
+          { icon: Download, label: 'HAR 1.2',                    onClick: () => onExport('HAR_1_2', 'HAR 1.2') },
+          { icon: Download, label: 'cURL bundle',                onClick: () => onExport('CURL', 'cURL bundle') },
+          { icon: Download, label: 'Original uploaded file',     onClick: () => onExport('SOURCE', 'original file') },
+          { separator: true },
+          { icon: Trash2, label: 'Delete', destructive: true, onClick: askDelete },
+        ];
+      }}
     >
       {newInline?.parent === `col:${collection.id}` && (
         <InlineCreate
@@ -615,6 +660,15 @@ const FolderNode = ({
           <DropdownItem icon={Trash2} destructive onClick={askDelete}>Delete</DropdownItem>
         </>
       )}
+      contextItems={(askDelete): RowContextItem[] => [
+        { groupLabel: 'Folder' },
+        { icon: FolderPlus, label: 'Add folder',  onClick: () => { if (!expanded) onToggle(); setNewInline({ parent: `fol:${folder.id}`, type: 'folder' }); } },
+        { icon: FileText,   label: 'Add request', onClick: () => { if (!expanded) onToggle(); setNewInline({ parent: `fol:${folder.id}`, type: 'request' }); } },
+        { separator: true },
+        { icon: Copy,   label: 'Clone (deep)', onClick: async () => { await cloneFolder(collectionId, folder.id); invalidate(); toast.success('Folder cloned'); } },
+        { icon: Pencil, label: 'Rename',       onClick: () => setEditing(folder.id) },
+        { icon: Trash2, label: 'Delete', destructive: true, onClick: askDelete },
+      ]}
     >
       {newInline?.parent === `fol:${folder.id}` && (
         <InlineCreate
@@ -682,6 +736,16 @@ const RequestItem = ({
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const ctx = useRowContextMenu();
+
+  const buildContextItems = (): RowContextItem[] => [
+    { groupLabel: 'Request' },
+    { icon: Pencil, label: 'Rename', onClick: () => setEditing(r.id) },
+    { icon: Copy,   label: 'Clone',  onClick: async () => { await cloneRequest(r.id); invalidate(); toast.success('Request cloned'); } },
+    { icon: Share2, label: 'Share',  onClick: () => setShareOpen(true) },
+    { separator: true },
+    { icon: Trash2, label: 'Delete', destructive: true, onClick: () => setConfirmDelete(true) },
+  ];
 
   return (
     <>
@@ -690,6 +754,7 @@ const RequestItem = ({
       data-testid={`request-${r.id}`}
       draggable
       onDragStart={makeDragStart({ kind: 'request', id: r.id, collectionId: r.collectionId })}
+      onContextMenu={(e) => ctx.openAt(e, buildContextItems())}
       className={cn(
         'group relative flex w-full items-center gap-1 rounded py-1 pr-1 text-xs text-text-primary transition-colors',
         isActive ? 'bg-primary-muted' : 'hover:bg-hover',
@@ -763,6 +828,7 @@ const RequestItem = ({
         />
       )}
     </div>
+    {ctx.portal}
     {isActive && <SavedResponseChildren requestId={r.id} indent={indent} />}
     </>
   );
@@ -892,6 +958,8 @@ interface RowProps {
   bold?: boolean;
   testId?: string;
   menu?: (askDelete: () => void) => React.ReactNode;
+  /** Right-click menu items — must mirror what `menu` renders. */
+  contextItems?: (askDelete: () => void) => RowContextItem[];
   editing?: boolean;
   onRenameDone?: (newName: string | null) => void;
   deleteTitle?: string;
@@ -905,19 +973,21 @@ interface RowProps {
 
 const Row = ({
   expanded, onToggle, icon, label, indent = 0, bold, testId,
-  menu, editing, onRenameDone, deleteTitle, deleteDescription, onDelete, children,
+  menu, contextItems, editing, onRenameDone, deleteTitle, deleteDescription, onDelete, children,
   draggable, dragPayload, dropHandlers,
 }: RowProps) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const askDelete = () => setConfirmDelete(true);
+  const ctx = useRowContextMenu();
 
   return (
     <div>
       <div
         ref={rowRef}
         draggable={!!draggable}
+        onContextMenu={contextItems ? (e) => ctx.openAt(e, contextItems(askDelete)) : undefined}
         onDragStart={draggable && dragPayload ? makeDragStart(dragPayload) : undefined}
         {...(dropHandlers?.dropHandlers ?? {})}
         className={cn(
@@ -952,6 +1022,7 @@ const Row = ({
           </button>
         )}
         {menu && <NodeMenuButton>{menu(askDelete)}</NodeMenuButton>}
+        {ctx.portal}
 
         {confirmDelete && deleteTitle && onDelete && (
           <RowConfirm

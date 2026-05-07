@@ -9,7 +9,7 @@
  *  - Every free-text field uses <VariableInput> → `{{var}}` highlighting
  *    + autocomplete + hover tooltip across the whole builder.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Send, Save, Plus, X, ChevronUp, ChevronDown, Clock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,6 +28,10 @@ import { ResponsePanel } from '@/components/request-builder/parts/ResponsePanel'
 import { CollabCommentsPanel } from '@/components/collab/CollabCommentsPanel';
 import { LiveStepperStrip } from '@/components/request-builder/parts/LiveExecutionView';
 import { useStreamStore } from '@/stores/stream.store';
+import { useShortcut } from '@/hooks/useShortcut';
+import { useRowContextMenu } from '@/components/ui/RowContextMenu';
+import type { RowContextItem } from '@/components/ui/RowContextMenu';
+import { Pencil, Copy, Share2, Trash2 } from 'lucide-react';
 import { useSavedResponsePreview } from '@/stores/savedResponsePreview.store';
 import { executeStream } from '@/services/request.stream';
 import { adhocExecute } from '@/services/adhoc.service';
@@ -636,17 +640,45 @@ export const RequestBuilderPage = () => {
     }
   };
 
+  // Wire user-rebindable Send + Save shortcuts. Bindings are read from
+  // settings.shortcuts and listened to globally by the hook itself.
+  useShortcut('send-request', useCallback(() => { if (!sending) void onSend('normal'); }, [sending]));
+  useShortcut('save-request', useCallback(() => { void onSave(); }, []));
+
+  // Right-click context menu for open request tabs.
+  const tabsCtx = useRowContextMenu();
+  const buildTabContextItems = (tabId: string, tabName: string): RowContextItem[] => [
+    { groupLabel: tabName.length > 24 ? tabName.slice(0, 24) + '…' : tabName },
+    { icon: Pencil, label: 'Rename',  onClick: () => { setRenamingId(tabId); setRenameDraft(tabName); } },
+    { icon: Copy,   label: 'Duplicate tab', onClick: () => { void onNewSibling(); } },
+    { icon: Save,   label: 'Save',    onClick: () => { setActive(tabId); void onSave(); } },
+    { separator: true },
+    { icon: X,      label: 'Close tab', onClick: () => closeReq(tabId) },
+    { icon: X,      label: 'Close other tabs', onClick: () => { open.filter(o => o.id !== tabId).forEach(o => closeReq(o.id)); } },
+    { separator: true },
+    { icon: Trash2, label: 'Delete request', destructive: true, onClick: () => toast.info('Delete from sidebar — right-click the request in the collection tree') },
+  ];
+
   return (
     <div data-testid="request-builder" className="flex h-full flex-col">
       {/* Open request tabs — fixed-size tabs, scrollable container */}
       <div className="flex h-9 items-center border-b border-border bg-surface">
-        
+        <Tooltip content="New request (sibling of active)">
+          <button
+            data-testid="new-request-tab"
+            onClick={onNewSibling}
+            className="ml-2 flex h-7 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-text-secondary transition-colors hover:border-primary/60 hover:text-primary"
+          >
+            <Plus className="h-3.5 w-3.5" /> New
+          </button>
+        </Tooltip>
         <div data-testid="open-tabs-scroll" className="ml-1 flex flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap px-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-border">
           {open.map((t) => (
             <button
               key={t.id}
               data-testid={`open-tab-${t.id}`}
               onClick={() => setActive(t.id)}
+              onContextMenu={(e) => { setActive(t.id); tabsCtx.openAt(e, buildTabContextItems(t.id, t.name)); }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setRenamingId(t.id);
@@ -686,15 +718,7 @@ export const RequestBuilderPage = () => {
             </button>
           ))}
         </div>
-        <Tooltip content="New request">
-          <button
-            data-testid="new-request-tab"
-            onClick={onNewSibling}
-            className="ml-2 flex h-7 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-text-secondary transition-colors hover:border-primary/60 hover:text-primary"
-          >
-            <Plus className="h-3.5 w-3.5" /> New
-          </button>
-        </Tooltip>
+        {tabsCtx.portal}
       </div>
 
       {/* URL row */}

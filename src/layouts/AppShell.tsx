@@ -16,6 +16,8 @@ import { useLayout } from '@/stores/layout.store';
 import { usePrimaryTabNavigation } from '@/hooks/usePrimaryTabNavigation';
 import { useActiveRunsTracker } from '@/hooks/useActiveRunsTracker';
 import { FloatingChatbot } from '@/components/chatbot/FloatingChatbot';
+import { GlobalShortcuts } from '@/components/common/GlobalShortcuts';
+import { GlobalContextMenu } from '@/components/common/GlobalContextMenu';
 
 /** Pages where the contextual left sidebar (collections/history/mcp/mock/etc.)
  *  is irrelevant — we hide it so the main content owns the width. */
@@ -64,6 +66,8 @@ export const AppShell = () => {
       data-testid="app-shell"
       className="flex h-screen w-screen flex-col overflow-hidden bg-probestack-bg text-text-primary"
     >
+      <GlobalShortcuts />
+      <GlobalContextMenu />
       <Header />
       <div className="flex min-h-0 flex-1">
         {mode === 'left' && <FeatureRail />}

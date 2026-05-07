@@ -58,14 +58,30 @@ export interface SettingsState {
   /** Keyboard shortcut that fires the AI generator. `mod` resolves to
    *  ⌘ on Mac and Ctrl elsewhere. */
   aiGenerateShortcut: 'mod+Enter' | 'mod+Shift+Enter' | 'mod+G';
+  /** User-customisable global shortcuts. Keys are action ids; values are
+   *  combos in the canonical "mod+Shift+K" format. */
+  shortcuts: Record<string, string>;
 
   // Actions
   setTheme: (t: Theme) => void;
   setDensity: (d: Density) => void;
   setActiveEnvId: (id: string | null) => void;
   update: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void;
+  setShortcut: (action: string, combo: string) => void;
+  resetShortcut: (action: string) => void;
   reset: () => void;
 }
+
+/** Default keymap. Action ids are stable; rebound combos are stored in
+ *  IndexedDB so they survive reloads. */
+export const DEFAULT_SHORTCUTS: Record<string, string> = {
+  'command-palette':   'mod+k',
+  'focus-url':         'mod+l',
+  'open-settings':     'mod+,',
+  'toggle-left-bar':   'mod+b',
+  'send-request':      'mod+Enter',
+  'save-request':      'mod+s',
+};
 
 const DEFAULTS = {
   theme: 'dark' as Theme,
@@ -95,7 +111,8 @@ const DEFAULTS = {
   aiCopilotEnabled: true,
   aiGenerateFromCommentEnabled: true,
   aiGenerateShortcut: 'mod+Enter' as 'mod+Enter' | 'mod+Shift+Enter' | 'mod+G',
-  snippetVariableMode: 'resolve' as 'show' | 'resolve',
+  snippetVariableMode: 'show' as 'show' | 'resolve',
+  shortcuts: { ...DEFAULT_SHORTCUTS } as Record<string, string>,
 };
 
 // Custom storage adapter backed by IndexedDB (via idb-keyval).
@@ -120,6 +137,12 @@ export const useSettings = create<SettingsState>()(
       setDensity: (density) => set({ density }),
       setActiveEnvId: (activeEnvId) => set({ activeEnvId }),
       update: (key, value) => set({ [key]: value } as Partial<SettingsState>),
+      setShortcut: (action, combo) => set((state) => ({
+        shortcuts: { ...state.shortcuts, [action]: combo },
+      })),
+      resetShortcut: (action) => set((state) => ({
+        shortcuts: { ...state.shortcuts, [action]: DEFAULT_SHORTCUTS[action] ?? '' },
+      })),
       reset: () => set(DEFAULTS),
     }),
     {

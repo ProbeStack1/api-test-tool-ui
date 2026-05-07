@@ -663,15 +663,7 @@ export const RequestBuilderPage = () => {
     <div data-testid="request-builder" className="flex h-full flex-col">
       {/* Open request tabs — fixed-size tabs, scrollable container */}
       <div className="flex h-9 items-center border-b border-border bg-surface">
-        <Tooltip content="New request (sibling of active)">
-          <button
-            data-testid="new-request-tab"
-            onClick={onNewSibling}
-            className="ml-2 flex h-7 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-text-secondary transition-colors hover:border-primary/60 hover:text-primary"
-          >
-            <Plus className="h-3.5 w-3.5" /> New
-          </button>
-        </Tooltip>
+        
         <div data-testid="open-tabs-scroll" className="ml-1 flex flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap px-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-border">
           {open.map((t) => (
             <button
@@ -719,6 +711,15 @@ export const RequestBuilderPage = () => {
           ))}
         </div>
         {tabsCtx.portal}
+        <Tooltip content="New request (sibling of active)">
+          <button
+            data-testid="new-request-tab"
+            onClick={onNewSibling}
+            className="ml-2 flex h-7 shrink-0 items-center gap-1 rounded-md border border-dashed border-border px-2 text-xs text-text-secondary transition-colors hover:border-primary/60 hover:text-primary"
+          >
+            <Plus className="h-3.5 w-3.5" /> New
+          </button>
+        </Tooltip>
       </div>
 
       {/* URL row */}

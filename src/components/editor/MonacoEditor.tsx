@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import Editor, { type OnMount, type OnChange, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
@@ -38,6 +38,7 @@ loader.config({ monaco });
 const LANG_MAP: Record<CodeLanguage, string> = {
   json: 'json', text: 'plaintext', javascript: 'javascript',
   xml: 'xml', html: 'html', yaml: 'yaml', shell: 'shell',
+  graphql: 'graphql',
 };
 
 /** Resolve a CSS variable from `:root` to a hex/colour string Monaco can read. */
@@ -177,12 +178,23 @@ interface MonacoEditorProps {
    *  via Monaco's view-zone API so it never participates in the actual
    *  document content). */
   placeholder?: string;
+  /** Called once the Monaco editor instance is mounted. Lets callers
+   *  register custom languages (e.g. GraphQL Monarch tokens) without
+   *  having to wrap a second `Editor`. */
+  onMount?: (editor: MonacoEditorNS.IStandaloneCodeEditor, monaco: typeof import('monaco-editor')) => void;
 }
 
-export const MonacoEditor = ({
+export interface MonacoEditorHandle {
+  /** Access the underlying Monaco editor instance — used by callers
+   *  that need to do imperative things like `executeEdits` or `focus`. */
+  getEditor: () => MonacoEditorNS.IStandaloneCodeEditor | null;
+}
+
+export const MonacoEditor = forwardRef<MonacoEditorHandle, MonacoEditorProps>(({
   value, onChange, language = 'json', readOnly = false, testId, minimap = false,
   aiCopilotIntent, aiGenerateEnabled, aiGenerateShortcut, onAiGenerate, placeholder,
-}: MonacoEditorProps) => {
+  onMount: onMountProp,
+}, ref) => {
   const theme = useSettings((s) => s.theme);
   const aiCopilotEnabled = useSettings((s) => s.aiCopilotEnabled ?? true);
   const { lookup, activeNames } = useVariableIndex();
@@ -230,9 +242,19 @@ export const MonacoEditor = ({
   // newly-added env var lights up immediately without a re-mount.
   useEffect(() => { repaintVarDecorations(); }, [activeNames, repaintVarDecorations]);
 
+  // Expose the editor instance to parent refs so callers can run
+  // imperative ops (executeEdits, focus, etc) without us having to
+  // mirror every Monaco API.
+  useImperativeHandle(ref, () => ({
+    getEditor: () => editorRef.current,
+  }), []);
+
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    // Allow consumers to register custom languages / providers before
+    // any other Monaco wiring kicks in.
+    onMountProp?.(editor, monaco);
     // `forceReregister=true` ensures the theme picks up live CSS-variable
     // values whenever the wrapper is remounted (e.g. after a theme switch).
     ensureThemes(monaco, true);
@@ -448,4 +470,5 @@ export const MonacoEditor = ({
       />
     </div>
   );
-};
+});
+MonacoEditor.displayName = 'MonacoEditor';

@@ -360,6 +360,15 @@ export const RequestBuilderPage = () => {
         id: `ue_${i}`, key: r.key || '', value: r.value || '',
         enabled: r.enabled !== false, description: r.description,
       })) : [],
+      // GraphQL: hydrate the inner { query, variables } so the
+      // CodeMirror editor and the variables JSON editor have content
+      // on mount. Backend stores variables as a JSON string already.
+      graphql: ((b as any).mode === 'graphql' || (b as any).mode === 'GRAPHQL' || (b as any).graphql)
+        ? {
+            query:     (b as any).graphql?.query     ?? '',
+            variables: (b as any).graphql?.variables ?? '',
+          }
+        : undefined,
     });
     const a = loadedRequest.auth || { type: 'none' };
     setAuth({ type: normalizeAuth(a.type), config: a });
@@ -471,7 +480,7 @@ export const RequestBuilderPage = () => {
         method,
         url: { raw: effectiveUrl },
         headers: headers.filter((h) => h.enabled && h.key).map((h) => ({ key: h.key, value: h.value, enabled: true, description: h.description })),
-        body: buildBodyPayload(body),
+        body: buildSendBodyPayload(body),
         auth: sendAuth,
         preRequestScript: preScript,
         testScript,
@@ -483,6 +492,18 @@ export const RequestBuilderPage = () => {
         // header-strip env-picker (mirrored in settings store).
         environmentId: useSettings.getState().activeEnvId ?? undefined,
       };
+      // GraphQL requests are always POST-with-JSON over the wire. Force
+      // method + content-type header so the executor sends the
+      // operation as a plain HTTP JSON body (`{ query, variables }`)
+      // without the user having to set those manually. We do this only
+      // on SEND — the persisted save keeps the canonical body.mode='GRAPHQL'.
+      if (body.mode === 'graphql') {
+        payload.method = 'POST';
+        const hasCT = (payload.headers as any[]).some((h) => String(h.key).toLowerCase() === 'content-type');
+        if (!hasCT) {
+          payload.headers.push({ key: 'Content-Type', value: 'application/json', enabled: true });
+        }
+      }
       if (mode === 'stream') {
         /* Live trace via SSE — works for both adhoc and saved requests
          * because the BFF exposes /adhoc/execute/stream that takes a
@@ -819,7 +840,22 @@ export const RequestBuilderPage = () => {
               testIdPrefix="headers"
             />
           )}
-          {tab === 'Body'    && <BodyEditor value={body} onChange={setBodyDirty} method={method} url={url} />}
+          {tab === 'Body'    && (
+            <BodyEditor
+              value={body}
+              onChange={(b) => {
+                /* GraphQL is POST-only over HTTP — auto-bump the method
+                   so the body section actually renders (the body editor
+                   greys itself out on GET/HEAD/etc.). */
+                if (b.mode === 'graphql' && (method === 'GET' || method === 'HEAD')) {
+                  setMethodDirty('POST');
+                }
+                setBodyDirty(b);
+              }}
+              method={method}
+              url={url}
+            />
+          )}
           {tab === 'Auth'    && <AuthEditor value={auth} onChange={setAuthDirty} />}
           {tab === 'Pre-request Script' && <ScriptEditor kind="prerequest" value={preScript} onChange={setPreScriptDirty} />}
           {tab === 'Tests'              && <ScriptEditor kind="tests"      value={testScript} onChange={setTestScriptDirty} />}
@@ -962,9 +998,49 @@ const buildBodyPayload = (b: RequestBody): any => {
       })),
     };
   }
-  // GraphQL / Binary modes are not yet exposed in the BodyEditor UI; map any
-  // unknown mode to NONE so the backend never receives an invalid enum.
+  if (b.mode === 'graphql') {
+    // Persist the GraphQL operation alongside the canonical mode flag.
+    // The Java request-mgmt-svc maps mode='GRAPHQL' through the
+    // CanonicalBody discriminator and round-trips body.graphql verbatim,
+    // so the only thing the UI needs to send is the { query, variables }
+    // tuple. Variables stays a *string* so the user can keep it raw and
+    // we never lose comments or formatting.
+    return {
+      mode: 'GRAPHQL',
+      graphql: {
+        query:     b.graphql?.query     ?? '',
+        variables: b.graphql?.variables ?? '',
+      },
+      contentType: 'application/json',
+    };
+  }
+  // Binary is the only mode the UI doesn't surface yet; default to NONE
+  // so the backend never receives an invalid enum.
   return { mode: 'NONE' };
+};
+
+/**
+ * Build the body payload used on SEND — the executor needs an HTTP-
+ * ready JSON for GraphQL, not the canonical persisted shape. We map
+ * mode='graphql' to RAW_JSON with `{ query, variables }` so the
+ * downstream HTTP client sends the operation exactly as a GraphQL
+ * server expects (POST application/json).
+ */
+const buildSendBodyPayload = (b: RequestBody): any => {
+  if (b.mode !== 'graphql') return buildBodyPayload(b);
+  const variablesRaw = (b.graphql?.variables ?? '').trim();
+  let variablesParsed: any = undefined;
+  if (variablesRaw) {
+    try { variablesParsed = JSON.parse(variablesRaw); }
+    catch { /* keep undefined — server will see no variables rather than malformed JSON. */ }
+  }
+  const wire: any = { query: b.graphql?.query ?? '' };
+  if (variablesParsed !== undefined) wire.variables = variablesParsed;
+  return {
+    mode: 'RAW_JSON',
+    raw: JSON.stringify(wire),
+    contentType: 'application/json',
+  };
 };
 const describeFileValue = (r: FormDataRow) => {
   const v = r.value as FileValue;
@@ -1083,4 +1159,3 @@ const SendOption = ({ label, hint, onClick, testId }: { label: string; hint: str
   </button>
 );
 
-// Cleanup: remove dead void statements (kept earlier as TS hush). Keep helpers.

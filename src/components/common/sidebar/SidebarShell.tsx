@@ -13,10 +13,17 @@ interface Props {
   actions?: React.ReactNode;
   search?: React.ReactNode;
   children: React.ReactNode;
+  /**
+   * Optional pinned region at the bottom of the sidebar — used for
+   * "Trash drawer" style controls that must always be reachable
+   * regardless of scroll position. Mirrors the layout that
+   * AiAssistedPanel uses for its Trash collapse toggle.
+   */
+  footer?: React.ReactNode;
   testId?: string;
 }
 
-export const SidebarShell = ({ icon: Icon, title, actions, search, children, testId }: Props) => {
+export const SidebarShell = ({ icon: Icon, title, actions, search, children, footer, testId }: Props) => {
   const toggle = useLayout((s) => s.toggleLeft);
   return (
     <div className="flex h-full flex-col" data-testid={testId}>
@@ -40,6 +47,7 @@ export const SidebarShell = ({ icon: Icon, title, actions, search, children, tes
       {actions && <div className="border-b border-border p-2">{actions}</div>}
       {search && <div className="border-b border-border p-2">{search}</div>}
       <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      {footer && <div className="shrink-0 border-t border-border">{footer}</div>}
     </div>
   );
 };

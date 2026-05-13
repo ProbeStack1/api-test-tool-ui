@@ -56,7 +56,6 @@ const TestingLayout = l(() => import('@/pages/testing'), (m: any) => m.TestingLa
 const MonitorsPage = l(() => import('@/pages/monitors'), (m: any) => m.MonitorsPage);
 const IntegrationsPage = l(() => import('@/pages/integrations'), (m: any) => m.IntegrationsPage);
 const ApiDocsPage = l(() => import('@/pages/api-docs'), (m: any) => m.ApiDocsPage);
-const GraphQLExplorerPage = l(() => import('@/pages/graphql/GraphQLExplorerPage'), (m: any) => m.GraphQLExplorerPage);
 const SecurityScanPage = l(() => import('../pages/Security/SecurityScanPage'), (m: any) => m.SecurityScanPage);
 const GovernancePage = l(() => import('@/pages/governance/GovernancePage'), (m: any) => m.GovernancePage);
 const AuditPage = l(() => import('@/pages/audit'), (m: any) => m.AuditPage);
@@ -118,7 +117,6 @@ const router = createBrowserRouter([
       { index: true, element: r(<HomeIntroPage />) },
       { path: 'api-catalog', element: <Navigate to="/home/api-catalog/public" replace /> },
       { path: 'api-catalog/:variant', element: r(<ApiCatalogPage />) },
-      { path: 'graphql', element: r(<GraphQLExplorerPage />) },
       { path: 'governance', element: r(<GovernancePage />) },
       { path: 'reports', element: r(<ReportsPlaceholder />) },
     ],

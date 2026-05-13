@@ -30,7 +30,6 @@ const NAV: NavItem[] = [
   { to: '/projects/manage',          label: 'Projects',     icon: 'project' },
   { to: '/projects/integrations',    label: 'Integrations', icon: 'integration' },
   { to: '/home/api-catalog/public',  label: 'API Catalog',  icon: 'apidoc',     matchPrefix: '/home/api-catalog' },
-  { to: '/home/graphql',             label: 'GraphQL',      icon: 'sparkles' },
   { to: '/home/governance',          label: 'Governance',   icon: 'shield' },
   { to: '/home/reports',             label: 'Reports',      icon: 'reports' },
 ];
@@ -43,7 +42,6 @@ const ROUTE_TITLE: Array<[RegExp, string]> = [
   [/^\/home\/?$/,                     'Home'],
   [/^\/home\/api-catalog\/private/,   'API Catalog · Private API Network'],
   [/^\/home\/api-catalog\/public/,    'API Catalog · Public API Network'],
-  [/^\/home\/graphql/,                'GraphQL Explorer'],
   [/^\/home\/governance/,             'Governance'],
   [/^\/home\/api-catalog\/?$/,        'API Catalog'],
   [/^\/home\/reports/,                'Reports'],

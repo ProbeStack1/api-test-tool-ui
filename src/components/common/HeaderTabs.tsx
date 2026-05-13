@@ -42,7 +42,6 @@ const NEUTRAL_ROUTES = [
   '/projects/audit',
   '/projects/trash',
   '/projects/monitors',
-  '/projects/graphql',
   '/projects/security',
   '/projects/governance',
 ];

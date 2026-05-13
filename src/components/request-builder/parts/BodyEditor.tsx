@@ -21,9 +21,12 @@ import { Button } from '@/components/ui/Button';
 import { useSettings } from '@/stores/settings.store';
 import { generateBody } from '@/services/bodyGenerate.service';
 import { FilePickerPopover, FileValueDisplay, type FileValue } from './FilePicker';
+import { GraphqlBodyEditor, type GraphqlBodyState } from './GraphqlBodyEditor';
 
 export type BodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
-export const BODY_MODES: BodyMode[] = ['none', 'form-data', 'x-www-form-urlencoded', 'raw'];
+// Surface `graphql` in the body-mode radio strip too so power users can
+// flip a regular request into GraphQL without using the sidebar toggle.
+export const BODY_MODES: BodyMode[] = ['none', 'form-data', 'x-www-form-urlencoded', 'raw', 'graphql'];
 
 export interface FormDataRow {
   id: string;
@@ -48,6 +51,8 @@ export interface RequestBody {
   language?: CodeLanguage;
   formData?: FormDataRow[];
   urlEncoded?: UrlEncodedRow[];
+  /** GraphQL operation payload — used only when mode === 'graphql'. */
+  graphql?: GraphqlBodyState;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -139,6 +144,7 @@ export const BodyEditor = ({
 
   // Cleanup any in-flight typewriter when the editor unmounts.
   useEffect(() => () => typewriterRef.current?.stop(), []);
+
   return (
     <div className="flex h-full flex-col gap-3" data-testid="body-editor">
       <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -147,18 +153,24 @@ export const BodyEditor = ({
             key={m}
             className={cn(
               'flex items-center gap-1.5 text-text-secondary',
-              lockedNone ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+              /* GraphQL is the exception to the GET/HEAD lock: clicking
+                 it tells the parent "the user wants a GraphQL request",
+                 which will auto-bump the method to POST so the body can
+                 actually render. */
+              lockedNone && m !== 'graphql' ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
             )}
           >
             <input
               type="radio"
-              checked={(lockedNone ? 'none' : value.mode) === m}
-              onChange={() => { if (!lockedNone) setMode(m); }}
-              disabled={lockedNone && m !== 'none'}
+              checked={(lockedNone && value.mode !== 'graphql' ? 'none' : value.mode) === m}
+              onChange={() => {
+                if (!lockedNone || m === 'graphql') setMode(m);
+              }}
+              disabled={lockedNone && m !== 'none' && m !== 'graphql'}
               data-testid={`body-mode-${m}`}
               className="accent-[var(--color-primary)]"
             />
-            <span className={cn(value.mode === m && !lockedNone && 'text-primary')}>{m}</span>
+            <span className={cn(value.mode === m && (!lockedNone || m === 'graphql') && 'text-primary')}>{m}</span>
           </label>
         ))}
         {value.mode === 'raw' && !lockedNone && (
@@ -233,13 +245,13 @@ export const BodyEditor = ({
       )}
 
       <div className="min-h-[240px] flex-1">
-        {(lockedNone || value.mode === 'none') && (
+        {(lockedNone && value.mode !== 'graphql') || value.mode === 'none' ? (
           <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border text-xs italic text-text-muted">
             {lockedNone
               ? `${method?.toUpperCase()} requests do not carry a body.`
               : 'This request does not have a body.'}
           </div>
-        )}
+        ) : null}
         {!lockedNone && value.mode === 'raw' && (
           <MonacoEditor
             value={value.raw ?? ''}
@@ -268,6 +280,17 @@ export const BodyEditor = ({
           <UrlEncodedTable
             rows={value.urlEncoded ?? []}
             onChange={(rows) => onChange({ ...value, urlEncoded: rows })}
+          />
+        )}
+        {value.mode === 'graphql' && (
+          /* GraphQL bypasses lockedNone — the parent RequestBuilderPage
+             auto-promotes the method to POST as soon as graphql is
+             selected, so by the time we render we already have a
+             body-carrying method. */
+          <GraphqlBodyEditor
+            url={url ?? ''}
+            value={value.graphql ?? { query: '', variables: '' }}
+            onChange={(g) => onChange({ ...value, graphql: g })}
           />
         )}
       </div>

@@ -17,10 +17,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronRight, ChevronDown, FolderOpen, FolderPlus, FileText, Plus, Upload,
-  MoreHorizontal, Copy, Pencil, Trash2, PlayCircle, Share2, BookOpen,
-  Check, X, CornerDownRight, Download, RotateCcw,
+  MoreHorizontal, Copy, Pencil, Trash2, Trash, Undo2, PlayCircle, Share2, BookOpen,
+  Check, X, CornerDownRight, Download, RotateCcw, Globe, Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { Dropdown, DropdownItem, DropdownSep, DropdownLabel } from '@/components/ui/DropdownMenu';
 import { useRowContextMenu } from '@/components/ui/RowContextMenu';
 import type { RowContextItem } from '@/components/ui/RowContextMenu';
@@ -53,6 +54,40 @@ const MC: Record<string, string> = {
   GET: 'text-method-get', POST: 'text-method-post', PUT: 'text-method-put',
   PATCH: 'text-method-patch', DELETE: 'text-method-delete',
 };
+
+/* ────────────────────────────────────────────────────────────────────── */
+/*  Protocol-mode toggle (HTTP vs GraphQL)                                 */
+/* ────────────────────────────────────────────────────────────────────── */
+
+export type ProtocolMode = 'http' | 'graphql';
+const PROTOCOL_STORAGE_KEY = 'forgeq.collections.protocolMode';
+const readProtocolMode = (): ProtocolMode => {
+  try {
+    const v = localStorage.getItem(PROTOCOL_STORAGE_KEY);
+    return v === 'graphql' ? 'graphql' : 'http';
+  } catch { return 'http'; }
+};
+const writeProtocolMode = (m: ProtocolMode) => {
+  try { localStorage.setItem(PROTOCOL_STORAGE_KEY, m); } catch { /* ignore */ }
+};
+
+/**
+ * Is this saved request a GraphQL request?
+ *   • Java service stores body.mode as the upper-cased canonical enum
+ *     (e.g. 'GRAPHQL'); UI types it lowercase ('graphql'). Accept both.
+ *   • A request with `body.graphql` populated but missing mode is also
+ *     treated as GraphQL — defensive against partial imports.
+ */
+const isGraphqlRequest = (r: ApiRequest): boolean => {
+  const mode = String((r as any).body?.mode ?? '').toLowerCase();
+  if (mode === 'graphql') return true;
+  if (mode === '' && (r as any).body?.graphql) return true;
+  return false;
+};
+
+/** Keep requests that match the active protocol mode. */
+const filterByProtocol = (rows: ApiRequest[], mode: ProtocolMode): ApiRequest[] =>
+  rows.filter((r) => (mode === 'graphql' ? isGraphqlRequest(r) : !isGraphqlRequest(r)));
 
 /* ────────────────────────────────────────────────────────────────────── */
 /*  Main panel                                                            */
@@ -91,6 +126,9 @@ export const CollectionsPanel = () => {
   const [search, setSearch] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [trashDrawerOpen, setTrashDrawerOpen] = useState(false);
+  const [protocolMode, setProtocolMode] = useState<ProtocolMode>(() => readProtocolMode());
+  const setProtocol = (m: ProtocolMode) => { setProtocolMode(m); writeProtocolMode(m); };
   const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
 
   const { data: collections = [], isLoading } = useQuery({
@@ -102,7 +140,8 @@ export const CollectionsPanel = () => {
   const { data: trashed = [], isLoading: trashLoading } = useQuery({
     queryKey: ['collections-trash', ws?.id],
     queryFn: () => listCollectionTrash(ws!.id),
-    enabled: !!ws?.id && showTrash,
+    enabled: !!ws?.id && (showTrash || trashDrawerOpen),
+    staleTime: 5_000,
   });
 
   /* Auto-expand the active request's collection + folder (controlled by setting). */
@@ -130,42 +169,87 @@ export const CollectionsPanel = () => {
     <>
       <SidebarShell
         icon={FolderOpen}
-        title={showTrash ? 'Trash · Collections' : 'Collections'}
+        title={showTrash ? 'Trash · Collections' : (protocolMode === 'graphql' ? 'Collections · GraphQL' : 'Collections')}
         testId="collections-panel"
         actions={
-          <div className="flex gap-2">
-            {!showTrash && (
-              <>
-                <ActionButton icon={Plus} label="Create" testId="collections-create-btn" onClick={() => setNewCollInline(true)} />
-                <ActionButton icon={Upload} label="Import" testId="collections-import-btn" onClick={() => setImportOpen(true)} />
-              </>
-            )}
-            <button
-              type="button"
-              data-testid="collections-trash-toggle"
-              onClick={() => { setShowTrash((v) => !v); setNewCollInline(false); }}
-              title={showTrash ? 'Back to active collections' : 'View deleted collections'}
-              aria-pressed={showTrash}
-              className={cn(
-                'inline-flex h-7 w-7 items-center justify-center rounded-md border text-text-secondary transition-colors',
-                showTrash
-                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-500'
-                  : 'border-border bg-elevated hover:border-yellow-500/40 hover:text-yellow-500',
-              )}
-            >
-              {showTrash ? <X className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
-            </button>
-          </div>
+          <div className="flex flex-col gap-2">
+  {!showTrash && (
+    <>
+      {/* Protocol toggle row */}
+      <div className="flex items-center gap-2">
+        <ProtocolToggle mode={protocolMode} onChange={setProtocol} />
+      </div>
+
+      {/* Action buttons row */}
+      <div className="flex items-center gap-2">
+        <ActionButton
+          icon={Plus}
+          label="Create"
+          testId="collections-create-btn"
+          onClick={() => setNewCollInline(true)}
+        />
+        <ActionButton
+          icon={Upload}
+          label="Import"
+          testId="collections-import-btn"
+          onClick={() => setImportOpen(true)}
+        />
+      </div>
+    </>
+  )}
+
+  {showTrash && (
+    <button
+      type="button"
+      data-testid="collections-trash-back"
+      onClick={() => setShowTrash(false)}
+      title="Back to active collections"
+      className="inline-flex h-7 items-center gap-1 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-2 text-[11px] text-yellow-500 transition-colors hover:bg-yellow-500/20"
+    >
+      <X className="h-3.5 w-3.5" /> Close Trash
+    </button>
+  )}
+</div>
         }
         search={
           showTrash ? null : (
             <SearchInput
-              placeholder="Search collections"
+              placeholder={protocolMode === 'graphql' ? 'Search GraphQL requests' : 'Search collections'}
               testId="collections-search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           )
+        }
+        footer={
+          /* Bottom-pinned Trash drawer — same pattern as AiAssistedPanel. */
+          <CollectionsTrashFooter
+            isOpen={trashDrawerOpen}
+            onToggle={() => setTrashDrawerOpen((v) => !v)}
+            count={trashed.length}
+            loading={trashLoading}
+            items={trashed}
+            onOpenFullView={() => { setTrashDrawerOpen(false); setShowTrash(true); }}
+            onRestore={async (id) => {
+              await restoreCollection(id);
+              invalidate();
+              toast.success('Collection restored');
+            }}
+            onPurge={async (id, name) => {
+              const ok = await confirm({
+                title: `Permanently delete "${name}"?`,
+                description: 'This cannot be undone. All requests, folders, and saved responses under this collection will be lost forever.',
+                confirmText: 'Delete forever',
+                tone: 'danger',
+                requireTypeMatch: name,
+                testId: 'collection-purge-confirm',
+              });
+              if (!ok) return;
+              await deleteCollection(id);
+              invalidate();
+              toast.success('Collection permanently deleted');
+            }}
+          />
         }
       >
         <div className="p-1">
@@ -227,6 +311,7 @@ export const CollectionsPanel = () => {
                   newInline={newInline}
                   setNewInline={setNewInline}
                   invalidate={invalidate}
+                  protocolMode={protocolMode}
                 />
               ))}
           {ws && !showTrash && !isLoading && collections.length === 0 && !newCollInline && (
@@ -342,11 +427,164 @@ const fmtRel = (iso?: string | null) => {
 };
 
 /* ────────────────────────────────────────────────────────────────────── */
+/*  ProtocolToggle — pill segmented control [HTTP] [GraphQL]              */
+/* ────────────────────────────────────────────────────────────────────── */
+
+const ProtocolToggle = ({ mode, onChange }: { mode: ProtocolMode; onChange: (m: ProtocolMode) => void }) => {
+  const Seg = ({
+    id, icon: Icon, label, tooltipTitle, tooltipBody,
+  }: {
+    id: ProtocolMode; icon: typeof Globe; label: string;
+    tooltipTitle: string; tooltipBody: string;
+  }) => {
+    const active = mode === id;
+    return (
+      <Tooltip
+        side="bottom"
+        content={
+          <div className="max-w-[220px]">
+            <div className="mb-0.5 font-semibold text-text-primary">{tooltipTitle}</div>
+            <div className="text-[10px] leading-snug text-text-muted">{tooltipBody}</div>
+          </div>
+        }
+      >
+        <button
+          type="button"
+          data-testid={`collections-protocol-${id}`}
+          aria-pressed={active}
+          onClick={() => onChange(id)}
+          className={cn(
+            'inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors',
+            active
+              ? 'bg-primary/15 text-primary shadow-[inset_0_0_0_1px_rgba(99,102,241,0.45)]'
+              : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
+          {label}
+        </button>
+      </Tooltip>
+    );
+  };
+  return (
+    <div
+  data-testid="collections-protocol-toggle"
+  className="grid grid-cols-2 w-full gap-0.5 rounded-md border border-border bg-elevated p-0.5"
+>
+  <Seg
+    id="http"
+    icon={Globe}
+    label="HTTP"
+    tooltipTitle="HTTP / REST requests"
+    tooltipBody="Show standard REST collections — GET, POST, PUT, etc. New requests created here use the HTTP body editor."
+  />
+  <Seg
+    id="graphql"
+    icon={Sparkles}
+    label="GraphQL"
+    tooltipTitle="GraphQL requests"
+    tooltipBody="Show GraphQL-mode requests only. The Body tab switches to a query editor with IntelliSense."
+  />
+</div>
+  );
+};
+
+/* ────────────────────────────────────────────────────────────────────── */
+/*  CollectionsTrashFooter — bottom-pinned collapse drawer                */
+/* ────────────────────────────────────────────────────────────────────── */
+
+const CollectionsTrashFooter = ({
+  isOpen, onToggle, count, loading, items, onOpenFullView, onRestore, onPurge,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  count: number;
+  loading: boolean;
+  items: Array<{ id: string; name: string; description?: string | null; deletedAt?: string | null; updatedAt?: string }>;
+  onOpenFullView: () => void;
+  onRestore: (id: string) => void | Promise<void>;
+  onPurge: (id: string, name: string) => void | Promise<void>;
+}) => {
+  const [busy, setBusy] = useState<string | null>(null);
+  return (
+    <div>
+      <button
+        type="button"
+        data-testid="collections-trash-drawer-toggle"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 px-3 py-2 text-[11px] font-medium text-text-secondary transition-colors hover:bg-hover"
+      >
+        {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <Trash className="h-3.5 w-3.5" />
+        Trash
+        <span className="ml-auto rounded bg-elevated px-1.5 text-[10px] text-text-muted" data-testid="collections-trash-count">
+          {count}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="max-h-56 overflow-y-auto border-t border-border bg-probestack-bg/40" data-testid="collections-trash-drawer">
+          {loading ? (
+            <div className="px-3 py-3 text-[10px] text-text-muted">Loading…</div>
+          ) : items.length === 0 ? (
+            <p className="px-3 py-3 text-center text-[10px] text-text-muted">Trash is empty.</p>
+          ) : (
+            <>
+              <ul className="space-y-0.5 p-1">
+                {items.slice(0, 8).map((c) => (
+                  <li
+                    key={c.id}
+                    data-testid={`collections-trash-drawer-row-${c.id}`}
+                    className="group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-text-muted transition-colors hover:bg-hover"
+                  >
+                    <Trash2 className="h-3 w-3 shrink-0 opacity-60" />
+                    <span className="min-w-0 flex-1 truncate" title={c.name}>{c.name}</span>
+                    <button
+                      type="button"
+                      disabled={busy === c.id}
+                      onClick={async () => { setBusy(c.id); try { await onRestore(c.id); } finally { setBusy(null); } }}
+                      title="Restore"
+                      data-testid={`collections-trash-drawer-restore-${c.id}`}
+                      className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-primary disabled:opacity-50"
+                    >
+                      <Undo2 className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy === c.id}
+                      onClick={async () => { setBusy(c.id); try { await onPurge(c.id, c.name); } finally { setBusy(null); } }}
+                      title="Delete permanently"
+                      data-testid={`collections-trash-drawer-purge-${c.id}`}
+                      className="opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {items.length > 8 && (
+                <button
+                  type="button"
+                  data-testid="collections-trash-drawer-view-all"
+                  onClick={onOpenFullView}
+                  className="flex w-full items-center justify-center gap-1 border-t border-border px-2 py-1.5 text-[10px] text-primary hover:bg-hover"
+                >
+                  View all {items.length} deleted →
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ────────────────────────────────────────────────────────────────────── */
 /*  Collection node                                                       */
 /* ────────────────────────────────────────────────────────────────────── */
 
 const CollectionNode = ({
-  collection, expanded, onToggle, editing, setEditing, openMap, toggleOpen, newInline, setNewInline, invalidate,
+  collection, expanded, onToggle, editing, setEditing, openMap, toggleOpen, newInline, setNewInline, invalidate, protocolMode,
 }: any) => {
   const ws = useWorkspaceStore((s) => s.current);
   const [shareOpen, setShareOpen] = useState(false);
@@ -361,7 +599,12 @@ const CollectionNode = ({
     enabled: expanded,
   });
   const rootFolders = folders.filter((f: Folder) => !f.parentFolderId);
-  const rootRequests = (requests as ApiRequest[]).filter((r) => !r.folderId);
+  // Apply protocol filter — HTTP toggle hides GraphQL-mode requests and
+  // vice versa. Collections themselves stay visible so the tree shape
+  // doesn't change between toggles.
+  const allRequests = requests as ApiRequest[];
+  const filteredRequests = filterByProtocol(allRequests, protocolMode);
+  const rootRequests = filteredRequests.filter((r) => !r.folderId);
   const isLoading = foldersLoading || requestsLoading;
   const isEmpty = !isLoading && rootFolders.length === 0 && rootRequests.length === 0;
 
@@ -525,13 +768,25 @@ const CollectionNode = ({
       {newInline?.parent === `col:${collection.id}` && (
         <InlineCreate
           indent={1}
-          placeholder={newInline.type === 'folder' ? 'Folder name' : 'Request name'}
+          placeholder={newInline.type === 'folder' ? 'Folder name' : (protocolMode === 'graphql' ? 'GraphQL request name' : 'Request name')}
           onCancel={() => setNewInline(null)}
           onSubmit={async (name) => {
             setNewInline(null);
-            const safeName = (name ?? '').trim() || (newInline.type === 'folder' ? 'New Folder' : 'New Request');
+            const safeName = (name ?? '').trim() || (newInline.type === 'folder'
+              ? 'New Folder'
+              : (protocolMode === 'graphql' ? 'New GraphQL Request' : 'New Request'));
             if (newInline.type === 'folder') {
               await createFolder(collection.id, { name: safeName });
+            } else if (protocolMode === 'graphql') {
+              // GraphQL requests are always POST. Seed body.mode='graphql'
+              // so the editor opens straight into the query editor and
+              // the protocol-toggle filter recognises this request.
+              await createRequest(collection.id, {
+                name: safeName,
+                method: 'POST',
+                url: { raw: '' },
+                body: { mode: 'graphql', graphql: { query: '', variables: '' } },
+              } as any);
             } else {
               await createRequest(collection.id, { name: safeName, method: 'GET', url: { raw: '' } } as any);
             }
@@ -554,7 +809,7 @@ const CollectionNode = ({
           workspaceId={ws?.id}
           folder={f}
           folders={folders}
-          requests={requests}
+          requests={filteredRequests}
           expanded={!!openMap[f.id]}
           onToggle={() => toggleOpen(f.id)}
           editing={editing}
@@ -565,6 +820,7 @@ const CollectionNode = ({
           setNewInline={setNewInline}
           invalidate={invalidate}
           indent={1}
+          protocolMode={protocolMode}
         />
       ))}
       {rootRequests.map((r) => (
@@ -596,7 +852,7 @@ const CollectionNode = ({
 
 const FolderNode = ({
   collectionId, folder, folders, requests, expanded, onToggle, editing, setEditing,
-  openMap, toggleOpen, newInline, setNewInline, invalidate, indent,
+  openMap, toggleOpen, newInline, setNewInline, invalidate, indent, protocolMode,
 }: any) => {
   const children = folders.filter((f: Folder) => f.parentFolderId === folder.id);
   const myReqs = (requests as ApiRequest[]).filter((r) => r.folderId === folder.id);
@@ -673,13 +929,23 @@ const FolderNode = ({
       {newInline?.parent === `fol:${folder.id}` && (
         <InlineCreate
           indent={indent + 1}
-          placeholder={newInline.type === 'folder' ? 'Folder name' : 'Request name'}
+          placeholder={newInline.type === 'folder' ? 'Folder name' : (protocolMode === 'graphql' ? 'GraphQL request name' : 'Request name')}
           onCancel={() => setNewInline(null)}
           onSubmit={async (name) => {
             setNewInline(null);
-            const safeName = (name ?? '').trim() || (newInline.type === 'folder' ? 'New Folder' : 'New Request');
+            const safeName = (name ?? '').trim() || (newInline.type === 'folder'
+              ? 'New Folder'
+              : (protocolMode === 'graphql' ? 'New GraphQL Request' : 'New Request'));
             if (newInline.type === 'folder') {
               await createFolder(collectionId, { name: safeName, parentFolderId: folder.id });
+            } else if (protocolMode === 'graphql') {
+              await createRequest(collectionId, {
+                name: safeName,
+                folderId: folder.id,
+                method: 'POST',
+                url: { raw: '' },
+                body: { mode: 'graphql', graphql: { query: '', variables: '' } },
+              } as any);
             } else {
               await createRequest(collectionId, { name: safeName, folderId: folder.id, method: 'GET', url: { raw: '' } } as any);
             }
@@ -712,6 +978,7 @@ const FolderNode = ({
           setNewInline={setNewInline}
           invalidate={invalidate}
           indent={indent + 1}
+          protocolMode={protocolMode}
         />
       ))}
       {myReqs.map((r) => (
@@ -762,7 +1029,11 @@ const RequestItem = ({
       style={{ paddingLeft: 4 + indent * 12 + 20 }}
     >
       {isActive && <span className="absolute left-0 top-1 h-5 w-[2px] rounded-r bg-primary" />}
-      <span className={cn('w-12 shrink-0 font-mono text-[10px] font-bold', MC[r.method])}>{r.method}</span>
+      {isGraphqlRequest(r) ? (
+        <span className="w-12 shrink-0 font-mono text-[10px] font-bold text-pink-400" title="GraphQL request">GQL</span>
+      ) : (
+        <span className={cn('w-12 shrink-0 font-mono text-[10px] font-bold', MC[r.method])}>{r.method}</span>
+      )}
       {editing ? (
         <RowRenameInputInline
           defaultValue={r.name}

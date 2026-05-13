@@ -47,7 +47,6 @@ const KPI_DEFINITIONS: KpiDef[] = [
   { key: 'functionalRuns', label: 'Functional runs', icon: TestTube2,    tone: 'from-emerald-500/30 to-emerald-500/0 text-emerald-400', to: '/projects/testing' },
   { key: 'loadRuns',       label: 'Load runs',       icon: Target,       tone: 'from-amber-500/30 to-amber-500/0 text-amber-400',   to: '/projects/testing' },
   { key: 'apiDocs',        label: 'API docs',        icon: BookOpen,     tone: 'from-indigo-500/30 to-indigo-500/0 text-indigo-400', to: '/projects/api-docs' },
-  { key: 'graphql',        label: 'GraphQL',         icon: Sparkles,     tone: 'from-pink-500/30 to-pink-500/0 text-pink-400',      to: '/projects/graphql' },
   { key: 'security',       label: 'Security',        icon: ShieldAlert,  tone: 'from-red-500/30 to-red-500/0 text-red-400',         to: '/projects/security' },
   { key: 'governance',     label: 'Governance',      icon: ShieldAlert,  tone: 'from-purple-500/30 to-purple-500/0 text-purple-400', to: '/projects/governance' },
   { key: 'incidents',      label: 'Open incidents',  icon: ShieldAlert,  tone: 'from-danger/30 to-danger/0 text-danger',           to: '/projects/monitors' },

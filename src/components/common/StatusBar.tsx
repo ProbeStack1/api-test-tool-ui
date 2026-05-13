@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Home as HomeIcon, PanelLeft, PanelRight, LayoutPanelTop, LayoutPanelLeft,
   TestTube2, Activity, Compass, ClipboardList, Trash2, ChevronUp,
-  Lock, Globe, FolderKanban, Plug, Wrench, Heart, Mail,
+  Lock, Globe, FolderKanban, Plug, Wrench, Heart, Mail, Bug,
 } from 'lucide-react';
 import { useLayout } from '@/stores/layout.store';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -124,6 +124,9 @@ export const StatusBar = () => {
           </DropdownItem>
           <DropdownItem icon={ClipboardList} onClick={() => nav('/projects/audit')}        testId="tools-menu-audit">
             Audit log <span className="ml-auto text-[9px] text-text-muted">/projects/audit</span>
+          </DropdownItem>
+          <DropdownItem icon={Bug}           onClick={() => nav('/projects/bug-tracker')} testId="tools-menu-bug-tracker">
+            Bug Tracker <span className="ml-auto text-[9px] text-text-muted">/projects/bug-tracker</span>
           </DropdownItem>
           <DropdownItem icon={Trash2}        onClick={() => nav('/projects/trash')}        testId="tools-menu-trash">
             Trash <span className="ml-auto text-[9px] text-text-muted">/projects/trash</span>

@@ -19,6 +19,8 @@ import remarkGfm from 'remark-gfm';
 import { Send, RefreshCw, Sparkles, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRequestDraftStore } from '@/stores/requestDraft.store';
+import { useGraphqlAiBridge } from '@/stores/graphqlAiBridge.store';
+import { GraphqlAiBuilder } from '@/components/ai/GraphqlAiBuilder';
 import { analyze, type AiAnalyzeRequest, type AiChatTurn } from '@/services/ai.service';
 import { FancyEmpty } from '@/components/common/FancyEmpty';
 import { AppIcon } from '@/components/icons/AppIcons';
@@ -42,6 +44,7 @@ const QUICK_ASKS: { label: string; prompt: string }[] = [
 
 export const RequestAwareAiTab = () => {
   const draft = useRequestDraftStore((s) => s.current);
+  const aiPending = useGraphqlAiBridge((s) => s.pending);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -131,6 +134,12 @@ export const RequestAwareAiTab = () => {
   };
 
   const noRequest = !draft.source || !draft.url;
+
+  // Bridge hijack — when the GraphQL body editor's AI Build button
+  // flips `pending=true`, swap the entire chat surface for the
+  // dedicated GraphQL Builder. This sits AFTER all hooks so React's
+  // rules-of-hooks invariant stays intact.
+  if (aiPending) return <GraphqlAiBuilder />;
 
   return (
     <div className="flex h-full flex-col" data-testid="ai-tab-request-aware">

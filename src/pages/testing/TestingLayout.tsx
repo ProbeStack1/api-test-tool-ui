@@ -54,7 +54,7 @@ const NAV: NavItem[] = [
   { key: 'library',    label: 'Spec Library',     icon: Library,     iconName: 'apidoc',          testId: 'testing-nav-library',    hint: 'Org-wide reusable specs' },
   { key: 'functional', label: 'Functional Tests', icon: Beaker,      iconName: 'functional-test', testId: 'testing-nav-functional', hint: 'Run suites, assertions' },
   { key: 'load',       label: 'Load Tests',       icon: Gauge,       iconName: 'load-test',       testId: 'testing-nav-load',       hint: 'Throughput & p95' },
-  { key: 'security',   label: 'Security Scan',    icon: ShieldCheck, iconName: 'shield',          testId: 'testing-nav-security',   hint: 'OWASP probes · PII · rate limit' },
+  { key: 'security',   label: 'Security Test',    icon: ShieldCheck, iconName: 'shield',          testId: 'testing-nav-security',   hint: 'OWASP probes · PII · rate limit' },
 ];
 
 export const TestingLayout = () => {

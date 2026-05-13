@@ -87,7 +87,7 @@ const varHighlightPlugin = ViewPlugin.fromClass(
   { decorations: (v: any) => v.decorations },
 );
 
-export type CodeLanguage = 'json' | 'text' | 'javascript' | 'xml' | 'html' | 'yaml' | 'shell';
+export type CodeLanguage = 'json' | 'text' | 'javascript' | 'xml' | 'html' | 'yaml' | 'shell' | 'graphql';
 
 const langExt = (l: CodeLanguage) => {
   if (l === 'javascript') return javascript({ jsx: false });

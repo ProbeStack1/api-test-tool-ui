@@ -30,6 +30,8 @@ const l = <T extends object>(load: () => Promise<T>, pick: (m: T) => React.Compo
 };
 
 const LandingPage = l(() => import('@/pages/landing'), (m: any) => m.LandingPage);
+const SolutionsPage = l(() => import('@/pages/landing'), (m: any) => m.SolutionsPage);
+const PricingPage = l(() => import('@/pages/landing'), (m: any) => m.PricingPage);
 const HomeIntroPage = l(() => import('@/pages/home-intro'), (m: any) => m.HomeIntroPage);
 const HomeShell = l(() => import('@/layouts/HomeShell'), (m: any) => m.HomeShell);
 const ApiCatalogPage = l(() => import('@/pages/api-catalog'), (m: any) => m.ApiCatalogPage);
@@ -106,6 +108,8 @@ const StatusPagePublicSlugRoute = () => {
 
 const router = createBrowserRouter([
   { path: '/', element: r(<LandingPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/solutions', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/pricing', element: r(<PricingPage />), errorElement: <RouteErrorBoundary /> },
   // Home shell — Postman-style left rail (Home / Workspaces /
   // Integrations / API Catalog / Reports + Private/Public API Network).
   // Nested children render inside `HomeShell`'s `<Outlet/>`.

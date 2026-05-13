@@ -57,8 +57,8 @@ function TerminalAnimation() {
   };
 
   return (
-    <div data-testid="terminal-animation" className="w-full max-w-4xl mx-auto mt-10">
-      <div className="rounded-xl overflow-hidden border border-border shadow-2xl shadow-black/20 dark:shadow-black/40">
+    <div data-testid="terminal-animation" className="w-full max-w-6xl mx-auto mt-12">
+      <div className="rounded-xl overflow-hidden border border-border shadow-2xl shadow-black/20 dark:shadow-black/40 ring-1 ring-primary/10 hover:ring-primary/30 transition-all duration-500">
         {/* Terminal Header */}
         <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-border">
           <div className="flex gap-1.5">
@@ -208,8 +208,8 @@ export default function HeroSection() {
       className="relative z-10 shrink-0 overflow-hidden border-b border-border"
     >
       <div className="absolute inset-0 grid-pattern opacity-30 dark:opacity-50" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
-        <div className="text-center max-w-3xl mx-auto">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-8 relative">
+        <div className="text-center max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 backdrop-blur-sm text-primary rounded-full text-sm font-medium mb-6 border border-primary/20 shadow-lg shadow-primary/5 animate-fade-in-up">
             <Zap className="w-4 h-4" />
             Production-Grade API Testing
@@ -217,19 +217,29 @@ export default function HeroSection() {
 
           <h1
             data-testid="hero-title"
-            className="text-5xl sm:text-4xl md:text-5xl whitespace-nowrap font-bold mb-5 animate-fade-in-up animation-delay-100 gradient-text font-display leading-tight"
+            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animate-fade-in-up animation-delay-100 gradient-text font-display leading-[1.05] tracking-tight"
           >
-            API Testing &amp; Verification Hub
+            The API platform that ships with its own QA team.
           </h1>
 
-          <p className="text-md md:text-lg text-text-secondary mb-10 max-w-xl mx-auto animate-fade-in-up animation-delay-200 leading-relaxed">
-            Automate your API workflows, verify responses, and collaborate with your team with confidence.
+          <p className="text-md md:text-lg text-text-secondary mb-3 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 leading-relaxed">
+            Design, mock, test, monitor, secure and document every API — from spec to incident response — in one workspace.
+          </p>
+          <p className="text-xs md:text-sm text-text-muted mb-10 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 font-mono">
+            16 production microservices · SOC2-ready audit trail · powered by ForgeQ
           </p>
 
-          <div className="animate-fade-in-up animation-delay-300">
+          <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up animation-delay-300">
             <RocketButton onClick={() => navigate('/projects/collections')}>
-              Start Testing
+              Start free →
             </RocketButton>
+            <a
+              href="#pillars"
+              data-testid="hero-secondary-cta"
+              className="inline-flex items-center justify-center gap-2 h-14 px-6 py-3 text-base font-medium rounded-md border border-border bg-surface/40 backdrop-blur hover:border-primary/50 hover:text-primary text-text-primary transition-colors"
+            >
+              See our pillars
+            </a>
           </div>
         </div>
 

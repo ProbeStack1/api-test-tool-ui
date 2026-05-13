@@ -48,7 +48,7 @@ export default function HowItWorks() {
   return (
     <section data-testid="how-it-works-section" ref={ref} className="relative z-10 py-20 border-b border-border">
       <div className="absolute inset-0 grid-pattern opacity-30" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 relative">
         <div className={`text-center mb-14 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ff5b1f]/10 rounded-full text-xs font-medium text-[#ff5b1f] border border-[#ff5b1f]/20 mb-4">
             <ArrowRight className="w-3 h-3" />

@@ -86,6 +86,9 @@ interface ScanRun {
   findings: BackendFinding[];
   severeCount: number;
   error?: string;
+  // Optional — populated by `scan-started` payloads on newer backend
+  // builds. Older builds omit it, hence the `?`.
+  probesRequested?: string[];
 }
 
 const toProbeResult = (f: BackendFinding): ProbeResult => ({

@@ -72,7 +72,7 @@ export default function Testimonials() {
 
   return (
     <section data-testid="testimonials-section" ref={ref} className="relative z-10 py-20 border-b landing-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24">
         <div className={`text-center mb-12 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <h2 data-testid="testimonials-title" className="text-3xl font-bold landing-text-primary font-heading">
             Trusted by Engineering Teams

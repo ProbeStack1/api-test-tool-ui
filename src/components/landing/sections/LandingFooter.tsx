@@ -117,10 +117,7 @@ export default function LandingFooter() {
 
         <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-[11px] text-text-muted">
-            © {new Date().getFullYear()} ProbeStack Labs · ForgeQ. All rights reserved.
-          </p>
-          <p className="text-[10px] font-mono text-text-muted">
-            16 microservices · MongoDB Atlas · Gemini-powered AI
+            © {new Date().getFullYear()} ProbeStack · ForgeQ. All rights reserved.
           </p>
         </div>
       </div>

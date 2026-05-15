@@ -59,7 +59,7 @@ type Tab = (typeof TABS)[number];
 const DEFAULT_AUTO_HEADERS: KVRow[] = [
   { id: 'h_accept',    key: 'Accept',          value: '*/*',                 enabled: true, auto: true },
   { id: 'h_enc',       key: 'Accept-Encoding', value: 'gzip, deflate, br',   enabled: true, auto: true },
-  { id: 'h_ua',        key: 'User-Agent',      value: 'ForgeQ/0.1',          enabled: true, auto: true },
+  { id: 'h_ua',        key: 'User-Agent',      value: 'ForgeFuzz/0.1',          enabled: true, auto: true },
   { id: 'h_conn',      key: 'Connection',      value: 'keep-alive',          enabled: true, auto: true },
 ];
 

@@ -27,7 +27,7 @@ export const ProjectStandaloneLayout = () => {
                   probestack
                 </div>
                 <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
-                  ForgeQ
+                  ForgeFuzz
                 </div>
               </div>
             </Link>

@@ -64,7 +64,7 @@ export const MocksPage = () => {
               <CtaCard
                 icon={Upload}
                 title="Import a spec"
-                tip="Drop a Postman collection, OpenAPI spec or ForgeQ export and we'll seed every endpoint."
+                tip="Drop a Postman collection, OpenAPI spec or ForgeFuzz export and we'll seed every endpoint."
                 hint="Use the 'Import' button at the top of the left rail."
                 testId="mocks-welcome-import-cta"
               />

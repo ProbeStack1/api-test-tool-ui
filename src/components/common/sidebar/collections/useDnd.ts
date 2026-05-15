@@ -18,7 +18,7 @@ export type DnDPayload = {
   collectionId: string;
 };
 
-const MIME = 'application/x-forgeq-node';
+const MIME = 'application/x-ForgeFuzz-node';
 
 export const makeDragStart = (payload: DnDPayload) => (e: DragEvent) => {
   e.dataTransfer.effectAllowed = 'move';

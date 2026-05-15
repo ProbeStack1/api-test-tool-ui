@@ -79,7 +79,7 @@ export const WebhooksPane = ({ workspaceId }: { workspaceId: string }) => {
             testId="iwh-webhooks-empty"
             icon="webhook"
             title="No webhooks yet"
-            body="Subscribe an HTTPS endpoint to ForgeQ events — monitor failures, heartbeat misses, audit changes."
+            body="Subscribe an HTTPS endpoint to ForgeFuzz events — monitor failures, heartbeat misses, audit changes."
             steps={[
               'Click "New webhook" and paste your endpoint URL',
               'Pick the events you want delivered',
@@ -361,7 +361,7 @@ const SecretRevealModal = ({ hook, onClose }: { hook: WebhookView; onClose: () =
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Webhook className="h-4 w-4" /></span>
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-semibold">Copy your signing secret — shown ONCE</h2>
-            <p className="mt-1 text-xs text-text-muted">Use this to verify the <code className="rounded bg-elevated px-1 font-mono">X-ForgeQ-Signature</code> header on incoming deliveries.</p>
+            <p className="mt-1 text-xs text-text-muted">Use this to verify the <code className="rounded bg-elevated px-1 font-mono">X-ForgeFuzz-Signature</code> header on incoming deliveries.</p>
           </div>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary" data-testid="iwh-webhook-secret-close"><X className="h-4 w-4" /></button>
         </div>
@@ -373,7 +373,7 @@ const SecretRevealModal = ({ hook, onClose }: { hook: WebhookView; onClose: () =
           </Button>
         </div>
         <p className="mt-3 font-mono text-[10px] text-text-muted">
-          Verify with HMAC-SHA256: <code className="rounded bg-elevated px-1">hmac(secret, body) == X-ForgeQ-Signature</code>
+          Verify with HMAC-SHA256: <code className="rounded bg-elevated px-1">hmac(secret, body) == X-ForgeFuzz-Signature</code>
         </p>
       </div>
     </div>

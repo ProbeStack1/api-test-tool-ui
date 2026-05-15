@@ -10,6 +10,8 @@ import { ServersTab } from '@/components/integrations/tabs/ServersTab';
 import { InspectorTab } from '@/components/integrations/tabs/InspectorTab';
 import { CollectionsTab } from '@/components/integrations/tabs/CollectionsTab';
 import { HistoryTab } from '@/components/integrations/tabs/HistoryTab';
+import { AnalyticsTab } from '@/components/integrations/tabs/AnalyticsTab';
+import { HealthTab } from '@/components/integrations/tabs/HealthTab';
 import { MocksTab } from '@/components/integrations/tabs/MocksTab';
 import { RestBridgeTab } from '@/components/integrations/tabs/RestBridgeTab';
 import { AiGenTab } from '@/components/integrations/tabs/AiGenTab';
@@ -43,6 +45,8 @@ export const McpStudioPage = () => {
           {tab === 'inspector'   && <InspectorTab />}
           {tab === 'collections' && <CollectionsTab />}
           {tab === 'history'     && <HistoryTab />}
+          {tab === 'analytics'   && <AnalyticsTab />}
+          {tab === 'health'      && <HealthTab />}
           {tab === 'mocks'       && <MocksTab />}
           {tab === 'rest'        && <RestBridgeTab />}
           {tab === 'aigen'       && <AiGenTab />}
@@ -60,6 +64,8 @@ const tabTitle = (t: string) => ({
   rest:        'MCP ↔ REST Bridge',
   aigen:       'AI Test Generator',
   history:     'Call History',
+  analytics:   'Analytics',
+  health:      'Server Health',
 }[t] ?? 'MCP Studio');
 
 const tabSubtitle = (t: string) => ({
@@ -70,4 +76,6 @@ const tabSubtitle = (t: string) => ({
   rest:        'Call MCP tools over plain HTTP from Postman / curl.',
   aigen:       'Gemini-drafts assertion suites from your tool inputSchemas.',
   history:     'Every MCP call · 30-day audit log.',
+  analytics:   'Top tools, latency percentiles, success-rate trends.',
+  health:      'Auto-ping every 30 seconds · uptime tracker.',
 }[t] ?? '');

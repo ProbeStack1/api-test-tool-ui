@@ -150,7 +150,7 @@ export const ImportModal = ({ open, onClose }: { open: boolean; onClose: () => v
                 Drop your collection file here, or click to browse
               </div>
               <div className="text-[11px] text-text-muted">
-                Supported: Postman · OpenAPI · Insomnia · HAR · cURL · ForgeQ
+                Supported: Postman · OpenAPI · Insomnia · HAR · cURL · ForgeFuzz
               </div>
               <div className="mt-1 text-[10px] text-text-muted">
                 Max 5 MB · {acceptAttr}

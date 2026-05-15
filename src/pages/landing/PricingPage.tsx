@@ -103,7 +103,7 @@ export const PricingPage = () => {
     if (tier.id === 'free' || tier.id === 'pro') {
       navigate('/projects/collections');
     } else {
-      window.location.href = 'mailto:sales@probestack.io?subject=ForgeQ%20' + encodeURIComponent(tier.name);
+      window.location.href = 'mailto:sales@probestack.io?subject=ForgeFuzz%20' + encodeURIComponent(tier.name);
     }
   };
 

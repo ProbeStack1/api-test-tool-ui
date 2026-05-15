@@ -38,11 +38,16 @@ import { Button } from '@/components/ui/Button';
 import { useRunHistoryStore, type HistoryEntry } from '@/stores/runHistory.store';
 import { useRequestDraftStore } from '@/stores/requestDraft.store';
 import { adhocExecute } from '@/services/adhoc.service';
+import { replayRun } from '@/services/request.service';
+import { useBackendHistoryLoader } from '@/hooks/useBackendHistoryLoader';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ResponsePanel as InlineResponsePanel } from '@/components/request-builder/parts/ResponsePanel';
 import { cn } from '@/utils/cn';
 
 export const HistoryPage = () => {
+  /* Ensure the in-browser store reflects what's in Mongo (workspace-wide).
+   * Hook is no-op if backend isn't reachable — store keeps any local entries. */
+  useBackendHistoryLoader();
   const entries    = useRunHistoryStore((s) => s.entries);
   const selectedId = useRunHistoryStore((s) => s.selectedId);
   const hasHydrated = useRunHistoryStore((s) => s.hasHydrated);
@@ -84,6 +89,22 @@ const DetailPane = ({ entry, onDelete }: { entry: HistoryEntry; onDelete: () => 
 
   const tryMut = useMutation({
     mutationFn: async () => {
+      // If this entry was loaded from the backend (server-side run UUID),
+      // use the dedicated /runs/{id}/replay endpoint so the snapshot,
+      // auth, scripts and variables are replayed exactly as recorded —
+      // and the new run is persisted server-side too. Falls back to
+      // ad-hoc execute for local-only entries (e.g. ad-hoc adhoc test).
+      const looksLikeServerId =
+        typeof entry.id === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.id);
+      if (looksLikeServerId) {
+        try {
+          return await replayRun(entry.id);
+        } catch (err: any) {
+          /* If server says 404 (e.g. dev workspace mismatch), fall through to adhoc. */
+          if (!err?.response || err.response?.status !== 404) throw err;
+        }
+      }
       const snap = entry.snapshot;
       const payload: any = {
         method: snap.method,

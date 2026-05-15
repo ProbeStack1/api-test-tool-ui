@@ -52,7 +52,7 @@ export const FloatingChatbot = () => {
   /*  Draggable position — pinned bottom/right by default. Persists in    */
   /*  localStorage so the user's chosen corner survives reloads.          */
   /* ------------------------------------------------------------------ */
-  const POS_KEY = 'forgeq.chatbot.pos.v1';
+  const POS_KEY = 'forgefuzz.chatbot.pos.v1';
   const [pos, setPos] = useState<{ right: number; bottom: number }>(() => {
     try {
       const raw = localStorage.getItem(POS_KEY);
@@ -248,7 +248,7 @@ export const FloatingChatbot = () => {
             </div>
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold text-text-primary">
-                {mode === 'error' ? 'Error analyzer' : (view === 'topic' && topic) ? topic.title : 'ForgeQ guide'}
+                {mode === 'error' ? 'Error analyzer' : (view === 'topic' && topic) ? topic.title : 'ForgeFuzz guide'}
               </h3>
               <p className="truncate text-[10px] text-text-muted">
                 {mode === 'error' ? 'Stays until resolved' : 'Drag to move • Ask anything'}
@@ -342,7 +342,7 @@ export const FloatingChatbot = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(e); }
             }}
-            placeholder={mode === 'error' ? 'Ask about this error…' : 'Ask anything about ForgeQ…'}
+            placeholder={mode === 'error' ? 'Ask about this error…' : 'Ask anything about ForgeFuzz…'}
             rows={1}
             className="min-h-[34px] flex-1 resize-none rounded-md border border-border bg-probestack-bg px-2.5 py-1.5 text-xs outline-none transition-colors focus:border-primary"
           />

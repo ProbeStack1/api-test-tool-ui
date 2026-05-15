@@ -6,7 +6,7 @@ export default function CTASection() {
   const [ref, isVisible] = useScrollReveal();
 
   const handleGetStarted = () => {
-    window.location.href = '/project/collections';
+    window.location.href = '/login';
   };
 
   const handleDocs = () => {

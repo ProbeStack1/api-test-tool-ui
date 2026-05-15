@@ -94,11 +94,59 @@ export interface McpHistoryEntryDto {
   id: string;
   kind: string;
   serverId?: string;
+  serverUrl?: string;
+  userId?: string;
+  workspaceId?: string;
+  method?: string;
+  target?: string;
   ms: number;
   success: boolean;
+  statusCode?: number;
   error?: string;
   payload: any;
+  /** Parsed request body (JSON-RPC envelope). */
+  request?: any;
+  /** Parsed response body. */
+  response?: any;
+  tags?: string[];
+  note?: string;
   createdAt: string;
+}
+
+export interface McpHistoryListResponse {
+  content: McpHistoryEntryDto[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export interface McpHistoryStatsDto {
+  total: number;
+  success: number;
+  failed: number;
+  successRate: number;
+  series: Array<{ date: string; total: number; success: number; failed: number }>;
+  byMethod: Record<string, number>;
+  topTools: Record<string, number>;
+  latencyP50: number;
+  latencyP95: number;
+  latencyP99: number;
+  from: string;
+  to: string;
+}
+
+export interface McpHistoryFilter {
+  workspaceId?: string;
+  serverId?: string;
+  method?: string;
+  status?: 'success' | 'failed';
+  q?: string;
+  tag?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  size?: number;
 }
 
 export interface McpCatalogEntryDto {
@@ -434,20 +482,47 @@ const normalizeHistoryEntry = (raw: any): McpHistoryEntryDto => {
   return {
     id: raw.id,
     kind: raw.kind ?? raw.method ?? '—',
+    method: raw.method,
+    target: raw.target,
     serverId: raw.serverId ?? raw.server_id,
+    serverUrl: raw.serverUrl ?? raw.server_url,
+    userId: raw.userId ?? raw.user_id,
+    workspaceId: raw.workspaceId ?? raw.workspace_id,
     ms: raw.ms ?? raw.latency_ms ?? 0,
     success: raw.success ?? raw.is_success ?? false,
+    statusCode: raw.statusCode ?? raw.status_code,
     error: raw.error ?? raw.error_message ?? undefined,
     payload: raw.payload ?? { request: req, response: res },
+    request: req,
+    response: res,
+    tags: raw.tags ?? [],
+    note: raw.note,
     createdAt: raw.createdAt ?? raw.executed_at ?? new Date().toISOString(),
   };
 };
 
-export const apiListMcpHistory = (serverId?: string, limit = 100) =>
-  http
-    .get<McpHistoryEntryDto[] | { content: McpHistoryEntryDto[] }>(`${BASE}/history`, {
-      params: { ...(serverId ? { serverId } : {}), limit },
-    })
+export const apiListMcpHistory = (serverIdOrFilter?: string | McpHistoryFilter, limit = 100) => {
+  // Back-compat: old callers pass just `serverId, limit`. New callers pass a filter object.
+  const params: Record<string, any> =
+    typeof serverIdOrFilter === 'string' || serverIdOrFilter == null
+      ? { ...(serverIdOrFilter ? { serverId: serverIdOrFilter } : {}), size: limit }
+      : {
+          workspaceId: serverIdOrFilter.workspaceId,
+          serverId:    serverIdOrFilter.serverId,
+          method:      serverIdOrFilter.method,
+          status:      serverIdOrFilter.status,
+          q:           serverIdOrFilter.q,
+          tag:         serverIdOrFilter.tag,
+          fromDate:    serverIdOrFilter.fromDate,
+          toDate:      serverIdOrFilter.toDate,
+          page:        serverIdOrFilter.page ?? 0,
+          size:        serverIdOrFilter.size ?? 100,
+        };
+  // Strip undefined.
+  Object.keys(params).forEach((k) => params[k] === undefined && delete params[k]);
+
+  return http
+    .get<McpHistoryEntryDto[] | { content: McpHistoryEntryDto[] }>(`${BASE}/history`, { params })
     .then((r) => {
       const body: any = r.data;
       const arr: any[] = Array.isArray(body)
@@ -457,6 +532,61 @@ export const apiListMcpHistory = (serverId?: string, limit = 100) =>
           : [];
       return arr.map(normalizeHistoryEntry);
     });
+};
+
+/** Same as listMcpHistory but returns the full page envelope (total, pageNumber, etc). */
+export const apiListMcpHistoryPage = (filter: McpHistoryFilter = {}): Promise<McpHistoryListResponse> => {
+  const params = {
+    workspaceId: filter.workspaceId, serverId: filter.serverId, method: filter.method,
+    status: filter.status, q: filter.q, tag: filter.tag,
+    fromDate: filter.fromDate, toDate: filter.toDate,
+    page: filter.page ?? 0, size: filter.size ?? 50,
+  };
+  Object.keys(params).forEach((k) => (params as any)[k] === undefined && delete (params as any)[k]);
+  return http.get<any>(`${BASE}/history`, { params }).then((r) => {
+    const body: any = r.data;
+    if (Array.isArray(body)) {
+      const content = body.map(normalizeHistoryEntry);
+      return { content, totalElements: content.length, totalPages: 1, number: 0, size: content.length };
+    }
+    return {
+      content:       (body.content || []).map(normalizeHistoryEntry),
+      totalElements: body.totalElements ?? 0,
+      totalPages:    body.totalPages ?? 1,
+      number:        body.number ?? 0,
+      size:          body.size ?? 50,
+    };
+  });
+};
+
+export const apiGetMcpHistoryEntry = (id: string): Promise<McpHistoryEntryDto> =>
+  http.get<any>(`${BASE}/history/${id}`).then((r) => normalizeHistoryEntry(r.data));
+
+export const apiMcpHistoryStats = (filter: Pick<McpHistoryFilter, 'workspaceId' | 'serverId' | 'fromDate' | 'toDate'> = {}) => {
+  const params: Record<string, any> = { ...filter };
+  Object.keys(params).forEach((k) => params[k] === undefined && delete params[k]);
+  return http.get<McpHistoryStatsDto>(`${BASE}/history/stats`, { params }).then((r) => r.data);
+};
+
+export const apiMcpHistoryByTool = (serverId: string, target: string, page = 0, size = 50) =>
+  http.get<any>(`${BASE}/history/by-tool`, { params: { serverId, target, page, size } })
+    .then((r) => {
+      const content = (r.data?.content ?? []).map(normalizeHistoryEntry);
+      return { ...r.data, content } as McpHistoryListResponse;
+    });
+
+export const apiMcpReplayHistory = (id: string) =>
+  http.post<any>(`${BASE}/history/${id}/replay`).then((r) => r.data);
+
+export const apiMcpAnnotateHistory = (id: string, body: { tags?: string[]; note?: string }) =>
+  http.patch<any>(`${BASE}/history/${id}`, body).then((r) => normalizeHistoryEntry(r.data));
+
+export const apiMcpHistoryExportUrl = (filter: McpHistoryFilter = {}, format: 'csv' | 'json' = 'csv') => {
+  const params = new URLSearchParams();
+  params.set('format', format);
+  Object.entries(filter).forEach(([k, v]) => { if (v != null && v !== '') params.set(k, String(v)); });
+  return `${BASE}/history/export?${params.toString()}`;
+};
 
 export const apiDeleteMcpHistoryEntry = (id: string) =>
   http.delete<void>(`${BASE}/history/${id}`).then((r) => r.data);

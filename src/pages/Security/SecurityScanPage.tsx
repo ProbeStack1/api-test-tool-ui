@@ -20,12 +20,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   ShieldCheck, Play, Square, AlertTriangle, CheckCircle2,
-  Loader2, Sparkles, Download, Bug, Send, Slack,
+  Loader2, Sparkles, Download, Bug, Send, Slack, History,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ProbeTransparencyCard, type ProbeResult } from '@/components/security/ProbeTransparencyCard';
 import { NotifyDeveloperModal } from '@/components/security/NotifyDeveloperModal';
+import { SecurityScanHistoryDrawer, type HistoryRun } from '@/components/security/SecurityScanHistoryDrawer';
+import { exportSecurityPDF } from './exportSecurityPDF';
 import { serviceUrl } from '@/lib/env';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
@@ -123,6 +125,26 @@ export function SecurityScanPage() {
   const [notifyFor, setNotifyFor] = useState<ProbeResult | null>(null);
   const [webhookFor, setWebhookFor] = useState<BackendFinding | null>(null);
   const [bugBusyId, setBugBusyId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  /**
+   * Hydrate the page from a past run picked in the history drawer.
+   * Resets transient state (timeline, progress) and replays findings.
+   * The page goes into the run's terminal state — start/cancel buttons
+   * behave as if a brand-new scan is yet to begin.
+   */
+  const loadRunFromHistory = (run: HistoryRun) => {
+    evtRef.current?.close();
+    setRunId(run.id);
+    setTargetUrl(run.targetUrl);
+    setFindings(run.findings ?? []);
+    setStatus(run.status);
+    setProgress({
+      done: run.findings?.length ?? 0,
+      total: run.probesRequested?.length ?? run.findings?.length ?? 0,
+    });
+    setTimeline([{ t: Date.now(), msg: `Loaded run ${run.id.slice(0, 8)} from history` }]);
+  };
 
   // Load probe catalog on mount
   useEffect(() => {
@@ -247,7 +269,7 @@ export function SecurityScanPage() {
     setBugBusyId(f.findingId);
     try {
       const r = await axios.post(`${SVC}/api/v1/functional-tests/bugs/from-finding`, {
-        runId, findingId: f.findingId, reporterEmail: 'qa@forgeq.io',
+        runId, findingId: f.findingId, reporterEmail: 'qa@forgefuzz.io',
       });
       setFindings((prev) => prev.map((x) =>
         x.findingId === f.findingId ? { ...x, linkedBugId: r.data.id } : x));
@@ -266,7 +288,7 @@ export function SecurityScanPage() {
       version: '2.1.0',
       $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
       runs: [{
-        tool: { driver: { name: 'ForgeQ', version: '1.0.0', informationUri: 'https://forgeq.io' } },
+        tool: { driver: { name: 'ForgeFuzz', version: '1.0.0', informationUri: 'https://forgefuzz.io' } },
         results: findings.filter((f) => !f.passed).map((f) => ({
           ruleId: f.checkId,
           message: { text: f.detail },
@@ -333,6 +355,22 @@ export function SecurityScanPage() {
               <Play className="h-4 w-4" /> Start test
             </button>
           )}
+          <button
+            data-testid="scan-history-btn"
+            onClick={() => setHistoryOpen(true)}
+            title="View past scans"
+            className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:border-primary/50 hover:text-text-primary"
+          >
+            <History className="h-4 w-4" /> History
+          </button>
+          <a
+            data-testid="escalation-rules-link"
+            href="/projects/security/escalation-rules"
+            title="Manage auto-escalation rules"
+            className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:border-primary/50 hover:text-text-primary"
+          >
+            <ShieldCheck className="h-4 w-4" /> Rules
+          </a>
         </div>
       </div>
 
@@ -438,6 +476,34 @@ export function SecurityScanPage() {
             <button data-testid="export-sarif-btn" onClick={exportSarif} className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] hover:bg-hover">
               <Download className="h-3 w-3" /> SARIF
             </button>
+            <button
+              data-testid="export-pdf-btn"
+              onClick={() => exportSecurityPDF({
+                targetUrl,
+                runId: runId ?? undefined,
+                finishedAt: new Date().toISOString(),
+                findings: findings.map((f) => ({
+                  checkId: f.checkId,
+                  name: f.name,
+                  passed: f.passed,
+                  severity: f.severity as any,
+                  detail: f.detail,
+                  remediation: f.remediation,
+                  evidence: f.evidence,
+                  whatItTests: f.whatItTests,
+                  howItWorks: f.howItWorks,
+                  endpointsTested: f.endpointsTested,
+                  durationMs: f.durationMs ?? 0,
+                  owaspId: (f as any).owaspId,
+                  riskLevel: (f as any).riskLevel,
+                  bestPractice: (f as any).bestPractice,
+                })),
+              })}
+              title="Open a print-friendly report; use 'Save as PDF' in the dialog"
+              className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] hover:bg-hover"
+            >
+              <Download className="h-3 w-3" /> PDF
+            </button>
           </div>
         </div>
       )}
@@ -521,6 +587,15 @@ export function SecurityScanPage() {
         />
       )}
       </div>  {/* end of scrollable content */}
+
+      {/* History drawer — slides in from right when "History" pressed. */}
+      <SecurityScanHistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        baseUrl={BASE}
+        activeRunId={runId}
+        onLoadRun={loadRunFromHistory}
+      />
     </div>
   );
 }

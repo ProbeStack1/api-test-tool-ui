@@ -6,7 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity, Server, Search, FolderOpen, Repeat, Sparkles, History as HistoryIcon,
-  Boxes, ChevronRight, Plug, RotateCw,
+  Boxes, ChevronRight, Plug, RotateCw, BarChart3, HeartPulse,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { SidebarShell } from './SidebarShell';
@@ -26,6 +26,8 @@ const NAV: NavRow[] = [
   { key: 'rest',        icon: Repeat,      label: 'MCP ↔ REST',      sub: 'Call MCP from plain HTTP' },
   { key: 'aigen',       icon: Sparkles,    label: 'AI Test Gen',     sub: 'Gemini-drafted suites' },
   { key: 'history',     icon: HistoryIcon, label: 'History',         sub: 'Every call · 30-day log' },
+  { key: 'analytics',   icon: BarChart3,   label: 'Analytics',       sub: 'Top tools · latency · errors' },
+  { key: 'health',      icon: HeartPulse,  label: 'Health',          sub: 'Server uptime watcher' },
 ];
 
 export const MCPPanel = () => {

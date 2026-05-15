@@ -18,10 +18,10 @@ export const ProfilePage = () => {
   const [tab, setTab] = useState<'profile' | 'security' | 'notifications'>('profile');
 
   const [profile, setProfile] = useState({
-    fullName: 'Adarsha Forgeq',
-    email: 'adarsha@forgeq.dev',
+    fullName: 'ForgeFuzz Dev',
+    email: 'dev@forgefuzz.dev',
     title: 'Software engineer',
-    company: 'ForgeQ',
+    company: 'ForgeFuzz',
     location: 'Bengaluru, IN',
     timezone: 'Asia/Kolkata',
     bio: 'Building the future of API testing & observability — one workspace at a time.',
@@ -111,7 +111,7 @@ const Tab = ({ active, onClick, icon: Icon, label, testId }: any) => (
 
 const ProfileTab = ({ profile, setProfile, onSave }: any) => (
   <div className="space-y-5" data-testid="profile-tab-profile-pane">
-    <Section title="Personal information" subtitle="How others see you across ForgeQ.">
+    <Section title="Personal information" subtitle="How others see you across ForgeFuzz.">
       <Grid>
         <Field label="Full name"><Input value={profile.fullName} onChange={(v: string) => setProfile({ ...profile, fullName: v })} testId="profile-fullName" /></Field>
         <Field label="Email"><Input type="email" value={profile.email} onChange={(v: string) => setProfile({ ...profile, email: v })} testId="profile-email" /></Field>
@@ -193,11 +193,11 @@ const NotificationsTab = ({ onSave }: any) => {
     { key: 'monitorRecovered', label: 'Monitor recoveries', sub: 'When a previously down monitor comes back UP.' },
     { key: 'runFailures',      label: 'Run failures',       sub: 'Functional & load test runs that finish with FAILED status.' },
     { key: 'weeklyDigest',     label: 'Weekly digest',      sub: 'Friday recap with usage, top failures, and trends.' },
-    { key: 'productNews',      label: 'Product news',       sub: 'Occasional announcements about new ForgeQ features.' },
+    { key: 'productNews',      label: 'Product news',       sub: 'Occasional announcements about new ForgeFuzz features.' },
   ];
   return (
     <div className="space-y-5" data-testid="profile-tab-notifications-pane">
-      <Section title="Email preferences" subtitle="Choose which events ForgeQ emails you about.">
+      <Section title="Email preferences" subtitle="Choose which events ForgeFuzz emails you about.">
         <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
           {items.map((it) => (
             <li key={it.key} className="flex items-center justify-between gap-4 px-4 py-2.5">

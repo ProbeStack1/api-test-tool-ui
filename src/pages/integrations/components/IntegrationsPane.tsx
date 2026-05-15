@@ -79,7 +79,7 @@ export const IntegrationsPane = ({ workspaceId }: { workspaceId: string }) => {
             testId="iwh-integrations-empty"
             icon="integration"
             title="No integrations connected"
-            body="Hook ForgeQ events into Slack, Teams, Discord, PagerDuty and more — without writing webhook glue."
+            body="Hook ForgeFuzz events into Slack, Teams, Discord, PagerDuty and more — without writing webhook glue."
             steps={[
               'Click "Connect new" and pick a provider',
               'Paste the provider\'s webhook / integration URL',

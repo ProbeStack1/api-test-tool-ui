@@ -59,6 +59,7 @@ const MonitorsPage = l(() => import('@/pages/monitors'), (m: any) => m.MonitorsP
 const IntegrationsPage = l(() => import('@/pages/integrations'), (m: any) => m.IntegrationsPage);
 const ApiDocsPage = l(() => import('@/pages/api-docs'), (m: any) => m.ApiDocsPage);
 const SecurityScanPage = l(() => import('../pages/Security/SecurityScanPage'), (m: any) => m.SecurityScanPage);
+const EscalationRulesPage = l(() => import('../pages/Security/EscalationRulesPage'), (m: any) => m.EscalationRulesPage);
 const GovernancePage = l(() => import('@/pages/governance/GovernancePage'), (m: any) => m.GovernancePage);
 const AuditPage = l(() => import('@/pages/audit'), (m: any) => m.AuditPage);
 const TrashPage = l(() => import('@/pages/trash'), (m: any) => m.TrashPage);
@@ -174,6 +175,7 @@ const router = createBrowserRouter([
       { path: 'integrations', element: r(<IntegrationsPage />) },
       { path: 'api-docs', element: r(<ApiDocsPage />) },
       { path: 'security', element: r(<SecurityScanPage />) },
+      { path: 'security/escalation-rules', element: r(<EscalationRulesPage />) },
       { path: 'audit', element: r(<AuditPage />) },
       { path: 'trash', element: r(<TrashPage />) },
       { path: 'heartbeats', element: r(<HeartbeatsPage />) },

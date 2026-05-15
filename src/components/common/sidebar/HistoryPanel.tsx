@@ -14,30 +14,32 @@
  */
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Trash2, History as HistoryIcon, Filter } from 'lucide-react';
+import { Search, Trash2, History as HistoryIcon, Filter, Loader2 } from 'lucide-react';
 import { SidebarShell } from './SidebarShell';
 import { useRunHistoryStore, type HistoryKind } from '@/stores/runHistory.store';
+import { useBackendHistoryLoader } from '@/hooks/useBackendHistoryLoader';
+import { fmtRelative } from '@/lib/timezone';
 import { cn } from '@/utils/cn';
 
 const KIND_OPTIONS: { value: HistoryKind | 'all'; label: string }[] = [
+  // Per user spec: this sidebar is the *request*-history view. Load / functional
+  // / monitor tests have their own dedicated pages with their own history.
+  { value: 'request',    label: 'Requests' },
   { value: 'all',        label: 'All kinds' },
-  { value: 'request',    label: 'Request' },
-  { value: 'mock',       label: 'Mock' },
-  { value: 'mcp',        label: 'MCP' },
-  { value: 'loadtest',   label: 'Load test' },
-  { value: 'functional', label: 'Functional' },
-  { value: 'monitors',   label: 'Monitors' },
 ];
 
 export const HistoryPanel = () => {
   const entries    = useRunHistoryStore((s) => s.entries);
   const selectedId = useRunHistoryStore((s) => s.selectedId);
   const select     = useRunHistoryStore((s) => s.select);
-  const remove     = useRunHistoryStore((s) => s.remove);
   const clearAll   = useRunHistoryStore((s) => s.clear);
   const nav        = useNavigate();
+  /* Backend-merge: this hook fetches `/runs?workspaceId=...` every 15 s
+   * and folds new server-side rows into the in-browser store. We DO NOT
+   * remove local-only entries (ad-hoc requests) — they coexist. */
+  const backend    = useBackendHistoryLoader();
 
-  const [kind, setKind] = useState<HistoryKind | 'all'>('all');
+  const [kind, setKind] = useState<HistoryKind | 'all'>('request');
   const [q, setQ]       = useState('');
 
   const filtered = useMemo(() => {
@@ -66,10 +68,10 @@ export const HistoryPanel = () => {
 
   const onPick = (id: string) => {
     select(id);
-    // The main area listens to `selectedId` + `primaryTab='history'`,
-    // and the route is the same as collections so the user lands in the
-    // request-builder workspace.
-    nav('/projects/collections');
+    // The history sidebar is rendered globally; clicking an entry should
+    // always land the user on the detail page where they get the
+    // Postman-style preview with Try + Edit & Try buttons.
+    nav('/projects/history');
   };
 
   return (
@@ -79,14 +81,21 @@ export const HistoryPanel = () => {
       icon={HistoryIcon}
       search={
         <div className="space-y-2">
-          <select
-            data-testid="sidebar-history-kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as HistoryKind | 'all')}
-            className="h-7 w-full rounded-md border border-border bg-probestack-bg px-2 text-[11px]"
-          >
-            {KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <div className="flex items-center gap-1.5">
+            <select
+              data-testid="sidebar-history-kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as HistoryKind | 'all')}
+              className="h-7 flex-1 rounded-md border border-border bg-probestack-bg px-2 text-[11px]"
+            >
+              {KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {backend.isFetching && (
+              <span title="Syncing with server…" data-testid="sidebar-history-syncing">
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-text-muted" />
@@ -128,6 +137,7 @@ export const HistoryPanel = () => {
             <ul>
               {rows.map((e) => {
                 const status = e.result?.response?.statusCode ?? e.result?.network?.statusCode ?? 0;
+                const latency = e.result?.totalMs ?? (e.result?.network as any)?.totalMs ?? 0;
                 const sel = e.id === selectedId;
                 return (
                   <li key={e.id}>
@@ -136,7 +146,7 @@ export const HistoryPanel = () => {
                       onClick={() => onPick(e.id)}
                       className={cn(
                         'group flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors',
-                        sel ? 'bg-primary/10' : 'hover:bg-hover',
+                        sel ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-hover',
                       )}
                     >
                       <span className={cn(
@@ -146,8 +156,15 @@ export const HistoryPanel = () => {
                       )}>{e.snapshot.method?.toUpperCase()}</span>
                       <span className="min-w-0 flex-1 truncate text-text-primary">
                         {e.snapshot.name || e.snapshot.url}
+                        <span className="ml-1 text-[9px] text-text-muted">· {fmtRelative(e.at)}</span>
                       </span>
-                      <span className={cn('h-1.5 w-1.5 rounded-full', statusTone(status))} />
+                      {status > 0 && (
+                        <span className="font-mono text-[9px] text-text-muted">{status}</span>
+                      )}
+                      {latency > 0 && (
+                        <span className="font-mono text-[9px] text-text-muted">{latency}ms</span>
+                      )}
+                      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusTone(status))} />
                     </button>
                   </li>
                 );

@@ -1,9 +1,3 @@
-/**
- * Environment configuration — single source of truth for backend URLs.
- *
- * Local-first: every microservice has a canonical port. Override any
- * URL via .env (VITE_<NAME>_SVC_URL) when needed.
- */
 
 export type ServiceName =
   | 'workspace'
@@ -25,7 +19,17 @@ export type ServiceName =
 
 const readEnv = (key: string, fallback = ''): string => {
   const value = import.meta.env[key];
-  return typeof value === 'string' && value.length > 0 ? value : fallback;
+  const resolved = typeof value === 'string' && value.length > 0 ? value : fallback;
+
+  if (typeof window !== 'undefined' && resolved) {
+    const localhostUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i;
+    const pageOrigin = window.location?.origin || '';
+    if (localhostUrl.test(resolved) && resolved !== pageOrigin) {
+      return pageOrigin;
+    }
+  }
+
+  return resolved;
 };
 
 /** Canonical local ports — match each service's application.properties **/

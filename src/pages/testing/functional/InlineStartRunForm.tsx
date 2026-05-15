@@ -23,6 +23,7 @@ import { listEnvironments } from '@/services/environment.service';
 import { startRun, type StartRunRequestBody } from '@/services/functionalTest.service';
 import type { InlineHint as InlineHintType } from '@/api/functionalTest.api';
 import { trackFunctionalRun } from '@/hooks/useActiveRunsTracker';
+import { DataFileUpload } from '@/components/testing/DataFileUpload';
 import { useTestingStore } from '@/stores/testing.store';
 import { cn } from '@/utils/cn';
 
@@ -61,6 +62,17 @@ export const InlineStartRunForm = ({ workspaceId }: Props) => {
   const [validateSchema, setValidateSchema]     = useState(false);
   const [captureResponseBody, setCaptureBody]   = useState(true);
   const [iterations, setIterations]             = useState(1);
+  /** Task 3.3 — uploaded data file id + stored path. The executor reads
+   *  the file row-by-row and merges row → vars per iteration. */
+  const [dataFile, setDataFile] = useState<{ fileId: string; storedPath: string; rowCount: number } | null>(null);
+  /** Task 3.4 — Pre/post JS snippets executed around every step. */
+  const [preScript, setPreScript] = useState('');
+  const [postScript, setPostScript] = useState('');
+  /** Task 3.5 — Geographic distribution. Comma-separated regions; the
+   *  scheduler will fan out one run per region when > 1 region selected.
+   *  Region IDs intentionally generic so the user can map them to any
+   *  worker pool / GCP region they have. */
+  const [regions, setRegions] = useState<string[]>([]);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +109,11 @@ export const InlineStartRunForm = ({ workspaceId }: Props) => {
           validateSchema,
           captureResponseBody,
           iterations: iterations > 1 ? iterations : undefined,
+          regions: regions.length > 0 ? regions : undefined,
+          dataFileGcs: dataFile?.storedPath ?? undefined,
+          dataFileId:  dataFile?.fileId ?? undefined,
+          preScript:   preScript.trim() || undefined,
+          postScript:  postScript.trim() || undefined,
         },
       };
       if (src === 'TEST_SPEC')   body.testSpecId    = testSpecId;
@@ -304,6 +321,81 @@ export const InlineStartRunForm = ({ workspaceId }: Props) => {
               <Toggle label="Fail fast"               testId="inline-run-failfast"  hint="Stop on first failure"     checked={failFast}    onChange={setFailFast} />
               <Toggle label="Validate schema"         testId="inline-run-validate"  hint="OpenAPI response validation" checked={validateSchema} onChange={setValidateSchema} />
               <Toggle label="Capture response body"   testId="inline-run-capture"   hint="Persist bodies for debugging" checked={captureResponseBody} onChange={setCaptureBody} />
+              {/* Task 3.5 — Region selector. Multi-select chip group. */}
+              <div className="sm:col-span-2 lg:col-span-3">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                  Regions <span className="ml-1 normal-case text-text-muted/70">— pick 1+ regions to fan-out a run per region</span>
+                </label>
+                <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="inline-run-regions">
+                  {(['us-central1', 'us-east1', 'europe-west1', 'asia-south1', 'asia-southeast1', 'australia-southeast1'] as const).map((r) => {
+                    const active = regions.includes(r);
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        data-testid={`region-chip-${r}`}
+                        onClick={() => setRegions((prev) => prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r])}
+                        className={cn(
+                          'rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+                          active
+                            ? 'border-primary bg-primary/15 text-primary'
+                            : 'border-border text-text-muted hover:bg-hover',
+                        )}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Task 3.3 — Data-file uploader. Each row becomes one iteration. */}
+              <div className="sm:col-span-2 lg:col-span-3">
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                  Data file (CSV / JSON) <span className="ml-1 normal-case text-text-muted/70">— each row → one iteration; columns map to {`{{var}}`}</span>
+                </label>
+                <div className="mt-1.5">
+                  <DataFileUpload
+                    workspaceId={workspaceId}
+                    onUploaded={(f) => setDataFile({ fileId: f.fileId, storedPath: f.storedPath, rowCount: f.rowCount })}
+                    onCleared={() => setDataFile(null)}
+                  />
+                </div>
+              </div>
+
+              {/* Task 3.4 — Pre/post scripts. JS snippets that run around every step. */}
+              <div className="sm:col-span-2 lg:col-span-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                    Pre-request script
+                    <span className="ml-1 normal-case text-text-muted/70">— runs before each step. Access: <code>request</code>, <code>vars</code>, <code>env</code></span>
+                  </label>
+                  <textarea
+                    data-testid="inline-run-pre-script"
+                    value={preScript}
+                    onChange={(e) => setPreScript(e.target.value)}
+                    rows={5}
+                    placeholder={`// e.g. vars.timestamp = Date.now();
+// request.headers['X-Request-Id'] = crypto.randomUUID();`}
+                    className="mt-1.5 w-full rounded border border-border bg-transparent px-2 py-1.5 font-mono text-[10px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                    Post-response script
+                    <span className="ml-1 normal-case text-text-muted/70">— runs after each step. Access: <code>request</code>, <code>response</code>, <code>vars</code>, <code>pm.test()</code></span>
+                  </label>
+                  <textarea
+                    data-testid="inline-run-post-script"
+                    value={postScript}
+                    onChange={(e) => setPostScript(e.target.value)}
+                    rows={5}
+                    placeholder={`// e.g. pm.test("Status is 200", () => response.status === 200);
+// vars.token = response.json.token;`}
+                    className="mt-1.5 w-full rounded border border-border bg-transparent px-2 py-1.5 font-mono text-[10px]"
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>

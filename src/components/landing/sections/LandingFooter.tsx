@@ -69,7 +69,7 @@ export default function LandingFooter() {
                 <div className="text-[0.7rem] text-text-secondary tracking-normal leading-tight">
                   probestack
                 </div>
-                <div className="font-bold text-xl leading-tight gradient-text">ForgeQ</div>
+                <div className="font-bold text-xl leading-tight gradient-text">ForgeFuzz</div>
               </div>
             </Link>
             <p className="text-xs text-text-secondary leading-relaxed">
@@ -117,7 +117,10 @@ export default function LandingFooter() {
 
         <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-[11px] text-text-muted">
-            © {new Date().getFullYear()} ProbeStack · ForgeQ. All rights reserved.
+            © {new Date().getFullYear()} ProbeStack Labs · ForgeFuzz. All rights reserved.
+          </p>
+          <p className="text-[10px] font-mono text-text-muted">
+            16 microservices · MongoDB Atlas · Gemini-powered AI
           </p>
         </div>
       </div>

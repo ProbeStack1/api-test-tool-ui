@@ -11,7 +11,7 @@ import { exportMock, type MockServer, type ExportFormat } from '@/services/mock.
 const FORMATS: Array<{
   key: ExportFormat; label: string; ext: string; icon: any; tip: string;
 }> = [
-  { key: 'FORGEQ',       label: 'ForgeQ native',         ext: 'forgeq.json',             icon: Boxes,    tip: 'Best fidelity — round-trippable. Use this when sharing within ForgeQ.' },
+  { key: 'FORGEQ',       label: 'ForgeFuzz native',         ext: 'ForgeFuzz.json',             icon: Boxes,    tip: 'Best fidelity — round-trippable. Use this when sharing within ForgeFuzz.' },
   { key: 'POSTMAN',      label: 'Postman v2.1',          ext: 'postman_collection.json', icon: FileJson, tip: 'Compatible with Postman desktop & web. Some advanced features (chaos, scenarios) are dropped.' },
   { key: 'OPENAPI',      label: 'OpenAPI 3 (JSON)',      ext: 'openapi.json',            icon: FileText, tip: 'Use for code generation / docs. Validation rules surface as schema constraints.' },
   { key: 'OPENAPI_YAML', label: 'OpenAPI 3 (YAML)',      ext: 'openapi.yaml',            icon: FileCode, tip: 'YAML flavour of OpenAPI 3 — preferred by API gateways and Stoplight.' },

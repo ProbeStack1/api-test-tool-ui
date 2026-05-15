@@ -68,7 +68,7 @@ function TerminalAnimation() {
           </div>
           <div className="flex items-center gap-1.5 ml-3 text-xs text-text-muted">
             <Terminal className="w-3 h-3" />
-            <span className="font-mono">ForgeQ ~ api-runner</span>
+            <span className="font-mono">ForgeFuzz ~ api-runner</span>
           </div>
         </div>
 
@@ -77,7 +77,7 @@ function TerminalAnimation() {
           ref={containerRef}
           className="bg-elevated p-4 h-[350px] overflow-y-auto font-mono text-xs leading-relaxed"
         >
-          <div className="text-text-muted mb-2">$ ForgeQ run --suite integration-tests</div>
+          <div className="text-text-muted mb-2">$ ForgeFuzz run --suite integration-tests</div>
           {visibleLines.map((line, i) => (
             <div
               key={i}
@@ -208,11 +208,11 @@ export default function HeroSection() {
       className="relative z-10 shrink-0 overflow-hidden border-b border-border"
     >
       <div className="absolute inset-0 grid-pattern opacity-30 dark:opacity-50" />
-      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-8 relative">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-10 relative">
         <div className="text-center max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 backdrop-blur-sm text-primary rounded-full text-sm font-medium mb-6 border border-primary/20 shadow-lg shadow-primary/5 animate-fade-in-up">
             <Zap className="w-4 h-4" />
-            Production-Grade API Testing
+            The API lifecycle platform — built for shipping teams
           </div>
 
           <h1
@@ -225,12 +225,12 @@ export default function HeroSection() {
           <p className="text-md md:text-lg text-text-secondary mb-3 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 leading-relaxed">
             Design, mock, test, monitor, secure and document every API — from spec to incident response — in one workspace.
           </p>
-          <p className="text-xs md:text-sm text-text-muted mb-10 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 font-mono">
-            16 production microservices · SOC2-ready audit trail · powered by ForgeQ
+          <p className="text-xs md:text-sm text-text-muted mb-8 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 font-mono">
+             production microservices · SOC2-ready audit trail · powered by ForgeFuzz
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up animation-delay-300">
-            <RocketButton onClick={() => navigate('/projects/collections')}>
+            <RocketButton onClick={() => navigate('/login')}>
               Start free →
             </RocketButton>
             <a
@@ -238,7 +238,7 @@ export default function HeroSection() {
               data-testid="hero-secondary-cta"
               className="inline-flex items-center justify-center gap-2 h-14 px-6 py-3 text-base font-medium rounded-md border border-border bg-surface/40 backdrop-blur hover:border-primary/50 hover:text-primary text-text-primary transition-colors"
             >
-              See our pillars
+              See the our pillars
             </a>
           </div>
         </div>

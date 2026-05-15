@@ -19,17 +19,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play, Pause, Ban, Loader2, Sparkles, CheckCircle2, XCircle,
   AlertOctagon, Activity, Timer, ListTree, Plus, ExternalLink,
-  Download,
+  Download, RotateCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
   getRun, pauseRun, resumeRun, cancelRun, openRunStream,
-  downloadReport, downloadReportBlob,
+  downloadReport, downloadReportBlob, startRun,
   type Run, type ReportFormat,
 } from '@/services/functionalTest.service';
 import { useTestingStore } from '@/stores/testing.store';
 import { RunStatusBadge, formatDuration } from './shared/RunBadges';
 import { cn } from '@/utils/cn';
+import { LiveFunctionalRunChart, type LiveStepSample } from './LiveFunctionalRunChart';
+import { EndpointGridTable } from './EndpointGridTable';
 
 const TERMINAL = new Set(['SUCCESS', 'FAILED', 'ERROR', 'CANCELLED']);
 
@@ -52,6 +54,8 @@ export const LiveFunctionalRunPanel = ({ runId }: Props) => {
   const [lines, setLines] = useState<StreamLine[]>([]);
   const [streamConnected, setStreamConnected] = useState(false);
   const [reportBusy, setReportBusy] = useState<ReportFormat | null>(null);
+  const [latestStep, setLatestStep] = useState<LiveStepSample | undefined>();
+  const stepCounterRef = useRef(0);
   const linesEndRef = useRef<HTMLDivElement>(null);
 
   const runQ = useQuery({
@@ -84,9 +88,27 @@ export const LiveFunctionalRunPanel = ({ runId }: Props) => {
     };
     es.addEventListener('open', () => setStreamConnected(true));
     es.addEventListener('error', () => setStreamConnected(false));
-    es.addEventListener('run.start', (e) => onLine(e as MessageEvent, 'run.start'));
+    es.addEventListener('run.start', (e) => {
+      // Reset chart counter every time a fresh run starts streaming —
+      // important when the panel is reused across consecutive runs.
+      stepCounterRef.current = 0;
+      onLine(e as MessageEvent, 'run.start');
+    });
     es.addEventListener('step.start', (e) => onLine(e as MessageEvent, 'step.start'));
-    es.addEventListener('step.end',   (e) => onLine(e as MessageEvent, 'step.end'));
+    es.addEventListener('step.end',   (e) => {
+      onLine(e as MessageEvent, 'step.end');
+      // Push a sample to the live chart.
+      try {
+        const payload = (e as MessageEvent).data ? JSON.parse((e as MessageEvent).data) : {};
+        stepCounterRef.current += 1;
+        setLatestStep({
+          idx: stepCounterRef.current,
+          name: String(payload.stepName ?? payload.name ?? `step ${stepCounterRef.current}`),
+          durationMs: Number(payload.durationMs ?? payload.elapsedMs ?? 0) || 0,
+          ok: !['FAILED', 'ERROR'].includes(String(payload.status ?? '').toUpperCase()),
+        });
+      } catch { /* ignore parse errors */ }
+    });
     es.addEventListener('run.done',   (e) => {
       onLine(e as MessageEvent, 'run.done');
       /* On run completion that is FAILED/ERROR, dispatch the chatbot
@@ -221,6 +243,30 @@ export const LiveFunctionalRunPanel = ({ runId }: Props) => {
                 <Button size="sm" variant="outline" onClick={() => openRun(runId)} data-testid="live-open-detail">
                   <ExternalLink className="h-3.5 w-3.5" /> Open detail
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    // Run replay (Task 3.14) — re-uses the original run's
+                    // testSpecId + environment so the same conditions are
+                    // exercised back-to-back. Useful for flake-hunting.
+                    if (!run || !run.testSpecId || !run.workspaceId) return;
+                    try {
+                      const next = await startRun({
+                        testSpecId: run.testSpecId,
+                        workspaceId: run.workspaceId,
+                        environmentId: run.environmentId ?? undefined,
+                      });
+                      if (next?.runId) setLiveRun(next.runId);
+                    } catch (e) {
+                      console.error('Replay failed', e);
+                    }
+                  }}
+                  data-testid="live-replay-btn"
+                  title="Re-run with the same spec and environment"
+                >
+                  <RotateCw className="h-3.5 w-3.5" /> Replay
+                </Button>
                 <Button size="sm" variant="primary" onClick={() => setLiveRun(null)} data-testid="live-start-another">
                   <Plus className="h-3.5 w-3.5" /> Start another
                 </Button>
@@ -262,6 +308,26 @@ export const LiveFunctionalRunPanel = ({ runId }: Props) => {
               )} style={{ width: '40%' }} />}
         </div>
       </div>
+
+      {/* Live charts — step durations + pass-rate over time. Shows up
+          regardless of run state so the user can review charts on
+          completed runs too (the chart simply stops appending). */}
+      <div className="border-b border-border px-6 py-4">
+        <LiveFunctionalRunChart latest={latestStep} resetKey={runId} />
+      </div>
+
+      {/* Endpoint grid — shows once the run reaches a terminal state.
+          Hidden during RUNNING so we don't spam Mongo while ticks fly. */}
+      {isTerminal && runId && (
+        <div className="border-b border-border px-6 py-4" data-testid="endpoint-grid-section">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            Per-endpoint breakdown
+          </div>
+          <div className="rounded-lg border border-border/60 bg-probestack-bg/30">
+            <EndpointGridTable runId={runId} />
+          </div>
+        </div>
+      )}
 
       {/* Stream feed */}
       <div className="px-6 py-4" data-testid="live-stream-feed">

@@ -1,35 +1,44 @@
 // @ts-nocheck — legacy landing component ported 1:1 from the approved zip.
-import { useScrollReveal } from '@/hooks/useScrollReveal';
-import { ShoppingCart, Landmark, Heart, Cloud, ArrowUpRight, Image as ImageIcon } from 'lucide-react';
+import { useScrollReveal } from "@/hooks/useScrollReveal";
+import {
+  ShoppingCart,
+  Landmark,
+  Heart,
+  Cloud,
+  ArrowUpRight,
+  Image as ImageIcon,
+} from "lucide-react";
 
 const useCases = [
   {
     icon: ShoppingCart,
-    title: 'E-Commerce',
-    desc: 'Validate checkout flows, payment gateways, inventory APIs, and order management endpoints across multiple environments.',
-    image: 'https://www.export.org.uk/media/cvb9zpgu/ECommerce.jpg',
-    accent: '#ff5b1f',
+    title: "E-Commerce",
+    desc: "Validate checkout flows, payment gateways, inventory APIs, and order management endpoints across multiple environments.",
+    image: "https://www.export.org.uk/media/cvb9zpgu/ECommerce.jpg",
+    accent: "#ff5b1f",
   },
   {
     icon: Landmark,
-    title: 'Financial Services',
-    desc: 'Ensure transaction APIs meet compliance standards with automated security scanning and rate-limit testing.',
-    image: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=800&q=80',
-    accent: '#4a9fff',
+    title: "Financial Services",
+    desc: "Ensure transaction APIs meet compliance standards with automated security scanning and rate-limit testing.",
+    image:
+      "https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=800&q=80",
+    accent: "#4a9fff",
   },
   {
     icon: Heart,
-    title: 'Healthcare',
-    desc: 'Test HIPAA-compliant APIs, patient data endpoints, and interoperability standards with comprehensive audit trails.',
-    image: 'https://www.bitlyft.com/hubfs/medical-technology.jpg',
-    accent: '#1fbf9a',
+    title: "Healthcare",
+    desc: "Test HIPAA-compliant APIs, patient data endpoints, and interoperability standards with comprehensive audit trails.",
+    image: "https://www.bitlyft.com/hubfs/medical-technology.jpg",
+    accent: "#1fbf9a",
   },
   {
     icon: Cloud,
-    title: 'SaaS Platforms',
-    desc: 'Monitor multi-tenant API performance, test webhook deliveries, and validate OAuth flows at scale.',
-    image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&q=80',
-    accent: '#c084fc',
+    title: "SaaS Platforms",
+    desc: "Monitor multi-tenant API performance, test webhook deliveries, and validate OAuth flows at scale.",
+    image:
+      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&q=80",
+    accent: "#c084fc",
   },
 ];
 
@@ -41,11 +50,19 @@ function ImagePlaceholder({ accent }) {
   );
 }
 
-function UseCaseCard({ icon: Icon, title, desc, image, accent, isVisible, index }) {
+function UseCaseCard({
+  icon: Icon,
+  title,
+  desc,
+  image,
+  accent,
+  isVisible,
+  index,
+}) {
   return (
     <div
-      data-testid={`usecase-${title.toLowerCase().replace(/\s+/g, '-')}`}
-      className={`group relative rounded-2xl overflow-hidden landing-card-bg border border-border hover:border-[${accent}]/40 transition-all duration-500 ${isVisible ? 'animate-slide-in-bottom' : 'opacity-0 translate-y-8'}`}
+      data-testid={`usecase-${title.toLowerCase().replace(/\s+/g, "-")}`}
+      className={`group relative rounded-2xl overflow-hidden landing-card-bg border border-border hover:border-[${accent}]/40 transition-all duration-500 ${isVisible ? "animate-slide-in-bottom" : "opacity-0 translate-y-8"}`}
       style={{ animationDelay: `${index * 0.12}s` }}
     >
       {/* Image area */}
@@ -55,11 +72,11 @@ function UseCaseCard({ icon: Icon, title, desc, image, accent, isVisible, index 
           alt={title}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           onError={(e) => {
-            e.target.style.display = 'none';
-            e.target.nextElementSibling.style.display = 'flex';
+            e.target.style.display = "none";
+            e.target.nextElementSibling.style.display = "flex";
           }}
         />
-        <div className="w-full h-full hidden" style={{ display: 'none' }}>
+        <div className="w-full h-full hidden" style={{ display: "none" }}>
           <ImagePlaceholder accent={accent} />
         </div>
         {/* Gradient overlay */}
@@ -67,7 +84,11 @@ function UseCaseCard({ icon: Icon, title, desc, image, accent, isVisible, index 
         {/* Icon badge */}
         <div
           className="absolute top-3 left-3 w-9 h-9 rounded-lg flex items-center justify-center backdrop-blur-md border"
-          style={{ background: `${accent}20`, borderColor: `${accent}30`, color: accent }}
+          style={{
+            background: `${accent}20`,
+            borderColor: `${accent}30`,
+            color: accent,
+          }}
         >
           <Icon className="w-4 h-4" />
         </div>
@@ -75,7 +96,9 @@ function UseCaseCard({ icon: Icon, title, desc, image, accent, isVisible, index 
 
       <div className="p-5">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-base font-semibold landing-text-primary font-heading">{title}</h3>
+          <h3 className="text-base font-semibold landing-text-primary font-heading">
+            {title}
+          </h3>
           <ArrowUpRight className="w-4 h-4 landing-text-secondary opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-300" />
         </div>
         <p className="text-sm landing-text-secondary leading-relaxed">{desc}</p>
@@ -88,10 +111,19 @@ export default function UseCases() {
   const [ref, isVisible] = useScrollReveal();
 
   return (
-    <section data-testid="use-cases-section" ref={ref} className="relative z-10 py-20 border-b border-border">
+    <section
+      data-testid="use-cases-section"
+      ref={ref}
+      className="relative z-10 py-20 border-b border-border"
+    >
       <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24">
-        <div className={`text-center mb-12 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-          <h2 data-testid="use-cases-title" className="text-3xl font-bold landing-text-primary font-heading">
+        <div
+          className={`text-center mb-12 ${isVisible ? "animate-fade-in-up" : "opacity-0"}`}
+        >
+          <h2
+            data-testid="use-cases-title"
+            className="text-3xl font-bold landing-text-primary font-heading"
+          >
             Built for Every Industry
           </h2>
           <p className="text-sm landing-text-secondary mt-2 max-w-lg mx-auto">
@@ -101,7 +133,12 @@ export default function UseCases() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {useCases.map((uc, i) => (
-            <UseCaseCard key={uc.title} {...uc} isVisible={isVisible} index={i} />
+            <UseCaseCard
+              key={uc.title}
+              {...uc}
+              isVisible={isVisible}
+              index={i}
+            />
           ))}
         </div>
       </div>

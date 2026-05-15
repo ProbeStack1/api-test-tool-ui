@@ -21,7 +21,7 @@ import { useWorkspaceStore } from '@/stores/workspace.store';
 import { cn } from '@/utils/cn';
 
 function localUserId(): string {
-  const k = 'forgeq.support.localUserId';
+  const k = 'ForgeFuzz.support.localUserId';
   let v = localStorage.getItem(k);
   if (!v) { v = crypto.randomUUID(); localStorage.setItem(k, v); }
   return v;

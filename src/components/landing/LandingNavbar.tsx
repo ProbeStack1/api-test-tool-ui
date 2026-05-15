@@ -20,8 +20,8 @@ const NAV: NavItem[] = [
   { label: 'Product',   to: '/#pillars', isHash: true },
   { label: 'Solutions', to: '/solutions' },
   { label: 'Pricing',   to: '/pricing' },
-  { label: 'Docs',      to: '/docs/customer-api-v1' },
-  { label: 'Changelog', to: '/changelog' },
+  { label: 'Docs',      to: '/api-hub' },
+  // { label: 'Changelog', to: '/changelog' },
 ];
 
 export const LandingNavbar = () => {
@@ -47,7 +47,7 @@ export const LandingNavbar = () => {
 
   const handleGoToApp = () => {
     window.scrollTo({ top: 0, behavior: 'instant' });
-    nav('/projects/collections');
+    nav('/login');
   };
 
   return (
@@ -71,7 +71,7 @@ export const LandingNavbar = () => {
               probestack
             </div>
             <div className="font-bold text-2xl tracking-normal leading-tight gradient-text">
-              ForgeQ
+              ForgeFuzz
             </div>
           </div>
         </Link>

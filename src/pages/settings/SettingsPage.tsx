@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Palette, Paintbrush, Layout as LayoutIcon,
-  Code2, Send, Keyboard, Database, Plug,
+  Code2, Send, Keyboard, Database, Plug, Globe2,
 } from 'lucide-react';
 import { useSettings } from '@/stores/settings.store';
 import { useLayout } from '@/stores/layout.store';
@@ -29,6 +29,8 @@ import { Button } from '@/components/ui/Button';
 import { Fieldset } from '@/components/ui/Fieldset';
 import { Toggle } from '@/components/ui/Toggle';
 import { SettingsTab as McpStudioSettingsPanel } from '@/components/integrations/tabs/SettingsTab';
+import { COMMON_TIMEZONES, fmtDateTime } from '@/lib/timezone';
+import { useGlobalTimezone } from '@/hooks/useGlobalTimezone';
 import { cn } from '@/utils/cn';
 import { formatCombo } from '@/hooks/useShortcut';
 
@@ -40,12 +42,14 @@ type TabKey =
   | 'request'
   | 'shortcuts'
   | 'data'
+  | 'display'
   | 'mcp';
 
 const TABS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'appearance', label: 'Appearance', icon: Palette },
   { key: 'colors',     label: 'Colors',     icon: Paintbrush },
   { key: 'layout',     label: 'Layout',     icon: LayoutIcon },
+  { key: 'display',    label: 'Display',    icon: Globe2 },
   { key: 'editor',     label: 'Editor',     icon: Code2 },
   { key: 'request',    label: 'Request',    icon: Send },
   { key: 'shortcuts',  label: 'Shortcuts',  icon: Keyboard },
@@ -106,6 +110,7 @@ export const SettingsPage = () => {
           {tab === 'request'    && <RequestPanel />}
           {tab === 'shortcuts'  && <ShortcutsPanel />}
           {tab === 'data'       && <DataPanel />}
+          {tab === 'display'    && <DisplayPanel />}
           {tab === 'mcp'        && <McpPanel />}
         </div>
       </section>
@@ -605,3 +610,51 @@ const McpPanel = () => (
     </div>
   </div>
 );
+
+/* ───── Display panel ───────────────────────────────────────────────
+ * Global UX preferences that affect how data is rendered across the
+ * whole app. Today we only host the timezone picker here, which feeds
+ * every `fmtDateTime / fmtRelative / fmtDate` call.
+ * ────────────────────────────────────────────────────────────────── */
+const DisplayPanel = () => {
+  const [zone, setZone] = useGlobalTimezone();
+  const now = new Date();
+  return (
+    <div className="rounded-2xl border border-border bg-surface/40 p-6" data-testid="settings-display-panel">
+      <header className="mb-5 border-b border-border pb-4">
+        <h2 className="text-xl font-bold tracking-tight">Display</h2>
+        <p className="mt-1 text-xs text-text-secondary">
+          How dates, times, and units are rendered throughout the app.
+        </p>
+      </header>
+
+      <Fieldset label="Timezone">
+        <p className="mb-3 text-[11px] text-text-secondary">
+          All run history, audit logs and KPIs across the app respect this setting. Defaults to your browser's local time.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            data-testid="settings-timezone-select"
+            value={zone}
+            onChange={(e) => setZone(e.target.value)}
+            className="h-9 rounded-md border border-border bg-probestack-bg px-3 text-sm outline-none focus:border-primary"
+          >
+            {/* If the user is already on a non-listed zone (e.g. their browser
+                returned `America/Toronto` and that's not in COMMON_TIMEZONES),
+                show it as the first option so the select still reflects reality. */}
+            {!COMMON_TIMEZONES.some((z) => z.id === zone) && (
+              <option value={zone}>{zone} (current)</option>
+            )}
+            {COMMON_TIMEZONES.map((z) => (
+              <option key={z.id} value={z.id}>{z.label}</option>
+            ))}
+          </select>
+          <span className="rounded-md border border-border bg-elevated/40 px-3 py-1.5 font-mono text-xs text-text-secondary">
+            Preview: <b data-testid="settings-timezone-preview">{fmtDateTime(now, zone)}</b>
+          </span>
+        </div>
+      </Fieldset>
+    </div>
+  );
+};
+

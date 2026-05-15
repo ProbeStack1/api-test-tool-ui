@@ -70,7 +70,7 @@ export const SupportTicketPage = () => {
               </section>
 
               <section className="rounded-lg border border-dashed border-border bg-elevated/40 p-5 text-center text-[11px] text-text-muted" data-testid="support-ticket-thread-placeholder">
-                Replies from the ForgeQ team will land here once a support engineer picks up your ticket.
+                Replies from the ForgeFuzz team will land here once a support engineer picks up your ticket.
               </section>
             </>
           )}

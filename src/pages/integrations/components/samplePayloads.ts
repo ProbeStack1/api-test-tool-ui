@@ -157,7 +157,7 @@ export const samplePayloads: Record<string, object> = {
       action: 'collection.deleted',
       target: { kind: 'collection', id: 'col_7abc…', name: 'Legacy v1 APIs' },
       ipAddress: '203.0.113.42',
-      userAgent: 'ForgeQ-Web/1.0',
+      userAgent: 'ForgeFuzz-Web/1.0',
     },
   },
 };

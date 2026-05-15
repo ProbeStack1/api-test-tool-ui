@@ -25,6 +25,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { Dropdown, DropdownItem, DropdownSep, DropdownLabel } from '@/components/ui/DropdownMenu';
 import { useRowContextMenu } from '@/components/ui/RowContextMenu';
 import type { RowContextItem } from '@/components/ui/RowContextMenu';
+import { CollectionRunDrawer } from '@/components/collection-runner/CollectionRunDrawer';
 import { cn } from '@/utils/cn';
 import { SidebarShell, ActionButton, SearchInput } from './SidebarShell';
 import { useRequests, type RequestMethod } from '@/stores/requests.store';
@@ -588,6 +589,9 @@ const CollectionNode = ({
 }: any) => {
   const ws = useWorkspaceStore((s) => s.current);
   const [shareOpen, setShareOpen] = useState(false);
+  /** Right-click → Run · top-right menu → Run · open the lightweight
+   *  Postman-style sequential runner drawer. */
+  const [runnerOpen, setRunnerOpen] = useState(false);
   const { data: folders = [], isLoading: foldersLoading } = useQuery({
     queryKey: ['folders', collection.id],
     queryFn: () => listFolders(collection.id),
@@ -685,7 +689,7 @@ const CollectionNode = ({
           <DropdownItem icon={FolderPlus} onClick={() => { if (!expanded) onToggle(); setNewInline({ parent: `col:${collection.id}`, type: 'folder' }); }}>Add folder</DropdownItem>
           <DropdownItem icon={FileText} onClick={() => { if (!expanded) onToggle(); setNewInline({ parent: `col:${collection.id}`, type: 'request' }); }}>Add request</DropdownItem>
           <DropdownSep />
-          <DropdownItem icon={PlayCircle} onClick={() => toast.info('Collection runner is scheduled for Phase 4')}>Run</DropdownItem>
+          <DropdownItem icon={PlayCircle} onClick={() => setRunnerOpen(true)}>Run</DropdownItem>
           <DropdownItem icon={BookOpen} onClick={async () => {
             try {
               toast.message('Generating API documentation…');
@@ -710,7 +714,7 @@ const CollectionNode = ({
           <DropdownItem icon={Pencil} onClick={() => setEditing(collection.id)}>Rename</DropdownItem>
           <DropdownSep />
           <DropdownLabel>Export as</DropdownLabel>
-          <DropdownItem icon={Download} onClick={() => onExport('FORGEQ', 'ForgeQ JSON')}>ForgeQ JSON (lossless)</DropdownItem>
+          <DropdownItem icon={Download} onClick={() => onExport('FORGEQ', 'ForgeFuzz JSON')}>ForgeFuzz JSON (lossless)</DropdownItem>
           <DropdownItem icon={Download} onClick={() => onExport('POSTMAN_V2_1', 'Postman v2.1')}>Postman v2.1</DropdownItem>
           <DropdownItem icon={Download} onClick={() => onExport('OPENAPI_3', 'OpenAPI 3.0')}>OpenAPI 3.0</DropdownItem>
           <DropdownItem icon={Download} onClick={() => onExport('INSOMNIA_V4', 'Insomnia v4')}>Insomnia v4</DropdownItem>
@@ -740,12 +744,34 @@ const CollectionNode = ({
             toast.error(e?.message ?? 'Failed to generate documentation');
           }
         };
+        const runAsTest = async () => {
+          // Task 3.11 — Collection runner. Spins up a functional run
+          // that uses this collection as the request source. The
+          // backend already understands `collectionId` on the start-run
+          // body; we just need to wire it from the sidebar.
+          try {
+            const { startRun } = await import('@/services/functionalTest.service');
+            toast.message('Starting test run from collection…');
+            const r = await startRun({
+              workspaceId: collection.workspaceId,
+              collectionId: collection.id,
+              triggeredBy: 'COLLECTION_SIDEBAR',
+            } as any);
+            if (r?.runId) {
+              toast.success('Run started');
+              window.location.assign(`/projects/testing?runId=${r.runId}`);
+            }
+          } catch (e: any) {
+            toast.error(e?.message ?? 'Failed to start run');
+          }
+        };
         return [
           { groupLabel: 'Collection' },
           { icon: FolderPlus, label: 'Add folder',  onClick: () => { if (!expanded) onToggle(); setNewInline({ parent: `col:${collection.id}`, type: 'folder' }); } },
           { icon: FileText,   label: 'Add request', onClick: () => { if (!expanded) onToggle(); setNewInline({ parent: `col:${collection.id}`, type: 'request' }); } },
           { separator: true },
-          { icon: PlayCircle, label: 'Run',                          onClick: () => toast.info('Collection runner is scheduled for Phase 4') },
+          { icon: PlayCircle, label: 'Run',         onClick: () => setRunnerOpen(true) },
+          { icon: PlayCircle, label: 'Run as test', onClick: runAsTest },
           { icon: BookOpen,   label: 'Generate API documentation',   onClick: generateDocs },
           { icon: Share2,     label: 'Share',                        onClick: onShare },
           { separator: true },
@@ -753,7 +779,7 @@ const CollectionNode = ({
           { icon: Pencil,     label: 'Rename', onClick: () => setEditing(collection.id) },
           { separator: true },
           { groupLabel: 'Export as' },
-          { icon: Download, label: 'ForgeQ JSON (lossless)',     onClick: () => onExport('FORGEQ', 'ForgeQ JSON') },
+          { icon: Download, label: 'ForgeFuzz JSON (lossless)',     onClick: () => onExport('FORGEQ', 'ForgeFuzz JSON') },
           { icon: Download, label: 'Postman v2.1',               onClick: () => onExport('POSTMAN_V2_1', 'Postman v2.1') },
           { icon: Download, label: 'OpenAPI 3.0',                onClick: () => onExport('OPENAPI_3', 'OpenAPI 3.0') },
           { icon: Download, label: 'Insomnia v4',                onClick: () => onExport('INSOMNIA_V4', 'Insomnia v4') },
@@ -840,6 +866,13 @@ const CollectionNode = ({
         entityId={collection.id}
         entityName={collection.name}
         onClose={() => setShareOpen(false)}
+      />
+    )}
+    {runnerOpen && (
+      <CollectionRunDrawer
+        collectionId={collection.id}
+        collectionName={collection.name}
+        onClose={() => setRunnerOpen(false)}
       />
     )}
   </>

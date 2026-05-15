@@ -62,7 +62,12 @@ export interface RunConfig {
   captureResponseBody?: boolean;
   iterations?: number;
   dataFileGcs?: string;
+  dataFileId?: string;
   regions?: string[];
+  /** Pre-step JS snippet — runs before each step. Access: request, vars, env. */
+  preScript?: string;
+  /** Post-step JS snippet — runs after each step. Access: request, response, vars, pm.test(). */
+  postScript?: string;
 }
 
 export interface AssertionOutcome {

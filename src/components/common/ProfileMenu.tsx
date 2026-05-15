@@ -40,7 +40,7 @@ export const ProfileMenu = () => {
         )}
       >
         <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs text-text-secondary">
-          Signed in as <span className="text-text-primary">you@forgeq.dev</span>
+          Signed in as <span className="text-text-primary">you@forgefuzz.dev</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>

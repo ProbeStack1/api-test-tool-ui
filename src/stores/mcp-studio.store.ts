@@ -12,7 +12,7 @@ import { persist } from 'zustand/middleware';
 export type StudioTab =
   | 'servers' | 'inspector' | 'collections'
   | 'mocks'   | 'rest'      | 'aigen'
-  | 'history';
+  | 'history' | 'analytics' | 'health';
 
 export type CatalogLicense    = 'ANY' | 'OPEN_SOURCE' | 'PROPRIETARY';
 export type CatalogPricing    = 'ANY' | 'FREE' | 'FREEMIUM' | 'PAID';

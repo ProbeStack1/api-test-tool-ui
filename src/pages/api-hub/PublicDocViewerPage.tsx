@@ -38,7 +38,7 @@ export const PublicDocViewerPage = () => {
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
         <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight" data-testid="viewer-brand">
           <Logo variant="mark" className="h-6 w-6" />
-          <span>ForgeQ</span>
+          <span>ForgeFuzz</span>
         </Link>
         <ThemeToggle />
       </header>
@@ -118,7 +118,7 @@ export const PublicDocViewerPage = () => {
 
       <footer className="border-t border-border bg-surface/40 py-6">
         <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-3 px-6 text-xs text-text-muted sm:flex-row">
-          <span>Powered by ForgeQ</span>
+          <span>Powered by ForgeFuzz</span>
           <Link
             to="/api-hub"
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"

@@ -100,7 +100,7 @@ export const SolutionsPage = () => {
             One platform. Five teams. Zero hand-offs.
           </h1>
           <p className="text-text-secondary text-base md:text-lg leading-relaxed">
-            ForgeQ collapses what used to be Postman + k6 + Burp + Jira + Datadog into a single
+            ForgeFuzz collapses what used to be Postman + k6 + Burp + Jira + Datadog into a single
             workspace — so QA, Devs, SRE, Security and PMs share the same artefact instead of
             re-typing it.
           </p>
@@ -177,7 +177,7 @@ export const SolutionsPage = () => {
             Not sure which one is you?
           </h3>
           <p className="text-text-secondary mb-6">
-            Most ForgeQ teams use every pillar in their first month. Start free, see what sticks.
+            Most ForgeFuzz teams use every pillar in their first month. Start free, see what sticks.
           </p>
           <button
             data-testid="solutions-final-cta"

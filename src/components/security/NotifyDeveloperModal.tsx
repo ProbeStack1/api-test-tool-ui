@@ -46,7 +46,7 @@ export function NotifyDeveloperModal({
   finding,
   scannedUrl,
   defaultTo = [],
-  appName = 'ForgeQ',
+  appName = 'ForgeFuzz',
   onClose,
 }: Props) {
   const [to, setTo] = useState<string>(defaultTo.join(', '));

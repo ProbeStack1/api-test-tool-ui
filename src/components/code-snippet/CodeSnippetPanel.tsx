@@ -33,7 +33,7 @@ import { FancyEmpty } from '@/components/common/FancyEmpty';
 import { AppIcon } from '@/components/icons/AppIcons';
 import { cn } from '@/utils/cn';
 
-const LS_KEY = 'forgeq.snippetTarget.v1';
+const LS_KEY = 'ForgeFuzz.snippetTarget.v1';
 
 /* =========================================================================
  *  Language registry

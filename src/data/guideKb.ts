@@ -235,7 +235,7 @@ export const GUIDE_KB: GuideCategory[] = [
       {
         id: 'ai-assisted',
         title: 'Use the AI Assisted tab',
-        summary: 'Dedicated multi-session chat with the AI — like a mini ChatGPT inside ForgeQ.',
+        summary: 'Dedicated multi-session chat with the AI — like a mini ChatGPT inside ForgeFuzz.',
         steps: [
           'Click the Sparkles icon in the left feature rail (AI Assisted).',
           'Start typing immediately — first send auto-creates a session.',

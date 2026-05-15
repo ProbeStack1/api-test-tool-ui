@@ -34,7 +34,7 @@ const PILLARS: Pillar[] = [
       'Import Postman v2.1 · OpenAPI 3 · HAR · cURL',
       'Drag-to-reorder, bulk clone / move / archive',
     ],
-    code: '$ forgeq import postman_collection.json',
+    code: '$ forgefuzz import postman_collection.json',
   },
   {
     icon: GitBranch,
@@ -59,7 +59,7 @@ const PILLARS: Pillar[] = [
       'Handlebars: {{path.id}} · {{body.field}} · {{now}}',
       'Latency simulation + hit-log capture',
     ],
-    code: 'GET https://forgeq.probestack.io/mock/abc/users/42',
+    code: 'GET https://forgefuzz.probestack.io/mock/abc/users/42',
   },
   {
     icon: FileCode,

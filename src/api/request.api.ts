@@ -260,6 +260,43 @@ export const apiGetRun = (runId: string) =>
 export const apiReplayRun = (runId: string) =>
   http.post<ExecutionResultDto>(`${BASE}/runs/${runId}/replay`).then((r) => r.data);
 
+/** Workspace-wide history list — drives the global History tab. */
+export interface WorkspaceHistoryFilter {
+  workspaceId?: string;
+  method?: string;
+  status?: 'success' | 'failed';
+  q?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  size?: number;
+}
+export interface WorkspaceHistoryStats {
+  total: number;
+  success: number;
+  failed: number;
+  successRate: number;
+  series: Array<{ date: string; total: number; success: number; failed: number }>;
+}
+export const apiListWorkspaceRuns = (filter: WorkspaceHistoryFilter = {}) => {
+  const params: Record<string, any> = { ...filter };
+  Object.keys(params).forEach((k) => params[k] === undefined && delete params[k]);
+  return http
+    .get<RunHistoryPage | RunHistoryRow[]>(`${BASE}/runs`, { params })
+    .then((r) => r.data);
+};
+
+export const apiWorkspaceRunStats = (
+  filter: Pick<WorkspaceHistoryFilter, 'workspaceId' | 'fromDate' | 'toDate'> = {},
+) => {
+  const params: Record<string, any> = { ...filter };
+  Object.keys(params).forEach((k) => params[k] === undefined && delete params[k]);
+  return http.get<WorkspaceHistoryStats>(`${BASE}/runs/stats`, { params }).then((r) => r.data);
+};
+
+export const apiClearWorkspaceRuns = (workspaceId: string) =>
+  http.delete<number>(`${BASE}/runs`, { params: { workspaceId } }).then((r) => r.data);
+
 /* =========================== execution =================================== */
 export const apiExecuteRequest = (
   id: string,

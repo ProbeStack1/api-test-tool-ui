@@ -30,9 +30,10 @@ import { type CodeLanguage } from '@/components/editor/CodeEditor';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { LiveExecutionView, LiveStepperStrip } from './LiveExecutionView';
 import { useStreamStore } from '@/stores/stream.store';
-import { saveResponse, replayRun } from '@/services/request.service';
+import { saveResponse, replayRun, requestHistory } from '@/services/request.service';
 import { useRunsStore } from '@/stores/runs.store';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fmtDateTime, fmtRelative } from '@/lib/timezone';
 import type { ExecutionResult } from '@/services/request.service';
 
 const useStreamStoreSel = (tabId?: string) =>
@@ -262,7 +263,7 @@ export const ResponsePanel = ({
           <div className="absolute inset-0 overflow-auto"><HeadersView headers={headers} /></div>
         )}
         {outer === 'Logs'              && (
-          <div className="absolute inset-0 overflow-auto"><LogsView result={result} sending={sending} tabId={tabId} /></div>
+          <div className="absolute inset-0 overflow-auto"><LogsView result={result} sending={sending} tabId={tabId} requestId={requestId} /></div>
         )}
         {outer === 'Validation Results' && (
           <div className="absolute inset-0 overflow-auto"><ValidationView result={result} /></div>
@@ -408,16 +409,63 @@ const HeadersView = ({ headers }: { headers: { key: string; value: string }[] })
   </div>
 );
 
-/* Logs tab — expandable history cards. Each row represents one
- * execution from the *current session* (we store them locally per tab,
- * up to 20). Clicking a row reveals the full request + response
- * payloads with a collapse animation. The "Replay" button on each row
- * fires `POST /runs/{runId}/replay` server-side so the request is
- * re-executed with the EXACT environment + variables that were resolved
- * at the original send time.
+/* Logs tab — expandable history cards. Sources:
+ *   • In-memory session log for the current tab (instant, ad-hoc requests).
+ *   • Persistent backend history for the saved request (when `requestId`
+ *     is present) — fetched via `GET /api/v1/requests/{id}/runs`.
+ * The two are merged, de-duplicated by runId, and sorted by `runAt` desc
+ * so the user sees ALL past executions of this exact request — even those
+ * made from another browser / teammate.
+ *
+ * The "Replay" pill on each row fires `POST /runs/{runId}/replay` so the
+ * server re-executes the EXACT snapshot (auth, env vars, headers, body,
+ * scripts) that was originally captured.
  */
-const LogsView = ({ result, sending, tabId }: { result: ExecutionResult | null; sending: boolean; tabId?: string }) => {
-  const history = useRunHistory(tabId);
+const LogsView = ({ result, sending, tabId, requestId }: { result: ExecutionResult | null; sending: boolean; tabId?: string; requestId?: string }) => {
+  const sessionHistory = useRunHistory(tabId);
+
+  /* Pull the last 50 server-side runs for this saved request. Polling
+   * cheaply at 20s keeps it fresh when teammates are running things. */
+  const backendQ = useQuery({
+    queryKey: ['request-runs', requestId],
+    enabled:  !!requestId,
+    queryFn:  () => requestHistory(requestId as string, 0, 50),
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: false,
+  });
+
+  /* Merge → de-dupe → sort. Session runs win on conflict (have more
+   * up-to-date in-memory data such as live phases).  */
+  const history = useMemo(() => {
+    const map = new Map<string, any>();
+    const data: any = backendQ.data;
+    const backendRows: any[] = Array.isArray(data) ? data : (data?.content ?? []);
+    backendRows.forEach((r) => {
+      const ms = (r.network as any)?.totalMs ?? (r as any).total_ms ?? r.totalMs ?? 0;
+      const snap = r.snapshot ?? {};
+      const resp = r.response ?? {};
+      map.set(r.id, {
+        runId: r.id,
+        method:    snap.method ?? r.method ?? 'GET',
+        finalUrl:  snap.finalUrl ?? snap.final_url ?? snap.url?.raw ?? '',
+        response: {
+          statusCode:  resp.httpStatus ?? resp.http_status,
+          statusText:  resp.statusText ?? resp.status_text,
+          headers:     resp.headers ?? [],
+          body:        resp.body ?? '',
+          sizeBytes:   resp.bodyBytes ?? resp.body_bytes ?? 0,
+        },
+        sentHeaders:  snap.userHeaders ?? snap.user_headers ?? [],
+        sentBody:     snap.body ?? '',
+        totalMs:      ms,
+        runAt:        r.runAt ?? r.run_at ?? '',
+        _source:      'backend',
+      });
+    });
+    sessionHistory.forEach((r) => map.set(r.runId, { ...r, _source: 'session' }));
+    return Array.from(map.values()).sort((a, b) => (a.runAt < b.runAt ? 1 : -1));
+  }, [sessionHistory, backendQ.data]);
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [replaying, setReplaying] = useState<string | null>(null);
   if (sending && history.length === 0) return <Empty>Streaming…</Empty>;
@@ -434,6 +482,7 @@ const LogsView = ({ result, sending, tabId }: { result: ExecutionResult | null; 
       const fresh = await replayRun(runId);
       pushRunHistory(tabId, fresh);
       useRunsStore.getState().setResult(tabId || 'default', fresh);
+      backendQ.refetch();
       toast.success(`Replayed · ${fresh.response?.statusCode ?? '—'} · ${fresh.totalMs ?? 0} ms`);
     } catch (err: any) {
       toast.error(err?.message ?? 'Replay failed');
@@ -454,7 +503,10 @@ const LogsView = ({ result, sending, tabId }: { result: ExecutionResult | null; 
               <span className={cn('shrink-0 rounded px-2 py-0.5 font-mono text-[10px] font-bold', cls)}>{code} {run.method}</span>
               <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary">{run.finalUrl}</span>
               <span className="shrink-0 font-mono text-[10px] text-text-muted">{run.totalMs} ms · {fmtBytes(run.response?.sizeBytes ?? 0)}</span>
-              <span className="shrink-0 text-[10px] text-text-muted">{relTime(run.runAt)}</span>
+              <span className="shrink-0 text-[10px] text-text-muted" title={fmtDateTime(run.runAt)}>{fmtRelative(run.runAt)}</span>
+              {run._source === 'backend' && (
+                <span className="shrink-0 rounded border border-border bg-elevated/40 px-1 py-px font-mono text-[8px] uppercase tracking-wider text-text-muted">DB</span>
+              )}
               <span
                 role="button"
                 tabIndex={0}
@@ -476,7 +528,7 @@ const LogsView = ({ result, sending, tabId }: { result: ExecutionResult | null; 
                 <div>
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">Request Headers</div>
                   <pre className="max-h-40 overflow-auto rounded border border-border bg-surface p-2 font-mono text-text-primary">
-{(run.sentHeaders || []).map((h) => `${h.key}: ${h.value}`).join('\n') || '—'}
+{(run.sentHeaders || []).map((h: any) => `${h.key}: ${h.value}`).join('\n') || '—'}
                   </pre>
                   <div className="mt-2 mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">Request Body</div>
                   <pre className="max-h-40 overflow-auto rounded border border-border bg-surface p-2 font-mono text-text-primary">{run.sentBody || '—'}</pre>
@@ -484,7 +536,7 @@ const LogsView = ({ result, sending, tabId }: { result: ExecutionResult | null; 
                 <div>
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">Response Headers</div>
                   <pre className="max-h-40 overflow-auto rounded border border-border bg-surface p-2 font-mono text-text-primary">
-{(run.response?.headers || []).map((h) => `${h.key}: ${h.value}`).join('\n') || '—'}
+{(run.response?.headers || []).map((h: any) => `${h.key}: ${h.value}`).join('\n') || '—'}
                   </pre>
                   <div className="mt-2 mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">Response Body</div>
                   <pre className="max-h-40 overflow-auto rounded border border-border bg-surface p-2 font-mono text-text-primary">{(run.response?.body || '—').slice(0, 4000)}</pre>

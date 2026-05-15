@@ -15,7 +15,7 @@ import {
 interface Props { spec: TestSpec }
 
 const CARDS: { fmt: ExportFormat; icon: any; tone: string; description: string }[] = [
-  { fmt: 'FORGEQ',   icon: Layers,    tone: 'text-primary',         description: 'Native ForgeQ JSON — round-trips losslessly with this app.' },
+  { fmt: 'FORGEQ',   icon: Layers,    tone: 'text-primary',         description: 'Native ForgeFuzz JSON — round-trips losslessly with this app.' },
   { fmt: 'POSTMAN',  icon: Server,    tone: 'text-orange-400',     description: 'Postman v2.1 collection — drop straight into Postman or Newman.' },
   { fmt: 'OPENAPI',  icon: FileJson,  tone: 'text-blue-400',       description: 'OpenAPI 3.0 YAML — paste into Swagger UI or codegen.' },
   { fmt: 'INSOMNIA', icon: FileCog,   tone: 'text-purple-400',     description: 'Insomnia v4 export — open in Insomnia / Kong portal.' },

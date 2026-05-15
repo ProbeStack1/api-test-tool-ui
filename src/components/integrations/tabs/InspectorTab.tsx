@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity, Plug, PlugZap, Wrench, FileText, MessageSquare, Send, Loader2,
-  AlertTriangle, CheckCircle2, ChevronDown, ArrowRight,
+  AlertTriangle, CheckCircle2, ChevronDown, ArrowRight, History as ClockHistoryIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +20,7 @@ import {
 } from '@/services/mcp.service';
 import { useMcpStudioStore } from '@/stores/mcp-studio.store';
 import { cn } from '@/utils/cn';
+import { ToolAuditTrail } from '@/components/integrations/parts/ToolAuditTrail';
 
 type SubTab = 'tools' | 'resources' | 'prompts';
 
@@ -46,6 +47,7 @@ export const InspectorTab = () => {
   const [callRes, setCallRes] = useState<any>(null);
   const [callMs, setCallMs] = useState<number | null>(null);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] } | null>(null);
+  const [showAudit, setShowAudit] = useState(false);
 
   // Resources / prompts state
   const [resources, setResources] = useState<McpResource[]>([]);
@@ -308,8 +310,19 @@ export const InspectorTab = () => {
                         requires: {(pickedTool.inputSchema.required as string[]).join(', ')}
                       </span>
                     )}
+                    <button
+                      data-testid="inspector-tool-audit"
+                      onClick={() => setShowAudit((v) => !v)}
+                      className="ml-auto flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-hover/40"
+                      title="Show recent calls of this tool"
+                    >
+                      <ClockHistoryIcon className="h-3 w-3" /> Audit trail
+                    </button>
                   </div>
                   {pickedTool.description && <p className="mt-1 text-[11px] text-text-muted">{pickedTool.description}</p>}
+                  {showAudit && server && (
+                    <ToolAuditTrail serverId={server.id} toolName={pickedTool.name} />
+                  )}
                 </div>
                 <div className="grid h-full min-h-0 grid-rows-[1fr_auto_1fr] divide-y divide-border">
                   {/* Args editor */}

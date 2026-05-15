@@ -79,7 +79,7 @@ export const PublicHubPage = () => {
               probestack
             </div>
             <div className="font-semibold text-xl tracking-tight leading-tight gradient-text">
-              ForgeQ
+              ForgeFuzz
             </div>
           </div>
         </Link>
@@ -119,7 +119,7 @@ export const PublicHubPage = () => {
             Browse the world&rsquo;s <span className="text-primary">public APIs</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-pretty text-base text-text-secondary sm:text-lg">
-            Every documentation page builders publish on ForgeQ shows up here. Search, read, copy
+            Every documentation page builders publish on ForgeFuzz shows up here. Search, read, copy
             request snippets, and try endpoints &mdash; no account needed.
           </p>
 

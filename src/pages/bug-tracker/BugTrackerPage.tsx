@@ -20,9 +20,10 @@
  */
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Bug as BugIcon, Plus, RefreshCw, Send, X, Loader2 } from 'lucide-react';
+import { Bug as BugIcon, Plus, RefreshCw, Send, X, Loader2, List, LayoutGrid } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
+import { BugTrackerKanban } from './BugTrackerKanban';
 
 const BASE = `${serviceUrl('functionalTest')}/api/v1/functional-tests/bugs`;
 
@@ -71,6 +72,8 @@ export const BugTrackerPage = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  // View mode toggle — list (existing layout) or kanban (new board view).
+  const [view, setView] = useState<'list' | 'kanban'>('list');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -103,6 +106,30 @@ export const BugTrackerPage = () => {
         <button data-testid="bug-refresh" onClick={fetchAll} className="ml-auto rounded p-1 hover:bg-hover" title="Refresh">
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
         </button>
+        <div className="flex items-center gap-0 rounded border border-border text-xs" data-testid="bug-view-toggle">
+          <button
+            data-testid="bug-view-list"
+            onClick={() => setView('list')}
+            className={cn(
+              'flex items-center gap-1 px-2 py-1 transition-colors',
+              view === 'list' ? 'bg-primary/15 text-primary' : 'text-text-muted hover:bg-hover',
+            )}
+            title="List view"
+          >
+            <List className="h-3.5 w-3.5" /> List
+          </button>
+          <button
+            data-testid="bug-view-kanban"
+            onClick={() => setView('kanban')}
+            className={cn(
+              'flex items-center gap-1 px-2 py-1 transition-colors',
+              view === 'kanban' ? 'bg-primary/15 text-primary' : 'text-text-muted hover:bg-hover',
+            )}
+            title="Kanban board"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Kanban
+          </button>
+        </div>
         <button
           data-testid="bug-new-btn"
           onClick={() => setCreating(true)}
@@ -128,7 +155,10 @@ export const BugTrackerPage = () => {
         <FilterDropdown label="Source" value={filter.source} options={['MANUAL', 'SECURITY_SCAN', 'FUNCTIONAL_TEST', 'MONITOR', 'LOAD_TEST']} onChange={(v) => setFilter((f) => ({ ...f, source: v }))} testId="filter-source" />
       </div>
 
-      {/* Body */}
+      {/* Body — toggles between list and kanban views. */}
+      {view === 'kanban' ? (
+        <BugTrackerKanban />
+      ) : (
       <div className="flex min-h-0 flex-1">
         <ul className="w-[420px] shrink-0 overflow-y-auto border-r border-border" data-testid="bug-list">
           {bugs.map((b) => (
@@ -166,6 +196,7 @@ export const BugTrackerPage = () => {
           )}
         </div>
       </div>
+      )}
 
       {creating && <CreateBugDrawer onClose={() => setCreating(false)} onCreated={() => { setCreating(false); fetchAll(); }} />}
     </div>

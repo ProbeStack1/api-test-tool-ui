@@ -15,7 +15,7 @@ export const WorkspacePage = () => (
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-muted text-primary">
         <Rocket className="h-6 w-6" />
       </div>
-      <h2 className="mb-1 text-lg font-semibold">Welcome to ForgeQ</h2>
+      <h2 className="mb-1 text-lg font-semibold">Welcome to ForgeFuzz</h2>
       <p className="mb-4 text-sm text-text-secondary">
         Scaffold is live. Core request-builder, environments and collections land next.
       </p>

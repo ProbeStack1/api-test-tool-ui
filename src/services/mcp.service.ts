@@ -28,22 +28,29 @@ import {
   apiGenerateMcpAigenSuite,
   apiGetMcpServer,
   apiGetMcpSettings,
+  apiGetMcpHistoryEntry,
   apiListMcpCatalog,
   apiListMcpCollections,
   apiListMcpHistory,
+  apiListMcpHistoryPage,
   apiListMcpMocks,
   apiListMcpServers,
+  apiMcpAnnotateHistory,
   apiMcpBenchmark,
   apiMcpBreaker,
   apiMcpCallTool,
   apiMcpConnect,
   apiMcpDisconnect,
   apiMcpGetPrompt,
+  apiMcpHistoryByTool,
+  apiMcpHistoryExportUrl,
+  apiMcpHistoryStats,
   apiMcpListPrompts,
   apiMcpListResources,
   apiMcpListTools,
   apiMcpPing,
   apiMcpReadResource,
+  apiMcpReplayHistory,
   apiMcpStatus,
   apiMcpValidateTool,
   apiPatchMcpSettings,
@@ -57,6 +64,9 @@ import {
   type McpCollectionCallDto,
   type McpCollectionDto,
   type McpHistoryEntryDto,
+  type McpHistoryFilter,
+  type McpHistoryListResponse,
+  type McpHistoryStatsDto,
   type McpKv,
   type McpLicense,
   type McpPricing,
@@ -91,6 +101,7 @@ export type McpTool         = McpToolDto;
 export type McpResource     = McpResourceDto;
 export type McpPrompt       = McpPromptDto;
 export type McpHistoryEntry = McpHistoryEntryDto;
+export type { McpHistoryFilter, McpHistoryListResponse, McpHistoryStatsDto };
 export type McpCatalogEntry = McpCatalogEntryDto;
 export type { McpCatalogResponse };
 export type McpSettings     = McpSettingsDto;
@@ -130,7 +141,14 @@ export const benchmark     = (ref: McpServerRef, toolName: string, args: any, it
   apiMcpBenchmark(ref, toolName, args, iterations, concurrency);
 
 /* ───── History ────────────────────────────────────────────────────── */
-export const listHistory        = (serverId?: string, limit = 100) => apiListMcpHistory(serverId, limit);
+export const listHistory        = (serverIdOrFilter?: string | McpHistoryFilter, limit = 100) => apiListMcpHistory(serverIdOrFilter, limit);
+export const listHistoryPage    = (filter?: McpHistoryFilter) => apiListMcpHistoryPage(filter);
+export const getHistoryEntry    = (id: string) => apiGetMcpHistoryEntry(id);
+export const historyStats       = (filter?: Pick<McpHistoryFilter, 'workspaceId' | 'serverId' | 'fromDate' | 'toDate'>) => apiMcpHistoryStats(filter);
+export const historyByTool      = (serverId: string, target: string, page = 0, size = 50) => apiMcpHistoryByTool(serverId, target, page, size);
+export const replayHistory      = (id: string) => apiMcpReplayHistory(id);
+export const annotateHistory    = (id: string, body: { tags?: string[]; note?: string }) => apiMcpAnnotateHistory(id, body);
+export const historyExportUrl   = (filter?: McpHistoryFilter, format: 'csv' | 'json' = 'csv') => apiMcpHistoryExportUrl(filter, format);
 export const deleteHistoryEntry = (id: string) => apiDeleteMcpHistoryEntry(id);
 export const clearHistory       = (serverId?: string) => apiClearMcpHistory(serverId);
 

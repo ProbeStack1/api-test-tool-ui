@@ -100,7 +100,7 @@ const PayloadPreview = ({ type }: { type: string }) => {
           Sample POST body
         </span>
         <span className="font-mono text-[9px] text-text-muted">Content-Type: application/json</span>
-        <span className="font-mono text-[9px] text-text-muted">+ X-ForgeQ-Signature header</span>
+        <span className="font-mono text-[9px] text-text-muted">+ X-ForgeFuzz-Signature header</span>
         <Button size="sm" variant="ghost" onClick={onCopy} className="ml-auto" data-testid={`iwh-catalog-copy-${type}`}>
           {copied ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Copied' : 'Copy'}
@@ -111,7 +111,7 @@ const PayloadPreview = ({ type }: { type: string }) => {
       </pre>
       <p className="mt-2 font-mono text-[10px] text-text-muted">
         Verify:{' '}
-        <code className="rounded bg-elevated px-1">hex_hmac_sha256(signing_secret, raw_body) === X-ForgeQ-Signature</code>
+        <code className="rounded bg-elevated px-1">hex_hmac_sha256(signing_secret, raw_body) === X-ForgeFuzz-Signature</code>
       </p>
     </div>
   );

@@ -7,9 +7,10 @@
  * checkboxes then clicks "Compare".
  */
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   GitCompareArrows, ArrowRight, AlertTriangle, TrendingDown, TrendingUp,
-  Minus, Loader2, Activity,
+  Minus, Loader2, Activity, Filter,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -42,6 +43,13 @@ export const CompareRunsModal = ({ open, onClose, baseRun, compareRun }: Props) 
   const diff = q.data;
   const allSteps = diff?.steps ?? [];
   const changedSteps = allSteps.filter((s) => s.kind !== 'UNCHANGED');
+  // Filter polish (Task 3.12): user picks which categories to show.
+  // Defaults: hide UNCHANGED rows so the regressions are front-and-center.
+  const [showKinds, setShowKinds] = useState<Record<string, boolean>>({
+    REGRESSED: true, LATENCY_REGRESSED: true, IMPROVED: true, UNCHANGED: false,
+  });
+  const visibleSteps = allSteps.filter((s) => showKinds[s.kind] !== false);
+  const toggleKind = (k: string) => setShowKinds((p) => ({ ...p, [k]: !p[k] }));
 
   return (
     <Modal
@@ -84,18 +92,39 @@ export const CompareRunsModal = ({ open, onClose, baseRun, compareRun }: Props) 
 
               {/* Steps table */}
               <section className="overflow-hidden rounded-xl border border-border" data-testid="diff-table-section">
-                <header className="flex items-center justify-between border-b border-border bg-elevated/40 px-3 py-2">
+                <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-elevated/40 px-3 py-2">
                   <h3 className="flex items-center gap-2 text-xs font-semibold tracking-tight">
                     <Activity className="h-3.5 w-3.5 text-primary" /> Step diff
                     <span className="rounded-full bg-elevated px-2 py-0.5 font-mono text-[10px] text-text-secondary">
-                      {changedSteps.length} changed · {allSteps.length} total
+                      {visibleSteps.length} shown · {changedSteps.length} changed · {allSteps.length} total
                     </span>
                   </h3>
+                  {/* Filter chips */}
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <Filter className="h-3 w-3 text-text-muted" />
+                    {(['REGRESSED', 'LATENCY_REGRESSED', 'IMPROVED', 'UNCHANGED'] as const).map((k) => (
+                      <button
+                        key={k}
+                        data-testid={`diff-filter-${k.toLowerCase()}`}
+                        onClick={() => toggleKind(k)}
+                        className={cn(
+                          'rounded-full border px-2 py-0.5 transition-colors',
+                          showKinds[k]
+                            ? KIND_META[k].tone
+                            : 'border-border text-text-muted hover:bg-hover',
+                        )}
+                      >
+                        {KIND_META[k].label}
+                      </button>
+                    ))}
+                  </div>
                 </header>
 
-                {allSteps.length === 0 ? (
+                {visibleSteps.length === 0 ? (
                   <p className="px-4 py-8 text-center text-xs text-text-muted" data-testid="diff-empty">
-                    No step-level differences detected. Both runs produced identical step outcomes.
+                    {allSteps.length === 0
+                      ? 'No step-level differences detected. Both runs produced identical step outcomes.'
+                      : 'No rows match the current filter — toggle a chip to include more kinds.'}
                   </p>
                 ) : (
                   <div className="max-h-[55vh] overflow-auto">
@@ -110,7 +139,7 @@ export const CompareRunsModal = ({ open, onClose, baseRun, compareRun }: Props) 
                         </tr>
                       </thead>
                       <tbody>
-                        {[...allSteps].sort((a, b) => kindRank(a.kind) - kindRank(b.kind)).map((s, i) => (
+                        {[...visibleSteps].sort((a, b) => kindRank(a.kind) - kindRank(b.kind)).map((s, i) => (
                           <DiffRow key={`${s.sourceId ?? s.name}-${i}`} step={s} />
                         ))}
                       </tbody>

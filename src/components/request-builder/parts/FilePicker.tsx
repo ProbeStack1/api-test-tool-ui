@@ -165,7 +165,7 @@ export const FileValueDisplay = ({
           title={
             `${value.name}\n${fmtBytes(value.size)}, Using this file from a local system\n\n` +
             `The file above is not in your working directory, and will be unavailable to your teammates when you share the request. ` +
-            `You can either set up your working directory in Settings, or upload the file to ForgeQ.`
+            `You can either set up your working directory in Settings, or upload the file to ForgeFuzz.`
           }
           className="flex items-center text-yellow-500"
         >
@@ -181,7 +181,7 @@ export const FileValueDisplay = ({
           data-testid="file-upload-forgeq"
           onClick={upload}
           disabled={uploading}
-          title="Upload file to ForgeQ"
+          title="Upload file to ForgeFuzz"
           className="flex h-5 w-5 items-center justify-center rounded text-text-muted transition-colors hover:bg-primary-muted hover:text-primary disabled:opacity-50"
         >
           <UploadCloud className="h-3.5 w-3.5" />

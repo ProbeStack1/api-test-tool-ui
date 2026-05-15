@@ -37,7 +37,7 @@ const ENTRIES: Entry[] = [
   { group: 'Testing',   label: 'Testing',      hint: 'Specs / cases / load',  route: '/projects/testing',      icon: TestTube2, keywords: 'functional spec' },
   { group: 'Testing',   label: 'Monitors',     hint: 'Scheduled checks',      route: '/projects/monitors',     icon: Activity, keywords: 'uptime' },
   { group: 'Testing',   label: 'Security Scan',hint: 'Vulnerability checks',  route: '/projects/security',     icon: ShieldAlert, keywords: 'owasp' },
-  { group: 'Ops',       label: 'AI Assistant', hint: 'Chat with ForgeQ AI',   route: '/projects/ai-assisted',  icon: Sparkles, keywords: 'chatbot gpt' },
+  { group: 'Ops',       label: 'AI Assistant', hint: 'Chat with ForgeFuzz AI',   route: '/projects/ai-assisted',  icon: Sparkles, keywords: 'chatbot gpt' },
   { group: 'Ops',       label: 'Integrations', hint: 'Connect services',      route: '/projects/integrations', icon: Plug },
   { group: 'Ops',       label: 'API Docs',     hint: 'OpenAPI docs',          route: '/projects/api-docs',     icon: FileText, keywords: 'openapi swagger' },
   { group: 'Ops',       label: 'Governance',   hint: 'Policy & compliance',   route: '/home/governance',       icon: ShieldCheck },

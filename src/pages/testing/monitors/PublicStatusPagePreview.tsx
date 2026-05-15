@@ -190,7 +190,7 @@ export const PublicStatusPagePreview = ({ monitor, slug }: Props) => {
 
       <footer className="flex items-center gap-2 border-t border-border bg-elevated/20 px-6 py-3 text-[10px] text-text-muted">
         <Wrench className="h-3 w-3" />
-        <span>Powered by ForgeQ Monitors · auto-refreshes every minute</span>
+        <span>Powered by ForgeFuzz Monitors · auto-refreshes every minute</span>
       </footer>
     </div>
   );

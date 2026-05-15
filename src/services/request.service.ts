@@ -36,6 +36,9 @@ import {
   apiListSavedResponses,
   apiMoveRequest,
   apiReplayRun,
+  apiListWorkspaceRuns,
+  apiWorkspaceRunStats,
+  apiClearWorkspaceRuns,
   apiResolvePublicShare,
   apiRestoreRequest,
   apiRevokeRequestShare,
@@ -53,6 +56,7 @@ import {
   type SavedResponseDto,
   type UploadedFileDto,
 } from '@/api/request.api';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 export { apiExecuteStream as executeStream, type StreamHandlers } from '@/api/request.stream';
 
 /* ───────── re-exported vocabulary ──────────────────────────────────────── */
@@ -197,13 +201,11 @@ export const createRequest = (
   workspaceId?: string,
 ): Promise<ApiRequest> => {
   let ws = workspaceId;
-  if (!ws) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { useWorkspaceStore } = require('@/stores/workspace.store');
-      ws = useWorkspaceStore.getState?.().current?.id;
-    } catch { /* store unavailable in non-React contexts */ }
-  }
+if (!ws) {
+  try {
+    ws = useWorkspaceStore.getState?.().current?.id;
+  } catch { /* store unavailable in non-React contexts */ }
+}
   return apiCreateRequest(collectionId, body, ws);
 };
 
@@ -258,6 +260,19 @@ export const getRun = (runId: string) => apiGetRun(runId).then(normExecution);
 
 export const replayRun = (runId: string) =>
   apiReplayRun(runId).then(normExecution);
+
+/* ───────── workspace-wide history (NEW) ──────────────────────────────── */
+export type { WorkspaceHistoryFilter, WorkspaceHistoryStats } from '@/api/request.api';
+
+export const listWorkspaceRuns = (filter: import('@/api/request.api').WorkspaceHistoryFilter = {}) =>
+  apiListWorkspaceRuns(filter);
+
+export const workspaceRunStats = (
+  filter: Pick<import('@/api/request.api').WorkspaceHistoryFilter, 'workspaceId' | 'fromDate' | 'toDate'> = {},
+) => apiWorkspaceRunStats(filter);
+
+export const clearWorkspaceRuns = (workspaceId: string) =>
+  apiClearWorkspaceRuns(workspaceId);
 
 /* ───────── examples / saved responses ─────────────────────────────────── */
 /**

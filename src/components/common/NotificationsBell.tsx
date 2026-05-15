@@ -19,7 +19,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 /** Shared per-browser uuid — same key used by Support/Profile so everything
  *  in dev targets the same "logical user". */
 function localUserId(): string {
-  const k = 'forgeq.support.localUserId';
+  const k = 'ForgeFuzz.support.localUserId';
   let v = localStorage.getItem(k);
   if (!v) { v = crypto.randomUUID(); localStorage.setItem(k, v); }
   return v;

@@ -65,8 +65,8 @@ export const WebhookReplayDrawer = ({ hook, onClose }: { hook: WebhookView; onCl
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-ForgeQ-Source': 'browser-playground',
-          'X-ForgeQ-Event-Type': eventType,
+          'X-ForgeFuzz-Source': 'browser-playground',
+          'X-ForgeFuzz-Event-Type': eventType,
         },
         body,
         mode: 'cors',
@@ -194,10 +194,10 @@ export const WebhookReplayDrawer = ({ hook, onClose }: { hook: WebhookView; onCl
               size="sm"
               variant="outline"
               disabled
-              title="Requires POST /webhooks/{id}/test on the Java backend (tracked). Once shipped, this fires via ForgeQ with HMAC signing."
+              title="Requires POST /webhooks/{id}/test on the Java backend (tracked). Once shipped, this fires via ForgeFuzz with HMAC signing."
               data-testid="iwh-replay-fire-signed"
             >
-              Fire via ForgeQ (signed) — soon
+              Fire via ForgeFuzz (signed) — soon
             </Button>
           </div>
           <p className="text-[10px] text-text-muted">

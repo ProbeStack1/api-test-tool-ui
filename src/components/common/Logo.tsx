@@ -16,7 +16,7 @@ export const Logo = ({ variant = 'full', className }: LogoProps) => {
     return (
       <img
         src="/justlogo.png"
-        alt="ForgeQ"
+        alt="ForgeFuzz"
         data-testid="logo-mark"
         className={cn('h-7 w-7 object-contain', className)}
       />
@@ -25,7 +25,7 @@ export const Logo = ({ variant = 'full', className }: LogoProps) => {
   return (
     <img
       src="/logo.png"
-      alt="ForgeQ"
+      alt="ForgeFuzz"
       data-testid="logo-full"
       className={cn('h-8 w-auto object-contain', className)}
     />

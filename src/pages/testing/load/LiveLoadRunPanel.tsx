@@ -20,6 +20,7 @@ import {
 import { useTestingStore } from '@/stores/testing.store';
 import { RunStatusBadge } from '../functional/shared/RunBadges';
 import { cn } from '@/utils/cn';
+import { LiveLoadRunChart, type LiveLoadSample } from './LiveLoadRunChart';
 
 const TERMINAL = new Set(['SUCCESS', 'FAILED', 'ERROR', 'CANCELLED']);
 
@@ -35,6 +36,7 @@ export const LiveLoadRunPanel = ({ runId }: Props) => {
   const [lines, setLines] = useState<StreamLine[]>([]);
   const [streamConnected, setStreamConnected] = useState(false);
   const [reportBusy, setReportBusy] = useState<ReportFormat | null>(null);
+  const [latestSample, setLatestSample] = useState<LiveLoadSample | undefined>();
   const linesEndRef = useRef<HTMLDivElement>(null);
 
   const runQ = useQuery({
@@ -55,6 +57,21 @@ export const LiveLoadRunPanel = ({ runId }: Props) => {
     const onEv = (ev: MessageEvent, kind: string) => {
       try {
         const p = ev.data ? JSON.parse(ev.data) : {};
+        // Push a chart sample whenever the backend sends throughput
+        // metrics (`tick` payload). Other kinds — run.start, run.done —
+        // are text-only and don't carry sampling numbers.
+        if (kind === 'tick' || kind === 'progress') {
+          const rpsVal = Number(p.actualRps);
+          if (Number.isFinite(rpsVal)) {
+            setLatestSample({
+              ts: Date.now(),
+              rps: rpsVal,
+              p95: Number(p.p95Ms ?? p.percentiles?.['95'] ?? 0) || 0,
+              p99: Number(p.p99Ms ?? p.percentiles?.['99'] ?? 0) || 0,
+              errPct: Number(p.errorRatePct ?? 0) || 0,
+            });
+          }
+        }
         const text = p.message ?? p.statusReason ??
           (p.actualRps != null ? `rps=${Number(p.actualRps).toFixed(1)} p95=${p.p95Ms ?? '?'}ms err=${(p.errorRatePct ?? 0).toFixed(2)}%` : kind);
         setLines((prev) => [...prev.slice(-499), { ts: Date.now(), kind, text }]);
@@ -70,6 +87,23 @@ export const LiveLoadRunPanel = ({ runId }: Props) => {
     es.addEventListener('run.done',  (e) => onEv(e as MessageEvent, 'run.done'));
     return () => { es.close(); };
   }, [runId, isTerminal]);
+
+  // Also seed chart from `getRun` polls so the chart shows data even
+  // when the SSE stream drops (network blip, Cloudflare cold-start).
+  useEffect(() => {
+    if (!run || isTerminal) return;
+    if (run.actualRps == null && run.totalRequests == null) return;
+    setLatestSample({
+      ts: Date.now(),
+      rps: Number(run.actualRps ?? 0),
+      p95: Number(run.percentiles?.['95'] ?? 0),
+      p99: Number(run.percentiles?.['99'] ?? 0),
+      errPct: total > 0 ? (failed / total) * 100 : 0,
+    });
+    // We deliberately only depend on these scalars — the `run` object
+    // itself changes identity every poll and would cause infinite loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.actualRps, run?.percentiles?.['95'], run?.percentiles?.['99'], run?.totalRequests, run?.failedRequests, isTerminal]);
 
   useEffect(() => { linesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [lines.length]);
 
@@ -234,6 +268,21 @@ export const LiveLoadRunPanel = ({ runId }: Props) => {
                 !isTerminal && 'animate-[indeterminate_1.4s_ease-in-out_infinite]',
               )} style={{ width: '40%' }} />}
         </div>
+      </div>
+
+      {/* Live time-series chart — surfaces RPS / p95 / p99 / error% on
+          a rolling window so the user can spot regressions visually
+          while the run is mid-flight. */}
+      <div className="border-b border-border px-6 py-4">
+        <LiveLoadRunChart
+          latest={latestSample}
+          resetKey={runId}
+          thresholds={{
+            p95: run?.thresholds?.maxP95LatencyMs ?? undefined,
+            p99: run?.thresholds?.maxP99LatencyMs ?? undefined,
+            errPct: run?.thresholds?.maxErrorRatePct ?? undefined,
+          }}
+        />
       </div>
 
       {/* stream feed */}

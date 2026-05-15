@@ -35,7 +35,7 @@ const COLS: { title: string; links: { label: string; href: string; external?: bo
     title: 'Resources',
     links: [
       { label: 'Pricing',    href: '/pricing' },
-      { label: 'Docs',       href: '/docs/customer-api-v1' },
+      { label: 'Docs',       href: '/api-hub' },
       { label: 'API Hub',    href: '/api-hub' },
       { label: 'Changelog',  href: '/changelog' },
       { label: 'Status',     href: '/status/forgeq' },
@@ -117,10 +117,10 @@ export default function LandingFooter() {
 
         <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-[11px] text-text-muted">
-            © {new Date().getFullYear()} ProbeStack Labs · ForgeFuzz. All rights reserved.
+            © {new Date().getFullYear()} ProbeStack · ForgeFuzz. All rights reserved.
           </p>
           <p className="text-[10px] font-mono text-text-muted">
-            16 microservices · MongoDB Atlas · Gemini-powered AI
+            {/* 16 microservices · MongoDB Atlas · Gemini-powered AI */}
           </p>
         </div>
       </div>

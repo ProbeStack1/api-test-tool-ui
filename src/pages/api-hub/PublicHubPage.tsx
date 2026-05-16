@@ -68,21 +68,17 @@ export const PublicHubPage = () => {
           product. The "back to workspace" affordance lives in the main
           content area below, not in the chrome. */}
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
-        <Link
-          to="/"
-          data-testid="app-header-logo"
-          className="flex items-center gap-0.5"
-        >
-          <Logo variant="mark" className="h-9 w-8" />
-          <div className="text-left">
-            <div className="text-xs text-text-secondary font-semibold tracking-tight leading-tight mb-[-8px]">
-              probestack
+        <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
+            <Logo variant="mark" className="h-12 w-10" />
+            <div>
+              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-white/60">
+                probestack
+              </div>
+              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
+                ForgeFuzz
+              </div>
             </div>
-            <div className="font-semibold text-xl tracking-tight leading-tight gradient-text">
-              ForgeFuzz
-            </div>
-          </div>
-        </Link>
+          </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />
         </div>

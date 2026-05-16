@@ -29,10 +29,17 @@ import { NotifyDeveloperModal } from '@/components/security/NotifyDeveloperModal
 import { SecurityScanHistoryDrawer, type HistoryRun } from '@/components/security/SecurityScanHistoryDrawer';
 import { exportSecurityPDF } from './exportSecurityPDF';
 import { serviceUrl } from '@/lib/env';
+import { createHttp } from '@/lib/http';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 const SVC = serviceUrl('functionalTest');
-const BASE = `${SVC}/api/v1/functional-tests/security`;
+const BASE = `${SVC}/functional-tests/security`;
+// Use the shared axios instance so the request interceptor attaches the
+// auth + correlation headers (X-Dev-Bypass, X-Correlation-Id) on every
+// call. Raw `axios.get/post` bypasses those interceptors which is why
+// the functional-test endpoints were getting hit anonymously and 401'd
+// at the gateway. See lib/http.ts for the interceptor definition.
+const http = createHttp('functionalTest');
 
 /** Human-readable labels for the OWASP API Security Top-10 (2023) — used as
  *  tooltip text on the coverage pills so security folks don't have to
@@ -148,7 +155,7 @@ export function SecurityScanPage() {
 
   // Load probe catalog on mount
   useEffect(() => {
-    axios.get<ProbeSpec[]>(`${BASE}/probes`).then((r) => {
+    http.get<ProbeSpec[]>(`${BASE}/probes`).then((r) => {
       const list = r.data;
       setProbes(list);
       // Pre-select all except AI-custom by default.
@@ -171,7 +178,7 @@ export function SecurityScanPage() {
     setProgress({ done: 0, total: selected.size });
     setStatus('RUNNING');
     try {
-      const r = await axios.post<{ runId: string }>(`${BASE}/scan/start`, {
+      const r = await http.post<{ runId: string }>(`${BASE}/scan/start`, {
         targetUrl,
         probes: Array.from(selected),
         aiProbePrompt: selected.has('ai-custom') ? aiPrompt : undefined,
@@ -187,7 +194,7 @@ export function SecurityScanPage() {
 
   const cancel = async () => {
     if (!runId) return;
-    await axios.post(`${BASE}/scan/${runId}/cancel`);
+    await http.post(`${BASE}/scan/${runId}/cancel`);
     pushTimeline('Cancel requested');
   };
 
@@ -257,7 +264,7 @@ export function SecurityScanPage() {
     if (!aiPrompt.trim()) return;
     setAiBusy(true);
     try {
-      const r = await axios.post(`${BASE}/probes/ai`, { prompt: aiPrompt, targetUrl });
+      const r = await http.post(`${BASE}/probes/ai`, { prompt: aiPrompt, targetUrl });
       setAiSpec(r.data);
     } catch (e: any) {
       setAiSpec({ error: e?.message ?? 'AI failed' });
@@ -268,7 +275,7 @@ export function SecurityScanPage() {
     if (!runId) return;
     setBugBusyId(f.findingId);
     try {
-      const r = await axios.post(`${SVC}/api/v1/functional-tests/bugs/from-finding`, {
+      const r = await http.post(`${SVC}/functional-tests/bugs/from-finding`, {
         runId, findingId: f.findingId, reporterEmail: 'qa@forgefuzz.io',
       });
       setFindings((prev) => prev.map((x) =>
@@ -636,7 +643,7 @@ function WebhookNotifyModal({ runId, finding, onClose, onSent }: {
   const send = async () => {
     setBusy(true);
     try {
-      const r = await axios.post(`${BASE}/findings/notify-webhook`, {
+      const r = await http.post(`${BASE}/findings/notify-webhook`, {
         runId,
         findingId: finding.findingId,
         destinations: [{ kind, target }],

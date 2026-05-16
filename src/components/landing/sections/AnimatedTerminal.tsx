@@ -18,9 +18,9 @@ const SCENES: Scene[] = [
   {
     id: "curl",
     title: "GET /api/v1/users",
-    cwd: "~/forgeq/collections",
+    cwd: "~/forgefuzz/collections",
     steps: [
-      { type: "prompt", text: "curl -s https://api.forgeq.dev/v1/users?limit=2 \\\n  -H 'Authorization: Bearer $FORGEQ_TOKEN'" },
+      { type: "prompt", text: "curl -s https://api.forgefuzz.dev/v1/users?limit=2 \\\n  -H 'Authorization: Bearer $FORGEFUZZ_TOKEN'" },
       { type: "status", code: 200, text: "OK", ms: 142 },
       { type: "json", text: '[{ "id":"u_01H", "name":"Aanya Rao", "plan":"team" },\n { "id":"u_02H", "name":"Marc Olsen", "plan":"pro" }]' },
     ],
@@ -28,21 +28,21 @@ const SCENES: Scene[] = [
   {
     id: "mock",
     title: "POST /v1/mocks",
-    cwd: "~/forgeq/mocks",
+    cwd: "~/forgefuzz/mocks",
     steps: [
-      { type: "prompt", text: "forgeq mocks create --spec ./openapi.yaml \\\n  --name 'checkout-v2' --latency 47ms" },
+      { type: "prompt", text: "forgefuzz mocks create --spec ./openapi.yaml \\\n  --name 'checkout-v2' --latency 47ms" },
       { type: "out", text: "✓ Parsed OpenAPI 3.1 (24 routes)", color: "#1fbf9a" },
       { type: "out", text: "✓ Spawning hosted mock in eu-west-1...", color: "#a8adb8" },
       { type: "status", code: 201, text: "Created", ms: 318 },
-      { type: "json", text: '{ "url":"https://mock.forgeq.io/checkout-v2",\n  "p95":"47ms", "uptime":"99.99%" }' },
+      { type: "json", text: '{ "url":"https://mock.forgefuzz.io/checkout-v2",\n  "p95":"47ms", "uptime":"99.99%" }' },
     ],
   },
   {
     id: "load",
     title: "Load test · 500 VU",
-    cwd: "~/forgeq/load",
+    cwd: "~/forgefuzz/load",
     steps: [
-      { type: "prompt", text: "forgeq load run --scenario spike --vu 500 --duration 60s" },
+      { type: "prompt", text: "forgefuzz load run --scenario spike --vu 500 --duration 60s" },
       { type: "out", text: "→ Ramping VUs   [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░] 320 / 500", color: "#ffb400" },
       { type: "out", text: "→ p50  68ms   p95  214ms   p99  391ms", color: "#a8adb8" },
       { type: "out", text: "→ rps  4 217   errors  0.02%   ok ✓", color: "#1fbf9a" },
@@ -52,9 +52,9 @@ const SCENES: Scene[] = [
   {
     id: "sec",
     title: "Security · OWASP",
-    cwd: "~/forgeq/security",
+    cwd: "~/forgefuzz/security",
     steps: [
-      { type: "prompt", text: "forgeq security scan --target collections/billing --owasp api-top10" },
+      { type: "prompt", text: "forgefuzz security scan --target collections/billing --owasp api-top10" },
       { type: "out", text: "▸ BOLA          24 endpoints scanned", color: "#a8adb8" },
       { type: "out", text: "▸ Mass assign.  18 endpoints scanned", color: "#a8adb8" },
       { type: "out", text: "! 2 high-severity findings · 1 medium", color: "#ff5b1f" },
@@ -64,9 +64,9 @@ const SCENES: Scene[] = [
   {
     id: "monitor",
     title: "Monitor · multi-region",
-    cwd: "~/forgeq/monitors",
+    cwd: "~/forgefuzz/monitors",
     steps: [
-      { type: "prompt", text: "forgeq monitors deploy --regions us-east,eu-west,ap-south" },
+      { type: "prompt", text: "forgefuzz monitors deploy --regions us-east,eu-west,ap-south" },
       { type: "out", text: "us-east-1   ● up   p95 88ms", color: "#1fbf9a" },
       { type: "out", text: "eu-west-1   ● up   p95 124ms", color: "#1fbf9a" },
       { type: "out", text: "ap-south-1  ● up   p95 196ms", color: "#1fbf9a" },
@@ -153,7 +153,7 @@ export default function AnimatedTerminal() {
   return (
     <div className="relative">
       {/* Glow */}
-      <div className="absolute -inset-6 -z-10 rounded-3xl bg-gradient-to-br from-[#ff5b1f]/20 via-transparent to-[#1fbf9a]/20 blur-2xl" />
+      <div className="absolute -inset-4 -z-10 rounded-3xl bg-gradient-to-br from-[#ff5b1f]/20 via-transparent to-[#1fbf9a]/20 blur-2xl" />
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0c11] shadow-[0_30px_80px_-20px_rgba(0,0,0,.7)]">
         {/* Title bar */}
@@ -164,7 +164,7 @@ export default function AnimatedTerminal() {
             <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
             <div className="ml-3 flex items-center gap-1.5 text-[11px] text-text-muted">
               <TerminalIcon className="h-3 w-3" />
-              <span className="font-mono">forgeq — zsh</span>
+              <span className="font-mono">forgefuzz — zsh</span>
             </div>
           </div>
           <div className="flex items-center gap-2 text-text-muted">
@@ -199,14 +199,14 @@ export default function AnimatedTerminal() {
           <div className="pointer-events-none absolute inset-0 opacity-[.04]"
             style={{ backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,.6) 0 1px, transparent 1px 3px)" }}
           />
-          <div className="text-text-muted">forgeq · {scene.cwd}</div>
+          <div className="text-text-muted">forgefuzz · {scene.cwd}</div>
           {rendered.map((l, i) => (
             <LineRow key={i} line={l} />
           ))}
           {typing && (
             <div className="mt-1 whitespace-pre-wrap">
               <span className="text-[#1fbf9a]">➜</span>{" "}
-              <span className="text-[#ffb400]">forgeq</span>{" "}
+              <span className="text-[#ffb400]">forgefuzz</span>{" "}
               <span className="text-white">{typing}</span>
               <span className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 bg-[#ff5b1f] animate-blink" />
             </div>
@@ -245,7 +245,7 @@ function LineRow({ line }: { line: Line }) {
     return (
       <div className="mt-1 whitespace-pre-wrap">
         <span className="text-[#1fbf9a]">➜</span>{" "}
-        <span className="text-[#ffb400]">forgeq</span>{" "}
+        <span className="text-[#ffb400]">forgefuzz</span>{" "}
         <span className="text-white">{line.text}</span>
       </div>
     );

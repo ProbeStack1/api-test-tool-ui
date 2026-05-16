@@ -249,7 +249,7 @@ export type ReportFormat = 'HTML' | 'JSON' | 'JUNIT';
 
 /* ----------------------------- client ------------------------------------ */
 const http = createHttp('loadTest');
-const BASE = '/api/v1/load-tests';
+const BASE = '/load-tests';
 
 /* runs */
 export const apiStartRun = (body: StartRunRequestBody) =>

@@ -1,7 +1,7 @@
 /**
  * CollectionRunDrawer — Postman-style collection runner, simplified.
  *
- * Why "simplified": ForgeFuzz already has dedicated Functional and Load
+ * Why "simplified": ForgeQ already has dedicated Functional and Load
  * test pages with rich assertion + perf features. The collection
  * runner here is intentionally lightweight — its job is *"play these
  * requests one-by-one in user-controlled order and show me what
@@ -39,6 +39,20 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { executeRequest, listRequests } from '@/services/request.service';
 import { listFolders } from '@/services/collection.service';
 import { cn } from '@/utils/cn';
+import { env } from '@/lib/env';
+
+/**
+ * Headers used by the two raw `fetch()` calls below (start + cancel).
+ * We can't route those through `createHttp` because they're built ad-hoc
+ * with bare URLs and we want to keep the SSE EventSource on the same
+ * `root` origin afterwards. Replicates the X-Dev-Bypass + correlation
+ * id behaviour from `lib/http.ts` so the gateway accepts the request.
+ */
+const runHeaders = (): Record<string, string> => ({
+  'Content-Type': 'application/json',
+  'X-Correlation-Id': (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
+  ...(env.devBypassAuth ? { 'X-Dev-Bypass': 'true' } : {}),
+});
 
 type RowStatus = 'pending' | 'running' | 'passed' | 'failed' | 'skipped';
 interface RunRow {
@@ -129,7 +143,7 @@ export const CollectionRunDrawer = ({
       const root = (import.meta as any).env.VITE_REQUEST_SVC_URL || '';
       const startRes = await fetch(`${root}/api/v1/requests/collections/${collectionId}/run`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: runHeaders(),
         body: JSON.stringify({
           workspaceId:    null,
           collectionId,
@@ -229,7 +243,10 @@ export const CollectionRunDrawer = ({
     cancelRef.current = true;
     if (backendRunId) {
       const root = (import.meta as any).env.VITE_REQUEST_SVC_URL || '';
-      fetch(`${root}/api/v1/requests/collection-runs/${backendRunId}/cancel`, { method: 'POST' })
+      fetch(`${root}/api/v1/requests/collection-runs/${backendRunId}/cancel`, {
+        method: 'POST',
+        headers: runHeaders(),
+      })
         .catch(() => { /* swallow */ });
     }
     if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }

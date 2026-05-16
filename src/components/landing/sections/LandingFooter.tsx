@@ -6,6 +6,95 @@
  */
 import { Link } from 'react-router-dom';
 import { Logo } from '@/components/common/Logo';
+import { useEffect, useRef } from 'react';
+
+// ---------- Canvas particle field (dots + link lines) ----------
+const CanvasParticles = () => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    let raf = 0;
+    let w = 0,
+      h = 0,
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    type P = { x: number; y: number; vx: number; vy: number; r: number; c: string };
+    const colors = ["#ff4400", "#1e00ff", "#00ff33"];
+    let particles: P[] = [];
+
+    const resize = () => {
+      w = canvas.clientWidth;
+      h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.scale(dpr, dpr);
+      const count = Math.min(70, Math.floor((w * h) / 22000));
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        r: Math.random() * 2 + 1,
+        c: colors[Math.floor(Math.random() * colors.length)],
+      }));
+    };
+
+    const tick = () => {
+      ctx.clearRect(0, 0, w, h);
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.c;
+        ctx.globalAlpha = 0.65;
+        ctx.fill();
+      }
+      // link lines
+      ctx.globalAlpha = 1;
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const a = particles[i],
+            b = particles[j];
+          const dx = a.x - b.x,
+            dy = a.y - b.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 120 * 120) {
+            ctx.strokeStyle = `rgba(255,255,255,${0.16 * (1 - d2 / (120 * 120))})`;
+            ctx.lineWidth = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    resize();
+    tick();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 h-full w-full"
+      style={{ pointerEvents: "none" }}
+    />
+  );
+};
 
 const COLS: { title: string; links: { label: string; href: string; external?: boolean }[] }[] = [
   {
@@ -57,21 +146,26 @@ export default function LandingFooter() {
   return (
     <footer
       data-testid="landing-footer"
-      className="relative z-10 border-t border-border bg-surface/40 backdrop-blur-sm"
+      className="relative z-10 border-t border-border bg-surface/40 backdrop-blur-xs"
     >
+      {/* Canvas particle field with dynamic connecting lines */}
+      <CanvasParticles />
+
       <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-14">
         <div className="grid gap-10 md:grid-cols-5">
           {/* Brand block */}
           <div className="md:col-span-1">
-            <Link to="/" className="flex items-center gap-1 mb-3">
-              <Logo variant="mark" className="h-10 w-8" />
-              <div className="text-left">
-                <div className="text-[0.7rem] text-text-secondary tracking-normal leading-tight">
-                  probestack
-                </div>
-                <div className="font-bold text-xl leading-tight gradient-text">ForgeFuzz</div>
+            <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
+            <Logo variant="mark" className="h-12 w-10" />
+            <div>
+              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-white/60">
+                probestack
               </div>
-            </Link>
+              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
+                ForgeFuzz
+              </div>
+            </div>
+          </Link>
             <p className="text-xs text-text-secondary leading-relaxed">
               The API lifecycle platform that ships with its own QA team — spec to incident, one workspace.
             </p>

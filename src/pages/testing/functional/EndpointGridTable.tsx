@@ -18,6 +18,9 @@ import axios from 'axios';
 import { ArrowDownNarrowWide, ArrowUpNarrowWide, ListTree, Loader2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
+import { createHttp } from '@/lib/http';
+
+const http = createHttp('functionalTest');
 
 interface EndpointStat {
   method: string;
@@ -59,8 +62,8 @@ export function EndpointGridTable({ runId }: Props) {
     (async () => {
       setLoading(true);
       try {
-        const r = await axios.get(
-          `${serviceUrl('functionalTest')}/api/v1/functional-tests/runs/${runId}/endpoints`,
+        const r = await http.get(
+          `${serviceUrl('functionalTest')}/functional-tests/runs/${runId}/endpoints`,
         );
         if (cancelled) return;
         // Backend wraps payload in ResponseEnvelope → .data.data

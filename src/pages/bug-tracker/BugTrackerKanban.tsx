@@ -26,8 +26,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
+import { createHttp } from '@/lib/http';
 
-const BASE = `${serviceUrl('functionalTest')}/api/v1/functional-tests/bugs`;
+const BASE = `${serviceUrl('functionalTest')}/functional-tests/bugs`;
+const http = createHttp('functionalTest');
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type Status = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | 'WONT_FIX';
@@ -77,7 +79,7 @@ export function BugTrackerKanban() {
   const fetchBugs = async () => {
     setLoading(true);
     try {
-      const r = await axios.get<Bug[]>(BASE);
+      const r = await http.get<Bug[]>(BASE);
       setBugs(r.data ?? []);
       setError(null);
     } catch (e: any) {
@@ -124,7 +126,7 @@ export function BugTrackerKanban() {
     setBugs((p) => p.map((x) => (x.id === bugId ? { ...x, status: newStatus } : x)));
     setSavingId(bugId);
     try {
-      await axios.patch(`${BASE}/${bugId}`, { status: newStatus });
+      await http.patch(`${BASE}/${bugId}`, { status: newStatus });
     } catch (err: any) {
       setBugs(prev);
       setError(err?.message ?? 'Failed to update status');

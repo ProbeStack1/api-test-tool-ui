@@ -25,12 +25,14 @@ import IntegrationPartners from '@/components/landing/sections/IntegrationPartne
 import CTASection from '@/components/landing/sections/CTASection';
 import ParticleBackground from '@/components/landing/sections/ParticleBackground';
 import LandingFooter from '@/components/landing/sections/LandingFooter';
+import CursorGlow from '@/components/landing/sections/CursorGlow';
 
 export const LandingPage = () => (
   <div
     data-testid="landing-page"
     className="landing-bg noise-overlay relative min-h-screen overflow-y-auto"
   >
+      <CursorGlow/>
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <div className="absolute -left-1/4 -top-1/4 h-[55%] w-[55%] animate-float rounded-full bg-[#ff5b1f]/25 blur-[120px]" />
       <div

@@ -24,8 +24,10 @@ import { Bug as BugIcon, Plus, RefreshCw, Send, X, Loader2, List, LayoutGrid } f
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
 import { BugTrackerKanban } from './BugTrackerKanban';
+import { createHttp } from '@/lib/http';
 
-const BASE = `${serviceUrl('functionalTest')}/api/v1/functional-tests/bugs`;
+const BASE = `${serviceUrl('functionalTest')}/functional-tests/bugs`;
+const http = createHttp('functionalTest');
 
 interface Bug {
   id: string;
@@ -83,8 +85,8 @@ export const BugTrackerPage = () => {
       if (filter.severity) params.severity = filter.severity;
       if (filter.source)   params.source = filter.source;
       const [list, st] = await Promise.all([
-        axios.get<Bug[]>(BASE, { params }),
-        axios.get(`${BASE}/stats`),
+        http.get<Bug[]>(BASE, { params }),
+        http.get(`${BASE}/stats`),
       ]);
       setBugs(list.data);
       setStats(st.data);
@@ -266,7 +268,7 @@ function BugDetail({ bug, onChange, onClose }: { bug: Bug; onChange: () => void;
   const save = async () => {
     setBusy(true);
     try {
-      await axios.patch(`${BASE}/${bug.id}`, { status, assigneeEmail: assignee || null });
+      await http.patch(`${BASE}/${bug.id}`, { status, assigneeEmail: assignee || null });
       onChange();
     } finally { setBusy(false); }
   };
@@ -275,7 +277,7 @@ function BugDetail({ bug, onChange, onClose }: { bug: Bug; onChange: () => void;
     if (!commentText.trim()) return;
     setBusy(true);
     try {
-      await axios.post(`${BASE}/${bug.id}/comments`, { author: 'me@team.com', body: commentText });
+      await http.post(`${BASE}/${bug.id}/comments`, { author: 'me@team.com', body: commentText });
       setCommentText('');
       onChange();
     } finally { setBusy(false); }
@@ -381,7 +383,7 @@ function CreateBugDrawer({ onClose, onCreated }: { onClose: () => void; onCreate
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await axios.post(BASE, { title, description, severity, status: 'OPEN', source: 'MANUAL', reporterEmail: 'me@team.com' });
+      await http.post(BASE, { title, description, severity, status: 'OPEN', source: 'MANUAL', reporterEmail: 'me@team.com' });
       onCreated();
     } finally { setBusy(false); }
   };

@@ -254,7 +254,7 @@ export interface ScheduleView {
 
 /* ----------------------------- client ------------------------------------ */
 const http = createHttp('functionalTest');
-const BASE = '/api/v1/functional-tests';
+const BASE = '/functional-tests';
 
 /* =============================== runs ==================================== */
 export const apiStartRun = (body: StartRunRequestBody) =>

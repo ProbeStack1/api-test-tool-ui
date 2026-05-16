@@ -36,21 +36,17 @@ export const Header = () => {
       className="grid h-14 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
     >
       {/* Left — brand */}
-      <Link
-              to="/"
-              data-testid="app-header-logo"
-              className="flex items-center gap-1"
-            >
-              <Logo variant="mark" className="h-12 w-10" />
-              <div className="text-left">
-                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  probestack
-                </div>
-                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
-                  ForgeFuzz
-                </div>
+      <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
+            <Logo variant="mark" className="h-12 w-10" />
+            <div>
+              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-white/60">
+                probestack
               </div>
-            </Link>
+              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
+                ForgeFuzz
+              </div>
+            </div>
+          </Link>
 
       {/* Center — depends on mode */}
       {mode === 'top' ? <HeaderTabs /> : <SearchButton onOpen={() => setPaletteOpen(true)} />}

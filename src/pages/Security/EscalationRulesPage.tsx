@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
+import { createHttp } from '@/lib/http';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type DestKind = 'EMAIL' | 'SLACK' | 'TEAMS' | 'WEBHOOK';
@@ -42,7 +43,8 @@ interface EscalationRule {
   updatedAt?: string;
 }
 
-const BASE = `${serviceUrl('functionalTest')}/api/v1/functional-tests/security/escalation-rules`;
+const BASE = `${serviceUrl('functionalTest')}/functional-tests/security/escalation-rules`;
+const http = createHttp('functionalTest');
 
 const SEV_TONE: Record<Severity, string> = {
   CRITICAL: 'border-red-500/30 bg-red-500/15 text-red-400',
@@ -73,7 +75,7 @@ export function EscalationRulesPage() {
   const fetchRules = async () => {
     setLoading(true);
     try {
-      const r = await axios.get<EscalationRule[]>(BASE);
+      const r = await http.get<EscalationRule[]>(BASE);
       setRules(r.data ?? []);
       setError(null);
     } catch (e: any) {
@@ -87,14 +89,14 @@ export function EscalationRulesPage() {
 
   const toggleEnabled = async (rule: EscalationRule) => {
     if (!rule.id) return;
-    await axios.patch(`${BASE}/${rule.id}`, { enabled: !rule.enabled });
+    await http.patch(`${BASE}/${rule.id}`, { enabled: !rule.enabled });
     fetchRules();
   };
 
   const deleteRule = async (rule: EscalationRule) => {
     if (!rule.id) return;
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
-    await axios.delete(`${BASE}/${rule.id}`);
+    await http.delete(`${BASE}/${rule.id}`);
     fetchRules();
   };
 
@@ -103,9 +105,9 @@ export function EscalationRulesPage() {
     setSaving(true);
     try {
       if (editing.id) {
-        await axios.patch(`${BASE}/${editing.id}`, editing);
+        await http.patch(`${BASE}/${editing.id}`, editing);
       } else {
-        await axios.post(BASE, editing);
+        await http.post(BASE, editing);
       }
       setEditing(null);
       fetchRules();

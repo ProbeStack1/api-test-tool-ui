@@ -17,8 +17,10 @@ import axios from 'axios';
 import { Upload, FileText, CheckCircle2, Loader2, X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
+import { createHttp } from '@/lib/http';
 
-const BASE = `${serviceUrl('functionalTest')}/api/v1/functional-tests/data-files`;
+const BASE = `${serviceUrl('functionalTest')}/functional-tests/data-files`;
+const http = createHttp('functionalTest');
 
 interface UploadResult {
   fileId: string;
@@ -51,7 +53,7 @@ export function DataFileUpload({ workspaceId, onUploaded, onCleared, className }
       const fd = new FormData();
       fd.append('file', f);
       if (workspaceId) fd.append('workspaceId', workspaceId);
-      const r = await axios.post(`${BASE}/upload`, fd, {
+      const r = await http.post(`${BASE}/upload`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const data = (r.data?.data ?? r.data) as UploadResult;

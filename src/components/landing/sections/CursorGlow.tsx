@@ -28,13 +28,13 @@ export default function CursorGlow() {
     <>
       <div
         ref={ringRef}
-        className="pointer-events-none fixed left-0 top-0 z-[60] h-9 w-9 rounded-full border border-[#ff5b1f]/40 mix-blend-screen"
+        className="pointer-events-none fixed left-0 top-0 z-[999] h-9 w-9 rounded-full border border-[#ff5b1f]/40 mix-blend-screen"
         style={{ transition: "border-color .2s" }}
         aria-hidden
       />
       <div
         ref={dotRef}
-        className="pointer-events-none fixed left-0 top-0 z-[60] h-2.5 w-2.5 rounded-full bg-[#ff5b1f] shadow-[0_0_18px_rgba(255,91,31,.7)]"
+        className="pointer-events-none fixed left-0 top-0 z-[999] h-2.5 w-2.5 rounded-full bg-[#ff5b1f] shadow-[0_0_18px_rgba(255,91,31,.7)]"
         aria-hidden
       />
     </>

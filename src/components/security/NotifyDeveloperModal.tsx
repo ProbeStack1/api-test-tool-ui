@@ -21,6 +21,9 @@ import { useState } from 'react';
 import axios from 'axios';
 import { X, Send, Mail, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import type { ProbeResult } from '@/components/security/ProbeTransparencyCard';
+import { createHttp } from '@/lib/http';
+
+const http = createHttp('functionalTest');
 
 /**
  * Backend endpoint base URL.
@@ -30,7 +33,7 @@ import type { ProbeResult } from '@/components/security/ProbeTransparencyCard';
  */
 const NOTIFY_URL =
   (import.meta.env.VITE_FUNCTIONAL_TEST_SVC_URL || 'http://localhost:8089') +
-  '/api/v1/functional-tests/security/findings/notify';
+  '/functional-tests/security/findings/notify';
 
 interface Props {
   finding: ProbeResult;
@@ -46,7 +49,7 @@ export function NotifyDeveloperModal({
   finding,
   scannedUrl,
   defaultTo = [],
-  appName = 'ForgeFuzz',
+  appName = 'ForgeQ',
   onClose,
 }: Props) {
   const [to, setTo] = useState<string>(defaultTo.join(', '));
@@ -80,7 +83,7 @@ export function NotifyDeveloperModal({
         appName,
         customNote: note,
       };
-      const { data } = await axios.post(NOTIFY_URL, payload);
+      const { data } = await http.post(NOTIFY_URL, payload);
       setResult({
         ok: true,
         message: `Sent via ${data.provider}. Recipients: ${data.recipients.join(', ')}`,

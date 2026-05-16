@@ -5,6 +5,7 @@ import { Zap, Rocket, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { bootstrapUser } from '@/services/user.service';
 import StartTestingModal from '../modals/StartTestingModal';
+import AnimatedTerminal from './AnimatedTerminal';
 
 const API_LINES = [
   { method: 'POST', endpoint: '/api/v1/users', status: '201', time: '45ms', ok: true },
@@ -243,8 +244,9 @@ export default function HeroSection() {
           </div>
         </div>
 
-        <div className="animate-fade-in-up animation-delay-500">
-          <TerminalAnimation />
+        <div className="animate-fade-in-up animation-delay-500 mt-8 px-30">
+          {/* <TerminalAnimation /> */}
+          <AnimatedTerminal/>
         </div>
       </div>
 

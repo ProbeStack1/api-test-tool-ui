@@ -18,6 +18,11 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { createHttp } from '@/lib/http';
+
+// Shared interceptor instance so X-Dev-Bypass + X-Correlation-Id are
+// always present on history reads.
+const http = createHttp('functionalTest');
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 type RunStatus = 'RUNNING' | 'DONE' | 'CANCELLED' | 'FAILED';
@@ -99,7 +104,7 @@ export function SecurityScanHistoryDrawer({
     setLoading(true);
     setError(null);
     try {
-      const r = await axios.get<HistoryRun[]>(`${baseUrl}/scan`);
+      const r = await http.get<HistoryRun[]>(`${baseUrl}/scan`);
       const sorted = (r.data ?? []).slice().sort((a, b) =>
         new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
       setRuns(sorted);
@@ -121,7 +126,7 @@ export function SecurityScanHistoryDrawer({
     try {
       // Fetch the full run (the list endpoint already returns findings
       // but we re-fetch to guarantee freshness for the active row).
-      const r = await axios.get<HistoryRun>(`${baseUrl}/scan/${id}`);
+      const r = await http.get<HistoryRun>(`${baseUrl}/scan/${id}`);
       onLoadRun(r.data);
       onClose();
     } catch (e: any) {

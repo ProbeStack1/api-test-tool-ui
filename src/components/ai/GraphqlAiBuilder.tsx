@@ -22,6 +22,9 @@ import { Sparkles, Loader2, Check, RotateCw, X, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { serviceUrl } from '@/lib/env';
+import { createHttp } from '@/lib/http';
+
+const aiHttp = createHttp('aiAssistant');
 import { useGraphqlAiBridge } from '@/stores/graphqlAiBridge.store';
 import { useRequestDraftStore } from '@/stores/requestDraft.store';
 
@@ -84,7 +87,7 @@ export const GraphqlAiBuilder = () => {
     }
     setBusy(true);
     try {
-      const { data } = await axios.post(
+      const { data } = await aiHttp.post(
         `${serviceUrl('aiAssistant')}/api/v1/ai/graphql/build`,
         { prompt: p, schemaSdl },
       );

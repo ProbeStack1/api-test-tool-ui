@@ -10,7 +10,7 @@ import { createHttp } from '@/lib/http';
 import { serviceUrl } from '@/lib/env';
 
 const http = createHttp('audit');
-const BASE = '/api/v1/audit/activity';
+const BASE = '/api/v1/activity';
 
 export type Severity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
 

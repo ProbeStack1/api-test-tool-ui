@@ -16,7 +16,7 @@ function StepCard({ icon: Icon, num, title, desc, isVisible, index }) {
       {index < steps.length - 1 && (
         <div className="hidden lg:block absolute top-10 left-[calc(50%+40px)] w-[calc(100%-40px)] h-px">
           <div
-            className={`h-full bg-gradient-to-r from-[#ff5b1f]/40 to-[#ff5b1f]/10 transition-all duration-1000 ${isVisible ? 'w-full' : 'w-0'}`}
+            className={`h-full bg-gradient-to-r from-primary/40 to-primary/10 transition-all duration-1000 ${isVisible ? 'w-full' : 'w-0'}`}
             style={{ transitionDelay: `${index * 0.3 + 0.5}s` }}
           />
         </div>
@@ -27,10 +27,10 @@ function StepCard({ icon: Icon, num, title, desc, isVisible, index }) {
         style={{ animationDelay: `${index * 0.15}s` }}
       >
         <div className="relative mb-5">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#ff5b1f]/20 to-[#ff5b1f]/5 border border-[#ff5b1f]/20 flex items-center justify-center text-[#ff5b1f] group transition-all hover:scale-105 hover:border-[#ff5b1f]/50 duration-300">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center text-primary group transition-all hover:scale-105 hover:border-primary/50 duration-300">
             <Icon className="w-8 h-8" />
           </div>
-          <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-[#ff5b1f] text-white text-xs font-bold flex items-center justify-center font-mono shadow-lg shadow-[#ff5b1f]/30">
+          <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center font-mono shadow-lg shadow-primary/30">
             {num}
           </div>
         </div>
@@ -50,7 +50,7 @@ export default function HowItWorks() {
       <div className="absolute inset-0 grid-pattern opacity-30" />
       <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 relative">
         <div className={`text-center mb-14 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ff5b1f]/10 rounded-full text-xs font-medium text-[#ff5b1f] border border-[#ff5b1f]/20 mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full text-xs font-medium text-primary border border-primary/20 mb-4">
             <ArrowRight className="w-3 h-3" />
             Simple Workflow
           </div>

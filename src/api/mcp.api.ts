@@ -422,11 +422,28 @@ export const apiMcpCallTool = (ref: McpServerRefBody, toolName: string, args: an
       } as { result: any; ms: number; fallback?: boolean };
     });
 
-export const apiMcpValidateTool = (toolName: string, args: any, schema: any) =>
+export const apiMcpValidateTool = (
+  ref: McpServerRefBody,
+  toolName: string,
+  args: any,
+  schema: any,
+) =>
   http
     .post<{ valid: boolean; errors: string[]; toolSchema: any }>(
       `${BASE}/inspect/tools/validate`,
-      { tool_name: toolName, arguments: args, toolSchema: schema },
+      {
+        // Backend's `ValidateArgsRequest` (McpApiDtos.java) requires the
+        // `server` field — without it the backend re-runs tools/list
+        // against `null` and reports "Tool not found on server: …".
+        server: refToWire(ref),
+        tool_name: toolName,
+        arguments: args,
+        // Also forward the cached schema the UI already has. If the
+        // backend chooses to honour it (validator can short-circuit on
+        // a non-empty toolSchema in the request), that saves one
+        // round-trip per validate.
+        toolSchema: schema,
+      },
     )
     .then((r) => r.data);
 

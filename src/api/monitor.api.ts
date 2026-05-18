@@ -211,7 +211,7 @@ export interface PublicStatusView {
 
 /* ───── client ─────────────────────────────────────────────────── */
 const http = createHttp('monitor');
-const BASE = '/api/v1/monitors';
+const BASE = '/api/v1/monitor';
 
 /* ===== monitors CRUD ============================================ */
 export const apiCreateMonitor = (body: MonitorCreate) =>

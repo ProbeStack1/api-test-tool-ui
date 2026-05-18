@@ -375,7 +375,9 @@ export const RequestBuilderPage = () => {
     setPreScript(loadedRequest.preRequestScript ?? '');
     setTestScript(loadedRequest.testScript ?? '');
     setDirty(false);
-    setMeta(active!.id, { collectionId: loadedRequest.collectionId, folderId: loadedRequest.folderId ?? null });
+    if (active?.id) {
+  setMeta(active.id, { collectionId: loadedRequest.collectionId, folderId: loadedRequest.folderId ?? null });
+}
   }, [loadedRequest, active?.id, setMeta]);
 
   /* URL ↔ params bidirectional sync. */

@@ -22,9 +22,11 @@ import {
   listServers, listTools, type McpCollection, type McpServer, type McpTool,
 } from '@/services/mcp.service';
 import { useMcpStudioStore } from '@/stores/mcp-studio.store';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 
 export const CollectionsTab = () => {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const { data: collections = [], isLoading } = useQuery({
     queryKey: ['mcp-collections'], queryFn: () => listCollections(),
@@ -122,7 +124,14 @@ export const CollectionsTab = () => {
                 </Tooltip>
                 <Tooltip content="Delete">
                   <button data-testid={`collection-del-${c.id}`} onClick={async () => {
-                    if (!confirm(`Delete "${c.name}"?`)) return;
+                    const ok = await confirm({
+                      title: 'Delete collection?',
+                      description: `"${c.name}" and all its tool calls will be permanently removed.`,
+                      tone: 'danger',
+                      confirmText: 'Delete',
+                      testId: `confirm-collection-del-${c.id}`,
+                    });
+                    if (!ok) return;
                     await deleteCollection(c.id);
                     await qc.invalidateQueries({ queryKey: ['mcp-collections'] });
                     toast.success('Collection deleted');

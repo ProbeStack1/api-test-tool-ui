@@ -49,15 +49,23 @@ export const InspectorTab = () => {
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] } | null>(null);
   const [showAudit, setShowAudit] = useState(false);
 
-  // Resources / prompts state
+  // Resources / prompts state — track per-section status so the UI can
+  // tell the user *why* a section is empty: not-supported by the server,
+  // request error, or genuinely zero items.
   const [resources, setResources] = useState<McpResource[]>([]);
   const [pickedResource, setPickedResource] = useState<McpResource | null>(null);
   const [resourceContent, setResourceContent] = useState('');
+  const [resourcesState, setResourcesState] = useState<'idle' | 'loading' | 'unsupported' | 'error' | 'ok'>('idle');
+  const [resourcesError, setResourcesError] = useState<string | null>(null);
   const [prompts, setPrompts] = useState<any[]>([]);
+  const [promptsState, setPromptsState] = useState<'idle' | 'loading' | 'unsupported' | 'error' | 'ok'>('idle');
+  const [promptsError, setPromptsError] = useState<string | null>(null);
 
   useEffect(() => {
     setSession(null); setTools([]); setPickedTool(null); setCallRes(null);
     setResources([]); setPickedResource(null); setResourceContent(''); setPrompts([]);
+    setResourcesState('idle'); setResourcesError(null);
+    setPromptsState('idle');  setPromptsError(null);
   }, [activeServerId]);
 
   // Auto-connect if the user has the setting enabled.
@@ -104,16 +112,49 @@ export const InspectorTab = () => {
       const t = await listTools(ref);
       const safe = Array.isArray(t?.tools) ? t.tools : [];
       setTools(safe); setToolFallback(!!t?.fallback);
-      // auto-list resources and prompts in parallel (best-effort — servers
-      // that advertise no resources/prompts capability will just return []).
-      Promise.allSettled([
+      // Auto-list resources and prompts in parallel. We honour the server's
+      // declared capability map first (received in the `initialize`
+      // handshake) so we never hit /resources/list on a server that doesn't
+      // support it (DeepWiki, for instance, exposes only `tools`). When the
+      // capability is present we still wrap the call so an upstream
+      // MethodNotFound (-32601) is reported as "unsupported" rather than an
+      // opaque error toast.
+      const caps = c?.capabilities ?? {};
+      const supportsResources = caps?.resources != null;
+      const supportsPrompts   = caps?.prompts   != null;
+      const isMethodNotFound  = (err: any) => {
+        const msg = (err?.message ?? String(err ?? '')).toLowerCase();
+        return msg.includes('-32601')
+            || msg.includes('method not found')
+            || msg.includes('not implemented')
+            || msg.includes('unsupported');
+      };
+
+      if (supportsResources) {
+        setResourcesState('loading');
         listResources(ref).then((r) => {
           setResources(Array.isArray(r?.resources) ? r.resources : []);
-        }),
+          setResourcesState('ok');
+        }).catch((err) => {
+          if (isMethodNotFound(err)) setResourcesState('unsupported');
+          else { setResourcesState('error'); setResourcesError(err?.message ?? 'Failed to list resources'); }
+        });
+      } else {
+        setResourcesState('unsupported');
+      }
+
+      if (supportsPrompts) {
+        setPromptsState('loading');
         listPrompts(ref).then((r) => {
           setPrompts(Array.isArray(r?.prompts) ? r.prompts : []);
-        }),
-      ]).catch(() => {});
+          setPromptsState('ok');
+        }).catch((err) => {
+          if (isMethodNotFound(err)) setPromptsState('unsupported');
+          else { setPromptsState('error'); setPromptsError(err?.message ?? 'Failed to list prompts'); }
+        });
+      } else {
+        setPromptsState('unsupported');
+      }
       qc.invalidateQueries({ queryKey: ['mcp-history'] });
       toast.success(`Connected — ${safe.length} tools`);
     } catch (e: any) { toast.error(e?.message ?? 'Connect failed'); }
@@ -136,8 +177,9 @@ export const InspectorTab = () => {
     if (!pickedTool) return;
     let parsed: any = {};
     try { parsed = args.trim() ? JSON.parse(args) : {}; } catch { toast.error('Arguments must be valid JSON'); return; }
-    // schema validate first
-    const v = await validateTool(pickedTool.name, parsed, pickedTool.inputSchema || {});
+    // schema validate first — pass `ref` so the backend can resolve
+    // the connected session and not return "Tool not found on server".
+    const v = await validateTool(ref, pickedTool.name, parsed, pickedTool.inputSchema || {});
     setValidation({ valid: v.valid, errors: v.errors });
     if (!v.valid) return;
     setBusy(true);
@@ -353,16 +395,13 @@ export const InspectorTab = () => {
                     <div className="mb-1 flex items-center gap-2">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Result</span>
                       {callMs != null && <span className="font-mono text-[10px] text-text-muted">{callMs}ms</span>}
+                      {callRes && (callRes as any).isError && (
+                        <span className="rounded bg-danger-muted px-1.5 py-0.5 text-[10px] font-semibold text-danger" data-testid="inspector-tool-result-iserror">
+                          tool reported error
+                        </span>
+                      )}
                     </div>
-                    <div className="min-h-0 flex-1 overflow-hidden rounded border border-border">
-                      <CodeEditor
-                        value={callRes ? JSON.stringify(callRes, null, 2) : ''}
-                        onChange={() => {}}
-                        language="json"
-                        readOnly
-                        testId="inspector-tool-result"
-                      />
-                    </div>
+                    <ToolResultView result={callRes} testIdPrefix="inspector-tool" />
                   </div>
                 </div>
               </>
@@ -372,7 +411,26 @@ export const InspectorTab = () => {
       ) : sub === 'resources' ? (
         <div className="grid h-full grid-cols-[260px_1fr] divide-x divide-border" data-testid="inspector-resources-pane">
           <aside className="overflow-y-auto bg-surface/30">
-            {resources.length === 0 && <div className="p-6 text-center text-[11px] text-text-muted">No resources.</div>}
+            {resourcesState === 'loading' && (
+              <div className="flex items-center justify-center gap-1.5 p-6 text-[11px] text-text-muted">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading resources…
+              </div>
+            )}
+            {resourcesState === 'unsupported' && (
+              <div className="p-5 text-center text-[11px] text-text-muted" data-testid="resources-unsupported">
+                <FileText className="mx-auto mb-1.5 h-5 w-5 opacity-50" />
+                Server does not expose <span className="font-semibold">resources/list</span>.
+              </div>
+            )}
+            {resourcesState === 'error' && (
+              <div className="p-5 text-center text-[11px] text-danger" data-testid="resources-error">
+                <AlertTriangle className="mx-auto mb-1.5 h-5 w-5" />
+                {resourcesError}
+              </div>
+            )}
+            {resourcesState === 'ok' && resources.length === 0 && (
+              <div className="p-6 text-center text-[11px] text-text-muted">No resources.</div>
+            )}
             {resources.map((r) => (
               <button key={r.uri} data-testid={`resource-row-${r.uri}`} onClick={() => doReadResource(r)}
                       className={cn('flex w-full items-start gap-2 border-b border-border/40 px-3 py-2 text-left text-xs transition-colors',
@@ -387,7 +445,11 @@ export const InspectorTab = () => {
           </aside>
           <div className="overflow-hidden p-3">
             {!pickedResource ? (
-              <div className="flex h-full items-center justify-center text-[11px] text-text-muted">Pick a resource to read it.</div>
+              <div className="flex h-full items-center justify-center text-[11px] text-text-muted">
+                {resourcesState === 'unsupported'
+                  ? 'This MCP server only exposes tools — try the Tools tab.'
+                  : 'Pick a resource to read it.'}
+              </div>
             ) : (
               <div className="h-full overflow-hidden rounded border border-border">
                 <CodeEditor value={resourceContent} onChange={() => {}} language="text" readOnly testId="inspector-resource-content" />
@@ -397,7 +459,27 @@ export const InspectorTab = () => {
         </div>
       ) : (
         <div className="overflow-y-auto p-4" data-testid="inspector-prompts-pane">
-          {prompts.length === 0 && <div className="text-center text-[11px] text-text-muted">No prompts.</div>}
+          {promptsState === 'loading' && (
+            <div className="flex items-center justify-center gap-1.5 p-6 text-[11px] text-text-muted">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading prompts…
+            </div>
+          )}
+          {promptsState === 'unsupported' && (
+            <div className="rounded border border-dashed border-border bg-surface/20 p-6 text-center text-[11px] text-text-muted" data-testid="prompts-unsupported">
+              <MessageSquare className="mx-auto mb-1.5 h-5 w-5 opacity-50" />
+              Server does not expose <span className="font-semibold">prompts/list</span>.
+              <div className="mt-1 opacity-70">Most documentation/lookup MCP servers (DeepWiki, Sequential-Thinking, …) only ship tools.</div>
+            </div>
+          )}
+          {promptsState === 'error' && (
+            <div className="rounded border border-danger/40 bg-danger-muted p-4 text-center text-[11px] text-danger" data-testid="prompts-error">
+              <AlertTriangle className="mx-auto mb-1.5 h-5 w-5" />
+              {promptsError}
+            </div>
+          )}
+          {promptsState === 'ok' && prompts.length === 0 && (
+            <div className="text-center text-[11px] text-text-muted">No prompts.</div>
+          )}
           {prompts.map((p) => (
             <div key={p.name} className="mb-2 rounded border border-border bg-surface/30 p-3">
               <div className="flex items-center gap-1.5">
@@ -432,4 +514,89 @@ const seedArgs = (tool: McpTool, set: (s: string) => void) => {
     seed[k] = t === 'integer' || t === 'number' ? 0 : t === 'boolean' ? false : t === 'array' ? [] : '';
   }
   set(JSON.stringify(seed, null, 2));
+};
+
+/* ─────────────────────────────────────────────────────────────────────── */
+/*                       Friendly tool-result renderer                      */
+/*                                                                          */
+/*  MCP `tools/call` responses come in a structured envelope:               */
+/*    { content: [{type:'text', text:'...'}, ...],                          */
+/*      structuredContent?: any, isError?: bool, ms?, fallback?, error? }   */
+/*                                                                          */
+/*  The user just wants to see the message — not the wire envelope. We      */
+/*  surface the `text` parts as the headline, fall back to                  */
+/*  `structuredContent.result`, then to a JSON dump of the structured        */
+/*  payload, and keep a collapsible "Raw JSON" pane for the curious.        */
+/* ─────────────────────────────────────────────────────────────────────── */
+
+const ToolResultView = ({
+  result, testIdPrefix,
+}: { result: any; testIdPrefix: string }) => {
+  const [showRaw, setShowRaw] = useState(false);
+
+  if (result == null || (typeof result === 'object' && Object.keys(result).length === 0)) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded border border-dashed border-border bg-surface/20 text-[11px] text-text-muted"
+           data-testid={`${testIdPrefix}-result-empty`}>
+        Press <span className="mx-1 rounded bg-elevated px-1.5 py-0.5 font-mono">Call tool</span> to see the response.
+      </div>
+    );
+  }
+
+  // Try to pluck human-readable text from the MCP envelope.
+  const textParts: string[] = [];
+  // CodeEditor's CodeLanguage union doesn't include 'plaintext' / 'markdown';
+  // map to the closest supported language so the response renders without a
+  // TS error. Markdown gets shown as plain `text`, JSON as `json`.
+  let language: 'json' | 'text' = 'text';
+
+  if (Array.isArray(result?.content)) {
+    for (const c of result.content) {
+      if (!c) continue;
+      if (c.type === 'text' && typeof c.text === 'string') textParts.push(c.text);
+      else if (c.type === 'resource' && c.resource?.text) textParts.push(c.resource.text);
+      else if (c.type === 'image') textParts.push(`[image: ${c.mimeType ?? 'unknown'}]`);
+    }
+  }
+
+  let bodyText: string;
+  if (textParts.length > 0) {
+    bodyText = textParts.join('\n\n');
+    // JSON-looking responses get json highlighting; everything else
+    // (markdown, plain text, etc.) renders as `text` to stay inside
+    // the CodeLanguage union accepted by CodeEditor.
+    if (bodyText.trim().startsWith('{') || bodyText.trim().startsWith('[')) language = 'json';
+    else language = 'text';
+  } else if (result?.structuredContent?.result !== undefined) {
+    const sv = result.structuredContent.result;
+    bodyText = typeof sv === 'string' ? sv : JSON.stringify(sv, null, 2);
+    language = typeof sv === 'string' ? 'text' : 'json';
+  } else if (result?.structuredContent !== undefined) {
+    bodyText = JSON.stringify(result.structuredContent, null, 2);
+    language = 'json';
+  } else {
+    bodyText = JSON.stringify(result, null, 2);
+    language = 'json';
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+      <div className="min-h-0 flex-1 overflow-hidden rounded border border-border" data-testid={`${testIdPrefix}-result`}>
+        <CodeEditor value={bodyText} onChange={() => {}} language={language} readOnly testId={`${testIdPrefix}-result-body`} />
+      </div>
+      <button
+        type="button"
+        data-testid={`${testIdPrefix}-result-raw-toggle`}
+        onClick={() => setShowRaw((v) => !v)}
+        className="self-start text-[10px] uppercase tracking-wide text-text-muted underline-offset-2 hover:text-text-primary hover:underline"
+      >
+        {showRaw ? 'Hide raw JSON' : 'Show raw JSON'}
+      </button>
+      {showRaw && (
+        <div className="h-32 overflow-hidden rounded border border-border/60">
+          <CodeEditor value={JSON.stringify(result, null, 2)} onChange={() => {}} language="json" readOnly testId={`${testIdPrefix}-result-raw`} />
+        </div>
+      )}
+    </div>
+  );
 };

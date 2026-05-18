@@ -43,6 +43,7 @@ import type {
 import { fmtDateTime, fmtRelative, getGlobalTimezone } from '@/lib/timezone';
 import { useGlobalTimezone } from '@/hooks/useGlobalTimezone';
 import { cn } from '@/utils/cn';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 const METHODS = [
   'tools/list', 'tools/call', 'resources/list', 'resources/read',
@@ -63,6 +64,7 @@ const todayIso  = () => new Date().toISOString().slice(0, 10);
 const daysAgoIso = (n: number) => new Date(Date.now() - n * 86400_000).toISOString().slice(0, 10);
 
 export const HistoryTab = () => {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const [zone] = useGlobalTimezone();
   // Filter state
@@ -290,7 +292,16 @@ export const HistoryTab = () => {
             </Button>
             <Button variant="outline" data-testid="mcp-history-clear"
                     disabled={entries.length === 0 || clr.isPending}
-                    onClick={() => { if (confirm('Clear MCP history for this filter?')) clr.mutate(); }}>
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Clear MCP history?',
+                        description: 'All entries matching the current filter will be permanently deleted from this workspace.',
+                        tone: 'danger',
+                        confirmText: 'Clear history',
+                        testId: 'confirm-mcp-history-clear',
+                      });
+                      if (ok) clr.mutate();
+                    }}>
               <Trash2 className="h-3.5 w-3.5" /> Clear
             </Button>
           </div>

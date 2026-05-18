@@ -385,3 +385,17 @@
 .animate-pulse-glow {
   animation: pulse-glow 4s ease-in-out infinite;
 }
+
+
+/* === AnimatedTerminal: light theme === */
+html.light .term-shell { background-color: #ffffff !important; border-color: rgba(0,0,0,0.08) !important; box-shadow: 0 30px 80px -20px rgba(0,0,0,0.15) !important; }
+html.light .term-titlebar { background: linear-gradient(to bottom, rgba(0,0,0,0.03), transparent) !important; border-color: rgba(0,0,0,0.06) !important; }
+html.light .term-tabs { background-color: rgba(0,0,0,0.025) !important; border-color: rgba(0,0,0,0.06) !important; }
+html.light .term-tab-active { background-color: rgba(0,0,0,0.08) !important; color: #0b0d12 !important; }
+html.light .term-body { background-color: #ffffff !important; }
+html.light .term-scanlines { background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.55) 0 1px, transparent 1px 3px) !important; opacity: .035 !important; }
+html.light .term-fg { color: #0b0d12 !important; }
+html.light .term-icon:hover { color: #0b0d12 !important; }
+html.light .term-dot-idle { background-color: rgba(0,0,0,0.2) !important; }
+html.light .term-json { background-color: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #2d2d2d !important; }
+html.light .term-card { background-color: #ffffff !important; border-color: rgba(0,0,0,0.08) !important; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.18) !important; }

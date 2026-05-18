@@ -5,8 +5,8 @@
 import { createHttp } from '@/lib/http';
 
 const http = createHttp('monitor');
-const HB = '/api/v1/monitors/heartbeats';
-const DG = '/api/v1/monitors/digests';
+const HB = '/api/v1/monitor/heartbeats';
+const DG = '/api/v1/monitor/digests';
 
 /* ─── Heartbeats ───────────────────────────────────────────────────── */
 export interface HeartbeatCreate {

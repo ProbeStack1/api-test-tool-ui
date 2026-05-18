@@ -427,3 +427,60 @@ button:disabled,
   );
   animation: shimmer 1.2s linear infinite;
 }
+
+/* ============================================ */
+/* Terminal Component – Light Mode Overrides    */
+/* Sirf terminal ke andar light mode colours    */
+/* ============================================ */
+
+[data-theme='light'] .terminal-root {
+  /* Dark background ko white karo */
+  --terminal-bg: #ffffff;
+  --terminal-surface: #fafafa;
+  --terminal-border: rgba(0, 0, 0, 0.08);
+  
+  /* Brand colours wahi rahenge (change nahi karne) */
+}
+
+[data-theme='light'] .terminal-root > div:first-child + div {
+  /* Terminal ke main shell ka background */
+  background-color: #ffffff !important;
+  border-color: var(--terminal-border) !important;
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme='light'] .terminal-root .border-border {
+  border-color: var(--terminal-border) !important;
+}
+
+[data-theme='light'] .terminal-root .bg-\[color\:var\(--text-primary\)\]\/10 {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme='light'] .terminal-root .bg-\[\#0a0c11\] {
+  background-color: #ffffff !important;
+}
+
+[data-theme='light'] .terminal-root .bg-\[\#13161d\] {
+  background-color: #f0f0f0 !important;
+}
+
+[data-theme='light'] .terminal-root .text-text-muted,
+[data-theme='light'] .terminal-root .text-text-secondary {
+  color: #6b7280 !important;
+}
+
+[data-theme='light'] .terminal-root .text-text-primary {
+  color: #1f2937 !important;
+}
+
+[data-theme='light'] .terminal-root .bg-gradient-to-b.from-\[\#0a0c11\] {
+  background: linear-gradient(to bottom, #ffffff, transparent) !important;
+}
+
+/* Floating card ke liye */
+[data-theme='light'] .terminal-root .absolute.-right-4.-bottom-6 {
+  background-color: #ffffff !important;
+  border-color: var(--terminal-border) !important;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.18) !important;
+}

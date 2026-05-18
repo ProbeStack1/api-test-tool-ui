@@ -21,6 +21,7 @@ import {
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
 import { createHttp } from '@/lib/http';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type DestKind = 'EMAIL' | 'SLACK' | 'TEAMS' | 'WEBHOOK';
@@ -43,7 +44,7 @@ interface EscalationRule {
   updatedAt?: string;
 }
 
-const BASE = `${serviceUrl('functionalTest')}/functional-tests/security/escalation-rules`;
+const BASE = `${serviceUrl('functionalTest')}/api/v1/functional-tests/security/escalation-rules`;
 const http = createHttp('functionalTest');
 
 const SEV_TONE: Record<Severity, string> = {
@@ -66,6 +67,7 @@ const blankRule = (): EscalationRule => ({
 });
 
 export function EscalationRulesPage() {
+  const confirm = useConfirm();
   const [rules, setRules] = useState<EscalationRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +97,14 @@ export function EscalationRulesPage() {
 
   const deleteRule = async (rule: EscalationRule) => {
     if (!rule.id) return;
-    if (!confirm(`Delete rule "${rule.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete escalation rule?',
+      description: `"${rule.name}" will be removed permanently. Past scan history is preserved.`,
+      tone: 'danger',
+      confirmText: 'Delete',
+      testId: `confirm-escalation-rule-del-${rule.id}`,
+    });
+    if (!ok) return;
     await http.delete(`${BASE}/${rule.id}`);
     fetchRules();
   };

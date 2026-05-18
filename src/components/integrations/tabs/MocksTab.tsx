@@ -22,8 +22,10 @@ import {
   type McpServer, type McpMockTool,
 } from '@/services/mcp.service';
 import { cn } from '@/utils/cn';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 export const MocksTab = () => {
+  const confirm = useConfirm();
   const ws = useWorkspaceStore((s) => s.current);
   const setActiveServer = useMcpStudioStore((s) => s.setActiveServer);
   const setTab = useMcpStudioStore((s) => s.setTab);
@@ -99,7 +101,16 @@ export const MocksTab = () => {
                 </Button>
                 <Tooltip content="Delete">
                   <button data-testid={`mock-del-${m.id}`} disabled={rm.isPending}
-                          onClick={() => { if (confirm(`Delete mock "${m.name}"?`)) rm.mutate(m.id); }}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: 'Delete mock server?',
+                              description: `Mock "${m.name}" and its tool definitions will be removed.`,
+                              tone: 'danger',
+                              confirmText: 'Delete',
+                              testId: `confirm-mock-del-${m.id}`,
+                            });
+                            if (ok) rm.mutate(m.id);
+                          }}
                           className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-hover hover:text-danger disabled:opacity-50">
                     <Trash2 className="h-3 w-3" />
                   </button>

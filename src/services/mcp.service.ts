@@ -132,7 +132,7 @@ export const disconnect    = (ref: McpServerRef) => apiMcpDisconnect(ref);
 export const ping          = (ref: McpServerRef) => apiMcpPing(ref);
 export const listTools     = (ref: McpServerRef) => apiMcpListTools(ref);
 export const callTool      = (ref: McpServerRef, toolName: string, args: any) => apiMcpCallTool(ref, toolName, args);
-export const validateTool  = (toolName: string, args: any, schema: any) => apiMcpValidateTool(toolName, args, schema);
+export const validateTool  = (ref: McpServerRefBody, toolName: string, args: any, schema: any) => apiMcpValidateTool(ref, toolName, args, schema);
 export const listResources = (ref: McpServerRef) => apiMcpListResources(ref);
 export const readResource  = (ref: McpServerRef, uri: string) => apiMcpReadResource(ref, uri);
 export const listPrompts   = (ref: McpServerRef) => apiMcpListPrompts(ref);

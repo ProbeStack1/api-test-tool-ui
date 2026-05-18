@@ -62,7 +62,7 @@ export const LandingNavbar = () => {
         <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
             <Logo variant="mark" className="h-12 w-10" />
             <div>
-              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-white/60">
+              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-text-secondary">
                 probestack
               </div>
               <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">

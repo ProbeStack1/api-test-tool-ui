@@ -28,6 +28,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { Modal } from '@/components/ui/Modal';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useMcpStudioStore } from '@/stores/mcp-studio.store';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import {
   listServers, createServer, updateServer, deleteServer, probeServer,
   listCatalog, connectFromCatalog, claudeConfigUrl,
@@ -38,6 +39,7 @@ import { cn } from '@/utils/cn';
 type Surface = 'catalog' | 'my';
 
 export const ServersTab = () => {
+  const confirm = useConfirm();
   const ws = useWorkspaceStore((s) => s.current);
   const filter = useMcpStudioStore((s) => s.serversFilter);
   const setFilter = useMcpStudioStore((s) => s.setServersFilter);
@@ -301,7 +303,14 @@ export const ServersTab = () => {
                   onProbe={() => probe(s.id)}
                   onEdit={() => setEditing(s)}
                   onDelete={async () => {
-                    if (!confirm(`Delete "${s.name}"? This cannot be undone.`)) return;
+                    const ok = await confirm({
+                      title: 'Delete server?',
+                      description: `"${s.name}" will be removed from your saved servers. This cannot be undone.`,
+                      tone: 'danger',
+                      confirmText: 'Delete',
+                      testId: `confirm-server-del-${s.id}`,
+                    });
+                    if (!ok) return;
                     await deleteServer(s.id);
                     if (activeServerId === s.id) setActiveServer(null);
                     await qc.invalidateQueries({ queryKey: ['mcp-servers'] });

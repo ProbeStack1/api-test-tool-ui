@@ -1,7 +1,7 @@
 /**
  * Auth Page — Sign In / Sign Up.
  *
- * Two-pane experience tuned to ForgeQ's existing dark theme:
+ * Two-pane experience tuned to ForgeFuzz's existing dark theme:
  *   • Left: animated branding panel (gradient orbs + feature highlights),
  *     uses landing-page CSS tokens (#ff5b1f orange · #1fbf9a teal · #ffb400 amber).
  *   • Right: glass-morphism card holding the live form. Mode toggles between
@@ -14,7 +14,10 @@
  *   • Pressing "Continue without account" (skip) preserves the existing
  *     unauthenticated demo flow.
  *
- * Theme: dark by default, light theme inherited via the global theme toggle.
+ * Theme: carries the active dark/light theme from settings.store
+ *   (so the landing page → login transition stays consistent), and a
+ *   floating Sun/Moon button lets the user flip themes in-place without
+ *   bouncing back to the workspace header.
  */
 import { useEffect, useMemo, useState, type FormEvent, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -32,8 +35,11 @@ import {
   Boxes,
   TestTube2,
   Rocket,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
+import { useSettings } from '@/stores/settings.store';
 import { cn } from '@/utils/cn';
 
 type Mode = 'signin' | 'signup';
@@ -46,7 +52,7 @@ const HIGHLIGHTS = [
 ];
 
 // ---------- Canvas particle field (dots + link lines) ----------
-const CanvasParticles = () => {
+const CanvasParticles = ({ isDark }: { isDark: boolean }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -59,7 +65,9 @@ const CanvasParticles = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     type P = { x: number; y: number; vx: number; vy: number; r: number; c: string };
-    const colors = ["#ff4400", "#1e00ff", "#00ff33"];
+    const colors = isDark
+      ? ["#ff4400", "#1e00ff", "#00ff33"]
+      : ["#ff5b1f", "#1fbf9a", "#ffb400"];
     let particles: P[] = [];
 
     const resize = () => {
@@ -79,6 +87,10 @@ const CanvasParticles = () => {
       }));
     };
 
+    // Pick the link-line colour to match the current theme so the
+    // particle web stays visible (white-on-dark, black-on-light).
+    const linkRgb = isDark ? '255,255,255' : '17,24,39';
+
     const tick = () => {
       ctx.clearRect(0, 0, w, h);
       for (const p of particles) {
@@ -89,7 +101,7 @@ const CanvasParticles = () => {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fillStyle = p.c;
-        ctx.globalAlpha = 0.65;
+        ctx.globalAlpha = isDark ? 0.65 : 0.55;
         ctx.fill();
       }
       // link lines
@@ -102,7 +114,7 @@ const CanvasParticles = () => {
             dy = a.y - b.y;
           const d2 = dx * dx + dy * dy;
           if (d2 < 120 * 120) {
-            ctx.strokeStyle = `rgba(255,255,255,${0.16 * (1 - d2 / (120 * 120))})`;
+            ctx.strokeStyle = `rgba(${linkRgb},${(isDark ? 0.16 : 0.12) * (1 - d2 / (120 * 120))})`;
             ctx.lineWidth = 0.6;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -122,7 +134,7 @@ const CanvasParticles = () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, []);
+  }, [isDark]);
 
   return (
     <canvas
@@ -242,6 +254,15 @@ export const LoginPage = () => {
   const [params, setParams] = useSearchParams();
   const initialMode: Mode = params.get('mode') === 'signup' ? 'signup' : 'signin';
 
+  // Inherit whichever theme the user was on (landing / workspace / direct
+  // link). The settings store already mounts <html data-theme> on boot,
+  // we simply derive `isDark` for the conditional palette and expose a
+  // floating Sun/Moon toggle so the user can flip themes WITHOUT leaving
+  // this screen.
+  const theme = useSettings((s) => s.theme);
+  const setTheme = useSettings((s) => s.setTheme);
+  const isDark = theme === 'dark';
+
   const [mode, setMode] = useState<Mode>(initialMode);
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -285,23 +306,59 @@ export const LoginPage = () => {
   return (
     <div
       data-testid="auth-page"
-      className="relative min-h-screen w-full overflow-hidden bg-[#0b0d12] text-white"
+      className={cn(
+        'relative min-h-screen w-full overflow-hidden transition-colors duration-300',
+        isDark ? 'bg-[#0b0d12] text-white' : 'bg-[#f6f7fb] text-[#1f2937]',
+      )}
     >
       {/* Inject keyframes for rising particles */}
       <style>{particleRiseStyles}</style>
 
+      {/* Floating theme toggle — top-right, mirrors the workspace header
+          control so the user keeps the same affordance everywhere. */}
+      <button
+        type="button"
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        data-testid="auth-theme-toggle"
+        aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        className={cn(
+          'absolute right-5 top-5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition-all',
+          isDark
+            ? 'border-white/15 bg-white/[0.06] text-white hover:border-[#ff5b1f]/45 hover:bg-white/[0.1]'
+            : 'border-black/10 bg-white/70 text-[#1f2937] hover:border-[#ff5b1f]/55 hover:bg-white',
+        )}
+      >
+        {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
+
       {/* Ambient gradient orbs — reuse landing palette so brand stays consistent */}
       <div className="pointer-events-none absolute inset-0 z-0">
-        <div className="absolute -left-1/4 -top-1/4 h-[60%] w-[60%] animate-pulse rounded-full bg-[#ff5b1f]/25 blur-[140px]" />
         <div
-          className="absolute -bottom-1/4 -right-1/4 h-[55%] w-[55%] animate-pulse rounded-full bg-[#1fbf9a]/20 blur-[140px]"
+          className={cn(
+            'absolute -left-1/4 -top-1/4 h-[60%] w-[60%] animate-pulse rounded-full blur-[140px]',
+            isDark ? 'bg-[#ff5b1f]/25' : 'bg-[#ff5b1f]/18',
+          )}
+        />
+        <div
+          className={cn(
+            'absolute -bottom-1/4 -right-1/4 h-[55%] w-[55%] animate-pulse rounded-full blur-[140px]',
+            isDark ? 'bg-[#1fbf9a]/20' : 'bg-[#1fbf9a]/14',
+          )}
           style={{ animationDelay: '1.5s' }}
         />
-        <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:48px_48px]" />
+        <div
+          className={cn(
+            'absolute inset-0',
+            isDark
+              ? 'opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:48px_48px]'
+              : 'opacity-[0.06] [background-image:linear-gradient(rgba(0,0,0,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.6)_1px,transparent_1px)] [background-size:48px_48px]',
+          )}
+        />
       </div>
 
       {/* Canvas particle field with dynamic connecting lines */}
-      <CanvasParticles />
+      <CanvasParticles isDark={isDark} />
 
       {/* CSS rising particles (logos + bubbles) */}
       {/* <CSSParticles /> */}
@@ -315,7 +372,7 @@ export const LoginPage = () => {
           <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
             <Logo variant="mark" className="h-12 w-10" />
             <div>
-              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-white/60">
+              <div className={cn('text-[0.75rem] uppercase tracking-[0.18em]', isDark ? 'text-white/60' : 'text-gray-600')}>
                 probestack
               </div>
               <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
@@ -326,7 +383,12 @@ export const LoginPage = () => {
 
           <div className="space-y-8">
             <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/70">
+              <div
+                className={cn(
+                  'mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
+                  isDark ? 'border-white/10 bg-white/[0.04] text-white/70' : 'border-black/10 bg-white/70 text-gray-700',
+                )}
+              >
                 <Sparkles className="h-3.5 w-3.5 text-[#ffb400]" />
                 The API workbench engineers actually enjoy
               </div>
@@ -338,7 +400,7 @@ export const LoginPage = () => {
                 </span>{' '}
                 — together.
               </h2>
-              <p className="mt-3 max-w-md text-base text-white/65">
+              <p className={cn('mt-3 max-w-md text-base', isDark ? 'text-white/65' : 'text-gray-600')}>
                 Collections, MCP servers, mocks, functional tests, load runs and
                 live monitors — all in one workspace, hardened for production demos.
               </p>
@@ -348,24 +410,29 @@ export const LoginPage = () => {
               {HIGHLIGHTS.map(({ icon: Icon, title: t, desc }) => (
                 <li
                   key={t}
-                  className="group rounded-xl border border-white/10 bg-white/[0.03] p-3 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-[#ff5b1f]/40 hover:bg-white/[0.06]"
+                  className={cn(
+                    'group rounded-xl border p-3 backdrop-blur-sm transition-all hover:-translate-y-0.5',
+                    isDark
+                      ? 'border-white/10 bg-white/[0.03] hover:border-[#ff5b1f]/40 hover:bg-white/[0.06]'
+                      : 'border-black/10 bg-white/70 hover:border-[#ff5b1f]/50 hover:bg-white',
+                  )}
                 >
                   <div className="mb-1.5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff5b1f]/25 to-[#1fbf9a]/25">
-                    <Icon className="h-4 w-4 text-white" />
+                    <Icon className={cn('h-4 w-4', isDark ? 'text-white' : 'text-gray-800')} />
                   </div>
-                  <div className="text-sm font-semibold text-white">{t}</div>
-                  <div className="text-xs text-white/55">{desc}</div>
+                  <div className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-gray-900')}>{t}</div>
+                  <div className={cn('text-xs', isDark ? 'text-white/55' : 'text-gray-500')}>{desc}</div>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-white/45">
+          <div className={cn('flex items-center gap-4 text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>
             <span>© ProbeStack 2026</span>
-            <span className="h-1 w-1 rounded-full bg-white/30" />
-            <Link to="/pricing" className="hover:text-white/80">Pricing</Link>
-            <span className="h-1 w-1 rounded-full bg-white/30" />
-            <a href="/docs/customer-api-v1" className="hover:text-white/80">Docs</a>
+            <span className={cn('h-1 w-1 rounded-full', isDark ? 'bg-white/30' : 'bg-black/30')} />
+            <Link to="/pricing" className={isDark ? 'hover:text-white/80' : 'hover:text-gray-800'}>Pricing</Link>
+            <span className={cn('h-1 w-1 rounded-full', isDark ? 'bg-white/30' : 'bg-black/30')} />
+            <a href="/docs/customer-api-v1" className={isDark ? 'hover:text-white/80' : 'hover:text-gray-800'}>Docs</a>
           </div>
         </aside>
 
@@ -373,7 +440,10 @@ export const LoginPage = () => {
         <main className="flex items-center justify-center p-6 sm:p-10">
           <div
             data-testid="auth-card"
-            className="w-full max-w-[440px] rounded-2xl border border-white/10 bg-[#13161d]/85 p-7 shadow-[0_30px_80px_-30px_rgba(255,91,31,0.35)] backdrop-blur-2xl sm:p-9"
+            className={cn(
+              'w-full max-w-[440px] rounded-2xl border p-7 shadow-[0_30px_80px_-30px_rgba(255,91,31,0.35)] backdrop-blur-2xl sm:p-9',
+              isDark ? 'border-white/10 bg-[#13161d]/85' : 'border-black/10 bg-white/85',
+            )}
           >
             {/* Mobile logo — only when left pane is hidden */}
             <Link
@@ -391,7 +461,10 @@ export const LoginPage = () => {
             <div
               role="tablist"
               data-testid="auth-mode-tabs"
-              className="mb-7 grid grid-cols-2 rounded-lg border border-white/10 bg-white/[0.03] p-1"
+              className={cn(
+                'mb-7 grid grid-cols-2 rounded-lg border p-1',
+                isDark ? 'border-white/10 bg-white/[0.03]' : 'border-black/10 bg-black/[0.04]',
+              )}
             >
               {(['signin', 'signup'] as Mode[]).map((m) => (
                 <button
@@ -405,7 +478,9 @@ export const LoginPage = () => {
                     'rounded-md px-3 py-2 text-sm font-medium transition-all',
                     mode === m
                       ? 'bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a] text-white shadow-lg shadow-[#ff5b1f]/20'
-                      : 'text-white/55 hover:text-white',
+                      : isDark
+                        ? 'text-white/55 hover:text-white'
+                        : 'text-gray-500 hover:text-gray-900',
                   )}
                 >
                   {m === 'signin' ? 'Sign in' : 'Create account'}
@@ -413,19 +488,24 @@ export const LoginPage = () => {
               ))}
             </div>
 
-            <h1 className="text-2xl font-bold text-white">{title}</h1>
-            <p className="mt-1 text-sm text-white/55">{subtitle}</p>
+            <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{title}</h1>
+            <p className={cn('mt-1 text-sm', isDark ? 'text-white/55' : 'text-gray-500')}>{subtitle}</p>
 
             {/* OAuth row (stub buttons — wired in Phase 1) */}
             <div className="mt-6 grid grid-cols-2 gap-2.5">
-              <OAuthButton testid="auth-oauth-google" label="Google" iconUrl="https://www.google.com/favicon.ico" />
-              <OAuthButton testid="auth-oauth-github" label="GitHub" icon={<Github className="h-4 w-4" />} />
+              <OAuthButton testid="auth-oauth-google" label="Google" iconUrl="https://www.google.com/favicon.ico" isDark={isDark} />
+              <OAuthButton testid="auth-oauth-github" label="GitHub" icon={<Github className="h-4 w-4" />} isDark={isDark} />
             </div>
 
-            <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em] text-white/35">
-              <span className="h-px flex-1 bg-white/10" />
+            <div
+              className={cn(
+                'my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]',
+                isDark ? 'text-white/35' : 'text-gray-400',
+              )}
+            >
+              <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
               or with email
-              <span className="h-px flex-1 bg-white/10" />
+              <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
             </div>
 
             <form data-testid="auth-form" onSubmit={onSubmit} className="space-y-3.5">
@@ -438,6 +518,7 @@ export const LoginPage = () => {
                     value={form.name}
                     onChange={onChange('name')}
                     required
+                    isDark={isDark}
                   />
                   <Field
                     icon={Boxes}
@@ -445,6 +526,7 @@ export const LoginPage = () => {
                     placeholder="Company / Team (optional)"
                     value={form.company}
                     onChange={onChange('company')}
+                    isDark={isDark}
                   />
                 </>
               )}
@@ -458,6 +540,7 @@ export const LoginPage = () => {
                 onChange={onChange('email')}
                 required
                 autoComplete="email"
+                isDark={isDark}
               />
 
               <Field
@@ -469,12 +552,13 @@ export const LoginPage = () => {
                 onChange={onChange('password')}
                 required
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                isDark={isDark}
                 trailing={
                   <button
                     type="button"
                     data-testid="auth-toggle-password"
                     onClick={() => setShowPwd((p) => !p)}
-                    className="text-white/45 hover:text-white"
+                    className={isDark ? 'text-white/45 hover:text-white' : 'text-gray-400 hover:text-gray-700'}
                     aria-label={showPwd ? 'Hide password' : 'Show password'}
                   >
                     {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -484,13 +568,16 @@ export const LoginPage = () => {
 
               {mode === 'signin' ? (
                 <div className="flex items-center justify-between pt-1 text-[12px]">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-white/60">
+                  <label className={cn('inline-flex cursor-pointer items-center gap-2', isDark ? 'text-white/60' : 'text-gray-600')}>
                     <input
                       type="checkbox"
                       data-testid="auth-remember"
                       checked={form.remember}
                       onChange={onChange('remember')}
-                      className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 accent-[#ff5b1f]"
+                      className={cn(
+                        'h-3.5 w-3.5 rounded accent-[#ff5b1f]',
+                        isDark ? 'border-white/20 bg-white/5' : 'border-black/20 bg-white',
+                      )}
                     />
                     Remember me
                   </label>
@@ -503,12 +590,12 @@ export const LoginPage = () => {
                   </button>
                 </div>
               ) : (
-                <p className="pt-1 text-[11px] leading-relaxed text-white/45">
+                <p className={cn('pt-1 text-[11px] leading-relaxed', isDark ? 'text-white/45' : 'text-gray-500')}>
                   By creating an account you agree to ForgeFuzz's
                   {' '}
-                  <a href="/terms" className="text-white/70 hover:text-white">Terms</a>
+                  <a href="/terms" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Terms</a>
                   {' '}and{' '}
-                  <a href="/privacy" className="text-white/70 hover:text-white">Privacy</a>.
+                  <a href="/privacy" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Privacy</a>.
                 </p>
               )}
 
@@ -532,14 +619,19 @@ export const LoginPage = () => {
                 type="button"
                 data-testid="auth-skip-btn"
                 onClick={onSkip}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white/70 transition-all hover:border-[#1fbf9a]/40 hover:text-white"
+                className={cn(
+                  'inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all',
+                  isDark
+                    ? 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#1fbf9a]/40 hover:text-white'
+                    : 'border-black/10 bg-black/[0.03] text-gray-600 hover:border-[#1fbf9a]/55 hover:text-gray-900',
+                )}
               >
                 <Rocket className="h-4 w-4 text-[#1fbf9a]" />
                 Continue to demo workspace
               </button>
             </form>
 
-            <p className="mt-6 text-center text-xs text-white/45">
+            <p className={cn('mt-6 text-center text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>
               {mode === 'signin' ? (
                 <>
                   Don't have an account?{' '}
@@ -581,18 +673,35 @@ const Field = ({
   icon: Icon,
   testid,
   trailing,
+  isDark = true,
   ...rest
 }: {
   icon: any;
   testid: string;
   trailing?: React.ReactNode;
+  isDark?: boolean;
 } & React.InputHTMLAttributes<HTMLInputElement>) => (
-  <div className="group relative flex items-center rounded-lg border border-white/10 bg-white/[0.03] transition-all focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]">
-    <Icon className="ml-3 h-4 w-4 shrink-0 text-white/40 transition-colors group-focus-within:text-[#ff8c4a]" />
+  <div
+    className={cn(
+      'group relative flex items-center rounded-lg border transition-all',
+      isDark
+        ? 'border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]'
+        : 'border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white',
+    )}
+  >
+    <Icon
+      className={cn(
+        'ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]',
+        isDark ? 'text-white/40' : 'text-gray-400',
+      )}
+    />
     <input
       {...rest}
       data-testid={testid}
-      className="flex-1 bg-transparent px-3 py-2.5 text-sm text-white placeholder-white/35 outline-none"
+      className={cn(
+        'flex-1 bg-transparent px-3 py-2.5 text-sm outline-none',
+        isDark ? 'text-white placeholder-white/35' : 'text-gray-900 placeholder-gray-400',
+      )}
     />
     {trailing && <div className="mr-3">{trailing}</div>}
   </div>
@@ -603,16 +712,23 @@ const OAuthButton = ({
   label,
   icon,
   iconUrl,
+  isDark = true,
 }: {
   testid: string;
   label: string;
   icon?: React.ReactNode;
   iconUrl?: string;
+  isDark?: boolean;
 }) => (
   <button
     type="button"
     data-testid={testid}
-    className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] py-2.5 text-sm font-medium text-white/80 transition-all hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
+    className={cn(
+      'inline-flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-all',
+      isDark
+        ? 'border-white/10 bg-white/[0.03] text-white/80 hover:border-white/25 hover:bg-white/[0.06] hover:text-white'
+        : 'border-black/10 bg-white/70 text-gray-700 hover:border-black/25 hover:bg-white hover:text-gray-900',
+    )}
   >
     {iconUrl ? (
       <img src={iconUrl} alt="" className="h-4 w-4 rounded-sm" />

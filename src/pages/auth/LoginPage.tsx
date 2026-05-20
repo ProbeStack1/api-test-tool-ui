@@ -676,7 +676,7 @@ export const LoginPage = () => {
                 )}
               </button>
 
-              <button
+              {/* <button
                 type="button"
                 data-testid="auth-skip-btn"
                 onClick={onSkip}
@@ -689,7 +689,7 @@ export const LoginPage = () => {
               >
                 <Rocket className="h-4 w-4 text-[#1fbf9a]" />
                 Continue to demo workspace
-              </button>
+              </button> */}
             </form>
 
             <p className={cn('mt-6 text-center text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>

@@ -370,14 +370,14 @@ export function SecurityScanPage() {
           >
             <History className="h-4 w-4" /> History
           </button>
-          <a
+          {/* <a
             data-testid="escalation-rules-link"
             href="/projects/security/escalation-rules"
             title="Manage auto-escalation rules"
             className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-text-secondary hover:border-primary/50 hover:text-text-primary"
           >
             <ShieldCheck className="h-4 w-4" /> Rules
-          </a>
+          </a> */}
         </div>
       </div>
 

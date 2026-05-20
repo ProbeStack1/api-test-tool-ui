@@ -1,8 +1,8 @@
 /**
  * Project Dashboard — premium overview.
  *
- * Data comes live from `forgeq-dashboard-mgmt-svc` (port 8095), which itself
- * aggregates over every ForgeQ service's MongoDB collections.
+ * Data comes live from `forgefuzz-dashboard-mgmt-svc` (port 8095), which itself
+ * aggregates over every ForgeFuzz service's MongoDB collections.
  *
  * Interactions / UX:
  *   • Every KPI tile is a clickable deep-link into its feature page.
@@ -103,7 +103,7 @@ export const DashboardPage = () => {
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight" data-testid="dashboard-heading">Project dashboard</h1>
-            <p className="text-xs text-text-muted">Live aggregate across every ForgeQ service · auto-refresh every 30 s</p>
+            <p className="text-xs text-text-muted">Live aggregate across every ForgeFuzz service · auto-refresh every 30 s</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

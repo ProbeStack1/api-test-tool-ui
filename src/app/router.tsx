@@ -16,6 +16,7 @@ import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-
 import { lazy, Suspense } from 'react';
 import { RouteFallback } from '@/components/skeletons/RouteFallback';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
+import { RequireAuth } from './RequireAuth';
 
 type LazyWithPrefetch<T = any> = React.LazyExoticComponent<React.ComponentType<T>> & {
   prefetch: () => Promise<unknown>;
@@ -127,6 +128,9 @@ const router = createBrowserRouter([
     ],
   },
   { path: '/login', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
+  // Register is the same component with mode=signup pre-selected, so existing
+  // bookmark or marketing links don't 404. The query string already controls mode.
+  { path: '/register', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/accept-invitation', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/status/:slug', element: r(<StatusPagePublicSlugRoute />), errorElement: <RouteErrorBoundary /> },
 
@@ -147,11 +151,12 @@ const router = createBrowserRouter([
     ],
   },
 
-  // Main app shell — everything under /projects
+  // Main app shell — everything under /projects (gated by RequireAuth,
+  // which is a no-op while VITE_DEV_BYPASS_AUTH=true).
   { path: '/projects', element: <Navigate to="/projects/collections" replace /> },
   {
     path: '/projects',
-    element: r(<AppShell />),
+    element: <RequireAuth>{r(<AppShell />)}</RequireAuth>,
     errorElement: <RouteErrorBoundary />,
     children: [
       { path: 'collections', element: r(<RequestBuilderPage />) },

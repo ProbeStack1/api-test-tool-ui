@@ -1,12 +1,23 @@
 /**
  * HTTP client factory.
  * What : Creates a pre-configured axios instance per microservice.
- * Why  : Shared interceptors (auth header, error normalization, request id).
+ * Why  : Shared interceptors (auth header, error normalization, request id,
+ *        401 → refresh-token rotation).
  * Usage: `const http = createHttp('workspace'); http.get('/api/v1/workspaces')`
  */
 
-import axios, { type AxiosInstance, AxiosError } from 'axios';
+import axios, {
+  type AxiosInstance,
+  AxiosError,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 import { serviceUrl, env, type ServiceName } from './env';
+import {
+  getAccessToken,
+  getRefreshToken,
+  clearAuth,
+  useAuth,
+} from '@/stores/auth.store';
 
 export interface ApiError {
   status: number;
@@ -16,11 +27,49 @@ export interface ApiError {
   correlationId?: string;
 }
 
+/**
+ * Auth header strategy:
+ *   1. If we have a real bearer token from auth.store, use it.
+ *   2. Else, when VITE_DEV_BYPASS_AUTH=true, fall back to the
+ *      ForgeqAuthFilter dev-bypass marker so the demo flow stays alive.
+ *   3. Otherwise: no header — backend will 401.
+ */
 const authHeader = (): Record<string, string> => {
-  // TODO (Phase 1 auth): replace with real JWT from auth.store
+  const token = getAccessToken();
+  if (token) return { Authorization: `Bearer ${token}` };
   if (env.devBypassAuth) return { 'X-Dev-Bypass': 'true' };
   return {};
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single in-flight refresh — prevents a thundering-herd of /refresh calls when
+// 10 parallel requests all 401 at once.
+// ─────────────────────────────────────────────────────────────────────────────
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  refreshInFlight = (async () => {
+    try {
+      const { userMgmtService } = await import('@/services/userMgmt.service');
+      const pair = await userMgmtService.refresh(refreshToken);
+      useAuth.getState().setSession(pair);
+      return pair.accessToken;
+    } catch {
+      clearAuth();
+      // Hard-redirect so the React tree resets cleanly.
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
 
 export const createHttp = (service: ServiceName): AxiosInstance => {
   const instance = axios.create({
@@ -50,16 +99,30 @@ export const createHttp = (service: ServiceName): AxiosInstance => {
       }
       return res;
     },
-    (error: AxiosError<any>) => {
-      // Java sends ResponseEnvelope on errors too: { status:'error', message, code, errors }.
-      // Surface the most specific human-readable message we can find so toasts
-      // are actionable instead of "Something went wrong".
-      const body = error.response?.data;
+    async (error: AxiosError<any>) => {
+      const body   = error.response?.data;
+      const status = error.response?.status ?? 0;
+      const code   = body?.code ?? body?.errorCode;
+
+      // Single-shot retry on access-token expiry. We tag the config so we
+      // never recurse, and we skip when there's nothing to refresh.
+      const orig = error.config as InternalAxiosRequestConfig & { _retried?: boolean };
+      const isExpired = status === 401 && (code === 'AUTH_TOKEN_EXPIRED' || code === 'AUTH_TOKEN_INVALID');
+      if (isExpired && orig && !orig._retried && getRefreshToken()) {
+        orig._retried = true;
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          orig.headers = orig.headers ?? {};
+          (orig.headers as any).Authorization = `Bearer ${newToken}`;
+          return instance.request(orig);
+        }
+      }
+
       const firstErrorMsg = Array.isArray(body?.errors) && body.errors.length
         ? (body.errors[0]?.message || body.errors[0]?.detail || body.errors[0]?.field)
         : undefined;
       const apiError: ApiError = {
-        status: error.response?.status ?? 0,
+        status,
         message:
           firstErrorMsg ??
           body?.message ??
@@ -67,7 +130,7 @@ export const createHttp = (service: ServiceName): AxiosInstance => {
           (typeof body === 'string' ? body : undefined) ??
           error.message ??
           'Unknown network error',
-        code: body?.code ?? body?.errorCode,
+        code,
         correlationId: error.config?.headers?.get?.('X-Correlation-Id') as
           | string
           | undefined,

@@ -1,3 +1,9 @@
+/**
+ * Environment configuration — single source of truth for backend URLs.
+ *
+ * Local-first: every microservice has a canonical port. Override any
+ * URL via .env (VITE_<NAME>_SVC_URL) when needed.
+ */
 
 export type ServiceName =
   | 'workspace'
@@ -15,16 +21,43 @@ export type ServiceName =
   | 'aiAssistant'
   | 'support'
   | 'dashboard'
-  | 'collab';
+  | 'collab'
+  | 'userMgmt';
 
 const readEnv = (key: string, fallback = ''): string => {
   const value = import.meta.env[key];
   const resolved = typeof value === 'string' && value.length > 0 ? value : fallback;
 
+  /*
+   * Same-origin guard for hosted demos.
+   *
+   * `.env.local` typically points every service URL at `http://localhost:8001`
+   * so the developer can hit the local nginx mux directly. When the same
+   * bundle is served via the public preview URL (eg. `*.preview.emergentagent.com`),
+   * the browser's `localhost` is the user's machine — not our container — and
+   * every request 404s with `net::ERR_FAILED`.
+   *
+   * Solution: if the page is loaded from a host that is NOT `localhost`, and
+   * the configured URL points to localhost or 127.0.0.1, transparently
+   * rewrite it to the page's own origin. Nginx in the container already
+   * routes `/api/*` to the right microservice, so this is safe.
+   */
   if (typeof window !== 'undefined' && resolved) {
     const localhostUrl = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i;
     const pageOrigin = window.location?.origin || '';
     if (localhostUrl.test(resolved) && resolved !== pageOrigin) {
+      /*
+       * Two cases:
+       *  1. Page on `*.preview.emergentagent.com` but env still points
+       *     to `http://localhost:8001` → the browser cannot reach our
+       *     container's localhost, so route through the page origin
+       *     (nginx mux serves /api/* there).
+       *  2. Page on `http://localhost:3000` (tcp-forward to vite) with
+       *     env pointing to `http://localhost:8001` → going to a
+       *     different port from the page can break in sandboxed
+       *     browsers; using the page origin lets the vite dev-server
+       *     proxy forward /api/* to nginx for us.
+       */
       return pageOrigin;
     }
   }
@@ -50,6 +83,7 @@ export const CANONICAL_PORTS: Record<ServiceName, number> = {
   support: 8094,
   dashboard: 8095,
   collab: 8096,
+  userMgmt: 8083,
 };
 
 const LOCAL_URLS: Record<ServiceName, string> = {
@@ -69,6 +103,7 @@ const LOCAL_URLS: Record<ServiceName, string> = {
   support:        readEnv('VITE_SUPPORT_SVC_URL',         `http://localhost:${CANONICAL_PORTS.support}`),
   dashboard:      readEnv('VITE_DASHBOARD_SVC_URL',       `http://localhost:${CANONICAL_PORTS.dashboard}`),
   collab:         readEnv('VITE_COLLAB_SVC_URL',          `http://localhost:${CANONICAL_PORTS.collab}`),
+  userMgmt:       readEnv('VITE_USER_MGMT_SVC_URL',       `http://localhost:${CANONICAL_PORTS.userMgmt}`),
 };
 
 export const env = {

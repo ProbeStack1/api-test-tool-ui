@@ -40,6 +40,8 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { useSettings } from '@/stores/settings.store';
+import { useAuth } from '@/stores/auth.store';
+import { userMgmtService } from '@/services/userMgmt.service';
 import { cn } from '@/utils/cn';
 
 type Mode = 'signin' | 'signup';
@@ -252,7 +254,10 @@ const particleRiseStyles = `
 export const LoginPage = () => {
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
-  const initialMode: Mode = params.get('mode') === 'signup' ? 'signup' : 'signin';
+  // Allow deep-link via either `?mode=signup` OR the `/register` route
+  // (router maps both `/login` and `/register` to this component).
+  const onRegisterRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/register');
+  const initialMode: Mode = params.get('mode') === 'signup' || onRegisterRoute ? 'signup' : 'signin';
 
   // Inherit whichever theme the user was on (landing / workspace / direct
   // link). The settings store already mounts <html data-theme> on boot,
@@ -266,6 +271,9 @@ export const LoginPage = () => {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg]   = useState<string | null>(null);
+  const setSession = useAuth((s) => s.setSession);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -294,11 +302,40 @@ export const LoginPage = () => {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+    setInfoMsg(null);
     setSubmitting(true);
-    // Demo / dev-bypass path — backend wiring happens in Phase 1.
-    await new Promise((r) => setTimeout(r, 450));
-    setSubmitting(false);
-    nav('/projects/collections');
+    try {
+      if (mode === 'signup') {
+        // Username = the local-part of the email so the user doesn't have to
+        // type yet another identifier (matches our backend's @NotBlank constraint).
+        const username = (form.email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+        await userMgmtService.register({
+          email:     form.email.trim(),
+          username,
+          password:  form.password,
+          firstName: form.name.trim() || undefined,
+        });
+        setInfoMsg('Account created — check your inbox for the verification link, then sign in.');
+        setMode('signin');
+        return;
+      }
+      // signin
+      const pair = await userMgmtService.login({
+        emailOrUsername: form.email.trim(),
+        password:        form.password,
+      });
+      setSession(pair);
+      // Honour ?next=… that RequireAuth left for us, falling back to the
+      // canonical landing page.
+      const next = params.get('next');
+      nav(next && next.startsWith('/') ? decodeURIComponent(next) : '/projects/collections');
+    } catch (err: any) {
+      // userMgmt.service throws { status, code, message, errors }
+      setErrorMsg(err?.message || 'Authentication failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const onSkip = () => nav('/projects/collections');
@@ -509,6 +546,30 @@ export const LoginPage = () => {
             </div>
 
             <form data-testid="auth-form" onSubmit={onSubmit} className="space-y-3.5">
+              {/* Status banners — info (post-signup) + error (server-rejected). */}
+              {infoMsg && (
+                <div data-testid="auth-info"
+                     className={cn(
+                       'rounded-lg border px-3 py-2 text-[12px]',
+                       isDark
+                         ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                         : 'border-emerald-500/40 bg-emerald-50 text-emerald-800',
+                     )}>
+                  {infoMsg}
+                </div>
+              )}
+              {errorMsg && (
+                <div data-testid="auth-error"
+                     className={cn(
+                       'rounded-lg border px-3 py-2 text-[12px]',
+                       isDark
+                         ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
+                         : 'border-rose-500/40 bg-rose-50 text-rose-700',
+                     )}>
+                  {errorMsg}
+                </div>
+              )}
+
               {mode === 'signup' && (
                 <>
                   <Field

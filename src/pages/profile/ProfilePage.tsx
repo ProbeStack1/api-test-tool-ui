@@ -1,33 +1,103 @@
 /**
- * Profile page — UI-only premium presentation.
+ * Profile page — premium presentation backed by the live auth session.
  *
- * For now the data is local (read from `auth.store` if available, otherwise
- * sane defaults). All save buttons are wired to a noop with a "saved"
- * toast so the page feels alive — backed by a real profile service in a
- * future iteration.
+ * Hydrates the form from `useAuth.user` (the `UserView` returned by
+ * `forgeq-test-user-mgmt-svc` after login). Email is treated as the
+ * source-of-truth identifier and is rendered read-only — a future
+ * "change email" flow will need a verification round-trip, so we don't
+ * pretend the inline input can save it. Optional profile-only fields
+ * (title, company, location, timezone, bio) live in localStorage until
+ * the user-mgmt service exposes a real PATCH /me endpoint.
+ *
+ * Password change IS wired to `userMgmtService.changePassword` so the
+ * security tab works end-to-end against the deployed service.
  */
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Bell, Camera, Check, CircleUser, Globe, KeyRound, Mail, MapPin, Save,
-  Settings as SettingsIcon, ShieldCheck, Sparkles, User as UserIcon,
+  Bell, Camera, CircleUser, Globe, KeyRound, Mail, MapPin, Save,
+  ShieldCheck, User as UserIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
+import { useAuth } from '@/stores/auth.store';
+import { userMgmtService } from '@/services/userMgmt.service';
+
+interface ProfileExtras {
+  title: string;
+  company: string;
+  location: string;
+  timezone: string;
+  bio: string;
+}
+
+const DEFAULT_EXTRAS: ProfileExtras = {
+  title: '',
+  company: '',
+  location: '',
+  timezone: 'Asia/Kolkata',
+  bio: '',
+};
+
+const EXTRAS_KEY = (userId: string) => `forgeq.profile.extras.${userId}`;
+
+const loadExtras = (userId: string): ProfileExtras => {
+  try {
+    const raw = localStorage.getItem(EXTRAS_KEY(userId));
+    if (!raw) return DEFAULT_EXTRAS;
+    return { ...DEFAULT_EXTRAS, ...(JSON.parse(raw) as Partial<ProfileExtras>) };
+  } catch { return DEFAULT_EXTRAS; }
+};
+
+const fullNameOf = (u: { firstName?: string; lastName?: string; username: string; email: string } | null): string => {
+  if (!u) return '';
+  const fn = (u.firstName ?? '').trim();
+  const ln = (u.lastName ?? '').trim();
+  if (fn || ln) return `${fn} ${ln}`.trim();
+  if (u.username) return u.username;
+  return u.email.split('@')[0] ?? '';
+};
 
 export const ProfilePage = () => {
+  const user = useAuth((s) => s.user);
   const [tab, setTab] = useState<'profile' | 'security' | 'notifications'>('profile');
 
-  const [profile, setProfile] = useState({
-    fullName: 'ForgeFuzz Dev',
-    email: 'dev@forgefuzz.dev',
-    title: 'Software engineer',
-    company: 'ForgeFuzz',
-    location: 'Bengaluru, IN',
-    timezone: 'Asia/Kolkata',
-    bio: 'Building the future of API testing & observability — one workspace at a time.',
-  });
+  const fullName = useMemo(() => fullNameOf(user), [user]);
 
-  const onSave = () => toast.success('Profile updated', { description: 'Your changes have been saved.' });
+  const [extras, setExtras] = useState<ProfileExtras>(() =>
+    user?.userId ? loadExtras(user.userId) : DEFAULT_EXTRAS,
+  );
+
+  // Re-hydrate extras whenever the logged-in user changes (login / switch account).
+  useEffect(() => {
+    if (user?.userId) setExtras(loadExtras(user.userId));
+  }, [user?.userId]);
+
+  if (!user) {
+    return (
+      <div className="grid h-full place-items-center bg-probestack-bg p-10" data-testid="profile-page-unauth">
+        <div className="text-center">
+          <CircleUser className="mx-auto mb-3 h-10 w-10 text-text-muted" />
+          <h2 className="text-base font-semibold">You're signed out</h2>
+          <p className="mt-1 text-xs text-text-muted">Sign in to view and edit your profile.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const profile = {
+    fullName,
+    email: user.email,
+    ...extras,
+  };
+
+  const onSave = () => {
+    try {
+      localStorage.setItem(EXTRAS_KEY(user.userId), JSON.stringify(extras));
+      toast.success('Profile updated', { description: 'Your changes have been saved.' });
+    } catch {
+      toast.error('Could not save profile', { description: 'Local storage is unavailable.' });
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-probestack-bg" data-testid="profile-page">
@@ -55,12 +125,23 @@ export const ProfilePage = () => {
             </span>
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-xl font-semibold tracking-tight">{profile.fullName}</h2>
-            <p className="text-xs text-text-muted">{profile.title} · {profile.company}</p>
+            <h2 className="truncate text-xl font-semibold tracking-tight" data-testid="profile-hero-name">{profile.fullName}</h2>
+            <p className="text-xs text-text-muted">
+              {profile.title || user.roles?.[0] || 'Member'}
+              {profile.company && <> · {profile.company}</>}
+            </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
-              <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {profile.email}</span>
-              <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {profile.location}</span>
+              <span className="inline-flex items-center gap-1" data-testid="profile-hero-email"><Mail className="h-3 w-3" /> {profile.email}</span>
+              {profile.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {profile.location}</span>}
               <span className="inline-flex items-center gap-1"><Globe className="h-3 w-3" /> {profile.timezone}</span>
+              {user.emailVerified ? (
+                <span className="inline-flex items-center gap-1 rounded bg-success/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-success" data-testid="profile-hero-verified">verified</span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded bg-warning/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-warning" data-testid="profile-hero-unverified">unverified</span>
+              )}
+              {user.roles?.map((r) => (
+                <span key={r} className="inline-flex items-center gap-1 rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">{r}</span>
+              ))}
             </div>
           </div>
           <div className="hidden items-center gap-2 sm:flex">
@@ -79,8 +160,8 @@ export const ProfilePage = () => {
 
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto w-full max-w-5xl p-6">
-          {tab === 'profile'       && <ProfileTab profile={profile} setProfile={setProfile} onSave={onSave} />}
-          {tab === 'security'      && <SecurityTab onSave={onSave} />}
+          {tab === 'profile'       && <ProfileTab profile={profile} extras={extras} setExtras={setExtras} onSave={onSave} />}
+          {tab === 'security'      && <SecurityTab />}
           {tab === 'notifications' && <NotificationsTab onSave={onSave} />}
         </div>
       </div>
@@ -109,24 +190,24 @@ const Tab = ({ active, onClick, icon: Icon, label, testId }: any) => (
   </button>
 );
 
-const ProfileTab = ({ profile, setProfile, onSave }: any) => (
+const ProfileTab = ({ profile, extras, setExtras, onSave }: any) => (
   <div className="space-y-5" data-testid="profile-tab-profile-pane">
-    <Section title="Personal information" subtitle="How others see you across ForgeFuzz.">
+    <Section title="Personal information" subtitle="Synced from your ForgeQ account. Email and name come from the user-mgmt service.">
       <Grid>
-        <Field label="Full name"><Input value={profile.fullName} onChange={(v: string) => setProfile({ ...profile, fullName: v })} testId="profile-fullName" /></Field>
-        <Field label="Email"><Input type="email" value={profile.email} onChange={(v: string) => setProfile({ ...profile, email: v })} testId="profile-email" /></Field>
-        <Field label="Job title"><Input value={profile.title} onChange={(v: string) => setProfile({ ...profile, title: v })} testId="profile-title" /></Field>
-        <Field label="Company"><Input value={profile.company} onChange={(v: string) => setProfile({ ...profile, company: v })} testId="profile-company" /></Field>
-        <Field label="Location"><Input value={profile.location} onChange={(v: string) => setProfile({ ...profile, location: v })} testId="profile-location" /></Field>
-        <Field label="Timezone"><Input value={profile.timezone} onChange={(v: string) => setProfile({ ...profile, timezone: v })} testId="profile-timezone" /></Field>
+        <Field label="Full name"><Input value={profile.fullName} readOnly testId="profile-fullName" /></Field>
+        <Field label="Email"><Input type="email" value={profile.email} readOnly testId="profile-email" /></Field>
+        <Field label="Job title"><Input value={extras.title} onChange={(v: string) => setExtras({ ...extras, title: v })} testId="profile-title" /></Field>
+        <Field label="Company"><Input value={extras.company} onChange={(v: string) => setExtras({ ...extras, company: v })} testId="profile-company" /></Field>
+        <Field label="Location"><Input value={extras.location} onChange={(v: string) => setExtras({ ...extras, location: v })} testId="profile-location" /></Field>
+        <Field label="Timezone"><Input value={extras.timezone} onChange={(v: string) => setExtras({ ...extras, timezone: v })} testId="profile-timezone" /></Field>
       </Grid>
     </Section>
 
     <Section title="About" subtitle="A short bio shown on team pages.">
       <textarea
         data-testid="profile-bio"
-        value={profile.bio}
-        onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+        value={extras.bio}
+        onChange={(e) => setExtras({ ...extras, bio: e.target.value })}
         rows={4}
         className="w-full resize-none rounded-md border border-border bg-probestack-bg p-2 text-xs outline-none focus:border-primary"
       />
@@ -136,49 +217,68 @@ const ProfileTab = ({ profile, setProfile, onSave }: any) => (
   </div>
 );
 
-const SecurityTab = ({ onSave }: any) => (
-  <div className="space-y-5" data-testid="profile-tab-security-pane">
-    <Section title="Password" subtitle="Pick a strong, unique password.">
-      <Grid>
-        <Field label="Current password"><Input type="password" testId="profile-currentPassword" /></Field>
-        <Field label="New password"><Input type="password" testId="profile-newPassword" /></Field>
-        <Field label="Confirm new password"><Input type="password" testId="profile-confirmPassword" /></Field>
-      </Grid>
-    </Section>
+const SecurityTab = () => {
+  const accessToken = useAuth((s) => s.accessToken);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
 
-    <Section title="Two-factor authentication" subtitle="Add an extra layer to keep your account safe.">
-      <div className="flex items-center justify-between rounded-md border border-border bg-elevated px-4 py-3">
-        <div className="flex items-center gap-3">
-          <KeyRound className="h-4 w-4 text-primary" />
-          <div>
-            <div className="text-sm font-medium">Authenticator app</div>
-            <div className="text-[11px] text-text-muted">Use Google Authenticator, 1Password or any TOTP app.</div>
+  const onSubmit = async () => {
+    if (!accessToken) { toast.error('You must be signed in.'); return; }
+    if (!current || !next) { toast.error('Fill current and new password.'); return; }
+    if (next.length < 8) { toast.error('New password must be at least 8 characters.'); return; }
+    if (next !== confirm) { toast.error('New passwords do not match.'); return; }
+    setBusy(true);
+    try {
+      await userMgmtService.changePassword(current, next, accessToken);
+      toast.success('Password changed', { description: 'Sign in again on other devices.' });
+      setCurrent(''); setNext(''); setConfirm('');
+    } catch (e: any) {
+      toast.error('Could not change password', { description: e?.message ?? 'Unexpected error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5" data-testid="profile-tab-security-pane">
+      <Section title="Password" subtitle="Pick a strong, unique password (min 8 characters).">
+        <Grid>
+          <Field label="Current password"><Input type="password" value={current} onChange={setCurrent} testId="profile-currentPassword" /></Field>
+          <Field label="New password"><Input type="password" value={next} onChange={setNext} testId="profile-newPassword" /></Field>
+          <Field label="Confirm new password"><Input type="password" value={confirm} onChange={setConfirm} testId="profile-confirmPassword" /></Field>
+        </Grid>
+      </Section>
+
+      <Section title="Two-factor authentication" subtitle="Add an extra layer to keep your account safe.">
+        <div className="flex items-center justify-between rounded-md border border-border bg-elevated px-4 py-3">
+          <div className="flex items-center gap-3">
+            <KeyRound className="h-4 w-4 text-primary" />
+            <div>
+              <div className="text-sm font-medium">Authenticator app</div>
+              <div className="text-[11px] text-text-muted">Use Google Authenticator, 1Password or any TOTP app.</div>
+            </div>
           </div>
+          <button type="button" data-testid="profile-2fa-enable" className="rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20" disabled>Coming soon</button>
         </div>
-        <button type="button" data-testid="profile-2fa-enable" className="rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20">Enable</button>
+      </Section>
+
+      <div className="flex items-center justify-end gap-2">
+        <button type="button" data-testid="profile-cancel" onClick={() => { setCurrent(''); setNext(''); setConfirm(''); }} className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-elevated">Cancel</button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={busy}
+          data-testid="profile-change-password"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-primary-hover hover:shadow-md hover:shadow-primary/30 disabled:opacity-60"
+        >
+          <Save className="h-3.5 w-3.5" /> {busy ? 'Updating…' : 'Change password'}
+        </button>
       </div>
-    </Section>
-
-    <Section title="Active sessions" subtitle="Sign out of devices you no longer use.">
-      <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
-        <SessionRow device="MacBook Pro · Chrome" location="Bengaluru, IN" current />
-        <SessionRow device="iPhone · Safari" location="Bengaluru, IN" />
-      </ul>
-    </Section>
-
-    <SaveBar onSave={onSave} />
-  </div>
-);
-
-const SessionRow = ({ device, location, current }: { device: string; location: string; current?: boolean }) => (
-  <li className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs">
-    <div>
-      <div className="font-medium">{device} {current && <span className="ml-1 rounded bg-success/20 px-1 text-[9px] font-semibold uppercase text-success">Current</span>}</div>
-      <div className="text-[11px] text-text-muted">{location}</div>
     </div>
-    {!current && <button type="button" className="text-[11px] text-danger hover:underline">Sign out</button>}
-  </li>
-);
+  );
+};
 
 const NotificationsTab = ({ onSave }: any) => {
   const [prefs, setPrefs] = useState({
@@ -193,11 +293,11 @@ const NotificationsTab = ({ onSave }: any) => {
     { key: 'monitorRecovered', label: 'Monitor recoveries', sub: 'When a previously down monitor comes back UP.' },
     { key: 'runFailures',      label: 'Run failures',       sub: 'Functional & load test runs that finish with FAILED status.' },
     { key: 'weeklyDigest',     label: 'Weekly digest',      sub: 'Friday recap with usage, top failures, and trends.' },
-    { key: 'productNews',      label: 'Product news',       sub: 'Occasional announcements about new ForgeFuzz features.' },
+    { key: 'productNews',      label: 'Product news',       sub: 'Occasional announcements about new ForgeQ features.' },
   ];
   return (
     <div className="space-y-5" data-testid="profile-tab-notifications-pane">
-      <Section title="Email preferences" subtitle="Choose which events ForgeFuzz emails you about.">
+      <Section title="Email preferences" subtitle="Choose which events ForgeQ emails you about.">
         <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
           {items.map((it) => (
             <li key={it.key} className="flex items-center justify-between gap-4 px-4 py-2.5">
@@ -260,13 +360,17 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </label>
 );
 
-const Input = ({ type = 'text', value, onChange, testId }: { type?: string; value?: string; onChange?: (v: string) => void; testId?: string }) => (
+const Input = ({ type = 'text', value, onChange, testId, readOnly }: { type?: string; value?: string; onChange?: (v: string) => void; testId?: string; readOnly?: boolean }) => (
   <input
     type={type}
     value={value ?? ''}
     onChange={onChange ? (e) => onChange(e.target.value) : undefined}
     data-testid={testId}
-    className="h-9 w-full rounded-md border border-border bg-probestack-bg px-2 text-xs outline-none focus:border-primary"
+    readOnly={readOnly}
+    className={cn(
+      'h-9 w-full rounded-md border border-border bg-probestack-bg px-2 text-xs outline-none focus:border-primary',
+      readOnly && 'cursor-not-allowed text-text-muted',
+    )}
   />
 );
 

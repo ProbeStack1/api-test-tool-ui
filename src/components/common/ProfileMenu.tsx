@@ -13,34 +13,80 @@ import {
   DropdownMenuTrigger,
 } from '@radix-ui/react-dropdown-menu';
 import { User, LogOut, UserCog, HelpCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
+import { useAuth } from '@/stores/auth.store';
+import { userMgmtService } from '@/services/userMgmt.service';
 
 const menuItem =
   'flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-text-primary outline-none transition-colors hover:bg-hover focus:bg-hover';
 
+const initialsOf = (u: { firstName?: string; lastName?: string; username: string; email: string } | null): string => {
+  if (!u) return 'U';
+  const fn = (u.firstName ?? '').trim();
+  const ln = (u.lastName ?? '').trim();
+  if (fn || ln) return `${fn[0] ?? ''}${ln[0] ?? ''}`.toUpperCase() || 'U';
+  if (u.username) return u.username.slice(0, 2).toUpperCase();
+  return (u.email[0] ?? 'U').toUpperCase();
+};
+
 export const ProfileMenu = () => {
+  const navigate = useNavigate();
+  const user = useAuth((s) => s.user);
+  const refreshToken = useAuth((s) => s.refreshToken);
+  const accessToken = useAuth((s) => s.accessToken);
+  const clear = useAuth((s) => s.clear);
+
+  const displayName = user
+    ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.username || user.email
+    : 'Guest';
+  const initials = initialsOf(user);
+
+  const onSignOut = async () => {
+    try {
+      if (refreshToken && accessToken) {
+        await userMgmtService.logout(refreshToken, accessToken).catch(() => undefined);
+      }
+    } finally {
+      clear();
+      toast.success('Signed out');
+      navigate('/login', { replace: true });
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           data-testid="profile-menu-trigger"
           aria-label="Profile menu"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-muted text-primary transition-colors hover:bg-primary/25"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-muted text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
         >
-          <User className="h-4 w-4" />
+          {user ? initials : <User className="h-4 w-4" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
         sideOffset={6}
         className={cn(
-          'z-50 min-w-[220px] rounded-lg border border-border bg-elevated p-1 shadow-lg',
+          'z-50 min-w-[240px] rounded-lg border border-border bg-elevated p-1 shadow-lg',
           'animate-in fade-in-0 zoom-in-95',
         )}
       >
-        <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs text-text-secondary">
-          Signed in as <span className="text-text-primary">you@forgefuzz.dev</span>
+        <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs text-text-secondary" data-testid="profile-menu-userblock">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">Signed in as</div>
+          <div className="mt-0.5 truncate text-sm font-medium text-text-primary" data-testid="profile-menu-name">{displayName}</div>
+          {user?.email && (
+            <div className="truncate text-[11px] text-text-muted" data-testid="profile-menu-email">{user.email}</div>
+          )}
+          {user?.roles?.length ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {user.roles.map((r) => (
+                <span key={r} className="inline-flex items-center rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">{r}</span>
+              ))}
+            </div>
+          ) : null}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>
@@ -60,6 +106,7 @@ export const ProfileMenu = () => {
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem
+          onSelect={(e) => { e.preventDefault(); onSignOut(); }}
           className={cn(menuItem, 'text-danger hover:bg-danger-muted')}
           data-testid="profile-menu-signout"
         >

@@ -18,7 +18,7 @@ export interface ForgeQFile {
   name: string;
   size: number;
   mimeType: string;
-  provider: 'local';
+  provider: 'local' | 'gcs';
   url: string;
   workspaceId: string;
   uploadedAt: string;

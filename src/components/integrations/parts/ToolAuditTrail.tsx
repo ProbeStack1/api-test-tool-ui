@@ -45,7 +45,7 @@ export const ToolAuditTrail = ({ serverId, toolName }: { serverId: string; toolN
   return (
     <div className="mt-2 rounded-md border border-border bg-surface/40" data-testid="tool-audit-trail">
       <button
-        className="flex w-full items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
+        className="flex w-full items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
         onClick={() => setOpen((v) => !v)}
         data-testid="tool-audit-toggle"
       >
@@ -62,10 +62,10 @@ export const ToolAuditTrail = ({ serverId, toolName }: { serverId: string; toolN
         <div className="max-h-72 overflow-auto px-2 pb-2">
           {auditQ.isLoading ? <Skeleton className="h-20 w-full" /> :
            entries.length === 0
-            ? <div className="px-2 py-3 text-[11px] text-text-muted">No prior calls to this tool yet.</div>
+            ? <div className="px-2 py-3 text-xs text-text-muted">No prior calls to this tool yet.</div>
             : (
-              <table className="w-full text-[11px]">
-                <thead className="text-[9px] uppercase tracking-wide text-text-muted">
+              <table className="w-full text-xs">
+                <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                   <tr className="border-b border-border/40">
                     <th className="w-6 px-1 py-1"></th>
                     <th className="px-1 py-1 text-left">When</th>
@@ -89,14 +89,14 @@ export const ToolAuditTrail = ({ serverId, toolName }: { serverId: string; toolN
                             data-testid={`tool-audit-pick-${e.id}`}
                           />
                         </td>
-                        <td className="px-1 py-1 font-mono text-[10px]" title={fmtDateTime(e.createdAt)}>
+                        <td className="px-1 py-1 font-mono text-xs" title={fmtDateTime(e.createdAt)}>
                           {fmtRelative(e.createdAt)}
                         </td>
                         <td className="px-1 py-1 text-center">
                           {e.success ? <CheckCircle2 className="mx-auto h-3 w-3 text-success" /> : <AlertTriangle className="mx-auto h-3 w-3 text-danger" />}
                         </td>
-                        <td className="px-1 py-1 text-right font-mono text-[10px] text-text-muted">{e.ms}ms</td>
-                        <td className="px-1 py-1 font-mono text-[10px]">
+                        <td className="px-1 py-1 text-right font-mono text-xs text-text-muted">{e.ms}ms</td>
+                        <td className="px-1 py-1 font-mono text-xs">
                           <ArgsExcerpt request={e.request} />
                         </td>
                         <td className="px-1 py-1 text-right">

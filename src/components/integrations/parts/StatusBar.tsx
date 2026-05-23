@@ -12,7 +12,7 @@ export const StatusBar = ({ stat, breaker }: { stat?: Stat; breaker?: Breaker })
                     : breaker?.state === 'HALF_OPEN' ? 'warning'
                     : 'success';
   return (
-    <div className="flex shrink-0 items-center gap-1.5 text-[10px]" data-testid="mcp-status-bar">
+    <div className="flex shrink-0 items-center gap-1.5 text-xs" data-testid="mcp-status-bar">
       <Pill icon={Activity} tone={stat && stat.up > 0 ? 'success' : 'muted'}
             label={`${stat?.up ?? 0}/${stat?.totalServers ?? 0} up`}
             testId="mcp-status-up" />

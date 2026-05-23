@@ -2,13 +2,13 @@
  * Audit AI insight client — calls the Gemini-backed Java endpoint inside
  * `forgeq-audit-activity-svc`.
  *
- * Endpoint: `POST /api/v1/audit-activity/activity/workspace/{wsId}/insight`
+ * Endpoint: `POST /api/v1/activity/activity/workspace/{wsId}/insight`
  * Backend: Java HttpClient → Google Gemini (gemini-2.5-flash). No Python.
  */
 import { createHttp } from '@/lib/http';
 
 const http = createHttp('audit');
-const BASE = '/api/v1/audit/activity';
+const BASE = '/api/v1/activity';
 
 export interface InsightActor {
   email: string;
@@ -26,7 +26,7 @@ export const fetchAuditInsight = async (
   events: Array<Record<string, unknown>>,
   workspaceName?: string,
 ): Promise<InsightResponse> => {
-  const resp = await http.post<InsightResponse>(`${BASE}/workspace/${wsId}/insight`, {
+  const resp = await http.post<InsightResponse>(`${BASE}/activity/workspace/${wsId}/insight`, {
     workspaceName,
     events,
   });

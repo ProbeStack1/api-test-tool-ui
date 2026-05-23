@@ -23,6 +23,8 @@ import {
   BookOpen, Boxes, TestTube2, Target, Webhook,
 } from 'lucide-react';
 import { getOverview, getRecentActivity, getTimeseries } from '@/api/dashboard.api';
+import { FeatureSummaryCards } from './FeatureSummaryCards';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { cn } from '@/utils/cn';
 import { Skeleton } from '@/components/ui/Skeleton';
 
@@ -73,21 +75,30 @@ const SERVICES: { key: string; label: string; port: number }[] = [
 
 export const DashboardPage = () => {
   const [range, setRange] = useState<'7d' | '14d' | '30d'>('7d');
+  // Current workspace from the global store — every dashboard query is
+  // scoped to this so different users / different workspaces no longer
+  // see each other's monitor runs, collections or audit events.
+  const workspaceId = useWorkspaceStore((s) => s.currentId);
 
   const overviewQ = useQuery({
-    queryKey: ['dashboard', 'overview'],
-    queryFn: () => getOverview(),
+    queryKey: ['dashboard', 'overview', workspaceId ?? 'all'],
+    queryFn: () => getOverview(workspaceId ?? undefined),
     refetchInterval: 30_000,
+    // Don't fetch until we know which workspace the user is in — avoids
+    // a first paint showing global data before the store hydrates.
+    enabled: workspaceId !== null && workspaceId !== undefined,
   });
   const tsQ = useQuery({
-    queryKey: ['dashboard', 'timeseries', range],
-    queryFn: () => getTimeseries(range),
+    queryKey: ['dashboard', 'timeseries', range, workspaceId ?? 'all'],
+    queryFn: () => getTimeseries(range, workspaceId ?? undefined),
     refetchInterval: 60_000,
+    enabled: workspaceId !== null && workspaceId !== undefined,
   });
   const activityQ = useQuery({
-    queryKey: ['dashboard', 'recent-activity'],
-    queryFn: () => getRecentActivity(20),
+    queryKey: ['dashboard', 'recent-activity', workspaceId ?? 'all'],
+    queryFn: () => getRecentActivity(20, workspaceId ?? undefined),
     refetchInterval: 60_000,
+    enabled: workspaceId !== null && workspaceId !== undefined,
   });
 
   const ov = overviewQ.data;
@@ -191,6 +202,12 @@ export const DashboardPage = () => {
             </div>
             <TrendMatrix kpiTrends={ov?.kpiTrends} loading={overviewQ.isLoading} />
           </section>
+
+          {/* "Everything at a glance" — rich product-area cards.
+              Sits between the KPI trend matrix and the top-items
+              section so the dashboard answers the "what's happening
+              across the platform right now" question at a glance. */}
+          <FeatureSummaryCards />
 
           {/* Top items + recent activity ----------------------------- */}
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">

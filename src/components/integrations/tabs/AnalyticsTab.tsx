@@ -78,7 +78,7 @@ export const AnalyticsTab = () => {
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-surface/40 px-4 py-2.5">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <BarChart3 className="h-4 w-4 text-primary" /> Analytics
-          <span className="ml-2 text-[10px] font-normal text-text-muted">timezone: {zone}</span>
+          <span className="ml-2 text-xs font-normal text-text-muted">timezone: {zone}</span>
         </h3>
         <div className="flex items-center gap-1">
           <div className="flex items-center rounded-md border border-border bg-probestack-bg p-0.5">
@@ -88,7 +88,7 @@ export const AnalyticsTab = () => {
                 data-testid={`analytics-range-${r.id}`}
                 onClick={() => setRange(r.id)}
                 className={cn(
-                  'rounded px-2 py-1 text-[10px] font-semibold transition-colors',
+                  'rounded px-2 py-1 text-xs font-semibold transition-colors',
                   range === r.id ? 'bg-primary/15 text-primary' : 'text-text-muted hover:text-text-primary',
                 )}
               >{r.label}</button>
@@ -185,7 +185,7 @@ export const AnalyticsTab = () => {
               <Empty msg="No servers configured yet." />
             ) : (
               <table className="w-full text-xs">
-                <thead className="text-[10px] uppercase tracking-wide text-text-muted">
+                <thead className="text-xs uppercase tracking-wide text-text-muted">
                   <tr className="border-b border-border">
                     <th className="px-2 py-1.5 text-left">Server</th>
                     <th className="px-2 py-1.5 text-right">Total</th>
@@ -217,7 +217,7 @@ export const AnalyticsTab = () => {
                             style={{ width: `${Math.min(100, Math.max(0, ss.successRate))}%` }}
                           />
                         </div>
-                        <div className="font-mono text-[10px]">{ss.successRate.toFixed(1)}%</div>
+                        <div className="font-mono text-xs">{ss.successRate.toFixed(1)}%</div>
                       </td>
                     </tr>
                   ))}
@@ -255,7 +255,7 @@ const KPI = ({ label, value, icon: Icon, tone = 'default' }: {
   } as const;
   return (
     <div className="rounded-lg border border-border/60 bg-surface/40 p-3" data-testid={`analytics-kpi-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted">
         <Icon className="h-3 w-3" />{label}
       </div>
       <div className={cn('truncate text-base font-bold', tones[tone])}>{value}</div>
@@ -265,7 +265,7 @@ const KPI = ({ label, value, icon: Icon, tone = 'default' }: {
 
 const Card = ({ title, children, className, testId }: { title: string; children: any; className?: string; testId: string }) => (
   <div className={cn('rounded-lg border border-border/60 bg-surface/40 p-3', className)} data-testid={testId}>
-    <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">{title}</div>
+    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">{title}</div>
     {children}
   </div>
 );
@@ -276,7 +276,7 @@ const Empty = ({ msg }: { msg: string }) => (
 
 const LatBar = ({ label, value, max, color }: { label: string; value: number; max: number; color: string }) => (
   <div>
-    <div className="flex items-center justify-between text-[11px]">
+    <div className="flex items-center justify-between text-xs">
       <span className="font-semibold text-text-secondary">{label}</span>
       <span className="font-mono text-text-muted">{value}ms</span>
     </div>

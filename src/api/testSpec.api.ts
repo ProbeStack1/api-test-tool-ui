@@ -247,7 +247,7 @@ export interface UpdateLibraryItemBody {
 
 /* ----------------------------- client ------------------------------------ */
 const http = createHttp('testSpec');
-const BASE    = '/api/v1/testspecs';
+const BASE    = '/api/v1/settings/testspec';
 const LIBRARY = `${BASE}/library`;
 
 /* =========================== test-specs ================================== */

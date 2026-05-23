@@ -243,23 +243,23 @@ export const InspectorTab = () => {
     <div className="flex h-full min-h-0 flex-col" data-testid="mcp-inspector-tab">
       {/* Connect bar */}
       <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Server</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Server</span>
         <div className="relative">
           <select
             data-testid="inspector-server-picker"
             value={server.id}
             onChange={(e) => setActiveServer(e.target.value)}
-            className="h-7 max-w-[420px] appearance-none rounded-md border border-border bg-probestack-bg px-2 pr-7 font-mono text-[11px] text-text-primary outline-none hover:border-primary/40 focus:border-primary"
+            className="h-7 max-w-[420px] appearance-none rounded-md border border-border bg-probestack-bg px-2 pr-7 font-mono text-xs text-text-primary outline-none hover:border-primary/40 focus:border-primary"
           >
             {servers.map((s: McpServer) => <option key={s.id} value={s.id}>{s.name} — {s.serverUrl}</option>)}
           </select>
           <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-text-muted" />
         </div>
-        <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-text-secondary">{server.transport}</span>
+        <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-text-secondary">{server.transport}</span>
         <span className="ml-auto flex items-center gap-2">
           {session ? (
             <>
-              <span className="rounded bg-success-muted px-1.5 py-0.5 text-[10px] font-semibold text-success" data-testid="inspector-session-id">
+              <span className="rounded bg-success-muted px-1.5 py-0.5 text-xs font-semibold text-success" data-testid="inspector-session-id">
                 {(session?.sessionId ?? '').slice(0, 14)}…
               </span>
               <Button variant="outline" data-testid="inspector-disconnect" onClick={doDisconnect}>
@@ -314,7 +314,7 @@ export const InspectorTab = () => {
           {/* Tools list */}
           <aside className="overflow-y-auto bg-surface/30">
             {toolFallback && (
-              <div className="m-2 flex items-start gap-1.5 rounded border border-warning/40 bg-warning-muted p-2 text-[10px] text-warning">
+              <div className="m-2 flex items-start gap-1.5 rounded border border-warning/40 bg-warning-muted p-2 text-xs text-warning">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> Upstream unreachable — showing canned tools so the UI stays driveable.
               </div>
             )}
@@ -332,7 +332,7 @@ export const InspectorTab = () => {
                 <Wrench className="mt-0.5 h-3 w-3 shrink-0" />
                 <div className="min-w-0">
                   <div className="truncate font-mono font-semibold">{t.name}</div>
-                  <div className="truncate text-[10px] text-text-muted">{t.description ?? '—'}</div>
+                  <div className="truncate text-xs text-text-muted">{t.description ?? '—'}</div>
                 </div>
               </button>
             ))}
@@ -341,27 +341,27 @@ export const InspectorTab = () => {
           {/* Tool runner */}
           <div className="flex min-h-0 flex-col overflow-hidden">
             {!pickedTool ? (
-              <div className="flex h-full items-center justify-center text-[11px] text-text-muted">Pick a tool from the left rail.</div>
+              <div className="flex h-full items-center justify-center text-xs text-text-muted">Pick a tool from the left rail.</div>
             ) : (
               <>
                 <div className="border-b border-border bg-surface/40 px-4 py-2">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-bold text-text-primary">{pickedTool.name}</span>
                     {pickedTool.inputSchema?.required && Array.isArray(pickedTool.inputSchema.required) && (
-                      <span className="rounded bg-warning-muted px-1 text-[9px] font-bold text-warning">
+                      <span className="rounded bg-warning-muted px-1 text-[11px] font-bold text-warning">
                         requires: {(pickedTool.inputSchema.required as string[]).join(', ')}
                       </span>
                     )}
                     <button
                       data-testid="inspector-tool-audit"
                       onClick={() => setShowAudit((v) => !v)}
-                      className="ml-auto flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-hover/40"
+                      className="ml-auto flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs hover:bg-hover/40"
                       title="Show recent calls of this tool"
                     >
                       <ClockHistoryIcon className="h-3 w-3" /> Audit trail
                     </button>
                   </div>
-                  {pickedTool.description && <p className="mt-1 text-[11px] text-text-muted">{pickedTool.description}</p>}
+                  {pickedTool.description && <p className="mt-1 text-xs text-text-muted">{pickedTool.description}</p>}
                   {showAudit && server && (
                     <ToolAuditTrail serverId={server.id} toolName={pickedTool.name} />
                   )}
@@ -370,7 +370,7 @@ export const InspectorTab = () => {
                   {/* Args editor */}
                   <div className="flex min-h-0 flex-col overflow-hidden p-3">
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Arguments (JSON)</span>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Arguments (JSON)</span>
                       <Button variant="primary" data-testid="inspector-tool-call" onClick={doCall} disabled={busy}>
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                         Call tool
@@ -382,7 +382,7 @@ export const InspectorTab = () => {
                   </div>
 
                   {/* Validation strip */}
-                  <div className="px-3 py-1.5 text-[11px]">
+                  <div className="px-3 py-1.5 text-xs">
                     {validation && (
                       validation.valid
                         ? <span data-testid="inspector-validation-ok" className="flex items-center gap-1 text-success"><CheckCircle2 className="h-3 w-3" /> Arguments validate against tool schema</span>
@@ -393,10 +393,10 @@ export const InspectorTab = () => {
                   {/* Result */}
                   <div className="flex min-h-0 flex-col overflow-hidden p-3">
                     <div className="mb-1 flex items-center gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Result</span>
-                      {callMs != null && <span className="font-mono text-[10px] text-text-muted">{callMs}ms</span>}
+                      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Result</span>
+                      {callMs != null && <span className="font-mono text-xs text-text-muted">{callMs}ms</span>}
                       {callRes && (callRes as any).isError && (
-                        <span className="rounded bg-danger-muted px-1.5 py-0.5 text-[10px] font-semibold text-danger" data-testid="inspector-tool-result-iserror">
+                        <span className="rounded bg-danger-muted px-1.5 py-0.5 text-xs font-semibold text-danger" data-testid="inspector-tool-result-iserror">
                           tool reported error
                         </span>
                       )}
@@ -412,24 +412,24 @@ export const InspectorTab = () => {
         <div className="grid h-full grid-cols-[260px_1fr] divide-x divide-border" data-testid="inspector-resources-pane">
           <aside className="overflow-y-auto bg-surface/30">
             {resourcesState === 'loading' && (
-              <div className="flex items-center justify-center gap-1.5 p-6 text-[11px] text-text-muted">
+              <div className="flex items-center justify-center gap-1.5 p-6 text-xs text-text-muted">
                 <Loader2 className="h-3 w-3 animate-spin" /> Loading resources…
               </div>
             )}
             {resourcesState === 'unsupported' && (
-              <div className="p-5 text-center text-[11px] text-text-muted" data-testid="resources-unsupported">
+              <div className="p-5 text-center text-xs text-text-muted" data-testid="resources-unsupported">
                 <FileText className="mx-auto mb-1.5 h-5 w-5 opacity-50" />
                 Server does not expose <span className="font-semibold">resources/list</span>.
               </div>
             )}
             {resourcesState === 'error' && (
-              <div className="p-5 text-center text-[11px] text-danger" data-testid="resources-error">
+              <div className="p-5 text-center text-xs text-danger" data-testid="resources-error">
                 <AlertTriangle className="mx-auto mb-1.5 h-5 w-5" />
                 {resourcesError}
               </div>
             )}
             {resourcesState === 'ok' && resources.length === 0 && (
-              <div className="p-6 text-center text-[11px] text-text-muted">No resources.</div>
+              <div className="p-6 text-center text-xs text-text-muted">No resources.</div>
             )}
             {resources.map((r) => (
               <button key={r.uri} data-testid={`resource-row-${r.uri}`} onClick={() => doReadResource(r)}
@@ -438,14 +438,14 @@ export const InspectorTab = () => {
                 <FileText className="mt-0.5 h-3 w-3 shrink-0" />
                 <div className="min-w-0">
                   <div className="truncate font-medium">{r.name ?? r.uri}</div>
-                  <div className="truncate font-mono text-[10px] text-text-muted">{r.uri}</div>
+                  <div className="truncate font-mono text-xs text-text-muted">{r.uri}</div>
                 </div>
               </button>
             ))}
           </aside>
           <div className="overflow-hidden p-3">
             {!pickedResource ? (
-              <div className="flex h-full items-center justify-center text-[11px] text-text-muted">
+              <div className="flex h-full items-center justify-center text-xs text-text-muted">
                 {resourcesState === 'unsupported'
                   ? 'This MCP server only exposes tools — try the Tools tab.'
                   : 'Pick a resource to read it.'}
@@ -460,25 +460,25 @@ export const InspectorTab = () => {
       ) : (
         <div className="overflow-y-auto p-4" data-testid="inspector-prompts-pane">
           {promptsState === 'loading' && (
-            <div className="flex items-center justify-center gap-1.5 p-6 text-[11px] text-text-muted">
+            <div className="flex items-center justify-center gap-1.5 p-6 text-xs text-text-muted">
               <Loader2 className="h-3 w-3 animate-spin" /> Loading prompts…
             </div>
           )}
           {promptsState === 'unsupported' && (
-            <div className="rounded border border-dashed border-border bg-surface/20 p-6 text-center text-[11px] text-text-muted" data-testid="prompts-unsupported">
+            <div className="rounded border border-dashed border-border bg-surface/20 p-6 text-center text-xs text-text-muted" data-testid="prompts-unsupported">
               <MessageSquare className="mx-auto mb-1.5 h-5 w-5 opacity-50" />
               Server does not expose <span className="font-semibold">prompts/list</span>.
               <div className="mt-1 opacity-70">Most documentation/lookup MCP servers (DeepWiki, Sequential-Thinking, …) only ship tools.</div>
             </div>
           )}
           {promptsState === 'error' && (
-            <div className="rounded border border-danger/40 bg-danger-muted p-4 text-center text-[11px] text-danger" data-testid="prompts-error">
+            <div className="rounded border border-danger/40 bg-danger-muted p-4 text-center text-xs text-danger" data-testid="prompts-error">
               <AlertTriangle className="mx-auto mb-1.5 h-5 w-5" />
               {promptsError}
             </div>
           )}
           {promptsState === 'ok' && prompts.length === 0 && (
-            <div className="text-center text-[11px] text-text-muted">No prompts.</div>
+            <div className="text-center text-xs text-text-muted">No prompts.</div>
           )}
           {prompts.map((p) => (
             <div key={p.name} className="mb-2 rounded border border-border bg-surface/30 p-3">
@@ -486,11 +486,11 @@ export const InspectorTab = () => {
                 <MessageSquare className="h-3.5 w-3.5 text-primary" />
                 <span className="font-mono text-sm font-semibold">{p.name}</span>
               </div>
-              <p className="mt-0.5 text-[11px] text-text-muted">{p.description}</p>
+              <p className="mt-0.5 text-xs text-text-muted">{p.description}</p>
               {p.arguments && Array.isArray(p.arguments) && p.arguments.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {p.arguments.map((a: any) => (
-                    <span key={a.name} className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px]">
+                    <span key={a.name} className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs">
                       {a.name}{a.required ? ' *' : ''}
                     </span>
                   ))}
@@ -536,7 +536,7 @@ const ToolResultView = ({
 
   if (result == null || (typeof result === 'object' && Object.keys(result).length === 0)) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center rounded border border-dashed border-border bg-surface/20 text-[11px] text-text-muted"
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded border border-dashed border-border bg-surface/20 text-xs text-text-muted"
            data-testid={`${testIdPrefix}-result-empty`}>
         Press <span className="mx-1 rounded bg-elevated px-1.5 py-0.5 font-mono">Call tool</span> to see the response.
       </div>
@@ -588,7 +588,7 @@ const ToolResultView = ({
         type="button"
         data-testid={`${testIdPrefix}-result-raw-toggle`}
         onClick={() => setShowRaw((v) => !v)}
-        className="self-start text-[10px] uppercase tracking-wide text-text-muted underline-offset-2 hover:text-text-primary hover:underline"
+        className="self-start text-xs uppercase tracking-wide text-text-muted underline-offset-2 hover:text-text-primary hover:underline"
       >
         {showRaw ? 'Hide raw JSON' : 'Show raw JSON'}
       </button>

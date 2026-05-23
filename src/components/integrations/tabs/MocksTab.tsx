@@ -55,7 +55,7 @@ export const MocksTab = () => {
       <header className="flex items-center justify-between">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <Boxes className="h-3.5 w-3.5 text-primary" /> Mock MCP Servers
-          <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[9px] text-text-muted">{mocks.length}</span>
+          <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-text-muted">{mocks.length}</span>
         </h3>
         <Button variant="primary" data-testid="mocks-add" onClick={() => setCreating(true)}>
           <Plus className="h-3.5 w-3.5" /> New mock
@@ -87,12 +87,12 @@ export const MocksTab = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-semibold">{m.name}</span>
-                    <span className="rounded bg-warning-muted px-1 font-mono text-[9px] text-warning">MOCK</span>
+                    <span className="rounded bg-warning-muted px-1 font-mono text-xs text-warning">MOCK</span>
                   </div>
-                  <div className="truncate text-[10px] text-text-muted">{m.description}</div>
+                  <div className="truncate text-xs text-text-muted">{m.description}</div>
                 </div>
               </div>
-              <p className="mt-2 line-clamp-2 text-[11px] text-text-secondary">
+              <p className="mt-2 line-clamp-2 text-xs text-text-secondary">
                 {(m as any).mockTools?.length ?? 0} tools · {m.serverUrl}
               </p>
               <div className="mt-3 flex items-center gap-1">
@@ -194,7 +194,7 @@ const CreateMockModal = ({ workspaceId, onClose, onCreated }: {
           <div className="flex h-56 overflow-hidden rounded border border-border">
             <CodeEditor value={toolsJson} onChange={setToolsJson} language="json" testId="mock-create-tools" />
           </div>
-          <p className="mt-1 flex items-center gap-1 text-[10px] text-text-muted">
+          <p className="mt-1 flex items-center gap-1 text-xs text-text-muted">
             <Wrench className="h-3 w-3" /> The Inspector will list these and respond with deterministic samples.
           </p>
         </Field>
@@ -205,7 +205,7 @@ const CreateMockModal = ({ workspaceId, onClose, onCreated }: {
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
-    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</div>
+    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</div>
     {children}
   </div>
 );

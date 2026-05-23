@@ -148,7 +148,7 @@ export const ServersTab = () => {
               <Icon className="h-3 w-3" />
               {label}
               {k === 'my' && servers.length > 0 && (
-                <span className="rounded bg-black/20 px-1 font-mono text-[9px]">{servers.length}</span>
+                <span className="rounded bg-black/20 px-1 font-mono text-[11px]">{servers.length}</span>
               )}
             </button>
           ))}
@@ -197,12 +197,12 @@ export const ServersTab = () => {
           </ChipGroup>
           {(catalog?.categories?.length ?? 0) > 0 && (
             <div className="flex items-center gap-1">
-              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">Category</span>
+              <span className="ml-1 text-xs font-semibold uppercase tracking-wide text-text-muted">Category</span>
               <select
                 data-testid="chip-category"
                 value={catCategory}
                 onChange={(e) => setCatCategory(e.target.value)}
-                className="h-6 rounded-full border border-border bg-probestack-bg px-2 text-[11px] text-text-secondary"
+                className="h-6 rounded-full border border-border bg-probestack-bg px-2 text-xs text-text-secondary"
               >
                 <option value="ALL">All</option>
                 {(catalog?.categories ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
@@ -213,7 +213,7 @@ export const ServersTab = () => {
             <button
               data-testid="catalog-reset-filters"
               onClick={resetCatFilters}
-              className="ml-auto rounded-full border border-border px-2.5 py-0.5 text-[11px] text-text-muted hover:border-primary/40 hover:text-primary"
+              className="ml-auto rounded-full border border-border px-2.5 py-0.5 text-xs text-text-muted hover:border-primary/40 hover:text-primary"
             >
               Reset · {activeFilterCount}
             </button>
@@ -235,14 +235,14 @@ export const ServersTab = () => {
               data-testid={`servers-chip-${k.toLowerCase()}`}
               onClick={() => setFilter(k as any)}
               className={cn(
-                'rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+                'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
                 filter === k
                   ? 'border-primary bg-primary-muted text-primary'
                   : 'border-border bg-probestack-bg text-text-secondary hover:border-primary/40 hover:text-primary',
               )}
             >
               {label}
-              <span className="ml-1 font-mono text-[10px] opacity-70">{count}</span>
+              <span className="ml-1 font-mono text-xs opacity-70">{count}</span>
             </button>
           ))}
         </div>
@@ -379,7 +379,7 @@ const CatalogCard = ({ entry, installed, onConnect, onUse }: {
             </Tooltip>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-text-muted">
+        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-text-muted">
           <span className="rounded bg-elevated px-1 font-mono">{entry.transport}</span>
           <span className="rounded bg-elevated px-1">{entry.category}</span>
           {entry.license === 'OPEN_SOURCE' && (
@@ -400,10 +400,10 @@ const CatalogCard = ({ entry, installed, onConnect, onUse }: {
         </div>
       </div>
     </div>
-    <p className="mt-2 line-clamp-2 text-[11px] text-text-secondary">{entry.description}</p>
+    <p className="mt-2 line-clamp-2 text-xs text-text-secondary">{entry.description}</p>
     <div className="mt-2 flex flex-wrap gap-1">
       {(entry.tags ?? []).map((t) => (
-        <span key={t} className="rounded bg-elevated px-1.5 py-0.5 text-[9px] text-text-muted">{t}</span>
+        <span key={t} className="rounded bg-elevated px-1.5 py-0.5 text-[11px] text-text-muted">{t}</span>
       ))}
     </div>
     <div className="mt-3 flex items-center gap-1.5">
@@ -423,7 +423,7 @@ const CatalogCard = ({ entry, installed, onConnect, onUse }: {
           <Tooltip content="STDIO servers need a local process and can't be connected from the web UI. Use a STREAMABLE_HTTP / SSE catalog entry (DeepWiki, GitHub, Sentry) or run a local HTTP bridge.">
             <span
               data-testid={`catalog-stdio-disabled-${entry.slug}`}
-              className="flex flex-1 items-center justify-center gap-1 rounded border border-warning/40 bg-warning-muted px-2 py-1 text-[10px] font-medium text-warning"
+              className="flex flex-1 items-center justify-center gap-1 rounded border border-warning/40 bg-warning-muted px-2 py-1 text-xs font-medium text-warning"
             >
               <AlertTriangle className="h-3 w-3" /> STDIO — not supported in web
             </span>
@@ -472,17 +472,17 @@ const MyServerCard = ({
           <span className="truncate text-sm font-semibold">{server.name}</span>
           {active && <span className="rounded bg-primary text-[8px] font-bold uppercase tracking-wide text-white px-1">selected</span>}
           {server.source === 'CATALOG' && (
-            <span className="rounded bg-primary-muted px-1 font-mono text-[9px] text-primary">CATALOG</span>
+            <span className="rounded bg-primary-muted px-1 font-mono text-[11px] text-primary">CATALOG</span>
           )}
           {server.isMock && (
-            <span className="rounded bg-warning-muted px-1 font-mono text-[9px] text-warning">MOCK</span>
+            <span className="rounded bg-warning-muted px-1 font-mono text-[11px] text-warning">MOCK</span>
           )}
         </div>
-        <div className="mt-0.5 truncate font-mono text-[10px] text-text-muted">{server.serverUrl}</div>
+        <div className="mt-0.5 truncate font-mono text-xs text-text-muted">{server.serverUrl}</div>
       </div>
       <StatusDot status={server.status ?? 'UNKNOWN'} />
     </div>
-    <div className="mt-2 flex items-center gap-1 text-[10px]">
+    <div className="mt-2 flex items-center gap-1 text-xs">
       <span className={cn(
         'rounded px-1 font-mono',
         server.transport === 'STDIO'
@@ -490,7 +490,7 @@ const MyServerCard = ({
           : 'bg-elevated text-text-secondary',
       )}>{server.transport}</span>
       {server.transport === 'STDIO' && (
-        <span className="rounded bg-warning-muted px-1 font-mono text-[9px] text-warning" title="STDIO servers need a local process — web UI can't connect. Use the Download button to export a Claude Desktop config instead.">
+        <span className="rounded bg-warning-muted px-1 font-mono text-[11px] text-warning" title="STDIO servers need a local process — web UI can't connect. Use the Download button to export a Claude Desktop config instead.">
           not supported in web
         </span>
       )}
@@ -602,7 +602,7 @@ const ConnectFromCatalogModal = ({
     >
       <div className="space-y-3">
         {entry.requiresAuth && entry.authHelp && (
-          <div className="rounded-md border border-warning/40 bg-warning-muted p-3 text-[11px] text-warning">
+          <div className="rounded-md border border-warning/40 bg-warning-muted p-3 text-xs text-warning">
             <ShieldCheck className="mr-1 inline h-3 w-3" />
             <strong>Auth required:</strong> {entry.authHelp}
           </div>
@@ -621,9 +621,9 @@ const ConnectFromCatalogModal = ({
               {headers.map((h, i) => (
                 <div key={i} className="grid grid-cols-[1fr_1fr_24px] gap-1.5">
                   <input value={h.key} onChange={(e) => setHeaders(headers.map((x, j) => j === i ? { ...x, key: e.target.value } : x))}
-                         placeholder="Header" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-[11px]" />
+                         placeholder="Header" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-xs" />
                   <input value={h.value} onChange={(e) => setHeaders(headers.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
-                         placeholder="Value" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-[11px]" />
+                         placeholder="Value" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-xs" />
                   <button onClick={() => setHeaders(headers.filter((_, j) => j !== i))}
                           className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-hover hover:text-danger">
                     <Trash2 className="h-3 w-3" />
@@ -631,7 +631,7 @@ const ConnectFromCatalogModal = ({
                 </div>
               ))}
               <button onClick={() => setHeaders([...headers, { key: 'Authorization', value: '' }])}
-                      data-testid="catalog-connect-add-header" className="text-[10px] text-primary hover:underline">+ Add header</button>
+                      data-testid="catalog-connect-add-header" className="text-xs text-primary hover:underline">+ Add header</button>
             </div>
           </Field>
         )}
@@ -710,9 +710,9 @@ const ServerEditModal = ({
             {headers.map((h, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_24px] gap-1.5">
                 <input value={h.key} onChange={(e) => setHeaders(headers.map((x, j) => j === i ? { ...x, key: e.target.value } : x))}
-                       placeholder="Header" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-[11px]" />
+                       placeholder="Header" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-xs" />
                 <input value={h.value} onChange={(e) => setHeaders(headers.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
-                       placeholder="Value" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-[11px]" />
+                       placeholder="Value" className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-xs" />
                 <button onClick={() => setHeaders(headers.filter((_, j) => j !== i))}
                         className="flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-hover hover:text-danger">
                   <Trash2 className="h-3 w-3" />
@@ -720,7 +720,7 @@ const ServerEditModal = ({
               </div>
             ))}
             <button onClick={() => setHeaders([...headers, { key: '', value: '' }])}
-                    className="text-[10px] text-primary hover:underline">+ Add header</button>
+                    className="text-xs text-primary hover:underline">+ Add header</button>
           </div>
         </Field>
       </div>
@@ -730,7 +730,7 @@ const ServerEditModal = ({
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
-    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</div>
+    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</div>
     {children}
   </div>
 );
@@ -739,7 +739,7 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 
 const ChipGroup = ({ label, testId, children }: { label: string; testId: string; children: React.ReactNode }) => (
   <div className="flex items-center gap-1" data-testid={testId}>
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+    <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
     <div className="flex items-center gap-1 rounded-full border border-border bg-surface/40 p-0.5">
       {children}
     </div>
@@ -753,7 +753,7 @@ const Chip = ({ active, onClick, testId, children }: {
     data-testid={testId}
     onClick={onClick}
     className={cn(
-      'rounded-full px-2.5 py-0.5 text-[11px] transition-colors',
+      'rounded-full px-2.5 py-0.5 text-xs transition-colors',
       active
         ? 'bg-primary text-white shadow-sm'
         : 'text-text-secondary hover:bg-hover hover:text-primary',

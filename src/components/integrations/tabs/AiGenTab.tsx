@@ -91,7 +91,7 @@ export const AiGenTab = () => {
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <Sparkles className="h-3.5 w-3.5 text-primary" /> AI Test Generator
         </h3>
-        <p className="text-[11px] text-text-muted">Auto-draft an assertion suite from a tool's schema.</p>
+        <p className="text-xs text-text-muted">Auto-draft an assertion suite from a tool's schema.</p>
       </header>
 
       <div className="grid gap-3 rounded-md border border-border bg-surface/30 p-3 sm:grid-cols-[1fr_1fr_auto]">
@@ -146,16 +146,16 @@ export const AiGenTab = () => {
                   {failure
                     ? <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                     : <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
-                  <span className="font-mono text-[12px] font-semibold">{c.title}</span>
+                  <span className="font-mono text-xs font-semibold">{c.title}</span>
                   <span className={cn(
-                    'ml-auto rounded px-1.5 py-0.5 text-[10px] font-bold',
+                    'ml-auto rounded px-1.5 py-0.5 text-xs font-bold',
                     failure ? 'bg-warning-muted text-warning' : 'bg-success-muted text-success',
                   )}>
                     {failure ? 'should error' : 'should pass'}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] text-text-muted">{c.rationale}</p>
-                <pre className="mt-1.5 overflow-auto rounded bg-elevated/40 p-2 font-mono text-[10px]">{JSON.stringify(c.arguments, null, 2)}</pre>
+                <p className="mt-1 text-xs text-text-muted">{c.rationale}</p>
+                <pre className="mt-1.5 overflow-auto rounded bg-elevated/40 p-2 font-mono text-xs">{JSON.stringify(c.arguments, null, 2)}</pre>
               </div>
             );
           })}
@@ -167,7 +167,7 @@ export const AiGenTab = () => {
 
 const Field = ({ label, icon: Icon, children }: { label: string; icon: any; children: React.ReactNode }) => (
   <div>
-    <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+    <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
       <Icon className="h-3 w-3" /> {label}
     </div>
     {children}

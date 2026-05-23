@@ -66,7 +66,7 @@ export const CollectionsTab = () => {
         <header className="flex items-center justify-between">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold">
             <FolderOpen className="h-3.5 w-3.5 text-primary" /> Collections
-            <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[9px] text-text-muted">{collections.length}</span>
+            <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-text-muted">{collections.length}</span>
           </h3>
           <Button variant="primary" data-testid="collections-add" onClick={() => setCreating(true)} disabled={servers.length === 0}>
             <Plus className="h-3.5 w-3.5" /> New collection
@@ -96,7 +96,7 @@ export const CollectionsTab = () => {
                 <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-muted" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{c.name}</div>
-                  <div className="flex items-center gap-1 text-[10px] text-text-muted">
+                  <div className="flex items-center gap-1 text-xs text-text-muted">
                     <span className="rounded bg-elevated px-1 font-mono">{((c as any).calls ?? (c as any).steps ?? []).length} calls</span>
                     {c.serverId && (
                       <span className="truncate">· {serverOf(c.serverId)?.name ?? 'unknown server'}</span>
@@ -151,28 +151,28 @@ export const CollectionsTab = () => {
           <Server className="h-3 w-3 text-primary" /> Last run
         </h4>
         {!lastRun ? (
-          <div className="rounded border border-dashed border-border bg-surface/40 p-4 text-center text-[11px] text-text-muted">
+          <div className="rounded border border-dashed border-border bg-surface/40 p-4 text-center text-xs text-text-muted">
             Run a collection to see per-call results here.
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex items-center gap-2 text-xs">
               <span className={cn('rounded px-1.5 py-0.5 font-bold',
                 lastRun.failCount === 0 ? 'bg-success-muted text-success' : 'bg-warning-muted text-warning')}>
                 {lastRun.passCount}/{lastRun.callCount} pass
               </span>
-              <span className="font-mono text-[10px] text-text-muted">{lastRun.status}</span>
+              <span className="font-mono text-xs text-text-muted">{lastRun.status}</span>
             </div>
             {lastRun.results.map((r: any, i: number) => (
-              <details key={i} className="rounded border border-border bg-surface/50 p-2 text-[11px]">
+              <details key={i} className="rounded border border-border bg-surface/50 p-2 text-xs">
                 <summary className="flex cursor-pointer items-center gap-1.5">
                   {r.success
                     ? <CheckCircle2 className="h-3 w-3 text-success" />
                     : <AlertTriangle className="h-3 w-3 text-danger" />}
                   <span className="min-w-0 flex-1 truncate font-mono">{r.toolName}</span>
-                  <span className="font-mono text-[10px] text-text-muted">{r.ms}ms</span>
+                  <span className="font-mono text-xs text-text-muted">{r.ms}ms</span>
                 </summary>
-                <pre className="mt-1.5 max-h-40 overflow-auto rounded bg-elevated/40 p-2 font-mono text-[10px]">
+                <pre className="mt-1.5 max-h-40 overflow-auto rounded bg-elevated/40 p-2 font-mono text-xs">
                   {JSON.stringify(r.result, null, 2)}
                 </pre>
               </details>
@@ -307,7 +307,7 @@ const CollectionEditModal = ({
                     const next = calls.slice(); next[i] = { ...c, toolName: e.target.value };
                     setCalls(next);
                   }} data-testid={`collection-call-tool-${i}`}
-                          className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-[11px]">
+                          className="h-7 rounded border border-border bg-probestack-bg px-2 font-mono text-xs">
                     <option value="">— pick a tool —</option>
                     {tools.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
                   </select>
@@ -327,11 +327,11 @@ const CollectionEditModal = ({
                   const next = calls.slice(); next[i] = { ...c, expect: e.target.value };
                   setCalls(next);
                 }} placeholder="Optional: response must contain…"
-                       className="mt-1.5 h-7 w-full rounded border border-border bg-probestack-bg px-2 text-[11px]" />
+                       className="mt-1.5 h-7 w-full rounded border border-border bg-probestack-bg px-2 text-xs" />
               </div>
             ))}
             <button onClick={() => setCalls([...calls, { toolName: '', arguments: '{\n  \n}' }])}
-                    data-testid="collection-add-call" className="text-[10px] text-primary hover:underline">+ Add call</button>
+                    data-testid="collection-add-call" className="text-xs text-primary hover:underline">+ Add call</button>
           </div>
         </Field>
       </div>
@@ -341,7 +341,7 @@ const CollectionEditModal = ({
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
-    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</div>
+    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</div>
     {children}
   </div>
 );

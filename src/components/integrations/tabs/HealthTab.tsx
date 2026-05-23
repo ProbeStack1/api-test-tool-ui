@@ -67,10 +67,10 @@ export const HealthTab = () => {
       <header className="flex shrink-0 items-center gap-3 border-b border-border bg-surface/40 px-4 py-2.5">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold">
           <HeartPulse className="h-4 w-4 text-primary" /> Server Health
-          <span className="ml-2 text-[10px] font-normal text-text-muted">timezone: {zone}</span>
+          <span className="ml-2 text-xs font-normal text-text-muted">timezone: {zone}</span>
         </h3>
         <div className="ml-auto flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[11px]">
+          <label className="flex items-center gap-1.5 text-xs">
             <input
               type="checkbox"
               checked={autoPing}
@@ -115,7 +115,7 @@ const Tile = ({ label, value, icon: Icon, tone = 'default' }: { label: string; v
   const tones = { default: 'text-text-primary', success: 'text-success', warning: 'text-warning', danger: 'text-danger' } as const;
   return (
     <div className="rounded-lg border border-border/60 bg-surface/40 p-2" data-testid={`health-tile-${label.toLowerCase().replace(/\s+/g, '-')}`}>
-      <div className="mb-0.5 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="mb-0.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
         <Icon className="h-3 w-3" />{label}
       </div>
       <div className={cn('text-base font-bold', tones[tone])}>{value}</div>
@@ -146,9 +146,9 @@ const HealthRow = ({ server }: { server: any }) => {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-semibold">{server.name || server.serverUrl}</span>
-          <span className={cn('rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase', t.text)}>{status}</span>
+          <span className={cn('rounded border px-1.5 py-0.5 text-xs font-bold uppercase', t.text)}>{status}</span>
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-text-muted">
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
           <Globe2 className="h-3 w-3" /><span className="truncate font-mono">{server.serverUrl}</span>
           <span>·</span><span>{server.transport}</span>
           {server.lastSeenAt && (
@@ -158,7 +158,7 @@ const HealthRow = ({ server }: { server: any }) => {
       </div>
       <div className="shrink-0 text-right">
         <div className="font-mono text-base font-bold text-text-primary">{uptime.toFixed(1)}%</div>
-        <div className="text-[9px] uppercase tracking-wider text-text-muted">7-day uptime</div>
+        <div className="text-[11px] uppercase tracking-wider text-text-muted">7-day uptime</div>
       </div>
       {status === 'UP'
         ? <CheckCircle2 className="h-4 w-4 text-success" />

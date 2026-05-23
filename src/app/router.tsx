@@ -50,7 +50,7 @@ const ProjectStandaloneLayout = l(() => import('@/layouts/ProjectStandaloneLayou
 const ProjectWorkspacePage = l(() => import('@/pages/project-standalone'), (m: any) => m.ProjectWorkspacePage);
 
 const RequestBuilderPage = l(() => import('@/pages/request-builder'), (m: any) => m.RequestBuilderPage);
-const DashboardPage = l(() => import('@/pages/workspace'), (m: any) => m.DashboardPage);
+const DashboardPage = l(() => import('@/pages/workspace/WorkspaceDashboardPage'), (m: any) => m.WorkspaceDashboardPage);
 const ProjectManagementPage = l(() => import('@/pages/workspace'), (m: any) => m.ProjectManagementPage);
 const EnvironmentsPage = l(() => import('@/pages/environments'), (m: any) => m.EnvironmentsPage);
 const VariablesWorkspacePage = l(() => import('@/pages/variables'), (m: any) => m.VariablesWorkspacePage);

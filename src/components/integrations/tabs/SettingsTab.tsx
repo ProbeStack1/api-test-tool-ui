@@ -82,7 +82,7 @@ const Row = ({ label, hint, children }: { label: string; hint?: string; children
   <div className="grid grid-cols-[180px_1fr] items-start gap-3">
     <div>
       <div className="text-xs font-medium">{label}</div>
-      {hint && <div className="mt-0.5 text-[10px] leading-snug text-text-muted">{hint}</div>}
+      {hint && <div className="mt-0.5 text-xs leading-snug text-text-muted">{hint}</div>}
     </div>
     <div>{children}</div>
   </div>

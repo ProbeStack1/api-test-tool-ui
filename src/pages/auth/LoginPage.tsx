@@ -406,17 +406,21 @@ export const LoginPage = () => {
           data-testid="auth-brand-panel"
           className="hidden flex-col justify-between p-10 lg:flex lg:p-14"
         >
-          <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
-            <Logo variant="mark" className="h-12 w-10" />
-            <div>
-              <div className={cn('text-[0.75rem] uppercase tracking-[0.18em]', isDark ? 'text-white/60' : 'text-gray-600')}>
-                probestack
+          <Link
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeFuzz
+                </div>
               </div>
-              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
-                ForgeFuzz
-              </div>
-            </div>
-          </Link>
+            </Link>
 
           <div className="space-y-8">
             <div>

@@ -2,7 +2,7 @@
  * Audit Activity raw HTTP layer (port 8088, `forgeq-audit-activity-svc`).
  *
  * Controllers covered:
- *   • ActivityController  /api/v1/audit-activity/activity/**  (timelines + correlation chain)
+ *   • ActivityController  /api/v1/activity/activity/**  (timelines + correlation chain)
  *
  * DTO field names mirror Java exactly. Spring Jackson is strict.
  */
@@ -10,7 +10,7 @@ import { createHttp } from '@/lib/http';
 import { serviceUrl } from '@/lib/env';
 
 const http = createHttp('audit');
-const BASE = '/api/v1/audit/activity';
+const BASE = '/api/v1/activity/activity';
 
 export type Severity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
 

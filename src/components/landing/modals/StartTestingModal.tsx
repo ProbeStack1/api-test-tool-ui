@@ -112,7 +112,7 @@ export default function StartTestingModal({
                 <h3 className="text-[15px] font-semibold text-white leading-tight">
                   Continue to Workspace
                 </h3>
-                <span className="text-[11px] text-[#ff5b1f]/90 font-medium tracking-wide uppercase">
+                <span className="text-xs text-[#ff5b1f]/90 font-medium tracking-wide uppercase">
                   ForgeCrux · Secure Sync
                 </span>
               </div>
@@ -126,7 +126,7 @@ export default function StartTestingModal({
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-3">
               <label className="block">
-                <span className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-semibold">
+                <span className="text-xs uppercase tracking-[0.12em] text-gray-500 font-semibold">
                   Email
                 </span>
                 <div className="mt-1.5 relative group">
@@ -158,7 +158,7 @@ export default function StartTestingModal({
 
               <div className="flex items-center justify-between gap-2 pt-1">
                 <span className="text-[10.5px] text-gray-600">
-                  Press <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 text-[10px] font-mono">Enter</kbd> to continue
+                  Press <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 text-xs font-mono">Enter</kbd> to continue
                 </span>
 
                 <div className="flex items-center gap-2">

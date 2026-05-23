@@ -9,7 +9,7 @@
 import { createHttp } from '@/lib/http';
 
 const http = createHttp('aiTesting');
-const BASE = '/api/v1/ai-testing';
+const BASE = '/api/v1/settings/ai-testing';
 
 export type Provider = 'openai' | 'anthropic' | 'google';
 export type SuiteType = 'prompt' | 'chat' | 'agent' | 'rag' | 'tool_calling' | 'safety';

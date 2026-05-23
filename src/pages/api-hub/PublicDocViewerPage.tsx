@@ -36,17 +36,21 @@ export const PublicDocViewerPage = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background text-text-primary" data-testid="public-doc-viewer">
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
-        <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
-            <Logo variant="mark" className="h-12 w-10" />
-            <div>
-              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-text-secondary">
-                probestack
+        <Link
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeFuzz
+                </div>
               </div>
-              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
-                ForgeFuzz
-              </div>
-            </div>
-          </Link>
+            </Link>
         <ThemeToggle />
       </header>
 

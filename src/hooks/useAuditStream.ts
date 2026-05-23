@@ -3,12 +3,14 @@
  * pushes new audit events into the React Query cache so the timeline
  * updates in real time without polling.
  *
- * Note: EventSource doesn't support custom headers, so the dev-bypass
- * principal is established via cookie / auth proxy on the backend.
+ * Browser EventSource cannot attach an Authorization header, so we pass
+ * the access token as a `?token=…` query param. The backend filter
+ * (ForgeqAuthFilter) reads either the header or the query param.
  */
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { serviceUrl } from '@/lib/env';
+import { getAccessToken } from '@/stores/auth.store';
 import type { TimelineEntry } from '@/services/audit.service';
 
 const toIso = (v: number | string | null | undefined): string | undefined => {
@@ -24,7 +26,15 @@ export const useAuditStream = (workspaceId: string | undefined) => {
 
   useEffect(() => {
     if (!workspaceId) return;
-    const url = `${serviceUrl('audit')}/api/v1/audit-activity/activity/workspace/${workspaceId}/stream`;
+    const token = getAccessToken();
+    // Without an access token the backend will 401 — bail early.
+    if (!token) return;
+
+    // EventSource can only auth via query string. We url-encode the token
+    // so any special chars in the JWT don't break the URL.
+    const url =
+      `${serviceUrl('audit')}/api/v1/activity/activity/workspace/` +
+      `${workspaceId}/stream?token=${encodeURIComponent(token)}`;
     const es = new EventSource(url);
     ref.current = es;
 

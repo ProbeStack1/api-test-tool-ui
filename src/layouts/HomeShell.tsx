@@ -61,17 +61,21 @@ export const HomeShell = () => {
           className="flex w-56 shrink-0 flex-col border-r border-border bg-surface"
         >
           <div className="flex h-15 items-center border-b border-border px-3 py-2">
-            <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
-            <Logo variant="mark" className="h-12 w-10" />
-            <div>
-              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-text-secondary">
-                probestack
+            <Link
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeFuzz
+                </div>
               </div>
-              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
-                ForgeFuzz
-              </div>
-            </div>
-          </Link>
+            </Link>
           </div>
           <nav className="flex-1 overflow-auto px-2 py-3">
             <ul className="space-y-0.5">

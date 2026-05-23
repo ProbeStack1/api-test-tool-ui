@@ -270,7 +270,7 @@ const DirectionToggle = ({
       onClick={() => onChange('m2r')}
       data-testid="rest-bridge-direction-m2r"
       className={cn(
-        'flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
+        'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
         value === 'm2r' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary',
       )}
     >
@@ -281,7 +281,7 @@ const DirectionToggle = ({
       onClick={() => onChange('r2m')}
       data-testid="rest-bridge-direction-r2m"
       className={cn(
-        'flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors',
+        'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
         value === 'r2m' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-primary',
       )}
     >
@@ -340,18 +340,18 @@ const McpToRest = ({
     ) : (
       <div className="space-y-3" data-testid="rest-bridge-view">
         <Row label="Method">
-          <span className="rounded bg-success-muted px-2 py-0.5 font-mono text-[11px] font-bold text-success">{bridge.method}</span>
+          <span className="rounded bg-success-muted px-2 py-0.5 font-mono text-xs font-bold text-success">{bridge.method}</span>
         </Row>
         <Row label="URL">
           <div className="flex w-full items-center gap-1">
-            <code data-testid="rest-bridge-url" className="flex-1 truncate rounded border border-border bg-probestack-bg px-2 py-1 font-mono text-[11px]">{bridge.url}</code>
+            <code data-testid="rest-bridge-url" className="flex-1 truncate rounded border border-border bg-probestack-bg px-2 py-1 font-mono text-xs">{bridge.url}</code>
             <Button variant="outline" data-testid="rest-bridge-copy-url" onClick={() => copy(bridge.url, 'URL')}>
               <Copy className="h-3 w-3" />
             </Button>
           </div>
         </Row>
         <Row label="Headers">
-          <pre className="w-full rounded border border-border bg-probestack-bg p-2 font-mono text-[10px]">
+          <pre className="w-full rounded border border-border bg-probestack-bg p-2 font-mono text-xs">
 {Object.entries(bridge.headers).map(([k, v]) => `${k}: ${v}`).join('\n')}
           </pre>
         </Row>
@@ -362,7 +362,7 @@ const McpToRest = ({
         </Row>
         <Row label="curl">
           <div className="w-full">
-            <pre data-testid="rest-bridge-curl" className="overflow-x-auto rounded border border-border bg-probestack-bg p-2 font-mono text-[10px] leading-relaxed">{bridge.curl}</pre>
+            <pre data-testid="rest-bridge-curl" className="overflow-x-auto rounded border border-border bg-probestack-bg p-2 font-mono text-xs leading-relaxed">{bridge.curl}</pre>
             <Button variant="outline" className="mt-1.5" data-testid="rest-bridge-copy-curl" onClick={() => copy(bridge.curl, 'curl')}>
               <Copy className="h-3 w-3" /> Copy curl
             </Button>
@@ -391,7 +391,7 @@ const SnippetInstructions = () => (
         Multi-language snippets — open the right-side Snippets panel
       </h4>
     </header>
-    <ol className="ml-4 list-decimal space-y-1 text-[11px] leading-snug text-text-secondary">
+    <ol className="ml-4 list-decimal space-y-1 text-xs leading-snug text-text-secondary">
       <li>Expand the <span className="font-semibold">Snippets</span> tab on the right rail.</li>
       <li>The same request is auto-loaded — switch between <span className="font-mono">cURL</span>,
         <span className="font-mono"> fetch</span>, <span className="font-mono">axios</span>,
@@ -432,8 +432,8 @@ const RestToMcp = ({
   <div className="grid gap-3 lg:grid-cols-[1fr_1fr]" data-testid="r2m-pane">
     <div className="space-y-2">
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">curl / HTTP request</span>
-        <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[9px] text-text-muted">paste here</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">curl / HTTP request</span>
+        <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-text-muted">paste here</span>
       </div>
       <div className="h-72 overflow-hidden rounded border border-border" data-testid="r2m-curl-editor">
         <CodeEditor value={curlInput} onChange={setCurlInput} language="shell" testId="r2m-curl" />
@@ -445,7 +445,7 @@ const RestToMcp = ({
 
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-muted">
           <ArrowLeftRight className="h-3 w-3" /> Generated MCP tool spec
         </span>
         {spec.ok && (
@@ -456,12 +456,12 @@ const RestToMcp = ({
       </div>
 
       {!spec.ok ? (
-        <div className="rounded border border-dashed border-border bg-surface/30 p-6 text-center text-[11px] text-text-muted" data-testid="r2m-spec-empty">
+        <div className="rounded border border-dashed border-border bg-surface/30 p-6 text-center text-xs text-text-muted" data-testid="r2m-spec-empty">
           <FileText className="mx-auto mb-1.5 h-5 w-5 opacity-50" />
           {spec.error || 'Paste a curl command on the left to generate an MCP tool spec.'}
         </div>
       ) : (
-        <div className="rounded border border-border bg-surface/30 p-3 text-[11px]" data-testid="r2m-spec">
+        <div className="rounded border border-border bg-surface/30 p-3 text-xs" data-testid="r2m-spec">
           <KV label="tool name"   value={spec.toolName} mono />
           <KV label="description" value={spec.description} />
           <KV label="method"      value={spec.method} mono />
@@ -475,10 +475,10 @@ const RestToMcp = ({
                 mono />
           )}
           <div className="mt-2">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+            <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
               <ListChecks className="h-3 w-3" /> input schema (JSON Schema)
             </div>
-            <pre className="max-h-72 overflow-auto rounded border border-border bg-probestack-bg p-2 font-mono text-[10px]">
+            <pre className="max-h-72 overflow-auto rounded border border-border bg-probestack-bg p-2 font-mono text-xs">
 {JSON.stringify(spec.inputSchema, null, 2)}
             </pre>
           </div>
@@ -490,8 +490,8 @@ const RestToMcp = ({
 
 const KV = ({ label, value, mono }: { label: string; value: string; mono?: boolean }) => (
   <div className="flex items-baseline gap-2 border-b border-border/30 py-1 last:border-b-0">
-    <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</span>
-    <span className={cn('min-w-0 break-all text-text-primary', mono && 'font-mono text-[11px]')}>{value || '—'}</span>
+    <span className="w-24 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+    <span className={cn('min-w-0 break-all text-text-primary', mono && 'font-mono text-xs')}>{value || '—'}</span>
   </div>
 );
 
@@ -761,7 +761,7 @@ function buildCurlString(
 /* ─────────────────────────────────────────────────────────────────────── */
 const Field = ({ label, icon: Icon, children }: { label: string; icon: any; children: React.ReactNode }) => (
   <div>
-    <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+    <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
       <Icon className="h-3 w-3" /> {label}
     </div>
     {children}
@@ -770,7 +770,7 @@ const Field = ({ label, icon: Icon, children }: { label: string; icon: any; chil
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className={cn('grid grid-cols-[100px_1fr] items-start gap-3')}>
-    <span className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+    <span className="pt-1 text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
     <div>{children}</div>
   </div>
 );

@@ -1,5 +1,5 @@
 /**
- * API client — single axios instance pointing at the ForgeQ BFF gateway.
+ * API client — single axios instance pointing at the ForgeFuzz BFF gateway.
  * All 5 priority services (workspace, collection, request, environment, mock)
  * share the same base URL because the BFF hosts them under one API.
  */

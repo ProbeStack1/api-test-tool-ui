@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Variable,
   Sparkles,
+  FlaskConical,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -27,6 +28,7 @@ const TABS: { key: PrimaryTab; label: string; icon: LucideIcon; route: string }[
   { key: 'mock', label: 'Mock', icon: Server, route: '/projects/mocks' },
   { key: 'testing', label: 'Testing', icon: TestTube2, route: '/projects/testing' },
   { key: 'aiAssisted' as PrimaryTab, label: 'AI Assistant', icon: Sparkles, route: '/projects/ai-assisted' },
+  { key: 'aiTesting' as PrimaryTab,  label: 'AI Testing',   icon: FlaskConical, route: '/projects/ai-testing' },
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, route: '/projects/dashboard' },
 ];
 

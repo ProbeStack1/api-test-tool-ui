@@ -1,7 +1,7 @@
 /**
  * Project Dashboard — premium overview.
  *
- * Data comes live from `forgefuzz-dashboard-mgmt-svc` (port 8095), which itself
+ * Data comes live from `forgeq-dashboard-mgmt-svc` (port 8095), which itself
  * aggregates over every ForgeFuzz service's MongoDB collections.
  *
  * Interactions / UX:

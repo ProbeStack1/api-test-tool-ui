@@ -276,7 +276,7 @@ export function SecurityScanPage() {
     setBugBusyId(f.findingId);
     try {
       const r = await http.post(`${SVC}/functional-tests/bugs/from-finding`, {
-        runId, findingId: f.findingId, reporterEmail: 'qa@forgefuzz.io',
+        runId, findingId: f.findingId, reporterEmail: 'qa@forgefuzz.com',
       });
       setFindings((prev) => prev.map((x) =>
         x.findingId === f.findingId ? { ...x, linkedBugId: r.data.id } : x));
@@ -295,7 +295,7 @@ export function SecurityScanPage() {
       version: '2.1.0',
       $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
       runs: [{
-        tool: { driver: { name: 'ForgeFuzz', version: '1.0.0', informationUri: 'https://forgefuzz.io' } },
+        tool: { driver: { name: 'ForgeFuzz', version: '1.0.0', informationUri: 'https://forgefuzz.com' } },
         results: findings.filter((f) => !f.passed).map((f) => ({
           ruleId: f.checkId,
           message: { text: f.detail },

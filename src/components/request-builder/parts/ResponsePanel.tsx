@@ -1,5 +1,5 @@
 /**
- * ResponsePanel — ForgeQ response viewer (NOT a Postman clone).
+ * ResponsePanel — ForgeFuzz response viewer.
  *
  *   Outer tabs (TOP, the panel's main sections):
  *     Response · Logs · Validation Results · Collection Run · Debug Info

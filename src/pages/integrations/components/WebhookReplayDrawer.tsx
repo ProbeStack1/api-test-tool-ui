@@ -8,7 +8,7 @@
  *      Discord won't accept this, but webhook.site and any endpoint that
  *      doesn't require signing will. Great for rapid contract testing.
  *
- *   2. **Fire via ForgeQ (signed)** — disabled today with a tooltip that
+ *   2. **Fire via ForgeFuzz (signed)** — disabled today with a tooltip that
  *      explains the backend doesn't yet expose a "test with custom
  *      payload" endpoint. The request to add
  *      `POST /webhooks/{id}/test` on the Java side has been filed. Once

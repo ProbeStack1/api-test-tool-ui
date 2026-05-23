@@ -6,11 +6,17 @@
  * every request and the response interceptor calls `refresh()` once
  * when it sees a 401 with `AUTH_TOKEN_EXPIRED`.
  *
+ * Cross-tab sync: a {@link BroadcastChannel} fan-out keeps every open
+ * ForgeFuzz tab on the same session — login in tab A → tabs B/C/D
+ * adopt the token; logout in tab A → tabs B/C/D drop it and the
+ * `RequireAuth` guard bounces them to `/login`.
+ *
  * Key shape lives in {@link UserView} — keep in lock-step with
  * the backend DTO at `forgeq-test-user-mgmt-svc → dto/AuthDtos.UserView`.
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { broadcastAuth, onAuthBroadcast } from '@/lib/auth-broadcast';
 
 export interface UserView {
   userId: string;
@@ -32,8 +38,14 @@ interface AuthState {
   refreshToken: string | null;
   expiresAt:    number | null;     // epoch-ms; renew before this when possible
 
+  /** Set after a successful login (or hydrated from a sibling tab). */
   setSession(t: { accessToken: string; refreshToken: string; expiresInSec: number; user: UserView }): void;
+  /** Replace just the access token after a /refresh round-trip. */
+  setAccessToken(t: { accessToken: string; expiresInSec: number }): void;
+  /** Explicit sign-out (or hydrated from a sibling tab). */
   clear(): void;
+  /** Internal: apply state pushed by another tab without re-broadcasting. */
+  _hydrateFromBroadcast(p: Partial<AuthState>): void;
 
   isAuthenticated(): boolean;
   hasRole(role: string): boolean;
@@ -48,17 +60,23 @@ export const useAuth = create<AuthState>()(
       expiresAt: null,
 
       setSession({ accessToken, refreshToken, expiresInSec, user }) {
-        set({
-          user,
-          accessToken,
-          refreshToken,
-          expiresAt: Date.now() + expiresInSec * 1000,
-        });
+        const expiresAt = Date.now() + expiresInSec * 1000;
+        set({ user, accessToken, refreshToken, expiresAt });
+        broadcastAuth({ type: 'login', payload: { accessToken, refreshToken, expiresAt, user } });
+      },
+
+      setAccessToken({ accessToken, expiresInSec }) {
+        const expiresAt = Date.now() + expiresInSec * 1000;
+        set({ accessToken, expiresAt });
+        broadcastAuth({ type: 'refresh', payload: { accessToken, expiresAt } });
       },
 
       clear() {
         set({ user: null, accessToken: null, refreshToken: null, expiresAt: null });
+        broadcastAuth({ type: 'logout' });
       },
+
+      _hydrateFromBroadcast(p) { set(p as Partial<AuthState>); },
 
       isAuthenticated() {
         const { accessToken, expiresAt } = get();
@@ -70,7 +88,7 @@ export const useAuth = create<AuthState>()(
       },
     }),
     {
-      name: 'forgeq.auth',
+      name: 'forgefuzz.auth',
       storage: createJSONStorage(() => localStorage),
     },
   ),
@@ -80,3 +98,20 @@ export const useAuth = create<AuthState>()(
 export const getAccessToken  = (): string | null  => useAuth.getState().accessToken;
 export const getRefreshToken = (): string | null  => useAuth.getState().refreshToken;
 export const clearAuth       = (): void           => useAuth.getState().clear();
+
+// ─── Cross-tab subscription (runs once on module load) ────────────────────
+onAuthBroadcast((evt) => {
+  const s = useAuth.getState();
+  if (evt.type === 'login') {
+    s._hydrateFromBroadcast({
+      accessToken: evt.payload.accessToken,
+      refreshToken: evt.payload.refreshToken,
+      expiresAt: evt.payload.expiresAt,
+      user: evt.payload.user as UserView,
+    });
+  } else if (evt.type === 'logout') {
+    s._hydrateFromBroadcast({ accessToken: null, refreshToken: null, expiresAt: null, user: null });
+  } else if (evt.type === 'refresh') {
+    s._hydrateFromBroadcast({ accessToken: evt.payload.accessToken, expiresAt: evt.payload.expiresAt });
+  }
+});

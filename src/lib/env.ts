@@ -19,6 +19,7 @@ export type ServiceName =
   | 'loadTest'
   | 'integrations'
   | 'aiAssistant'
+  | 'aiTesting'
   | 'support'
   | 'dashboard'
   | 'collab'
@@ -80,6 +81,7 @@ export const CANONICAL_PORTS: Record<ServiceName, number> = {
   loadTest: 8091,
   testSpec: 8092,
   aiAssistant: 8093,
+  aiTesting: 8084,
   support: 8094,
   dashboard: 8095,
   collab: 8096,
@@ -100,6 +102,7 @@ const LOCAL_URLS: Record<ServiceName, string> = {
   loadTest:       readEnv('VITE_LOAD_TEST_SVC_URL',       `http://localhost:${CANONICAL_PORTS.loadTest}`),
   integrations:   readEnv('VITE_INTEGRATIONS_SVC_URL',    `http://localhost:${CANONICAL_PORTS.integrations}`),
   aiAssistant:    readEnv('VITE_AI_ASSISTANT_SVC_URL',    `http://localhost:${CANONICAL_PORTS.aiAssistant}`),
+  aiTesting:      readEnv('VITE_AI_TESTING_SVC_URL',      `http://localhost:${CANONICAL_PORTS.aiTesting}`),
   support:        readEnv('VITE_SUPPORT_SVC_URL',         `http://localhost:${CANONICAL_PORTS.support}`),
   dashboard:      readEnv('VITE_DASHBOARD_SVC_URL',       `http://localhost:${CANONICAL_PORTS.dashboard}`),
   collab:         readEnv('VITE_COLLAB_SVC_URL',          `http://localhost:${CANONICAL_PORTS.collab}`),

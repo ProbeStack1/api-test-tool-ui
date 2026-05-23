@@ -1,7 +1,7 @@
 /**
  * CollectionRunDrawer — Postman-style collection runner, simplified.
  *
- * Why "simplified": ForgeQ already has dedicated Functional and Load
+ * Why "simplified": ForgeFuzz already has dedicated Functional and Load
  * test pages with rich assertion + perf features. The collection
  * runner here is intentionally lightweight — its job is *"play these
  * requests one-by-one in user-controlled order and show me what

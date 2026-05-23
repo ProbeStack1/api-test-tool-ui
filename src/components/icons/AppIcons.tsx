@@ -33,7 +33,7 @@ import {
   ClipboardList, BookOpen, Compass, LayoutDashboard, LineChart,
   Globe, Link, Code2, Terminal, Zap, AlertTriangle, AlertCircle,
   CheckCircle2, Clock, Star, Tag, History, Variable,
-  TestTube2, Sparkles, Shield,
+  TestTube2, Sparkles, Shield, FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -47,7 +47,7 @@ export type IconName =
   | 'project' | 'collection' | 'folder' | 'request' | 'environment'
   | 'mock' | 'monitor' | 'heartbeat' | 'digest' | 'webhook' | 'integration'
   | 'audit' | 'trash' | 'apidoc' | 'public-hub' | 'testing' | 'load-test'
-  | 'functional-test' | 'spec' | 'mcp' | 'reports'
+  | 'functional-test' | 'spec' | 'mcp' | 'reports' | 'flask'
   | 'history' | 'replay' | 'variables' | 'dashboard'
   // Actions
   | 'create' | 'edit' | 'delete' | 'restore' | 'duplicate' | 'refresh'
@@ -145,6 +145,7 @@ const ICON_MAP: Record<IconName, IconEntry> = {
   code:             { static: Code2,           hover: 'pulse' },
   terminal:         { static: Terminal,        hover: 'pulse' },
   zap:              { static: Zap,             hover: 'pop' },
+  flask:            { static: FlaskConical,    hover: 'pop' },
   message:          { static: MessageSquare,   hover: 'wiggle' },
 };
 

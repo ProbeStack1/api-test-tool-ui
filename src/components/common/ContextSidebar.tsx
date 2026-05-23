@@ -16,6 +16,7 @@ import { MockPanel } from './sidebar/MockPanel';
 import { TestingPanel } from './sidebar/TestingPanel';
 import { DashboardPanel } from './sidebar/DashboardPanel';
 import { AiAssistedPanel } from './sidebar/AiAssistedPanel';
+import { AiTestingPanel } from './sidebar/AiTestingPanel';
 
 export const ContextSidebar = () => {
   const expanded = useLayout((s) => s.showLeftSidebar);
@@ -65,6 +66,7 @@ export const ContextSidebar = () => {
           {tab === 'testing' && <TestingPanel />}
           {tab === 'dashboard' && <DashboardPanel />}
           {tab === 'aiAssisted' && <AiAssistedPanel />}
+          {tab === 'aiTesting' && <AiTestingPanel />}
         </div>
       </aside>
       <ResizeHandle

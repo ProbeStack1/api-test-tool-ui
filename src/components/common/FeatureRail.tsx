@@ -22,6 +22,7 @@ const ITEMS: { key: PrimaryTab; icon: IconName; label: string; route: string }[]
   { key: 'mock',         icon: 'mock',        label: 'Mock',         route: '/projects/mocks' },
   { key: 'testing',      icon: 'testing',     label: 'Testing',      route: '/projects/testing' },
   { key: 'aiAssisted',   icon: 'zap',         label: 'AI Assisted',  route: '/projects/ai-assisted' },
+  { key: 'aiTesting',    icon: 'flask',       label: 'AI Testing',   route: '/projects/ai-testing' },
   { key: 'dashboard',    icon: 'dashboard',   label: 'Dashboard',    route: '/projects/dashboard' },
 ];
 
@@ -32,6 +33,7 @@ const ROUTE_TAB: Array<[RegExp, PrimaryTab]> = [
   [/^\/projects\/testing/,      'testing'],
   [/^\/projects\/dashboard/,    'dashboard'],
   [/^\/projects\/ai-assisted/,  'aiAssisted'],
+  [/^\/projects\/ai-testing/,   'aiTesting'],
   [/^\/projects\/history/,      'history'],
   [/^\/projects\/collections/,  'collection'],
 ];

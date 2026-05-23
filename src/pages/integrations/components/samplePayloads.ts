@@ -1,6 +1,6 @@
 /**
  * Sample event payloads shown in the Catalog tab so users can see exactly
- * what JSON body ForgeQ will POST to their endpoint for each event type.
+ * what JSON body ForgeFuzz will POST to their endpoint for each event type.
  *
  * These shapes mirror the envelope emitted by `forgeq-integrations-webhooks-svc`:
  *   - `id`        — unique delivery id
@@ -11,7 +11,7 @@
  *   - `data`      — event-specific payload
  *
  * Every delivery carries an HMAC-SHA256 signature in the
- * `X-ForgeQ-Signature` header computed with the subscriber's signing
+ * `X-ForgeFuzz-Signature` header computed with the subscriber's signing
  * secret — never store the secret on the client.
  */
 export const samplePayloads: Record<string, object> = {

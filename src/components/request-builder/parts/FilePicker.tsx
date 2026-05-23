@@ -6,7 +6,7 @@
  *   • "Upload from local machine" → opens the native picker. The chosen
  *     file becomes the row's value immediately so the request can be
  *     sent, BUT it is marked as "local-only": a yellow warning badge
- *     renders next to the value, and a "Upload file to ForgeQ" icon
+ *     renders next to the value, and a "Upload file to ForgeFuzz" icon
  *     appears on the right. Clicking it pushes the file to the backend
  *     (GCS if configured, local fallback otherwise) and swaps the row
  *     to a "forgeq" file reference.
@@ -25,9 +25,9 @@ import { cn } from '@/utils/cn';
 /** The row's value shape when its type is "file". */
 export type FileValue =
   | { kind: 'none' }
-  /** Freshly picked local file — not yet uploaded to ForgeQ. */
+  /** Freshly picked local file — not yet uploaded to ForgeFuzz. */
   | { kind: 'local'; file: File; name: string; size: number }
-  /** Reference to an already-uploaded ForgeQ file. */
+  /** Reference to an already-uploaded ForgeFuzz file. */
   | { kind: 'forgeq'; id: string; name: string; size: number; url?: string };
 
 export const FilePickerPopover = ({
@@ -140,7 +140,7 @@ export const FileValueDisplay = ({
       const up = await uploadFile(ws.id, value.file);
       onChange({ kind: 'forgeq', id: up.id, name: up.name, size: up.size, url: up.url });
       qc.invalidateQueries({ queryKey: ['files', ws.id] });
-      toast.success(`Uploaded "${up.name}" to ForgeQ`);
+      toast.success(`Uploaded "${up.name}" to ForgeFuzz`);
     } catch (e: any) {
       toast.error(e?.message || 'Upload failed');
     } finally {

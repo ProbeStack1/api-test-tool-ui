@@ -59,17 +59,21 @@ export const LandingNavbar = () => {
     >
       <div className="flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
         {/* Logo - left */}
-        <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
-            <Logo variant="mark" className="h-12 w-10" />
-            <div>
-              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-text-secondary">
-                probestack
+        <Link
+              to="/"
+              data-testid="app-header-logo"
+              className="flex items-center gap-1"
+            >
+              <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  probestack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeFuzz
+                </div>
               </div>
-              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
-                ForgeFuzz
-              </div>
-            </div>
-          </Link>
+            </Link>
 
         {/* Center nav (md+) */}
         <div className="hidden md:flex items-center gap-1">

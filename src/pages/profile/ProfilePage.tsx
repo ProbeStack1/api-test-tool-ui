@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
 import { useAuth } from '@/stores/auth.store';
 import { userMgmtService } from '@/services/userMgmt.service';
+import { notificationsApi, type NotificationPreferences } from '@/services/notifications.service';
 
 interface ProfileExtras {
   title: string;
@@ -192,7 +193,7 @@ const Tab = ({ active, onClick, icon: Icon, label, testId }: any) => (
 
 const ProfileTab = ({ profile, extras, setExtras, onSave }: any) => (
   <div className="space-y-5" data-testid="profile-tab-profile-pane">
-    <Section title="Personal information" subtitle="Synced from your ForgeQ account. Email and name come from the user-mgmt service.">
+    <Section title="Personal information" subtitle="Synced from your ForgeFuzz account. Email and name come from the user-mgmt service.">
       <Grid>
         <Field label="Full name"><Input value={profile.fullName} readOnly testId="profile-fullName" /></Field>
         <Field label="Email"><Input type="email" value={profile.email} readOnly testId="profile-email" /></Field>
@@ -280,45 +281,135 @@ const SecurityTab = () => {
   );
 };
 
-const NotificationsTab = ({ onSave }: any) => {
-  const [prefs, setPrefs] = useState({
-    monitorIncidents: true,
-    monitorRecovered: true,
-    runFailures: true,
-    weeklyDigest: true,
-    productNews: false,
-  });
-  const items: { key: keyof typeof prefs; label: string; sub: string }[] = [
-    { key: 'monitorIncidents', label: 'Monitor incidents',  sub: 'When a monitor goes DOWN.' },
-    { key: 'monitorRecovered', label: 'Monitor recoveries', sub: 'When a previously down monitor comes back UP.' },
-    { key: 'runFailures',      label: 'Run failures',       sub: 'Functional & load test runs that finish with FAILED status.' },
-    { key: 'weeklyDigest',     label: 'Weekly digest',      sub: 'Friday recap with usage, top failures, and trends.' },
-    { key: 'productNews',      label: 'Product news',       sub: 'Occasional announcements about new ForgeQ features.' },
+const NotificationsTab = ({ onSave: _onSave }: any) => {
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    notificationsApi.prefs()
+      .then((p) => { if (!cancelled && p) setPrefs(p); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading || !prefs) {
+    return <div className="grid place-items-center py-8 text-xs text-text-muted">Loading preferences…</div>;
+  }
+
+  const setFlag = (key: keyof NotificationPreferences) => (v: boolean) =>
+    setPrefs({ ...prefs, [key]: v } as NotificationPreferences);
+  const setInApp = (type: string) => (v: boolean) =>
+    setPrefs({ ...prefs, inApp: { ...prefs.inApp, [type]: v } });
+  const setEmail = (type: string) => (v: boolean) =>
+    setPrefs({ ...prefs, emailChannel: { ...prefs.emailChannel, [type]: v } });
+
+  const inAppOn  = (type: string) => prefs.inApp?.[type] !== false;          // default ON
+  const emailOn  = (type: string) => prefs.emailChannel?.[type] === true;    // default OFF
+
+  // Events that always have BOTH toggles available to the user.
+  const events: { type: string; label: string; sub: string }[] = [
+    { type: 'INVITE_RECEIVED', label: 'Invitations received',  sub: 'Someone invited you to a workspace.' },
+    { type: 'INVITE_ACCEPTED', label: 'Invitations accepted',  sub: 'A user accepted an invitation you sent.' },
+    { type: 'INVITE_REJECTED', label: 'Invitations declined',  sub: 'A user declined an invitation you sent.' },
+    { type: 'ROLE_CHANGED',    label: 'Role changes',          sub: 'Your role in a workspace was updated.' },
+    { type: 'MEMBER_REMOVED',  label: 'Removed from workspace', sub: 'You were removed from a workspace.' },
+    { type: 'TEST_FAILED',     label: 'Test failures',         sub: 'A functional or load run finished as FAILED.' },
+    { type: 'MONITOR_ALERT',   label: 'Monitor alerts',        sub: 'A monitor went DOWN or recovered.' },
   ];
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const updated = await notificationsApi.savePrefs(prefs);
+      if (updated) setPrefs(updated);
+      toast.success('Preferences saved');
+    } catch (e: any) {
+      toast.error('Could not save preferences', { description: e?.message ?? '' });
+    } finally { setBusy(false); }
+  };
+
   return (
     <div className="space-y-5" data-testid="profile-tab-notifications-pane">
-      <Section title="Email preferences" subtitle="Choose which events ForgeQ emails you about.">
+      <Section title="Global toggles" subtitle="Master switches applied across all event types.">
         <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
-          {items.map((it) => (
-            <li key={it.key} className="flex items-center justify-between gap-4 px-4 py-2.5">
-              <div className="min-w-0">
-                <div className="text-sm font-medium">{it.label}</div>
-                <div className="text-[11px] text-text-muted">{it.sub}</div>
-              </div>
-              <Toggle
-                checked={prefs[it.key]}
-                onChange={(v) => setPrefs({ ...prefs, [it.key]: v })}
-                testId={`profile-pref-${it.key}`}
-              />
-            </li>
-          ))}
+          <Row label="Brand newsletter"
+               sub="Occasional product news, hand-curated. Off by default."
+               checked={prefs.brandNewsletter}
+               onChange={setFlag('brandNewsletter')}
+               testId="profile-pref-brandNewsletter" />
+          <Row label="Product updates"
+               sub="Release notes & changelog highlights."
+               checked={prefs.productUpdates}
+               onChange={setFlag('productUpdates')}
+               testId="profile-pref-productUpdates" />
+          <Row label="Email on every login"
+               sub="Off by default — we already keep an audit log."
+               checked={prefs.loginEmailAlert}
+               onChange={setFlag('loginEmailAlert')}
+               testId="profile-pref-loginEmail" />
+          <Row label="In-app notification on every login"
+               sub="On by default — single bell entry per device + browser."
+               checked={prefs.loginInAppAlert}
+               onChange={setFlag('loginInAppAlert')}
+               testId="profile-pref-loginInApp" />
         </ul>
       </Section>
 
-      <SaveBar onSave={onSave} />
+      <Section title="Event preferences" subtitle="Choose which events reach your bell and which also go to email.">
+        <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
+          <li className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-1.5 text-[10px] uppercase tracking-wider text-text-muted">
+            <span>Event</span>
+            <span className="w-14 text-center">Bell</span>
+            <span className="w-14 text-center">Email</span>
+          </li>
+          {events.map((e) => (
+            <li key={e.type} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2.5">
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{e.label}</div>
+                <div className="text-[11px] text-text-muted">{e.sub}</div>
+              </div>
+              <div className="flex w-14 justify-center">
+                <Toggle checked={inAppOn(e.type)} onChange={setInApp(e.type)} testId={`profile-pref-inApp-${e.type}`} />
+              </div>
+              <div className="flex w-14 justify-center">
+                <Toggle checked={emailOn(e.type)} onChange={setEmail(e.type)} testId={`profile-pref-email-${e.type}`} />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 px-1 text-[11px] text-text-muted">
+          Security-critical events (password / email change, account lock) ignore these toggles and are always delivered.
+        </p>
+      </Section>
+
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          data-testid="profile-pref-save"
+          onClick={save}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+        >
+          <Save className="h-3.5 w-3.5" /> {busy ? 'Saving…' : 'Save preferences'}
+        </button>
+      </div>
     </div>
   );
 };
+
+const Row = ({ label, sub, checked, onChange, testId }:
+  { label: string; sub: string; checked: boolean; onChange: (v: boolean) => void; testId: string }) => (
+  <li className="flex items-center justify-between gap-4 px-4 py-2.5">
+    <div className="min-w-0">
+      <div className="text-sm font-medium">{label}</div>
+      <div className="text-[11px] text-text-muted">{sub}</div>
+    </div>
+    <Toggle checked={checked} onChange={onChange} testId={testId} />
+  </li>
+);
 
 const Toggle = ({ checked, onChange, testId }: { checked: boolean; onChange: (v: boolean) => void; testId: string }) => (
   <button

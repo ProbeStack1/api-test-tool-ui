@@ -89,7 +89,7 @@ export const createHttp = (service: ServiceName): AxiosInstance => {
 
   instance.interceptors.response.use(
     (res) => {
-      // ForgeQ ResponseEnvelope — supports both shapes:
+      // ForgeFuzz ResponseEnvelope — supports both shapes:
       //   Java   : { status: 'success'|'error'|'partial', code, message, data, meta, errors }
       //   Legacy : { success: boolean, data, message, timestamp }
       const d = res.data;

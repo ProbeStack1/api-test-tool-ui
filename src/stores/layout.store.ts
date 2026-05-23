@@ -25,6 +25,7 @@ export type PrimaryTab =
   | 'testing'
   | 'dashboard'
   | 'aiAssisted'
+  | 'aiTesting'
   | 'ai';
 
 export type RightPanelTab = 'project' | 'variables' | 'curl' | 'ai';

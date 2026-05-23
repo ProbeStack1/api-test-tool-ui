@@ -375,9 +375,7 @@ export const RequestBuilderPage = () => {
     setPreScript(loadedRequest.preRequestScript ?? '');
     setTestScript(loadedRequest.testScript ?? '');
     setDirty(false);
-    if (active?.id) {
-  setMeta(active.id, { collectionId: loadedRequest.collectionId, folderId: loadedRequest.folderId ?? null });
-}
+    setMeta(active!.id, { collectionId: loadedRequest.collectionId, folderId: loadedRequest.folderId ?? null });
   }, [loadedRequest, active?.id, setMeta]);
 
   /* URL ↔ params bidirectional sync. */
@@ -1161,3 +1159,4 @@ const SendOption = ({ label, hint, onClick, testId }: { label: string; hint: str
   </button>
 );
 
+// Cleanup: remove dead void statements (kept earlier as TS hush). Keep helpers.

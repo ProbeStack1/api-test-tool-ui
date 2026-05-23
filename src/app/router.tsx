@@ -39,6 +39,8 @@ const ApiCatalogPage = l(() => import('@/pages/api-catalog'), (m: any) => m.ApiC
 const ReportsPlaceholder = l(() => import('@/pages/home-intro/ReportsPlaceholder'), (m: any) => m.ReportsPlaceholder);
 const LoginPage = l(() => import('@/pages/auth'), (m: any) => m.LoginPage);
 const AcceptInvitationPage = l(() => import('@/pages/auth'), (m: any) => m.AcceptInvitationPage);
+const VerifyEmailPage = l(() => import('@/pages/auth'), (m: any) => m.VerifyEmailPage);
+const NotificationsPage = l(() => import('@/pages/notifications/NotificationsPage'), (m: any) => m.NotificationsPage);
 const StatusPagePublic = l(() => import('@/pages/testing/monitors/PublicStatusPagePreview'), (m: any) => m.StatusPagePublicView);
 const PublicHubPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicHubPage);
 const PublicDocViewerPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicDocViewerPage);
@@ -68,6 +70,7 @@ const HeartbeatsPage = l(() => import('@/pages/heartbeats'), (m: any) => m.Heart
 const DigestsPage = l(() => import('@/pages/digests'), (m: any) => m.DigestsPage);
 const BugTrackerPage = l(() => import('@/pages/bug-tracker'), (m: any) => m.BugTrackerPage);
 const AiAssistedPage = l(() => import('@/pages/ai-assistant'), (m: any) => m.AiAssistedPage);
+const AiTestingPage  = l(() => import('@/pages/ai-testing'), (m: any) => m.AiTestingPage);
 const ProfilePage = l(() => import('@/pages/profile'), (m: any) => m.ProfilePage);
 const SupportPage = l(() => import('@/pages/profile'), (m: any) => m.SupportPage);
 const SupportTicketPage = l(() => import('@/pages/profile'), (m: any) => m.SupportTicketPage);
@@ -92,6 +95,7 @@ export const ROUTE_PREFETCH: Record<string, () => Promise<unknown>> = {
   '/projects/trash':        () => TrashPage.prefetch(),
   '/projects/bug-tracker':  () => BugTrackerPage.prefetch(),
   '/projects/ai-assisted':  () => AiAssistedPage.prefetch(),
+  '/projects/ai-testing':   () => AiTestingPage.prefetch(),
   '/projects/profile':      () => ProfilePage.prefetch(),
   '/projects/settings':     () => SettingsPage.prefetch(),
 };
@@ -132,6 +136,8 @@ const router = createBrowserRouter([
   // bookmark or marketing links don't 404. The query string already controls mode.
   { path: '/register', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/accept-invitation', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/invite/accept', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/auth/verify-email', element: r(<VerifyEmailPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/status/:slug', element: r(<StatusPagePublicSlugRoute />), errorElement: <RouteErrorBoundary /> },
 
   // Public API Hub — auth-free discovery surface + per-doc viewer.
@@ -187,7 +193,9 @@ const router = createBrowserRouter([
       { path: 'digests', element: r(<DigestsPage />) },
       { path: 'bug-tracker', element: r(<BugTrackerPage />) },
       { path: 'ai-assisted', element: r(<AiAssistedPage />) },
+      { path: 'ai-testing', element: r(<AiTestingPage />) },
       { path: 'profile', element: r(<ProfilePage />) },
+      { path: 'notifications', element: r(<NotificationsPage />) },
       { path: 'support', element: r(<SupportPage />) },
       { path: 'support/:ticketId', element: r(<SupportTicketPage />) },
       { path: 'settings', element: r(<SettingsPage />) },

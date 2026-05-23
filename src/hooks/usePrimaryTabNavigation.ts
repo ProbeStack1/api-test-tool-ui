@@ -20,6 +20,7 @@ export const PRIMARY_ROUTE: Record<PrimaryTab, string> = {
   testing: '/projects/testing',
   aiAssisted: '/projects/ai-assisted',
   ai: '/projects/ai-assisted',
+  aiTesting: '/projects/ai-testing',
   dashboard: '/projects/dashboard',
 };
 

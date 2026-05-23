@@ -1,7 +1,7 @@
 /**
  * CatalogPane — read-only event reference with click-to-preview payloads.
  *
- * Each event row expands inline to reveal the exact JSON envelope ForgeQ
+ * Each event row expands inline to reveal the exact JSON envelope ForgeFuzz
  * will POST to your webhook endpoint for that event type — headers, body,
  * HMAC signature instructions. Users don't need to wait for a real event
  * to see what to parse on their side.

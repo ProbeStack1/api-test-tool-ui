@@ -11,7 +11,7 @@
  *   • Empty-state shows a hint instead of a blank chart so the user
  *     knows the stream just hasn't ticked yet.
  *   • All visual styling uses CSS vars from the theme so the chart
- *     matches whatever ForgeQ skin is active.
+ *     matches whatever ForgeFuzz skin is active.
  */
 import { useEffect, useState } from 'react';
 import {

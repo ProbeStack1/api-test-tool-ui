@@ -198,7 +198,7 @@ export const SUPPORTED_IMPORT_FORMATS: readonly ImportFormatSpec[] = [
   { key: 'INSOMNIA_V4',  label: 'Insomnia v4',              extensions: ['.json'] },
   { key: 'HAR_1_2',      label: 'HAR 1.2',                  extensions: ['.har', '.json'] },
   { key: 'CURL',         label: 'cURL command',             extensions: ['.txt', '.sh', '.curl'] },
-  { key: 'FORGEQ',       label: 'ForgeQ native',            extensions: ['.json', '.forgeq.json'] },
+  { key: 'FORGEFUZZ',       label: 'ForgeFuzz native',            extensions: ['.json', '.forgefuzz.json'] },
 ] as const;
 
 export const listImportFormats = async (): Promise<ImportFormatSpec[]> =>

@@ -1,15 +1,27 @@
 /**
  * Accept Invitation page — landing for email/copy-link invitation tokens.
- * Calls the project service:
- *   GET  /api/v1/workspaces/invitations/peek/{token}
- *   POST /api/v1/workspaces/invitations/accept   { token }
- *   POST /api/v1/workspaces/invitations/reject   { token }
+ *
+ * Flow (login-first, per product decision):
+ *   1.  User clicks the link in their inbox → /invite/accept?token=...
+ *   2.  If NOT signed in → redirect to /login?next=<current url> with a
+ *       contextual banner. Login page picks up `?next` and bounces them
+ *       back here after auth.
+ *   3.  Once signed in → peek the invitation (project name, role,
+ *       inviter) and present Accept / Reject buttons.
+ *   4.  Accept  → join the workspace and go to /projects/manage.
+ *       Reject → respectful "you've declined" terminal state.
+ *
+ * Backend contract:
+ *   GET  /api/v1/workspaces/invitations/peek/{token}     (auth required)
+ *   POST /api/v1/workspaces/invitations/accept           (auth required)
+ *   POST /api/v1/workspaces/invitations/reject           (auth required)
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Loader2, Check, X, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Mail, Loader2, Check, X, AlertTriangle, ArrowRight, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useAuth } from '@/stores/auth.store';
 import {
   acceptInvitation,
   peekInvitation,
@@ -20,6 +32,7 @@ import {
 type State =
   | { kind: 'loading' }
   | { kind: 'no-token' }
+  | { kind: 'needs-login' }
   | { kind: 'error'; message: string }
   | { kind: 'ok'; inv: Invitation }
   | { kind: 'accepted'; inv: Invitation }
@@ -29,14 +42,15 @@ export const AcceptInvitationPage = () => {
   const [search] = useSearchParams();
   const nav = useNavigate();
   const token = search.get('token') ?? '';
+  const isAuthed = useAuth((s) => s.isAuthenticated());
+  const user = useAuth((s) => s.user);
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [busy, setBusy] = useState<'accept' | 'reject' | null>(null);
 
   useEffect(() => {
-    if (!token) {
-      setState({ kind: 'no-token' });
-      return;
-    }
+    if (!token) { setState({ kind: 'no-token' }); return; }
+    if (!isAuthed) { setState({ kind: 'needs-login' }); return; }
+
     let cancelled = false;
     peekInvitation(token)
       .then((inv) => !cancelled && setState({ kind: 'ok', inv }))
@@ -44,10 +58,13 @@ export const AcceptInvitationPage = () => {
         !cancelled &&
         setState({ kind: 'error', message: e?.message ?? 'Invitation could not be loaded' }),
       );
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+    return () => { cancelled = true; };
+  }, [token, isAuthed]);
+
+  const handleLogin = () => {
+    const here = `/invite/accept?token=${encodeURIComponent(token)}`;
+    nav(`/login?next=${encodeURIComponent(here)}`, { replace: true });
+  };
 
   const onAccept = async () => {
     if (state.kind !== 'ok') return;
@@ -57,9 +74,7 @@ export const AcceptInvitationPage = () => {
       setState({ kind: 'accepted', inv });
     } catch (e: any) {
       setState({ kind: 'error', message: e?.message ?? 'Could not accept invitation' });
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   };
 
   const onReject = async () => {
@@ -70,9 +85,7 @@ export const AcceptInvitationPage = () => {
       setState({ kind: 'rejected', inv });
     } catch (e: any) {
       setState({ kind: 'error', message: e?.message ?? 'Could not reject invitation' });
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   };
 
   return (
@@ -100,21 +113,30 @@ export const AcceptInvitationPage = () => {
           </div>
         )}
 
+        {state.kind === 'needs-login' && (
+          <div className="space-y-4" data-testid="ai-needs-login">
+            <div className="flex items-start gap-2 rounded-md border border-primary/40 bg-primary/10 p-3 text-xs text-primary">
+              <LogIn className="mt-[1px] h-4 w-4 shrink-0" />
+              <span>You've been invited to join a ForgeFuzz project. Please sign in to review and respond.</span>
+            </div>
+            <Button variant="primary" onClick={handleLogin} data-testid="ai-go-login" className="w-full">
+              Sign in to continue <ArrowRight className="h-4 w-4" />
+            </Button>
+            <p className="text-center text-[11px] text-text-muted">
+              No account yet? <a href={`/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="underline">Create one</a>.
+            </p>
+          </div>
+        )}
+
         {state.kind === 'no-token' && (
-          <div
-            className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning"
-            data-testid="ai-no-token"
-          >
+          <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning" data-testid="ai-no-token">
             <AlertTriangle className="mt-[1px] h-4 w-4 shrink-0" />
             <span>This page needs a <code>?token=…</code> parameter.</span>
           </div>
         )}
 
         {state.kind === 'error' && (
-          <div
-            className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 p-3 text-xs text-danger"
-            data-testid="ai-error"
-          >
+          <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 p-3 text-xs text-danger" data-testid="ai-error">
             <AlertTriangle className="mt-[1px] h-4 w-4 shrink-0" />
             <span>{state.message}</span>
           </div>
@@ -122,27 +144,23 @@ export const AcceptInvitationPage = () => {
 
         {state.kind === 'ok' && (
           <div className="space-y-3" data-testid="ai-pending">
+            {user?.email && state.inv.invitedEmail && user.email.toLowerCase() !== state.inv.invitedEmail.toLowerCase() && (
+              <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-[11px] text-warning">
+                <AlertTriangle className="mt-[1px] h-4 w-4 shrink-0" />
+                <span>This invite was addressed to <strong>{state.inv.invitedEmail}</strong> but you're signed in as <strong>{user.email}</strong>. Switch accounts or proceed at your own risk.</span>
+              </div>
+            )}
             <Row label="Project" value={state.inv.workspaceName} />
             <Row label="Invitee" value={state.inv.invitedEmail} />
             <Row label="Role" value={state.inv.invitedRole} />
             <Row label="Inviter" value={state.inv.inviterEmail || state.inv.inviterName || '—'} />
             <Row label="Expires" value={state.inv.expiresAt} mono />
             <div className="flex justify-end gap-2 pt-3">
-              <Button
-                variant="outline"
-                onClick={onReject}
-                disabled={busy !== null}
-                data-testid="ai-reject"
-              >
+              <Button variant="outline" onClick={onReject} disabled={busy !== null} data-testid="ai-reject">
                 {busy === 'reject' ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                 Reject
               </Button>
-              <Button
-                variant="primary"
-                onClick={onAccept}
-                disabled={busy !== null}
-                data-testid="ai-accept"
-              >
+              <Button variant="primary" onClick={onAccept} disabled={busy !== null} data-testid="ai-accept">
                 {busy === 'accept' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 Accept invitation
               </Button>

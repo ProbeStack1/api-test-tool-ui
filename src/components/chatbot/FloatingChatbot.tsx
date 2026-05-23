@@ -52,7 +52,7 @@ export const FloatingChatbot = () => {
   /*  Draggable position — pinned bottom/right by default. Persists in    */
   /*  localStorage so the user's chosen corner survives reloads.          */
   /* ------------------------------------------------------------------ */
-  const POS_KEY = 'forgefuzz.chatbot.pos.v1';
+  const POS_KEY = 'forgeq.chatbot.pos.v1';
   const [pos, setPos] = useState<{ right: number; bottom: number }>(() => {
     try {
       const raw = localStorage.getItem(POS_KEY);

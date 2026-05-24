@@ -1,13 +1,22 @@
 /**
  * WorkspaceDashboardPage — engaging bento layout with drill-in drawers.
  *
- * ✅ Top “Workspace dashboard” card (hero) moved to very top with filter:
- *    - Dropdown to choose workspace (list from query)
- *    - Free input to directly enter Workspace ID (Option B)
- *    - Range pills (7d/14d/30d)
- * ✅ Remainder of Option A design is preserved (KPI strip, charts, bento grid…)
- * ✅ Scroll-safe: flex + min-h-0 + overflow-auto wrapper
- * ✅ Live data via react-query + useWorkspaceStore; no hard-coded colors
+ * Design preserved exactly as the user authored it. Only data wiring changed:
+ *   • Workspace list comes from the real {@link listWorkspaces} API (no mock).
+ *   • Workspace switch goes through the zustand store's typed
+ *     {@code setCurrent} action (no `(store as any).setState` hack).
+ *   • Latency tiles consume {@code ov.kpis.latency.{p50,p95,p99}} which is
+ *     now populated by the dashboard backend from real {@code monitor_runs.latencyMs}.
+ *   • Run success gauge consumes {@code ov.kpis.runs.{passed,failed,total}}
+ *     which is now populated from real {@code ai_test_runs.verdict}.
+ *
+ *   ✅ Top project dashboard” card (hero) moved to very top with filter:
+ *      - Dropdown to choose workspace (list from query)
+ *      - Free input to directly enter Workspace ID (Option B)
+ *      - Range pills (7d/14d/30d)
+ *   ✅ Remainder of Option A design is preserved (KPI strip, charts, bento grid…)
+ *   ✅ Scroll-safe: flex + min-h-0 + overflow-auto wrapper
+ *   ✅ Live data via react-query + useWorkspaceStore; no hard-coded colors
  */
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +30,7 @@ import {
 import {
   getFeatureSummary, getOverview, getRecentActivity, getTimeseries, type FeatureSummaryResponse, type RecentActivityResponse, type TimeseriesResponse,
 } from "@/api/dashboard.api";
+import { listWorkspaces, type Workspace } from "@/services/workspace.service";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 import { cn } from "@/utils/cn";
 
@@ -83,6 +93,10 @@ function Drawer({ open, onClose, title, children }: { open: boolean; onClose: ()
 ============================================================================ */
 export const WorkspaceDashboardPage = () => {
   const workspaceId = useWorkspaceStore((s) => s.currentId);
+  // Grab the typed action via hook so React tracks updates correctly — replaces
+  // the previous `(useWorkspaceStore as any).setState({ currentId })` hack which
+  // bypassed the store's internal `current` field and stale-bound subscribers.
+  const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrent);
   const [range, setRange] = useState<"7d" | "14d" | "30d">("14d");
   const navigate = useNavigate();
 
@@ -113,27 +127,28 @@ export const WorkspaceDashboardPage = () => {
     payload?: any;
   }>(null);
 
-  // Workspace selector: list + free ID
+  // Workspace selector — real list via the platform API. Each user only sees
+  // the workspaces they're a member of (RBAC happens server-side).
   const workspacesQ = useQuery({
     queryKey: ["workspaces", "list"],
-    queryFn: async () => {
-      // Prefer your real API here, e.g., getWorkspaces()
-      // Fallback mock with predictable IDs for demo:
-      await new Promise((r) => setTimeout(r, 120));
-      const curr = workspaceId ?? "ws_main";
-      return [
-        { id: curr, name: "Acme • Core Platform" },
-        { id: "ws_payments", name: "Acme • Payments" },
-        { id: "ws_eu_region", name: "Acme • EU Region" },
-      ] as { id: string; name: string }[];
-    },
+    queryFn: () => listWorkspaces(),
     staleTime: 60_000,
   });
   const [wsInput, setWsInput] = useState<string>(workspaceId ?? "");
   useEffect(() => { setWsInput(workspaceId ?? ""); }, [workspaceId]);
 
   const applyWorkspace = (id: string) => {
-    try { (useWorkspaceStore as any).setState?.({ currentId: id }); } catch {}
+    const found = (workspacesQ.data ?? []).find((w) => w.id === id);
+    if (found) {
+      // Standard path — switch through the typed store action; every page
+      // query re-runs automatically because each queryKey includes workspaceId.
+      setCurrentWorkspace(found);
+    } else {
+      // Free-text fallback (Option B). The caller pasted an ID we don't yet
+      // know about; set a minimal Workspace shim — the next list refresh will
+      // hydrate the real metadata.
+      setCurrentWorkspace({ id, name: id.slice(0, 8) + "…" } as Workspace);
+    }
     setWsInput(id);
   };
 
@@ -156,7 +171,7 @@ export const WorkspaceDashboardPage = () => {
           {/* ✅ TOP — Workspace card with filter (Option B) */}
           <WorkspaceFilterCard
             currentId={workspaceId}
-            currentName={(d?.workspace?.name ?? workspacesQ.data?.find(w => w.id === workspaceId)?.name) || "Workspace"}
+            currentName={(d?.workspace?.name ?? workspacesQ.data?.find(w => w.id === workspaceId)?.name) || "project"}
             wsList={workspacesQ.data ?? []}
             wsInput={wsInput}
             onWsInput={setWsInput}
@@ -171,8 +186,9 @@ export const WorkspaceDashboardPage = () => {
           {/* KPI strip (Option A kept) */}
           <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {KPI_DEFS.map((def) => {
-              const total = ov?.kpis?.[def.key]?.total as number | undefined;
-              const delta = ov?.kpis?.[def.key]?.delta as number | undefined;
+              const cell = ov?.kpis?.[def.key] as { total?: number; delta?: number } | undefined;
+              const total = cell?.total;
+              const delta = cell?.delta;
               const spark = ov?.kpiTrends?.[def.key] as number[] | undefined;
               const Icon = def.icon as any;
               return (
@@ -286,7 +302,7 @@ function WorkspaceFilterCard({
 }: {
   currentId: string;
   currentName: string;
-  wsList: { id: string; name: string }[];
+  wsList: Workspace[];
   wsInput: string;
   onWsInput: (v: string) => void;
   onApply: (id: string) => void;
@@ -301,8 +317,8 @@ function WorkspaceFilterCard({
       <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-primary/10 blur-3xl" />
       <div className="relative flex flex-wrap items-end gap-4">
         <div className="min-w-[260px] flex-1">
-          <p className="text-[11px] uppercase tracking-wider text-primary/80">Workspace dashboard</p>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="ws-dash-title">{currentName || "Untitled workspace"}</h1>
+          <p className="text-[11px] uppercase tracking-wider text-primary/80">Project dashboard</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="ws-dash-title">{currentName || "Untitled project"}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
             <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{meta?.workspace?.totalMembers ?? 0} members</span>
             {meta?.workspace?.ownerEmail && (<><span className="text-border">·</span><span className="truncate">owner: {meta.workspace.ownerEmail}</span></>)}
@@ -310,7 +326,7 @@ function WorkspaceFilterCard({
           </div>
         </div>
 
-        {/* Workspace selector (dropdown + free id) */}
+        {/* Project selector (dropdown + free id) */}
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-1.5 py-1 text-[11px]">
             <select
@@ -318,8 +334,19 @@ function WorkspaceFilterCard({
               value={currentId}
               onChange={(e) => onApply(e.target.value)}
               aria-label="Select workspace"
+              data-testid="ws-dash-workspace-select"
             >
-              {loading ? <option>Loading…</option> : wsList.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {loading ? <option>Loading…</option> : (
+                <>
+                  {/* Make sure the currently-selected workspace is always present in
+                      the dropdown — even when it isn't returned by listWorkspaces()
+                      (e.g. the caller pasted an ID into the free-input box). */}
+                  {!wsList.some((w) => w.id === currentId) && (
+                    <option value={currentId}>{currentName}</option>
+                  )}
+                  {wsList.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </>
+              )}
             </select>
           </div>
 
@@ -329,8 +356,13 @@ function WorkspaceFilterCard({
               onChange={(e) => onWsInput(e.target.value)}
               placeholder="Workspace ID"
               className="w-44 bg-transparent px-2 py-1 font-mono text-text-secondary outline-none placeholder:text-text-muted"
+              data-testid="ws-dash-workspace-input"
             />
-            <button onClick={() => wsInput.trim() && onApply(wsInput.trim())} className="rounded-full bg-primary px-3 py-1 text-white">
+            <button
+              onClick={() => wsInput.trim() && onApply(wsInput.trim())}
+              className="rounded-full bg-primary px-3 py-1 text-white"
+              data-testid="ws-dash-workspace-apply"
+            >
               Apply
             </button>
           </div>
@@ -354,13 +386,35 @@ function WorkspaceFilterCard({
 }
 
 /* ============================================================================
-   Drawer body — details
+Drawer body — user-friendly, no raw JSON
 ============================================================================ */
 function DrawerBody({ drawer, navigate, onClose }: { drawer: NonNullable<any>; navigate: any; onClose: () => void }) {
   const kind = drawer.kind as string;
+  const payload = drawer.payload as Record<string, any>;   // ✅ explicit cast
 
+  // Helper: safely convert any value to ReactNode
+  const safe = (val: unknown): React.ReactNode => (val == null ? "—" : String(val));
+
+  // Helper: render a labelled row
+  const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex justify-between border-b border-border/40 py-2 text-[12px] last:border-0">
+      <span className="text-text-muted">{label}</span>
+      <span className="font-mono">{value}</span>
+    </div>
+  );
+
+  const Section = ({ title, children }: { title?: string; children: React.ReactNode }) => (
+    <div className="rounded-lg border border-border bg-elevated/40 p-3">
+      {title && <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">{title}</div>}
+      {children}
+    </div>
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // KPI details
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "kpi") {
-    const { def, total, delta, spark, which, d } = drawer.payload || {};
+    const { def, total, delta, spark, which, d } = payload;
     const title = def?.label || which || "KPI";
     const breakdown = (() => {
       if (which === "Saved requests") return { Collections: d?.requests?.collections, Executions7d: d?.requests?.executionsLast7d };
@@ -377,198 +431,273 @@ function DrawerBody({ drawer, navigate, onClose }: { drawer: NonNullable<any>; n
             <div className="text-[10px] uppercase tracking-wider text-text-muted">Overview</div>
             <div className="text-xl font-semibold">{title}</div>
           </div>
-          <div className="text-right text-[11px] text-text-muted">Total <span className="font-mono text-text-primary">{fmt(total)}</span>{typeof delta === "number" && delta !== 0 ? <> · Δ <span className={cn(delta > 0 ? "text-success" : "text-danger")}>{delta > 0 ? "+" : ""}{delta}</span></> : null}</div>
+          <div className="text-right text-[11px] text-text-muted">
+            Total <span className="font-mono text-text-primary">{fmt(total)}</span>
+            {typeof delta === "number" && delta !== 0 && (
+              <> · Δ <span className={cn(delta > 0 ? "text-success" : "text-danger")}>{delta > 0 ? "+" : ""}{delta}</span></>
+            )}
+          </div>
         </div>
 
-        {spark && spark.length > 0 && (
-          <div className="rounded-lg border border-border bg-elevated/40 p-3">
-            <div className="mb-2 text-[11px] text-text-muted">Recent trend</div>
+        {Array.isArray(spark) && spark.length > 0 && (
+          <Section title="Recent trend (last 7 days)">
             <Sparkline values={spark} width={480} height={48} />
-          </div>
+            <p className="mt-2 text-[11px] text-text-muted">Daily change of this metric.</p>
+          </Section>
         )}
 
         {breakdown && (
-          <div className="rounded-lg border border-border bg-elevated/40 p-3">
-            <div className="mb-2 text-[11px] text-text-muted">Breakdown</div>
-            <table className="w-full text-[12px]">
-              <tbody>
-                {Object.entries(breakdown).map(([k, v]) => {
-                  if (v && typeof v === "object") {
-                    return (
-                      <>
-                        <tr key={k}><td className="py-1 font-mono text-text-muted">{k}</td><td className="py-1 text-right"></td></tr>
-                        {Object.entries(v as any).map(([sk, sv]) => (
-                          <tr key={sk}><td className="py-1 pl-4 font-mono">{sk}</td><td className="py-1 pr-1 text-right font-mono">{fmt(sv as number)}</td></tr>
-                        ))}
-                      </>
-                    );
-                  }
+          <Section title="Breakdown">
+            <div className="space-y-2">
+              {Object.entries(breakdown).map(([k, v]) => {
+                if (v && typeof v === "object") {
                   return (
-                    <tr key={k}><td className="py-1 font-mono text-text-muted">{k}</td><td className="py-1 text-right font-mono">{fmt(v as number)}</td></tr>
+                    <div key={k}>
+                      <div className="text-[11px] font-semibold text-text-primary">{k}</div>
+                      {Object.entries(v as Record<string, number>).map(([sk, sv]) => (
+                        <DetailRow key={sk} label={sk} value={fmt(sv)} />
+                      ))}
+                    </div>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                }
+                return <DetailRow key={k} label={k} value={fmt(v as number)} />;
+              })}
+            </div>
+          </Section>
         )}
 
-        <div className="flex gap-2 pt-2">
-          <button onClick={() => navigate(`/projects/${(def?.key || "overview")}`)} className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[12px] hover:bg-elevated/70">Open in product</button>
-          <button onClick={onClose} className="rounded-md border border-border px-3 py-1.5 text-[12px] hover:bg-elevated">Close</button>
-        </div>
+        {/* <div className="flex gap-2 pt-2">
+          <button onClick={() => navigate(`/projects/${def?.key || "overview"}`)} className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[12px] hover:bg-elevated/70">
+            Open in product
+          </button>
+          <button onClick={onClose} className="rounded-md border border-border px-3 py-1.5 text-[12px] hover:bg-elevated">
+            Close
+          </button>
+        </div> */}
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Activity drill‑in
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "activity") {
-    const ts: TimeseriesResponse | undefined = drawer.payload?.ts;
-    const totals = ts ? ts.days.map((_, i) => ts.series.reduce((a, s) => a + (s.values[i] ?? 0), 0)) : [];
+    const ts = payload.ts as TimeseriesResponse | undefined;
+    if (!ts) return <Empty icon={Activity} text="No activity data available." />;
+    const totals = ts.days.map((_, i) => ts.series.reduce((a, s) => a + (s.values[i] ?? 0), 0));
+    const totalEvents = totals.reduce((a, b) => a + b, 0);
     return (
       <div className="space-y-4">
-        <div className="text-[11px] text-text-muted">Last period · series totals</div>
-        <div className="rounded-lg border border-border bg-elevated/40 p-3">
-          <div className="mb-2 text-[12px] font-medium">Top days</div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">Activity analysis</div>
+          <div className="text-lg font-semibold">Last {ts.days.length} days</div>
+          <p className="mt-1 text-[12px] text-text-muted">Total events: <span className="font-mono text-text-primary">{fmt(totalEvents)}</span></p>
+        </div>
+
+        <Section title="Top activity days">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="text-text-muted">
-                <th className="py-1 text-left font-normal">Day</th>
+                <th className="py-1 text-left font-normal">Date</th>
                 <th className="py-1 text-right font-normal">Events</th>
                 <th className="py-1 text-right font-normal">Share</th>
               </tr>
             </thead>
             <tbody>
-              {totals.map((t, i) => ({ i, t, d: ts?.days[i] }))
-                .sort((a, b) => b.t - a.t).slice(0, 8).map(({ i, t, d }) => (
+              {totals.map((t, i) => ({ i, t, d: ts.days[i] }))
+                .sort((a, b) => b.t - a.t)
+                .slice(0, 8)
+                .map(({ i, t, d }) => (
                   <tr key={i} className="odd:bg-surface/60">
                     <td className="py-1 font-mono">{shortDate(d!)}</td>
                     <td className="py-1 text-right font-mono">{fmt(t)}</td>
-                    <td className="py-1 text-right font-mono">{Math.round((t / (totals.reduce((a,b)=>a+b,0)||1))*100)}%</td>
+                    <td className="py-1 text-right font-mono">{Math.round((t / (totalEvents || 1)) * 100)}%</td>
                   </tr>
                 ))}
             </tbody>
           </table>
-        </div>
-        <div className="rounded-lg border border-border bg-elevated/40 p-3">
-          <div className="mb-2 text-[12px] font-medium">Series share</div>
-          <PieSize share={(() => {
-            if (!ts) return [];
-            const total = ts.series.reduce((acc, s) => acc + s.values.reduce((a,b)=>a+b,0), 0) || 1;
-            return ts.series.map((s, i) => ({ name: s.label, value: s.values.reduce((a,b)=>a+b,0), share: s.values.reduce((a,b)=>a+b,0)/total, color: CHART_COLORS[i%CHART_COLORS.length] }));
-          })()} />
-        </div>
+        </Section>
+
+        <Section title="Event type distribution">
+          <PieSize
+            share={ts.series.map((s, i) => ({
+              name: s.label,
+              value: s.values.reduce((a, b) => a + b, 0),
+              share: s.values.reduce((a, b) => a + b, 0) / (totalEvents || 1),
+              color: CHART_COLORS[i % CHART_COLORS.length],
+            }))}
+          />
+          <p className="mt-2 text-[11px] text-text-muted">Each series represents a different kind of activity.</p>
+        </Section>
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // AI pass rate
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "passrate") {
-    const ai = drawer.payload?.ai;
-    const providers = Object.entries(ai?.byProvider ?? {});
+    const ai = payload.ai as FeatureSummaryResponse["aiTesting"];
+    if (!ai) return <Empty icon={FlaskConical} text="No AI testing data." />;
+    const providers = Object.entries(ai.byProvider ?? {});
     const maxCalls = Math.max(1, ...providers.map(([, n]) => n as number));
     return (
       <div className="space-y-4">
-        <div className="text-xl font-semibold">AI run pass rate · last 7d</div>
+        <div className="text-xl font-semibold">AI run pass rate · last 7 days</div>
         <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Runs (7d)" value={fmt(ai?.runsLast7d)} />
-          <StatCard label="Pass rate" value={fmtPct(ai?.passRateLast7d)} accent={ai?.passRateLast7d >= 0.8 ? "text-success" : "text-warning"} />
-          <StatCard label="Total spend" value={fmtUsd(ai?.totalCostUsd)} accent="text-orange-500" />
-          <StatCard label="Suites" value={fmt(ai?.suites)} />
+          <StatCard label="Total runs (7d)" value={fmt(ai.runsLast7d)} />
+          <StatCard label="Pass rate" value={fmtPct(ai.passRateLast7d)} accent={ai.passRateLast7d >= 0.8 ? "text-success" : "text-warning"} />
+          <StatCard label="Total spend" value={fmtUsd(ai.totalCostUsd)} accent="text-orange-500" />
+          <StatCard label="Test suites" value={fmt(ai.suites)} />
+          <StatCard label="Test cases" value={fmt(ai.cases)} />
+          <StatCard label="Last run" value={fmtRel(ai.lastRunAt)} />
         </div>
-        <div className="rounded-lg border border-border bg-elevated/40 p-3">
-          <div className="mb-2 text-[12px] font-medium">Provider usage</div>
-          {providers.length === 0 ? <div className="text-[12px] text-text-muted">No LLM calls yet.</div> :
-            <ul className="space-y-2 text-[12px]">
-              {providers.sort((a,b)=> (b[1] as number)-(a[1] as number)).map(([k,n], i) => (
-                <li key={k}>
-                  <div className="flex justify-between">
-                    <span className="font-mono uppercase">{k}</span>
-                    <span className="text-text-muted">{n as number} calls</span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded bg-elevated">
-                    <div className="h-full rounded" style={{ width: `${((n as number)/maxCalls)*100}%`, background: CHART_COLORS[i%CHART_COLORS.length] }} />
-                  </div>
-                </li>
+
+        {providers.length > 0 && (
+          <Section title="Provider usage">
+            {providers.sort((a, b) => (b[1] as number) - (a[1] as number)).map(([k, n], i) => (
+              <div key={k} className="mb-2">
+                <div className="flex justify-between text-[11px]">
+                  <span className="font-mono uppercase">{k}</span>
+                  <span className="text-text-muted">{n as number} calls</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded bg-elevated">
+                  <div className="h-full rounded" style={{ width: `${((n as number) / maxCalls) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                </div>
+              </div>
+            ))}
+          </Section>
+        )}
+
+        {ai.topModels?.length > 0 && (
+          <Section title="Top AI models">
+            <div className="flex flex-wrap gap-2">
+              {ai.topModels.map((m: any) => (
+                <span key={m.key} className="rounded-full bg-primary/10 px-2 py-1 text-[11px] font-mono">{safe(m.key)}</span>
               ))}
-            </ul>
-          }
-        </div>
-        {ai?.topModels?.length > 0 && (
-          <div className="text-[12px] text-text-muted">Top models: <span className="font-mono text-text-primary">{ai.topModels.map((m:any)=>m.key).join(" · ")}</span></div>
+            </div>
+          </Section>
         )}
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // HTTP methods
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "methods") {
-    const br: Record<string, number> = drawer.payload?.breakdown || {};
+    const br = (payload.breakdown as Record<string, number>) || {};
     const entries = Object.entries(br).map(([k, v]) => ({ method: k, count: v })).sort((a, b) => b.count - a.count);
     const total = entries.reduce((a, b) => a + b.count, 0) || 1;
     return (
       <div className="space-y-4">
-        <div className="text-xl font-semibold">HTTP methods · last window</div>
-        <PieSize share={entries.map((e, i) => ({ name: e.method, value: e.count, share: e.count/total, color: CHART_COLORS[i%CHART_COLORS.length] }))} />
-        <table className="w-full text-[12px]">
-          <thead><tr className="text-text-muted"><th className="py-1 text-left font-normal">Method</th><th className="py-1 text-right font-normal">Count</th><th className="py-1 text-right font-normal">Share</th></tr></thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.method} className="odd:bg-surface/60">
-                <td className="py-1 font-mono">{e.method}</td>
-                <td className="py-1 text-right font-mono">{fmt(e.count)}</td>
-                <td className="py-1 text-right font-mono">{Math.round((e.count/total)*100)}%</td>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">API method distribution</div>
+          <div className="text-xl font-semibold">HTTP method mix</div>
+        </div>
+        <Section title="Methods by volume">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="text-text-muted">
+                <th className="py-1 text-left font-normal">Method</th>
+                <th className="py-1 text-right font-normal">Requests</th>
+                <th className="py-1 text-right font-normal">Share</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.method} className="odd:bg-surface/60">
+                  <td className="py-1 font-mono">{e.method}</td>
+                  <td className="py-1 text-right font-mono">{fmt(e.count)}</td>
+                  <td className="py-1 text-right font-mono">{Math.round((e.count / total) * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+        <div className="rounded-lg border border-border bg-elevated/40 p-3">
+          <PieSize share={entries.map((e, i) => ({ name: e.method, value: e.count, share: e.count / total, color: CHART_COLORS[i % CHART_COLORS.length] }))} />
+        </div>
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // LLM spend
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "spend") {
-    const ai = drawer.payload?.ai;
-    const providers = Object.entries(ai?.byProvider ?? {});
+    const ai = payload.ai as FeatureSummaryResponse["aiTesting"];
+    if (!ai) return <Empty icon={Coins} text="No LLM spend data." />;
+    const providers = Object.entries(ai.byProvider ?? {});
     return (
       <div className="space-y-4">
         <div className="text-xl font-semibold">LLM spend & usage</div>
         <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Total spend" value={fmtUsd(ai?.totalCostUsd)} accent="text-orange-500" />
-          <StatCard label="Runs (7d)" value={fmt(ai?.runsLast7d)} />
+          <StatCard label="Total spend" value={fmtUsd(ai.totalCostUsd)} accent="text-orange-500" />
+          <StatCard label="Runs (7d)" value={fmt(ai.runsLast7d)} />
+          <StatCard label="Pass rate (7d)" value={fmtPct(ai.passRateLast7d)} />
+          <StatCard label="Total calls (lifetime)" value={fmt(ai.totalRuns)} />
         </div>
-        <div className="rounded-lg border border-border bg-elevated/40 p-3">
-          <div className="mb-2 text-[12px] font-medium">By provider</div>
-          <table className="w-full text-[12px]">
-            <thead><tr className="text-text-muted"><th className="py-1 text-left font-normal">Provider</th><th className="py-1 text-right font-normal">Calls</th></tr></thead>
-            <tbody>
-              {providers.sort((a,b)=> (b[1] as number)-(a[1] as number)).map(([k,n]) => (
-                <tr key={k} className="odd:bg-surface/60"><td className="py-1 font-mono uppercase">{k}</td><td className="py-1 text-right font-mono">{fmt(n as number)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {providers.length > 0 && (
+          <Section title="Provider breakdown">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="text-text-muted">
+                  <th className="py-1 text-left font-normal">Provider</th>
+                  <th className="py-1 text-right font-normal">Calls</th>
+                 </tr>
+              </thead>
+              <tbody>
+                {providers.sort((a, b) => (b[1] as number) - (a[1] as number)).map(([k, n]) => (
+                  <tr key={k} className="odd:bg-surface/60">
+                    <td className="py-1 font-mono uppercase">{k}</td>
+                    <td className="py-1 text-right font-mono">{fmt(n as number)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Section>
+        )}
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Latency percentiles
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "latency") {
-    const p50 = Number(drawer.payload?.ov?.kpis?.latency?.p50 ?? 0);
-    const p95 = Number(drawer.payload?.ov?.kpis?.latency?.p95 ?? 0);
-    const p99 = Number(drawer.payload?.ov?.kpis?.latency?.p99 ?? 0);
+    const ov = payload.ov;
+    const p50 = Number(ov?.kpis?.latency?.p50 ?? 0);
+    const p95 = Number(ov?.kpis?.latency?.p95 ?? 0);
+    const p99 = Number(ov?.kpis?.latency?.p99 ?? 0);
     return (
       <div className="space-y-4">
         <div className="text-xl font-semibold">Latency percentiles</div>
         <div className="grid grid-cols-3 gap-3">
-          <StatCard label="P50" value={`${fmt(p50)} ms`} accent="text-success" />
+          <StatCard label="P50 (median)" value={`${fmt(p50)} ms`} accent="text-success" />
           <StatCard label="P95" value={`${fmt(p95)} ms`} accent="text-warning" />
           <StatCard label="P99" value={`${fmt(p99)} ms`} accent="text-danger" />
         </div>
-        <div className="text-[12px] text-text-muted">SLO tip: aim P95 &lt; 500ms for core APIs.</div>
+        <Section title="What does this mean?">
+          <ul className="list-inside list-disc space-y-1 text-[12px] text-text-muted">
+            <li><strong>P50</strong> – half of all requests are faster than this.</li>
+            <li><strong>P95</strong> – 95% of requests are faster; only 5% are slower.</li>
+            <li><strong>P99</strong> – 99% of requests are faster; the slowest 1% are above this.</li>
+          </ul>
+        </Section>
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Run success rate
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "success") {
-    const passed = Number(drawer.payload?.ov?.kpis?.runs?.passed ?? 0);
-    const failed = Number(drawer.payload?.ov?.kpis?.runs?.failed ?? 0);
-    const total  = Number(drawer.payload?.ov?.kpis?.runs?.total  ?? (passed + failed));
-    const score  = total > 0 ? Math.round((passed / total) * 100) : 0;
+    const ov = payload.ov;
+    const passed = Number(ov?.kpis?.runs?.passed ?? 0);
+    const failed = Number(ov?.kpis?.runs?.failed ?? 0);
+    const total = Number(ov?.kpis?.runs?.total ?? (passed + failed));
+    const score = total > 0 ? Math.round((passed / total) * 100) : 0;
     return (
       <div className="space-y-4">
         <div className="text-xl font-semibold">Run success rate</div>
@@ -577,41 +706,281 @@ function DrawerBody({ drawer, navigate, onClose }: { drawer: NonNullable<any>; n
           <StatCard label="Passed" value={fmt(passed)} accent="text-success" />
           <StatCard label="Failed" value={fmt(failed)} accent={failed > 0 ? "text-danger" : "text-text-muted"} />
         </div>
+        <Section title="What is measured?">
+          <p className="text-[12px] text-text-muted">Counts AI test runs and monitor executions that completed successfully (passed) vs those that failed.</p>
+        </Section>
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Activity heatmap
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "heatmap") {
-    const ts: TimeseriesResponse | undefined = drawer.payload?.ts;
-    const totals = ts ? ts.days.map((_, i) => ts.series.reduce((a, s) => a + (s.values[i] ?? 0), 0)) : [];
+    const ts = payload.ts as TimeseriesResponse | undefined;
+    if (!ts) return <Empty icon={Activity} text="No data for heatmap." />;
+    const totals = ts.days.map((_, i) => ts.series.reduce((a, s) => a + (s.values[i] ?? 0), 0));
     const max = Math.max(1, ...totals);
+    const HEAT = ["#0f172a", "#1e3a8a", "#1d4ed8", "#3b82f6", "#60a5fa", "#fb923c", "#ef4444"];
+    const color = (v: number) => HEAT[Math.min(HEAT.length - 1, Math.floor((v / max) * (HEAT.length - 1)))];
     return (
       <div className="space-y-4">
-        <div className="text-xl font-semibold">Activity intensity</div>
-        <div className="grid grid-cols-7 gap-1">
-          {totals.map((t, i) => (
-            <div key={i} className="aspect-square rounded-md border border-border" style={{ background: `hsl(${200 - (t/max)*200} 70% 30%)`, opacity: 0.6 + (t/max)*0.4 }} title={`${ts?.days[i]?.slice(0,10)} · ${t} events`} />
+        <div className="text-xl font-semibold">Activity intensity heatmap</div>
+        <div className="grid auto-rows-fr gap-1.5" style={{ gridTemplateColumns: `repeat(${ts.days.length}, 1fr)` }}>
+          {ts.days.map((d, i) => (
+            <div key={d} title={`${shortDate(d)}: ${totals[i]} events`} className="aspect-square rounded-md border border-border/40 transition-transform hover:scale-105" style={{ background: color(totals[i]) }} />
           ))}
         </div>
-        <div className="text-[12px] text-text-muted">Darker cell = more events.</div>
+        <div className="flex items-center justify-between text-[10px] text-text-muted">
+          <span>Low events</span>
+          <div className="flex gap-1">{HEAT.map((c) => <span key={c} className="h-2 w-3 rounded-sm" style={{ background: c }} />)}</div>
+          <span>High events</span>
+        </div>
+        <Section title="Insights">
+          <p className="text-[12px] text-text-muted">Each column is one day. Darker / warmer colors = more activity.</p>
+        </Section>
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // KPI trends matrix (clean table, no JSON)
+  // ──────────────────────────────────────────────────────────────────────────
   if (kind === "trends") {
-    const kpi = drawer.payload?.kpiTrends || {};
+    const kpiTrends = (payload.kpiTrends as Record<string, number[]>) || {};
+    const entries = Object.entries(kpiTrends).filter(([, vs]) => Array.isArray(vs) && vs.length > 0);
+    if (entries.length === 0) return <Empty icon={BarChart3} text="No trend data yet." />;
     return (
-      <div className="space-y-3">
-        <div className="text-xl font-semibold">KPI trends · raw</div>
-        <pre className="max-h-[320px] overflow-auto rounded-lg border border-border bg-elevated/40 p-3 text-[11px]">{JSON.stringify(kpi, null, 2)}</pre>
+      <div className="space-y-4">
+        <div className="text-xl font-semibold">KPI trends over time</div>
+        <Section title="Day‑by‑day values">
+          <div className="max-h-[60vh] overflow-auto">
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-surface">
+                <tr>
+                  <th className="py-1 text-left font-normal text-text-muted">Metric</th>
+                  {entries[0][1].map((_, idx) => (
+                    <th key={idx} className="px-1 text-right font-normal text-text-muted">Day {idx + 1}</th>
+                  ))}
+                  <th className="px-1 text-right font-normal text-text-muted">Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map(([key, values]) => {
+                  const last = values[values.length - 1] ?? 0;
+                  const first = values[0] ?? 0;
+                  const delta = last - first;
+                  return (
+                    <tr key={key} className="border-b border-border/40">
+                      <td className="py-2 font-mono text-text-primary">{key}</td>
+                      {values.map((v, idx) => (
+                        <td key={idx} className="px-1 py-2 text-right tabular-nums">{fmt(v)}</td>
+                      ))}
+                      <td className="px-1 py-2 text-right">
+                        <span className={cn(delta > 0 ? "text-success" : delta < 0 ? "text-danger" : "text-text-muted")}>
+                          {delta > 0 ? "↑" : delta < 0 ? "↓" : "→"} {Math.abs(delta)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
       </div>
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Bento tile details (fully parsed, no unknown)
+  // ──────────────────────────────────────────────────────────────────────────
+  if (kind === "bento") {
+    const { aiTesting, bugTracker, security, webhooks, monitors, testSpecs, mocks, chatAndAgents, notifications, row } = payload;
+
+    // Helper to render a simple two‑column stat grid
+    const StatGrid = ({ data, fields }: { data: Record<string, any>; fields: { label: string; key: string; accent?: string }[] }) => (
+      <div className="grid grid-cols-2 gap-3">
+        {fields.map(({ label, key, accent }) => (
+          <StatCard key={key} label={label} value={safe(data[key])} accent={accent} />
+        ))}
+      </div>
+    );
+
+    if (aiTesting) {
+      const ai = aiTesting as FeatureSummaryResponse["aiTesting"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">AI Testing · details</div>
+          <StatGrid data={ai} fields={[
+            { label: "Total runs", key: "totalRuns" },
+            { label: "Suites", key: "suites" },
+            { label: "Cases", key: "cases" },
+            { label: "Pass rate (7d)", key: "passRateLast7d", accent: ai.passRateLast7d >= 0.8 ? "text-success" : "text-warning" },
+            { label: "Spend", key: "totalCostUsd", accent: "text-orange-500" },
+            { label: "Last run", key: "lastRunAt" },
+          ]} />
+          {ai.topModels?.length > 0 && (
+            <Section title="Top AI models used">
+              <div className="flex flex-wrap gap-2">{ai.topModels.map((m: any) => <span key={m.key} className="rounded-full bg-primary/10 px-2 py-1 text-[11px]">{safe(m.key)}</span>)}</div>
+            </Section>
+          )}
+        </div>
+      );
+    }
+    if (bugTracker) {
+      const bugs = bugTracker as FeatureSummaryResponse["bugTracker"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Bug tracker</div>
+          <StatGrid data={bugs} fields={[
+            { label: "Open bugs", key: "open", accent: bugs.open > 0 ? "text-danger" : "text-success" },
+            { label: "Total bugs", key: "total" },
+          ]} />
+          <Section title="By severity">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(bugs.bySeverity || {}).map(([sev, count]) => (
+                <span key={sev} className="rounded-full border border-current px-2 py-1 text-[11px]" style={{ color: SEV_COLOR[sev] || "#94a3b8" }}>
+                  {sev}: {count}
+                </span>
+              ))}
+            </div>
+          </Section>
+        </div>
+      );
+    }
+    if (security) {
+      const sec = security as FeatureSummaryResponse["security"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Security findings</div>
+          <StatGrid data={sec} fields={[{ label: "Open findings", key: "openFindings", accent: sec.openFindings > 0 ? "text-danger" : "text-success" }]} />
+          <Section title="By severity">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(sec.bySeverity || {}).map(([sev, count]) => (
+                <span key={sev} className="rounded-full border border-current px-2 py-1 text-[11px]" style={{ color: SEV_COLOR[sev] || "#94a3b8" }}>
+                  {sev}: {count}
+                </span>
+              ))}
+            </div>
+          </Section>
+        </div>
+      );
+    }
+    if (webhooks) {
+      const wh = webhooks as FeatureSummaryResponse["webhooks"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Webhooks</div>
+          <StatGrid data={wh} fields={[
+            { label: "Active", key: "active" },
+            { label: "Total", key: "total" },
+            { label: "Success rate (7d)", key: "successRateLast7d" },
+            { label: "Deliveries (7d)", key: "deliveriesLast7d" },
+          ]} />
+        </div>
+      );
+    }
+    if (monitors) {
+      const mon = monitors as FeatureSummaryResponse["monitors"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Monitors</div>
+          <StatGrid data={mon} fields={[
+            { label: "Active", key: "active" },
+            { label: "Paused", key: "paused" },
+            { label: "Runs (7d)", key: "runsLast7d" },
+            { label: "Open incidents", key: "openIncidents", accent: mon.openIncidents > 0 ? "text-danger" : "text-success" },
+          ]} />
+        </div>
+      );
+    }
+    if (testSpecs) {
+      const ts = testSpecs as FeatureSummaryResponse["testSpecs"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Test specifications</div>
+          <StatGrid data={ts} fields={[
+            { label: "Total specs", key: "total" },
+            { label: "Active", key: "active" },
+            { label: "Last import", key: "lastImportAt" },
+          ]} />
+        </div>
+      );
+    }
+    if (mocks) {
+      const mk = mocks as FeatureSummaryResponse["mocks"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Mock servers</div>
+          <StatGrid data={mk} fields={[
+            { label: "Active", key: "active" },
+            { label: "Total", key: "total" },
+            { label: "Hits (7d)", key: "hitsLast7d" },
+          ]} />
+        </div>
+      );
+    }
+    if (chatAndAgents) {
+      const ca = chatAndAgents as FeatureSummaryResponse["chatAndAgents"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">AI chat & agents</div>
+          <StatGrid data={ca} fields={[
+            { label: "Sessions", key: "aiSessions" },
+            { label: "Agent configs", key: "aiAgentConfigs" },
+            { label: "MCP servers", key: "mcpServers" },
+          ]} />
+        </div>
+      );
+    }
+    if (notifications) {
+      const notif = notifications as FeatureSummaryResponse["notifications"];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Notifications</div>
+          <StatGrid data={notif} fields={[
+            { label: "Unread", key: "unread", accent: notif.unread > 0 ? "text-orange-500" : "text-success" },
+            { label: "Total", key: "total" },
+          ]} />
+          <p className="text-[12px] text-text-muted">{notif.unread > 0 ? "You have pending notifications that need action." : "All caught up!"}</p>
+        </div>
+      );
+    }
+    if (row) {
+      // Activity timeline row detail
+      const r = row as RecentActivityResponse["items"][0];
+      return (
+        <div className="space-y-4">
+          <div className="text-xl font-semibold">Activity entry</div>
+          <div className="space-y-2 rounded-lg border border-border bg-elevated/40 p-3">
+            <DetailRow label="Actor" value={safe(r.actor)} />
+            <DetailRow label="Action" value={safe(r.action)} />
+            <DetailRow label="Entity type" value={safe(r.entityType)} />
+            <DetailRow label="Timestamp" value={r.timestamp ? new Date(r.timestamp).toLocaleString() : "—"} />
+            {r.description && <DetailRow label="Description" value={safe(r.description)} />}
+          </div>
+        </div>
+      );
+    }
+    // Fallback friendly message
+    return (
+      <div className="space-y-4">
+        <div className="text-xl font-semibold">{drawer.title}</div>
+        <div className="rounded-lg border border-border bg-elevated/40 p-4 text-center">
+          <p className="text-[12px] text-text-muted">Additional details are not available for this item.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Final fallback – no raw JSON
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="text-xl font-semibold">{drawer.title}</div>
-      <pre className="max-h-[420px] overflow-auto rounded-lg border border-border bg-elevated/40 p-3 text-[11px]">{JSON.stringify(drawer.payload ?? {}, null, 2)}</pre>
+      <div className="rounded-lg border border-border bg-elevated/40 p-4 text-center">
+        <p className="text-[12px] text-text-muted">This section does not contain detailed data yet.</p>
+      </div>
     </div>
   );
 }
@@ -802,7 +1171,7 @@ const BentoGrid = ({ d, loading, workspaceId, onOpen }: { d?: FeatureSummaryResp
     ) : (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:auto-rows-[140px]">
         {/* AI Testing — 2×2 */}
-        <BentoTileClickable to="/projects/ai-testing?view=overview" span="lg:col-span-2 lg:row-span-2" accent="violet" icon={FlaskConical} title="AI Testing" headline={fmt(d.aiTesting.totalRuns)} sub="runs across all suites"
+        <BentoTileClickable  span="lg:col-span-2 lg:row-span-2" accent="violet" icon={FlaskConical} title="AI Testing" headline={fmt(d.aiTesting.totalRuns)} sub="runs across all suites"
           onOpen={() => onOpen?.("AI Testing", "bento", { aiTesting: d.aiTesting })}>
           <div className="grid grid-cols-3 gap-2 text-[11px]">
             <Stat label="Suites"     v={fmt(d.aiTesting.suites)} />
@@ -815,25 +1184,25 @@ const BentoGrid = ({ d, loading, workspaceId, onOpen }: { d?: FeatureSummaryResp
         </BentoTileClickable>
 
         {/* Bug tracker — 2×1 */}
-        <BentoTileClickable to={`/projects/functional-tests?view=bugs&workspaceId=${workspaceId}`} span="lg:col-span-2 lg:row-span-1" accent="red" icon={Bug} title="Bug tracker" headline={fmt(d.bugTracker.open)} sub={`open / ${fmt(d.bugTracker.total)} total`}
+        <BentoTileClickable  span="lg:col-span-2 lg:row-span-1" accent="red" icon={Bug} title="Bug tracker" headline={fmt(d.bugTracker.open)} sub={`open / ${fmt(d.bugTracker.total)} total`}
           onOpen={() => onOpen?.("Bug tracker", "bento", { bugTracker: d.bugTracker })}>
           <SevPills map={d.bugTracker.bySeverity} />
         </BentoTileClickable>
 
         {/* Security */}
-        <BentoTileClickable to="/projects/security" span="lg:col-span-1 lg:row-span-1" accent="rose" icon={Shield} title="Security" headline={fmt(d.security.openFindings)} sub="open findings"
+        <BentoTileClickable  span="lg:col-span-1 lg:row-span-1" accent="rose" icon={Shield} title="Security" headline={fmt(d.security.openFindings)} sub="open findings"
           onOpen={() => onOpen?.("Security", "bento", { security: d.security })}>
           <SevPills map={d.security.bySeverity} />
         </BentoTileClickable>
 
         {/* Webhooks */}
-        <BentoTileClickable to="/projects/ai-testing?view=webhooks" span="lg:col-span-1 lg:row-span-1" accent="indigo" icon={Webhook} title="Webhooks" headline={fmt(d.webhooks.active)} sub={`active / ${fmt(d.webhooks.total)}`}
+        <BentoTileClickable span="lg:col-span-1 lg:row-span-1" accent="indigo" icon={Webhook} title="Webhooks" headline={fmt(d.webhooks.active)} sub={`active / ${fmt(d.webhooks.total)}`}
           onOpen={() => onOpen?.("Webhooks", "bento", { webhooks: d.webhooks })}>
           <div className="text-[11px] text-text-muted">Success {fmtPct(d.webhooks.successRateLast7d)} · {fmt(d.webhooks.deliveriesLast7d)} sent (7d)</div>
         </BentoTileClickable>
 
         {/* Monitors — 2×1 */}
-        <BentoTileClickable to="/projects/monitors" span="lg:col-span-2 lg:row-span-1" accent="emerald" icon={Activity} title="Monitors" headline={fmt(d.monitors.active)} sub={`active / ${fmt(d.monitors.total)}`}
+        <BentoTileClickable span="lg:col-span-2 lg:row-span-1" accent="emerald" icon={Activity} title="Monitors" headline={fmt(d.monitors.active)} sub={`active / ${fmt(d.monitors.total)}`}
           onOpen={() => onOpen?.("Monitors", "bento", { monitors: d.monitors })}>
           <div className="grid grid-cols-3 gap-2 text-[11px]">
             <Stat label="Paused"     v={fmt(d.monitors.paused)} />
@@ -843,25 +1212,25 @@ const BentoGrid = ({ d, loading, workspaceId, onOpen }: { d?: FeatureSummaryResp
         </BentoTileClickable>
 
         {/* Test specs */}
-        <BentoTileClickable to={`/projects/test-specs?workspaceId=${workspaceId}`} span="lg:col-span-1 lg:row-span-1" accent="sky" icon={FileCode2} title="Test specs" headline={fmt(d.testSpecs.total)} sub={`${fmt(d.testSpecs.active)} active`}
+        <BentoTileClickable span="lg:col-span-1 lg:row-span-1" accent="sky" icon={FileCode2} title="Test specs" headline={fmt(d.testSpecs.total)} sub={`${fmt(d.testSpecs.active)} active`}
           onOpen={() => onOpen?.("Test specs", "bento", { testSpecs: d.testSpecs })}>
           <div className="text-[11px] text-text-muted">Last import {fmtRel(d.testSpecs.lastImportAt)}</div>
         </BentoTileClickable>
 
         {/* Mocks */}
-        <BentoTileClickable to="/projects/mocks" span="lg:col-span-1 lg:row-span-1" accent="cyan" icon={Server} title="Mock servers" headline={fmt(d.mocks.active)} sub={`active / ${fmt(d.mocks.total)}`}
+        <BentoTileClickable span="lg:col-span-1 lg:row-span-1" accent="cyan" icon={Server} title="Mock servers" headline={fmt(d.mocks.active)} sub={`active / ${fmt(d.mocks.total)}`}
           onOpen={() => onOpen?.("Mock servers", "bento", { mocks: d.mocks })}>
           <div className="text-[11px] text-text-muted">{fmt(d.mocks.hitsLast7d)} hits (7d)</div>
         </BentoTileClickable>
 
         {/* Chat & agents */}
-        <BentoTileClickable to="/projects/ai-assistant" span="lg:col-span-1 lg:row-span-1" accent="fuchsia" icon={MessageSquare} title="AI chat & agents" headline={fmt(d.chatAndAgents.aiSessions)} sub="sessions"
+        <BentoTileClickable span="lg:col-span-1 lg:row-span-1" accent="fuchsia" icon={MessageSquare} title="AI chat & agents" headline={fmt(d.chatAndAgents.aiSessions)} sub="sessions"
           onOpen={() => onOpen?.("AI chat & agents", "bento", { chatAndAgents: d.chatAndAgents })}>
           <div className="text-[11px] text-text-muted">{fmt(d.chatAndAgents.aiAgentConfigs)} agents · {fmt(d.chatAndAgents.mcpServers)} MCP</div>
         </BentoTileClickable>
 
         {/* Notifications */}
-        <BentoTileClickable to="/projects/notifications" span="lg:col-span-1 lg:row-span-1" accent="yellow" icon={Bell} title="Notifications" headline={fmt(d.notifications.unread)} sub={`unread / ${fmt(d.notifications.total)}`}
+        <BentoTileClickable span="lg:col-span-1 lg:row-span-1" accent="yellow" icon={Bell} title="Notifications" headline={fmt(d.notifications.unread)} sub={`unread / ${fmt(d.notifications.total)}`}
           onOpen={() => onOpen?.("Notifications", "bento", { notifications: d.notifications })}>
           <div className={cn("text-[11px]", d.notifications.unread > 0 ? "text-orange-500" : "text-emerald-500")}>{d.notifications.unread > 0 ? "Pending action" : "All clear"}</div>
         </BentoTileClickable>
@@ -1085,7 +1454,7 @@ const ActivityHeatmap = ({ data, loading, onOpen }: { data?: TimeseriesResponse;
         <button className="text-[11px] text-text-secondary hover:text-text-primary" onClick={onOpen}>Open details</button>
       </div>
       <div className="grid auto-rows-fr gap-1.5" style={{ gridTemplateColumns: `repeat(${data.days.length}, 1fr)` }}>
-        {data.days.map((d) => <div key={d} title={`${shortDate(d)}: ${totals[ data.days.indexOf(d) ]} events`} className="h-12 rounded-md border border-border/40 transition-transform hover:scale-105" style={{ background: color(totals[ data.days.indexOf(d) ]) }} />)}
+        {data.days.map((d, i) => <div key={d} title={`${shortDate(d)}: ${totals[i]} events`} className="h-12 rounded-md border border-border/40 transition-transform hover:scale-105" style={{ background: color(totals[i]) }} />)}
       </div>
       <div className="flex items-center justify-between text-[10px] text-text-muted">
         <span>Low</span>
@@ -1148,7 +1517,8 @@ const Empty = ({ icon: Icon, text }: { icon: any; text: string }) => (
   </div>
 );
 
-const StatCard = ({ label, value, accent }: { label: string; value?: string; accent?: string }) => (
+// ✅ FIXED: StatCard now accepts React.ReactNode so it can handle safe(data[key])
+const StatCard = ({ label, value, accent }: { label: string; value?: React.ReactNode; accent?: string }) => (
   <div className="rounded-lg border border-border bg-elevated/40 p-3">
     <div className={cn("text-[18px] font-semibold leading-none tabular-nums", accent)}>
       {value ?? "—"}

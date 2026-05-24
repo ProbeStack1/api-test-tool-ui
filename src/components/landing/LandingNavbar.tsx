@@ -1,18 +1,20 @@
 /**
  * LandingNavbar — auto-hide on scroll down, shows on scroll up.
- * Re-aligned to `LANDING_PAGE_SPEC.md`:
- *   Logo · [Product · Solutions · Pricing · Docs · Changelog] · ThemeToggle · Profile · [Get Started →]
  *
- * The middle group collapses to a hamburger on screens < md.
- * Theme tokens (background, primary, text-*) untouched — only structure
- * and copy refreshed.
+ * Auth gating (strict):
+ *   • Logged OUT  → "Sign in" + "Get started" buttons. NO profile icon.
+ *   • Logged IN   → Profile dropdown with email · Profile · Logout.
+ *                   "Get started" → /projects (not /login).
+ *
+ * The middle nav group collapses to a hamburger on screens < md.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, Rocket, User, Menu, X } from 'lucide-react';
+import { LogOut, Rocket, User, Menu, X, LogIn } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSep } from '@/components/ui/DropdownMenu';
+import { useAuth } from '@/stores/auth.store';
 
 type NavItem = { label: string; to: string; isHash?: boolean };
 
@@ -26,6 +28,11 @@ const NAV: NavItem[] = [
 
 export const LandingNavbar = () => {
   const nav = useNavigate();
+  const isAuthed = useAuth((s) => s.isAuthenticated());
+  const user     = useAuth((s) => s.user);
+  const clear    = useAuth((s) => s.clear);
+  const email    = user?.email ?? null;
+
   const [isVisible, setIsVisible] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const lastScrollY = useRef(0);
@@ -47,8 +54,15 @@ export const LandingNavbar = () => {
 
   const handleGoToApp = () => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+    nav(isAuthed ? '/projects' : '/login');
+  };
+
+  const handleLogout = () => {
+    clear();
     nav('/login');
   };
+
+  const initial = email ? email.charAt(0).toUpperCase() : 'U';
 
   return (
     <nav
@@ -115,35 +129,59 @@ export const LandingNavbar = () => {
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
           <ThemeToggle />
-          <button
-            data-testid="landing-goto-app"
-            onClick={handleGoToApp}
-            className="hidden sm:inline-flex group h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-semibold text-white transition-all hover:opacity-90"
-          >
-            <Rocket className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5" />
-            Get Started →
-          </button>
-          <Dropdown
-            align="end"
-            trigger={
-              <button
-                data-testid="landing-navbar-profile"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-[#1fbf9a] text-[11px] font-bold text-white transition-transform hover:scale-105"
-                aria-label="Profile"
+
+          {!isAuthed ? (
+            <>
+              <Link
+                to="/login"
+                data-testid="landing-signin-link"
+                className="hidden sm:inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[12px] font-semibold text-text-primary transition-all hover:border-primary/40 hover:text-primary"
               >
-                <User className="h-4 w-4" />
+                <LogIn className="h-3.5 w-3.5" />
+                Sign in
+              </Link>
+              <button
+                data-testid="landing-goto-app"
+                onClick={handleGoToApp}
+                className="hidden sm:inline-flex group h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-semibold text-white transition-all hover:opacity-90"
+              >
+                <Rocket className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5" />
+                Get started →
               </button>
-            }
-          >
-            <DropdownLabel>My account</DropdownLabel>
-            <DropdownItem icon={User} onClick={() => nav('/projects/profile')}>
-              Profile
-            </DropdownItem>
-            <DropdownSep />
-            <DropdownItem icon={LogOut} destructive onClick={() => nav('/login')}>
-              Logout
-            </DropdownItem>
-          </Dropdown>
+            </>
+          ) : (
+            <>
+              <button
+                data-testid="landing-goto-app"
+                onClick={handleGoToApp}
+                className="hidden sm:inline-flex group h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-semibold text-white transition-all hover:opacity-90"
+              >
+                <Rocket className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5" />
+                Open app →
+              </button>
+              <Dropdown
+                align="end"
+                trigger={
+                  <button
+                    data-testid="landing-navbar-profile"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-[#1fbf9a] text-[11px] font-bold text-white transition-transform hover:scale-105"
+                    aria-label="Profile"
+                  >
+                    {initial}
+                  </button>
+                }
+              >
+                <DropdownLabel>{email ?? 'Signed in'}</DropdownLabel>
+                <DropdownItem icon={User} onClick={() => nav('/projects/profile')}>
+                  Profile
+                </DropdownItem>
+                <DropdownSep />
+                <DropdownItem icon={LogOut} destructive onClick={handleLogout}>
+                  Logout
+                </DropdownItem>
+              </Dropdown>
+            </>
+          )}
         </div>
       </div>
 
@@ -175,12 +213,38 @@ export const LandingNavbar = () => {
                 </Link>
               ),
             )}
-            <button
-              onClick={handleGoToApp}
-              className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white"
-            >
-              <Rocket className="h-3.5 w-3.5" /> Get Started →
-            </button>
+            {!isAuthed ? (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold"
+                >
+                  <LogIn className="h-3.5 w-3.5" /> Sign in
+                </Link>
+                <button
+                  onClick={handleGoToApp}
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white"
+                >
+                  <Rocket className="h-3.5 w-3.5" /> Get started →
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleGoToApp}
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white"
+                >
+                  <Rocket className="h-3.5 w-3.5" /> Open app →
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-danger/40 text-danger px-3 py-2 text-sm font-semibold"
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Logout
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

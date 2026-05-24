@@ -25,6 +25,7 @@ import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
 import { BugTrackerKanban } from './BugTrackerKanban';
 import { createHttp } from '@/lib/http';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 
 const BASE = `${serviceUrl('functionalTest')}/functional-tests/bugs`;
 const http = createHttp('functionalTest');
@@ -68,6 +69,9 @@ const STATUS_COLOR = {
 } as const;
 
 export const BugTrackerPage = () => {
+  // workspaceId is REQUIRED by the backend (tenant isolation). Subscribe so the
+  // list re-fetches when the user switches workspaces mid-session.
+  const workspaceId = useWorkspaceStore((s) => s.currentId);
   const [bugs, setBugs] = useState<Bug[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<{ status?: string; severity?: string; source?: string }>({});
@@ -78,15 +82,23 @@ export const BugTrackerPage = () => {
   const [view, setView] = useState<'list' | 'kanban'>('list');
 
   const fetchAll = async () => {
+    // Without a workspace the backend returns 400 by design — short-circuit
+    // so we don't spam the network and so the empty state renders cleanly.
+    if (!workspaceId) {
+      setBugs([]);
+      setStats({});
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = { workspaceId };
       if (filter.status)   params.status = filter.status;
       if (filter.severity) params.severity = filter.severity;
       if (filter.source)   params.source = filter.source;
       const [list, st] = await Promise.all([
         http.get<Bug[]>(BASE, { params }),
-        http.get(`${BASE}/stats`),
+        http.get(`${BASE}/stats`, { params: { workspaceId } }),
       ]);
       setBugs(list.data);
       setStats(st.data);
@@ -94,7 +106,7 @@ export const BugTrackerPage = () => {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAll(); }, [filter.status, filter.severity, filter.source]);
+  useEffect(() => { fetchAll(); }, [workspaceId, filter.status, filter.severity, filter.source]);
 
   const selected = bugs.find((b) => b.id === selectedId);
 
@@ -200,7 +212,7 @@ export const BugTrackerPage = () => {
       </div>
       )}
 
-      {creating && <CreateBugDrawer onClose={() => setCreating(false)} onCreated={() => { setCreating(false); fetchAll(); }} />}
+      {creating && <CreateBugDrawer workspaceId={workspaceId} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); fetchAll(); }} />}
     </div>
   );
 };
@@ -373,7 +385,7 @@ function BugDetail({ bug, onChange, onClose }: { bug: Bug; onChange: () => void;
   );
 }
 
-function CreateBugDrawer({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateBugDrawer({ workspaceId, onClose, onCreated }: { workspaceId: string | null; onClose: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'>('MEDIUM');
@@ -381,9 +393,13 @@ function CreateBugDrawer({ onClose, onCreated }: { onClose: () => void; onCreate
 
   const submit = async () => {
     if (!title.trim()) return;
+    if (!workspaceId) return;       // backend rejects without it; UI guards above too.
     setBusy(true);
     try {
-      await http.post(BASE, { title, description, severity, status: 'OPEN', source: 'MANUAL', reporterEmail: 'me@team.com' });
+      // workspaceId MUST be set server-side from the currently-selected
+      // workspace — the server stamps reporterEmail/createdBy from the JWT,
+      // we just supply the tenant scope.
+      await http.post(BASE, { workspaceId, title, description, severity, status: 'OPEN', source: 'MANUAL' });
       onCreated();
     } finally { setBusy(false); }
   };

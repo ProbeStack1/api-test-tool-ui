@@ -27,6 +27,7 @@ import {
 import { cn } from '@/utils/cn';
 import { serviceUrl } from '@/lib/env';
 import { createHttp } from '@/lib/http';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 
 const BASE = `${serviceUrl('functionalTest')}/functional-tests/bugs`;
 const http = createHttp('functionalTest');
@@ -67,6 +68,8 @@ const SEV_ICON: Record<Severity, typeof AlertOctagon> = {
 };
 
 export function BugTrackerKanban() {
+  // Tenant scope — backend rejects bug list reads without workspaceId.
+  const workspaceId = useWorkspaceStore((s) => s.currentId);
   const [bugs, setBugs] = useState<Bug[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,9 +80,15 @@ export function BugTrackerKanban() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const fetchBugs = async () => {
+    if (!workspaceId) {
+      setBugs([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const r = await http.get<Bug[]>(BASE);
+      const r = await http.get<Bug[]>(BASE, { params: { workspaceId } });
       setBugs(r.data ?? []);
       setError(null);
     } catch (e: any) {
@@ -89,7 +98,7 @@ export function BugTrackerKanban() {
     }
   };
 
-  useEffect(() => { fetchBugs(); }, []);
+  useEffect(() => { fetchBugs(); }, [workspaceId]);
 
   const byCol = useMemo(() => {
     const q = filter.trim().toLowerCase();

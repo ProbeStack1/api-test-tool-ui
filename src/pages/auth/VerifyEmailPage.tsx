@@ -16,8 +16,8 @@ import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Loader2, MailCheck, AlertTriangle, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/Button';
-import { userMgmtService } from '@/services/userMgmt.service';
+import { Button } from '../../components/ui/Button';
+import { userMgmtService } from '../../services/userMgmt.service';
 
 type Phase =
   | { kind: 'verifying' }

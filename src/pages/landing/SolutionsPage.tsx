@@ -93,7 +93,7 @@ export const SolutionsPage = () => {
       <main className="relative z-10 pt-20 pb-24 w-full px-6 sm:px-10 lg:px-16 xl:px-24">
         {/* Page hero */}
         <header className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium mb-4 border border-primary/20">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium mb-4 border border-primary/20">
             Solutions
           </div>
           <h1 className="text-4xl md:text-5xl font-bold gradient-text font-display mb-4">
@@ -124,10 +124,10 @@ export const SolutionsPage = () => {
                       <Icon className="w-7 h-7" />
                     </div>
                     <div className="hidden md:block">
-                      <div className="font-mono text-[10px] tracking-wider text-text-muted">
+                      <div className="font-mono text-sm tracking-wider text-text-muted">
                         PERSONA · 0{i + 1}
                       </div>
-                      <div className="font-mono text-[10px] tracking-wider text-text-muted mt-1">
+                      <div className="font-mono text-sm tracking-wider text-text-muted mt-1">
                         /{p.id}
                       </div>
                     </div>
@@ -146,7 +146,7 @@ export const SolutionsPage = () => {
                       {p.pillars.map((pl) => (
                         <span
                           key={pl}
-                          className="inline-flex items-center px-2.5 py-1 rounded-md border border-primary/20 bg-primary/5 text-[11px] text-primary font-medium"
+                          className="inline-flex items-center px-2.5 py-1 rounded-md border border-primary/20 bg-primary/5 text-sm text-primary font-medium"
                         >
                           {pl}
                         </span>

@@ -171,7 +171,7 @@ function PillarCard({ pillar, idx }: { pillar: Pillar; idx: number }) {
         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 text-primary group-hover:bg-primary/20 group-hover:scale-110 transition-transform duration-300">
           <Icon className="w-5 h-5" />
         </div>
-        <span className="font-mono text-[10px] tracking-wider text-text-muted">
+        <span className="font-mono text-xs tracking-wider text-text-muted">
           PILLAR · {pillar.num}
         </span>
       </div>
@@ -188,7 +188,7 @@ function PillarCard({ pillar, idx }: { pillar: Pillar; idx: number }) {
         ))}
       </ul>
       {pillar.code && (
-        <div className="relative rounded-md bg-elevated/80 border border-border px-2.5 py-1.5 font-mono text-[10.5px] text-text-secondary overflow-x-auto group-hover:border-primary/30 transition-colors">
+        <div className="relative rounded-md bg-elevated/80 border border-border px-2.5 py-1.5 font-mono text-sm text-text-secondary overflow-x-auto group-hover:border-primary/30 transition-colors">
           {pillar.code}
         </div>
       )}

@@ -97,7 +97,7 @@ export const LandingNavbar = () => {
                 key={item.label}
                 href={item.to}
                 data-testid={`nav-link-${item.label.toLowerCase()}`}
-                className="px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:text-primary transition-colors"
+                className="px-3 py-1.5 text-[14px] font-medium text-text-secondary hover:text-primary transition-colors"
               >
                 {item.label}
               </a>
@@ -107,7 +107,7 @@ export const LandingNavbar = () => {
                 to={item.to}
                 data-testid={`nav-link-${item.label.toLowerCase()}`}
                 className={({ isActive }) =>
-                  `px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                  `px-3 py-1.5 text-[14px] font-medium transition-colors ${
                     isActive ? 'text-primary' : 'text-text-secondary hover:text-primary'
                   }`
                 }

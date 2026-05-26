@@ -239,7 +239,7 @@ export default function HeroSection() {
               data-testid="hero-secondary-cta"
               className="inline-flex items-center justify-center gap-2 h-14 px-6 py-3 text-base font-medium rounded-md border border-border bg-surface/40 backdrop-blur hover:border-primary/50 hover:text-primary text-text-primary transition-colors"
             >
-              See the our pillars
+              See our pillars
             </a>
           </div>
         </div>

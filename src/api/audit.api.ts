@@ -49,6 +49,7 @@ export interface TimelineFilter {
   from?: string;          // ISO
   to?: string;            // ISO
   includeDiff?: boolean;
+  allMembers?: boolean;
 }
 
 export const apiTimelineWorkspace = (wsId: string, opts: TimelineFilter & { page?: number; size?: number } = {}) =>
@@ -62,6 +63,7 @@ export const apiTimelineWorkspace = (wsId: string, opts: TimelineFilter & { page
       ...(opts.actorEmail ? { actorEmail: opts.actorEmail } : {}),
       ...(opts.from       ? { from: opts.from } : {}),
       ...(opts.to         ? { to: opts.to } : {}),
+      ...(opts.allMembers ? { allMembers: true } : {}),
       includeDiff: !!opts.includeDiff,
     },
   }).then((r) => r.data);

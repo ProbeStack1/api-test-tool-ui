@@ -36,7 +36,7 @@ export const AiTestingPanel = () => {
   const workspaceId = useWorkspaceStore((s) => s.currentId);
   const [params, setParams] = useSearchParams();
   const nav = useNavigate();
-  const view = (params.get('view') as View) || 'overview';
+  const view = (params.get('view') as View) || 'analytics';
   const selectedSuiteId = params.get('suite');
 
   const [stats, setStats]   = useState<Stats | null>(null);
@@ -80,7 +80,7 @@ export const AiTestingPanel = () => {
 
   const NAV: NavRow[] = [
       { key: 'docs',          icon: BookOpen,     label: 'Docs · Guide',   sub: 'How everything works' },
-    { key: 'overview',      icon: Sparkles,     label: 'Overview',       sub: 'Live metrics · trends' },
+    // { key: 'overview',      icon: Sparkles,     label: 'Overview',       sub: 'Live metrics · trends' },
     { key: 'analytics',     icon: BarChart3,    label: 'Analytics',      sub: 'Model · cost · latency' },
     { key: 'marketplace',   icon: Store,        label: 'Marketplace',    sub: 'Discover · try agents' },
     { key: 'quick',         icon: Zap,          label: 'Quick test',     sub: 'One-shot probe · no save' },
@@ -120,41 +120,41 @@ export const AiTestingPanel = () => {
 
         {/* ─── Nav rows ─── */}
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2" data-testid="ai-testing-nav">
-          {NAV.map(({ key, icon: Icon, label, sub, badge }) => {
-            const active = view === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => goView(key)}
-                data-testid={`ai-testing-nav-${key}`}
-                className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-                  active
-                    ? 'bg-primary-muted text-primary'
-                    : 'text-text-secondary hover:bg-hover hover:text-text-primary',
-                )}
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-muted')} />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm">{label}</div>
-                    <div className="truncate text-xs text-text-muted">{sub}</div>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  {badge && (
-                    <span className={cn(
-                      'rounded-full px-1.5 py-0.5 font-mono text-[11px]',
-                      active ? 'bg-primary/30 text-primary' : 'bg-elevated text-text-muted',
-                    )}>{badge}</span>
-                  )}
-                  {active && <ChevronRight className="h-3 w-3 text-primary" />}
-                </div>
-              </button>
-            );
-          })}
-        </nav>
+  {NAV.map(({ key, icon: Icon, label, sub, badge }) => {
+    const active = view === key;
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => goView(key)}
+        data-testid={`ai-testing-nav-${key}`}
+        className={cn(
+          'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+          active
+            ? 'bg-primary-muted text-primary'
+            : 'text-text-primary hover:bg-hover hover:text-white',
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-primary')} />
+          <div className="min-w-0">
+            <div className="truncate text-sm">{label}</div>
+            <div className="truncate text-xs text-text-muted">{sub}</div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {badge && (
+            <span className={cn(
+              'rounded-full px-1.5 py-0.5 font-mono text-[11px]',
+              active ? 'bg-primary/30 text-primary' : 'bg-elevated text-text-muted',
+            )}>{badge}</span>
+          )}
+          {active && <ChevronRight className="h-3 w-3 text-primary" />}
+        </div>
+      </button>
+    );
+  })}
+</nav>
 
         {/* ─── Pinned: Active suite + API keys footer ─── */}
         <div className="border-t border-border bg-surface/40 p-3" data-testid="ai-testing-active-suite-pin">
@@ -257,7 +257,7 @@ const TokenBudgetBadge = ({ tu }: { tu: TokenUsageRollup | null }) => {
         ${tu.totalCostUsd.toFixed(4)} · {totalToks} tok
       </span>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-md border border-border bg-surface p-3 shadow-xl"
+        <div className="absolute left-0 top-full z-50 w-72 rounded-md border border-border bg-surface p-3 shadow-xl"
              data-testid="ai-testing-token-tooltip">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-semibold text-text-primary">Token usage · last {tu.windowDays}d</span>

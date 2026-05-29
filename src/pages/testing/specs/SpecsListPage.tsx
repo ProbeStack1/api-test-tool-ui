@@ -31,7 +31,7 @@ import { CreateSpecModal } from './CreateSpecModal';
 import { FormatBadge, StatusBadge, formatBytes, formatRelative } from '../shared/Badges';
 import { cn } from '@/utils/cn';
 
-export const SpecsListPage = () => {
+export const SpecsListPage = ({ workspaceId }: { workspaceId: string }) => {
   const ws = useWorkspaceStore((s) => s.current);
   const openSpec = useTestingStore((s) => s.openSpec);
   const qc = useQueryClient();

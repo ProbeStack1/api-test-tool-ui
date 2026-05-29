@@ -32,6 +32,7 @@ import {
 } from "@/api/dashboard.api";
 import { listWorkspaces, type Workspace } from "@/services/workspace.service";
 import { useWorkspaceStore } from "@/stores/workspace.store";
+import { AdminDashboardSection } from "./AdminDashboardSection";
 import { cn } from "@/utils/cn";
 
 /* ============================================================================
@@ -97,6 +98,11 @@ export const WorkspaceDashboardPage = () => {
   // the previous `(useWorkspaceStore as any).setState({ currentId })` hack which
   // bypassed the store's internal `current` field and stale-bound subscribers.
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrent);
+  const currentWs = useWorkspaceStore((s) => s.current);
+  // Owners + Admins see the additional Admin section (members, all-members
+  // activity, exportable report). Editors / Viewers see only the standard
+  // dashboard.
+  const isAdmin = currentWs?.myRole === 'OWNER' || currentWs?.myRole === 'ADMIN';
   const [range, setRange] = useState<"7d" | "14d" | "30d">("14d");
   const navigate = useNavigate();
 
@@ -182,6 +188,14 @@ export const WorkspaceDashboardPage = () => {
             onRange={setRange}
             generatedAt={d?.generatedAt}
           />
+
+          {/* Admin-only section — only visible to OWNER/ADMIN of this workspace */}
+          {isAdmin && workspaceId && (
+            <AdminDashboardSection
+              workspaceId={workspaceId}
+              workspaceName={(d?.workspace?.name ?? currentWs?.name) || 'this workspace'}
+            />
+          )}
 
           {/* KPI strip (Option A kept) */}
           <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

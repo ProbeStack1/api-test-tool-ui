@@ -17,6 +17,7 @@
  */
 import { createHttp } from '@/lib/http';
 import { serviceUrl } from '@/lib/env';
+import { openAuthedEventSource } from '@/lib/sse';
 
 /* ------------------------------ types ------------------------------------ */
 export type RunStatus =
@@ -281,7 +282,7 @@ export const apiResumeRun = (runId: string) => http.post<void>(`${BASE}/runs/${r
 export const apiCancelRun = (runId: string) => http.post<void>(`${BASE}/runs/${runId}/cancel`).then((r) => r.data);
 
 export const openRunStream = (runId: string): EventSource =>
-  new EventSource(`${serviceUrl('loadTest')}${BASE}/runs/${runId}/stream`, { withCredentials: true });
+  openAuthedEventSource(`${serviceUrl('loadTest')}${BASE}/runs/${runId}/stream`, { withCredentials: true });
 
 /* analytics */
 export const apiDiffRuns = (runId: string, compareWith: string) =>

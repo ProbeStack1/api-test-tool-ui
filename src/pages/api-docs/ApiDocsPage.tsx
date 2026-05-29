@@ -18,6 +18,7 @@ import {
   CheckCircle2, AlertTriangle, Sparkles, ArrowLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { toast } from 'sonner';
 import { NoProjectEmpty } from '@/components/common/NoProjectEmpty';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -400,12 +401,38 @@ const DocDetailView = ({ docId, onBack, workspaceId }: { docId: string; onBack: 
   const updateMut    = useMutation({ mutationFn: () => updateDoc(docId, {
     title: editTitle.trim(), subtitle: editSubtitle.trim() || undefined,
     content: editContent, tags: editTags.trim() ? editTags.split(',').map((t) => t.trim()).filter(Boolean) : [],
-  }), onSuccess: invalidate, onError: (e: any) => setError(e?.message ?? 'Failed to save') });
-  const regenMut     = useMutation({ mutationFn: () => regenerateDoc(docId), onSuccess: invalidate });
-  const snapshotMut  = useMutation({ mutationFn: () => snapshotDoc(docId),   onSuccess: invalidate });
-  const publishMut   = useMutation({ mutationFn: () => publishDoc(docId, { slug: publishSlug.trim() || undefined }), onSuccess: invalidate });
-  const unpublishMut = useMutation({ mutationFn: () => unpublishDoc(docId), onSuccess: invalidate });
-  const deleteMut    = useMutation({ mutationFn: () => deleteDoc(docId),    onSuccess: () => { invalidate(); onBack(); } });
+  }),
+    onSuccess: () => { invalidate(); toast.success('Doc updated'); },
+    onError: (e: any) => { setError(e?.message ?? 'Failed to save'); toast.error('Failed to save doc', { description: e?.message }); } });
+  const regenMut     = useMutation({ mutationFn: () => regenerateDoc(docId),
+    onSuccess: () => { invalidate(); toast.success('Doc regenerated from collection'); },
+    onError: (e: any) => toast.error('Regenerate failed', { description: e?.message }) });
+  const snapshotMut  = useMutation({ mutationFn: () => snapshotDoc(docId),
+    onSuccess: () => { invalidate(); toast.success('Version snapshotted'); },
+    onError: (e: any) => toast.error('Snapshot failed', { description: e?.message }) });
+  // Publish & Unpublish need the loudest feedback — the user sees a
+  // public URL change. Toast surfaces success + any backend conflict.
+  const publishMut   = useMutation({ mutationFn: () => publishDoc(docId, { slug: publishSlug.trim() || undefined }),
+    onSuccess: (res: any) => {
+      invalidate();
+      toast.success('Doc published', {
+        description: res?.slug ? `Live at /docs/${res.slug}` : 'Live now',
+      });
+    },
+    onError: (e: any) => {
+      // The backend may return DOC_SLUG_TAKEN (409). Show a precise hint
+      // instead of the misleading rate-limit copy users saw before.
+      const code = e?.response?.data?.code || e?.code;
+      const desc = e?.response?.data?.message || e?.message || 'Unknown error';
+      toast.error(code === 'DOC_SLUG_TAKEN' ? 'Slug already in use' : 'Publish failed', { description: desc });
+    },
+  });
+  const unpublishMut = useMutation({ mutationFn: () => unpublishDoc(docId),
+    onSuccess: () => { invalidate(); toast.success('Doc unpublished — public link disabled'); },
+    onError: (e: any) => toast.error('Unpublish failed', { description: e?.message }) });
+  const deleteMut    = useMutation({ mutationFn: () => deleteDoc(docId),
+    onSuccess: () => { invalidate(); toast.success('Doc deleted'); onBack(); },
+    onError: (e: any) => toast.error('Delete failed', { description: e?.message }) });
 
   const onExport = async (fmt: ExportFormat) => {
     setExportBusy(fmt);
@@ -489,6 +516,36 @@ const DocDetailView = ({ docId, onBack, workspaceId }: { docId: string; onBack: 
                     </a>
                   )}
                 </div>
+                {/* Send the user back into the Request Builder, focused
+                 *  on the SAME collection the doc was generated from.
+                 *  We deliberately do NOT clone or re-import — that would
+                 *  spawn duplicate collections each time. Instead, we
+                 *  set the sidebar focus via URL params; the workspace
+                 *  store reads them on mount. */}
+                {d.collectionId && (
+                  <div className="mt-3 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                    <Layers className="h-3.5 w-3.5 text-primary" />
+                    <div className="flex-1 text-[11px] text-text-secondary">
+                      This doc is linked to a Collection. Open it in the Request Builder to run the endpoints with variables, env, and assertions.
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="api-doc-open-in-builder"
+                      onClick={() => {
+                        const wsId = d.workspaceId;
+                        const cid  = d.collectionId!;
+                        // Persist the focus hint so the sidebar can pick it up.
+                        try {
+                          sessionStorage.setItem('forgeq:sidebar:focusCollection', JSON.stringify({ workspaceId: wsId, collectionId: cid }));
+                        } catch { /* ignore */ }
+                        window.location.assign(`/projects/request-builder?collectionId=${encodeURIComponent(cid)}&workspaceId=${encodeURIComponent(wsId)}`);
+                      }}
+                    >
+                      Open in Request Builder
+                    </Button>
+                  </div>
+                )}
                 <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-text-muted">
                   <span>Export:</span>
                   {(['FORGEQ', 'OPENAPI', 'OPENAPI_YAML', 'HTML', 'MARKDOWN'] as ExportFormat[]).map((f) => (

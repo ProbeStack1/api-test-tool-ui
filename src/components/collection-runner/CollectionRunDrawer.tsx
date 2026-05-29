@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { executeRequest, listRequests } from '@/services/request.service';
 import { listFolders } from '@/services/collection.service';
+import { openAuthedEventSource } from '@/lib/sse';
 import { cn } from '@/utils/cn';
 import { env } from '@/lib/env';
 
@@ -171,7 +172,7 @@ export const CollectionRunDrawer = ({
     /* Subscribe to SSE — every "snapshot" event has the full updated
      * CollectionRun. We map step status → row state. */
     const root = (import.meta as any).env.VITE_REQUEST_SVC_URL || '';
-    const es = new EventSource(`${root}/api/v1/requests/collection-runs/${runId}/stream`);
+    const es = openAuthedEventSource(`${root}/api/v1/requests/collection-runs/${runId}/stream`);
     sseRef.current = es;
     es.addEventListener('snapshot', (ev: MessageEvent) => {
       try {

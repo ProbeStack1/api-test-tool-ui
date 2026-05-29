@@ -37,7 +37,7 @@ const TABS: { key: TabKey; label: string; icon: any; testId: string }[] = [
   { key: 'export',   label: 'Export',     icon: Download,    testId: 'spec-tab-export' },
 ];
 
-export const SpecDetailPage = () => {
+export const SpecDetailPage = ({ specId }: { specId: string }) => {
   const id = useTestingStore((s) => s.selectedSpecId);
   const closeSpec = useTestingStore((s) => s.closeSpec);
   const qc = useQueryClient();

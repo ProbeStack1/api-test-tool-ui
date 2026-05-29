@@ -28,7 +28,7 @@ import { cn } from '@/utils/cn';
 
 const TERMINAL = new Set(['SUCCESS', 'FAILED', 'ERROR', 'CANCELLED']);
 
-export const LoadRunDetailPage = () => {
+export const LoadRunDetailPage = ({ loadRunId }: { loadRunId: string }) => {
   const id = useTestingStore((s) => s.selectedLoadRunId);
   const closeLoadRun = useTestingStore((s) => s.closeLoadRun);
   const qc = useQueryClient();

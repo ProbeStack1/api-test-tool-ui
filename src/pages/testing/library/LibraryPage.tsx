@@ -25,7 +25,7 @@ import {
 import { FormatBadge, StatusBadge, formatBytes, formatRelative } from '../shared/Badges';
 import { cn } from '@/utils/cn';
 
-export const LibraryPage = () => {
+export const LibraryPage = ({ workspaceId }: { workspaceId: string }) => {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<SpecStatus>('ACTIVE');

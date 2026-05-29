@@ -20,6 +20,7 @@ import {
   type ApiKey,
 } from '@/services/aiTesting.service';
 import { cn } from '@/utils/cn';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 const PROVIDERS = [
   { id: 'openai',    label: 'OpenAI',          hint: 'Starts with sk-… — https://platform.openai.com/api-keys' },
@@ -31,6 +32,7 @@ export const KeysView = ({ workspaceId }: { workspaceId: string }) => {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const confirm = useConfirm();
 
   const fetchKeys = useCallback(async () => {
     setLoading(true);
@@ -48,7 +50,14 @@ export const KeysView = ({ workspaceId }: { workspaceId: string }) => {
   useEffect(() => { fetchKeys(); }, [fetchKeys]);
 
   const handleRevoke = async (id: string) => {
-    if (!confirm('Revoke this key? Future runs in this workspace will fail until a new key is added for this provider.')) return;
+    const ok = await confirm({
+      title: 'Revoke this API key?',
+      description: 'Future runs in this workspace will fail with a 401 until a new key is added for the same provider.',
+      confirmText: 'Revoke key',
+      tone: 'danger',
+      testId: 'key-revoke-confirm',
+    });
+    if (!ok) return;
     const prev = keys;
     setKeys((p) => p.filter((k) => k.id !== id));
     try {

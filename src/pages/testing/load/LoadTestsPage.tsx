@@ -49,7 +49,7 @@ const TABS = [
   { key: 'analytics',  label: 'Analytics', icon: LineChart,       testId: 'load-tab-analytics' },
 ] as const;
 
-export const LoadTestsPage = () => {
+export const LoadTestsPage = ({ workspaceId }: { workspaceId: string }) => {
   const ws = useWorkspaceStore((s) => s.current);
   const tab = useTestingStore((s) => s.loadTab);
   const setTab = useTestingStore((s) => s.setLoadTab);

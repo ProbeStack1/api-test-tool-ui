@@ -31,7 +31,6 @@ const HIDE_CONTEXT_SIDEBAR = new Set([
   '/projects/integrations',
   '/projects/dashboard',
   '/projects/monitors',
-  '/projects/testing',
   '/projects/audit',
   '/projects/trash',
   '/projects/heartbeats',
@@ -45,7 +44,7 @@ const HIDE_RIGHT = new Set([
   '/projects/profile',
   '/projects/support',
   '/projects/bug-tracker',
-  '/projects/dashboard',
+  // '/projects/dashboard',
 ]);
 
 export const AppShell = () => {

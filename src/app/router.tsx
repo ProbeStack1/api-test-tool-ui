@@ -57,7 +57,7 @@ const VariablesWorkspacePage = l(() => import('@/pages/variables'), (m: any) => 
 const McpPage = l(() => import('@/pages/integrations'), (m: any) => m.McpStudioPage);
 const MocksPage = l(() => import('@/pages/mocks'), (m: any) => m.MocksPage);
 const MockDetailPage = l(() => import('@/pages/mocks'), (m: any) => m.MockDetailPage);
-const TestingLayout = l(() => import('@/pages/testing'), (m: any) => m.TestingLayout);
+const TestingPage = l(() => import('@/pages/testing'), (m: any) => m.TestingPage);
 const MonitorsPage = l(() => import('@/pages/monitors'), (m: any) => m.MonitorsPage);
 const IntegrationsPage = l(() => import('@/pages/integrations'), (m: any) => m.IntegrationsPage);
 const ApiDocsPage = l(() => import('@/pages/api-docs'), (m: any) => m.ApiDocsPage);
@@ -87,7 +87,7 @@ export const ROUTE_PREFETCH: Record<string, () => Promise<unknown>> = {
   '/projects/variables':    () => VariablesWorkspacePage.prefetch(),
   '/projects/mcp':          () => McpPage.prefetch(),
   '/projects/mocks':        () => MocksPage.prefetch(),
-  '/projects/testing':      () => TestingLayout.prefetch(),
+  '/projects/testing':      () => TestingPage.prefetch(),
   '/projects/monitors':     () => MonitorsPage.prefetch(),
   '/projects/integrations': () => IntegrationsPage.prefetch(),
   '/projects/api-docs':     () => ApiDocsPage.prefetch(),
@@ -178,9 +178,9 @@ const router = createBrowserRouter([
       // Testing module — single URL, internal state-driven sub-nav.
       // All sub-routes (specs / cases / library / functional / load /
       // monitors) and any deep views (run detail, spec detail) live
-      // inside `<TestingLayout />` via `useTestingStore` so the URL
+      // inside `<TestingPage />` via `useTestingStore` so the URL
       // never changes while moving between them.
-      { path: 'testing', element: r(<TestingLayout />) },
+      { path: 'testing', element: r(<TestingPage />) },
       { path: 'testing/*', element: <Navigate to="/projects/testing" replace /> },
       { path: 'monitors', element: r(<MonitorsPage />) },
       { path: 'integrations', element: r(<IntegrationsPage />) },

@@ -38,6 +38,10 @@ export interface VariableInputProps {
   /** Optional: invoked when the user presses Enter inside the input.
    *  Used by the URL bar to send the request. */
   onSubmit?: () => void;
+  /** Optional: invoked when the user pastes text into the input.
+   *  Returning `true` from the handler tells VariableInput to swallow
+   *  the paste — the caller is taking over (e.g. cURL import). */
+  onPaste?: (text: string) => boolean | void;
 }
 
 /* ── Build coloured spans from the raw string. ───────────────────── */
@@ -73,7 +77,7 @@ const escapeHtml = (s: string) =>
 
 export const VariableInput = ({
   value, onChange, placeholder, disabled, mode = 'cell',
-  mono, testId, className, onFocus, onBlur, onSubmit,
+  mono, testId, className, onFocus, onBlur, onSubmit, onPaste: onPasteExternal,
 }: VariableInputProps) => {
   const { lookup, activeNames } = useVariableIndex();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -165,10 +169,18 @@ export const VariableInput = ({
   };
 
   const onPaste: ClipboardEventHandler<HTMLDivElement> = (e) => {
+    const raw = e.clipboardData?.getData('text') ?? '';
+    /* Give the caller first shot at the paste — used by the URL bar to
+     * intercept a pasted cURL command and import it into the request
+     * draft instead of letting the raw text land in the input. */
+    if (onPasteExternal && onPasteExternal(raw)) {
+      e.preventDefault();
+      return;
+    }
     /* Strip rich formatting + newlines on paste so a multi-line copy
      * doesn't blow the field height up vertically. */
     e.preventDefault();
-    const pasted = (e.clipboardData?.getData('text') ?? '').replace(/\r?\n+/g, ' ');
+    const pasted = raw.replace(/\r?\n+/g, ' ');
     if (!pasted) return;
     const el = ref.current;
     if (!el) return;

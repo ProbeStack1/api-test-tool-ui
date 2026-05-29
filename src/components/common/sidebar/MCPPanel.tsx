@@ -74,31 +74,33 @@ export const MCPPanel = () => {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-1" data-testid="mcp-nav">
-          {NAV.map(({ key, icon: Icon, label, sub }) => {
-            const active = tab === key;
-            return (
-              <button
-                key={key}
-                data-testid={`mcp-nav-${key}`}
-                onClick={() => goTab(key)}
-                className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors',
-                  active ? 'bg-primary-muted text-primary' : 'text-text-secondary hover:bg-hover hover:text-text-primary',
-                )}
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-muted')} />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm">{label}</div>
-                    <div className="truncate text-xs text-text-muted">{sub}</div>
-                  </div>
-                </div>
-                {active && <ChevronRight className="h-3 w-3 shrink-0 text-primary" />}
-              </button>
-            );
-          })}
-        </nav>
+<nav className="flex-1 overflow-y-auto px-1" data-testid="mcp-nav">
+  {NAV.map(({ key, icon: Icon, label, sub }) => {
+    const active = tab === key;
+    return (
+      <button
+        key={key}
+        data-testid={`mcp-nav-${key}`}
+        onClick={() => goTab(key)}
+        className={cn(
+          'flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left transition-colors',
+          active
+            ? 'bg-primary-muted text-primary'
+            : 'text-text-primary hover:bg-hover hover:text-text-primary',
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-primary')} />
+          <div className="min-w-0">
+            <div className="truncate text-sm">{label}</div>
+            <div className="truncate text-xs text-text-muted">{sub}</div>
+          </div>
+        </div>
+        {active && <ChevronRight className="h-3 w-3 shrink-0 text-primary" />}
+      </button>
+    );
+  })}
+</nav>
 
         {/* Pinned Active-Server panel — bottom-left */}
         <div className="border-t border-border bg-surface/40 p-3" data-testid="mcp-active-server-pin">

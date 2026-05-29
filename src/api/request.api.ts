@@ -170,6 +170,7 @@ export interface RunHistoryPage {
 
 export interface ExecuteOverrides {
   workspaceId?: string;
+  collectionId?: string;
   environmentId?: string;
   extraVars?: Record<string, string>;
   /** Anything else mirrors the canonical request fields for one-off overrides. */
@@ -183,6 +184,7 @@ export interface AdhocBody {
   auth?: CanonicalAuth;
   body?: CanonicalBody;
   workspaceId?: string;
+  collectionId?: string;
   environmentId?: string;
   extraVars?: Record<string, string>;
 }

@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardList, Filter, RefreshCw, Loader2, Search, ChevronRight, Eye,
   EyeOff, AlertTriangle, AlertCircle, Info, ShieldAlert, User, Server,
-  Clock, X, ArrowDownRight, Sparkles, Link2, Plus,
+  Clock, X, ArrowDownRight, Sparkles, Link2, Plus, Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { NoProjectEmpty } from '@/components/common/NoProjectEmpty';
@@ -56,6 +56,7 @@ const fmtAbsolute = (iso?: string | number | null): string => {
 
 export const AuditPage = () => {
   const ws = useWorkspaceStore((s) => s.current);
+  const canSeeAllMembers = ws?.myRole === 'OWNER' || ws?.myRole === 'ADMIN';
 
   const [search, setSearch] = useState('');
   const [actorEmail, setActorEmail] = useState('');
@@ -67,16 +68,21 @@ export const AuditPage = () => {
   const [openId, setOpenId] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(50);
   const [drawerEvent, setDrawerEvent] = useState<TimelineEntry | null>(null);
+  const [allMembers, setAllMembers] = useState(false);
 
   const filterParams = useMemo(() => ({
     severities: severities.size ? Array.from(severities).join(',') : undefined,
     resources:  resources.size  ? Array.from(resources).join(',')  : undefined,
-    actorEmail: actorEmail.trim() || undefined,
+    // When "All members" is on we MUST NOT also pass actorEmail — the
+    // server interprets actorEmail as the priority filter, so the toggle
+    // would silently do nothing.
+    actorEmail: !allMembers && actorEmail.trim() ? actorEmail.trim() : undefined,
     from: from || undefined,
     to:   to   || undefined,
     includeDiff,
+    allMembers: canSeeAllMembers && allMembers,
     size: pageSize,
-  }), [severities, resources, actorEmail, from, to, includeDiff, pageSize]);
+  }), [severities, resources, actorEmail, from, to, includeDiff, pageSize, allMembers, canSeeAllMembers]);
 
   const q = useQuery({
     queryKey: ['audit', 'workspace', ws?.id, filterParams],
@@ -232,6 +238,26 @@ export const AuditPage = () => {
                 {includeDiff ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                 Include diff
               </button>
+
+              {canSeeAllMembers && (
+                <button
+                  data-testid="audit-toggle-all-members"
+                  onClick={() => setAllMembers((v) => !v)}
+                  title={allMembers
+                    ? 'Showing every member\'s activity in this workspace (admin view)'
+                    : 'Only showing your own activity'}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors',
+                    allMembers
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                      : 'border-border bg-elevated text-text-muted hover:text-text-primary',
+                  )}
+                >
+                  <Users className="h-3 w-3" />
+                  {allMembers ? 'All members' : 'My activity'}
+                </button>
+              )}
+
               {(severities.size > 0 || resources.size > 0 || actorEmail || from || to) && (
                 <button
                   data-testid="audit-clear-filters"

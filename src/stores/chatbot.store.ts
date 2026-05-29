@@ -80,9 +80,9 @@ export const useChatbot = create<ChatbotState>((set) => ({
           id: crypto.randomUUID(),
           role: 'assistant',
           content:
-            `**Ek error dikh raha hai** — \`${(p.method ?? '').toString().toUpperCase()} ${p.url ?? ''}\`` +
+            `**An error was detected** — \`${(p.method ?? '').toString().toUpperCase()} ${p.url ?? ''}\`` +
             (p.statusCode ? ` → **${p.statusCode} ${p.statusText ?? ''}**` : '') +
-            `.\n\nKya aap chahte ho ki main iska analysis karke fix suggest karun?`,
+            `.\n\nWould you like me to analyse the failure and suggest a fix?`,
         },
       ],
     }),

@@ -30,6 +30,7 @@ import { SecurityScanHistoryDrawer, type HistoryRun } from '@/components/securit
 import { exportSecurityPDF } from './exportSecurityPDF';
 import { serviceUrl } from '@/lib/env';
 import { createHttp } from '@/lib/http';
+import { openAuthedEventSource } from '@/lib/sse';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 const SVC = serviceUrl('functionalTest');
@@ -114,7 +115,7 @@ const toProbeResult = (f: BackendFinding): ProbeResult => ({
   durationMs: f.durationMs,
 });
 
-export function SecurityScanPage() {
+export const SecurityScanPage = ({ workspaceId }: { workspaceId: string }) => {
   const [targetUrl, setTargetUrl] = useState('https://httpbin.org/get');
   const [probes, setProbes] = useState<ProbeSpec[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -200,7 +201,7 @@ export function SecurityScanPage() {
 
   const openStream = (id: string) => {
     evtRef.current?.close();
-    const es = new EventSource(`${BASE}/scan/${id}/stream`);
+    const es = openAuthedEventSource(`${BASE}/scan/${id}/stream`);
     evtRef.current = es;
     // Snapshot — sent immediately on connect with whatever state the
     // run is already in. Used to recover after a network blip or a late
@@ -295,7 +296,7 @@ export function SecurityScanPage() {
       version: '2.1.0',
       $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
       runs: [{
-        tool: { driver: { name: 'ForgeFuzz', version: '1.0.0', informationUri: 'https://forgefuzz.com' } },
+        tool: { driver: { name: 'ForgeFuzz', version: '1.0.0', informationUri: 'https://forgeq.io' } },
         results: findings.filter((f) => !f.passed).map((f) => ({
           ruleId: f.checkId,
           message: { text: f.detail },

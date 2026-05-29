@@ -17,6 +17,7 @@
  */
 import { createHttp } from '@/lib/http';
 import { serviceUrl } from '@/lib/env';
+import { openAuthedEventSource } from '@/lib/sse';
 
 /* ------------------------------ types ------------------------------------ */
 export type RunStatus =
@@ -292,19 +293,10 @@ export const apiResumeRun = (runId: string) =>
 export const apiCancelRun = (runId: string) =>
   http.post<void>(`${BASE}/runs/${runId}/cancel`).then((r) => r.data);
 
-/**
- * Open a server-sent-events stream of run progress.
- * Returns the EventSource so the caller can `.addEventListener` to:
- *   `run.start` · `step.start` · `step.end` · `run.done`
- * Caller is responsible for closing it on unmount.
- *
- * Note: EventSource cannot send custom headers, so dev-bypass relies on
- *       CORS + cookie. The functional-test service is configured to
- *       accept the origin already.
- */
+
 export const openRunStream = (runId: string): EventSource => {
   const url = `${serviceUrl('functionalTest')}${BASE}/runs/${runId}/stream`;
-  return new EventSource(url, { withCredentials: true });
+  return openAuthedEventSource(url, { withCredentials: true });
 };
 
 /* =============================== analytics =============================== */

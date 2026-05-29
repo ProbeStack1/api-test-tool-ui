@@ -34,6 +34,7 @@ import type { RowContextItem } from '@/components/ui/RowContextMenu';
 import { Pencil, Copy, Share2, Trash2 } from 'lucide-react';
 import { useSavedResponsePreview } from '@/stores/savedResponsePreview.store';
 import { executeStream } from '@/services/request.stream';
+import { parseCurl, looksLikeCurl } from '@/utils/parseCurl';
 import { adhocExecute } from '@/services/adhoc.service';
 import { executeRequest, getRequest, createRequest, updateRequest as updateRequestSvc, type ExecutionResult } from '@/services/request.service';
 import { useChatbot } from '@/stores/chatbot.store';
@@ -388,6 +389,59 @@ export const RequestBuilderPage = () => {
     if (active?.id) setMeta(active.id, { dirty: true });
   };
 
+  /* ── cURL paste handler ─────────────────────────────────────────────
+   *
+   *  When the user pastes a string that begins with `curl ` into the URL
+   *  bar (or the dedicated "Paste cURL" modal), run it through the
+   *  shared parser and overwrite the whole request draft in one shot.
+   *  Matches the Postman experience: paste cURL → method / URL /
+   *  headers / body / params all populate instantly. A single toast
+   *  confirms what was imported.
+   */
+  const applyCurlImport = useCallback((curlText: string): boolean => {
+    const res = parseCurl(curlText);
+    if (!res) return false;
+    const d = res.draft;
+    if (d.method) setMethod(d.method as Method);
+    if (typeof d.url === 'string') {
+      setUrl(d.url);
+      setParams(d.queryParams ? d.queryParams.map((q) => ({
+        id: crypto.randomUUID(), key: q.name, value: q.value, enabled: q.enabled ?? true,
+      })) : []);
+    }
+    if (d.headers && d.headers.length > 0) {
+      setHeaders(d.headers.map((h) => ({
+        id: crypto.randomUUID(), key: h.name, value: h.value, enabled: h.enabled ?? true,
+      })));
+    }
+    if (d.bodyKind === 'json' && d.bodyText !== undefined) {
+      setBody({ mode: 'raw', language: 'json', raw: d.bodyText });
+    } else if (d.bodyKind === 'text' && d.bodyText !== undefined) {
+      setBody({ mode: 'raw', language: 'text', raw: d.bodyText });
+    } else if (d.bodyKind === 'multipart' && d.bodyForm) {
+      setBody({
+        mode: 'form-data',
+        formData: d.bodyForm.map((f) => ({
+          id: crypto.randomUUID(), key: f.name, value: f.value, enabled: f.enabled ?? true, type: 'text',
+        })),
+      });
+    } else if (d.bodyKind === 'none') {
+      setBody({ mode: 'none' });
+    }
+    markDirty();
+    toast.success('Imported from cURL', { description: res.notes.join('  ·  ') });
+    return true;
+  }, []);
+
+  const onUrlPaste = (e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData('text');
+    if (!looksLikeCurl(text)) return;        // not a cURL — let the default paste happen
+    e.preventDefault();
+    if (!applyCurlImport(text)) {
+      toast.error('Could not parse the pasted cURL command');
+    }
+  };
+
   /* Wrap state setters that should mark dirty. */
   const setHeadersDirty = (rows: KVRow[]) => { setHeaders(rows); markDirty(); };
   const setBodyDirty = (b: RequestBody) => { setBody(b); markDirty(); };
@@ -485,11 +539,17 @@ export const RequestBuilderPage = () => {
         preRequestScript: preScript,
         testScript,
         workspaceId: ws?.id,
+        // Pass the active request's parent collection so the backend's
+        // envResolver can layer COLLECTION-scope variables into the
+        // hierarchy. Without this, collection {{vars}} silently fail
+        // even though they show up in the UI hover preview.
+        collectionId: active?.collectionId ?? undefined,
         // Runtime variable resolution needs the active environment id so
-        // the backend's envResolver can stitch the (org GLOBAL → workspace →
-        // env) chain. Without this, adhoc Send bypassed env vars and only
-        // resolved org-global tokens. `activeEnvId` is picked from the
-        // header-strip env-picker (mirrored in settings store).
+        // the backend's envResolver can stitch the full chain:
+        //   org GLOBAL → workspace → collection → env → adhoc.
+        // Without this, adhoc Send bypassed env vars and only resolved
+        // org-global tokens. `activeEnvId` is picked from the header-strip
+        // env-picker (mirrored in settings store).
         environmentId: useSettings.getState().activeEnvId ?? undefined,
       };
       // GraphQL requests are always POST-with-JSON over the wire. Force
@@ -749,11 +809,17 @@ export const RequestBuilderPage = () => {
         <VariableInput
           value={url}
           onChange={onUrlChange}
-          placeholder="Enter request URL — use {{variable}} for env values"
+          placeholder="Enter request URL — use {{variable}} for env values · or paste a cURL command"
           testId="url-input"
           mode="boxed"
           mono
           onSubmit={() => { if (!sending) void onSend('normal'); }}
+          onPaste={(text) => {
+            if (!looksLikeCurl(text)) return false;
+            const ok = applyCurlImport(text);
+            if (!ok) toast.error('Could not parse the pasted cURL command');
+            return true;
+          }}
         />
         {sending ? (
           <Button variant="destructive" size="md" onClick={onCancelRequest} data-testid="cancel-btn" className="shrink-0 whitespace-nowrap">

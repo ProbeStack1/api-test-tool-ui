@@ -19,6 +19,7 @@ import {
   type WebhookSub, type Catalog,
 } from '@/services/aiTesting.service';
 import { cn } from '@/utils/cn';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 const DEFAULT_EVENTS = ['run.completed', 'run.failed'];
 
@@ -28,6 +29,7 @@ export const WebhooksView = ({ workspaceId }: { workspaceId: string }) => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -56,7 +58,14 @@ export const WebhooksView = ({ workspaceId }: { workspaceId: string }) => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this webhook?')) return;
+    const ok = await confirm({
+      title: 'Delete this webhook?',
+      description: 'Future run-lifecycle events will no longer be delivered to this URL. Existing delivery logs remain.',
+      confirmText: 'Delete webhook',
+      tone: 'danger',
+      testId: 'webhook-delete-confirm',
+    });
+    if (!ok) return;
     const prev = hooks;
     setHooks((p) => p.filter((x) => x.id !== id));
     try {

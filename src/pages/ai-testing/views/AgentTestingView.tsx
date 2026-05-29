@@ -17,17 +17,21 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Bot, Globe, MessageSquare, Cpu, Play, Plus, Trash2, Loader2, Search, Send, ChevronDown,
-  Wrench, ArrowRight, Code2,
+  Wrench, ArrowRight, Code2, Cloud,
 } from 'lucide-react';
 import {
   fetchCatalog, listAgentTools, runDirectAgent,
   a2aDiscover, a2aSend, acpSend, mcpListTools, mcpCallTool,
   type Catalog, type AgentToolDef, type AgentExecMode, type DirectAgentRunResult,
 } from '@/services/aiTesting.service';
+import {
+  sandboxChat, sandboxRun, sandboxStatus, authenticatedRun, getAgentInfo,
+  KRE_NEXUS_BASE,
+} from '@/services/kreNexus.service';
 import { ExecutionTrace } from './ExecutionTrace';
 import { cn } from '@/utils/cn';
 
-type Protocol = 'direct' | 'a2a' | 'acp' | 'mcp';
+type Protocol = 'direct' | 'a2a' | 'acp' | 'mcp' | 'kre';
 
 interface MarketplacePrefill {
   protocol: Protocol;
@@ -36,11 +40,15 @@ interface MarketplacePrefill {
   systemPrompt?: string;
   baseUrl?: string;
   name?: string;
+  kreAgentId?: string;
+  publicTokenLimit?: number;
 }
 
 const PROTOCOLS: { id: Protocol; label: string; sub: string; icon: any; chip: string; chipText: string }[] = [
   { id: 'direct', label: 'Direct Agent', sub: 'ReAct loop, multi-agent orchestration',
     icon: Bot, chip: 'bg-orange-100 dark:bg-orange-500/15', chipText: 'text-orange-600 dark:text-orange-300' },
+  { id: 'kre',    label: 'KRE Nexus AI', sub: 'Deployed Cloud Run agents · sandbox + auth modes',
+    icon: Cloud, chip: 'bg-indigo-100 dark:bg-indigo-500/15', chipText: 'text-indigo-600 dark:text-indigo-300' },
   { id: 'a2a',    label: 'A2A Protocol', sub: 'Agent-to-Agent via HTTP',
     icon: Globe, chip: 'bg-purple-100 dark:bg-purple-500/15', chipText: 'text-purple-600 dark:text-purple-300' },
   { id: 'acp',    label: 'ACP Protocol', sub: 'Agent Communication Protocol (BeeAI)',
@@ -54,7 +62,26 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
   const [proto, setProto]   = useState<Protocol>((params.get('proto') as Protocol) || 'direct');
   const [prefill, setPrefill] = useState<MarketplacePrefill | null>(null);
 
-  // Read marketplace prefill (set by AgentMarketplaceView) once on mount.
+  // Sync the active protocol tab with the URL `?proto=` on every change.
+  // Without this, the AiTestingPage keep-alive caching causes the tab
+  // to render with a stale state when the user comes back via the
+  // marketplace's "Try in Playground" button.
+  const urlProto = params.get('proto') as Protocol | null;
+  useEffect(() => {
+    if (urlProto && urlProto !== proto) setProto(urlProto);
+  }, [urlProto]);
+
+  // Whenever the active protocol tab changes, broadcast a reset so the
+  // right-hand ResultPanel clears any stale execution from the previous
+  // tab. The KreNexusForm token meter persists separately in localStorage.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('forgeq:agent-reset'));
+  }, [proto]);
+
+  // Read marketplace prefill (set by AgentMarketplaceView). We re-check
+  // on every render path that mounts the view so re-clicking "Try in
+  // Playground" for a different agent loads the new prefill instead of
+  // showing the previously cached one.
   useEffect(() => {
     const raw = sessionStorage.getItem('forgeq:marketplace:prefill');
     if (!raw) return;
@@ -65,7 +92,10 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
       toast.success(`Loaded "${p.name}" — adjust + Run`, { duration: 3000 });
     } catch { /* ignore */ }
     sessionStorage.removeItem('forgeq:marketplace:prefill');
-  }, []);
+  // Re-run when the URL proto changes too — that's the signal that the
+  // user just navigated here from the marketplace.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlProto]);
 
   const switchProto = (p: Protocol) => {
     setProto(p);
@@ -91,7 +121,10 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
             className={cn('inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] font-semibold',
               p.chip, p.chipText)}
           >
-            {p.id === 'direct' ? 'Built-in' : p.id === 'a2a' ? 'Google' : p.id === 'acp' ? 'BeeAI' : 'Anthropic'}
+            {p.id === 'direct' ? 'Built-in'
+              : p.id === 'kre' ? 'KRE Nexus'
+              : p.id === 'a2a' ? 'Google'
+              : p.id === 'acp' ? 'BeeAI' : 'Anthropic'}
             <span className="opacity-50">·</span>
             {p.label}
           </span>
@@ -140,6 +173,7 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr,1fr]">
         <div className="rounded-lg border border-border bg-surface p-5">
           {proto === 'direct' && <DirectAgentForm workspaceId={workspaceId} prefill={prefill} />}
+          {proto === 'kre'    && <KreNexusForm   workspaceId={workspaceId} prefill={prefill} />}
           {proto === 'a2a'    && <A2aForm        workspaceId={workspaceId} prefill={prefill} />}
           {proto === 'acp'    && <AcpForm        workspaceId={workspaceId} prefill={prefill} />}
           {proto === 'mcp'    && <McpForm        workspaceId={workspaceId} prefill={prefill} />}
@@ -377,6 +411,340 @@ const DirectAgentForm = ({ workspaceId, prefill }: { workspaceId: string; prefil
   );
 };
 
+/* ════════════════════════ KRE Nexus AI form ═══════════════════════════ */
+/**
+ * Talks to the KRE Agentic backend (Cloud Run). Supports both the
+ * unauthenticated sandbox endpoints AND the authenticated platform runner.
+ *
+ * UI:
+ *   • Agent ID input pre-filled from marketplace "Try in Playground"
+ *   • Mode toggle: Sandbox (no auth) | Authenticated (JWT field appears)
+ *   • Action toggle: Chat | Run Task | Status
+ *   • Token usage tile renders when KRE returns `public_token_usage`
+ */
+/** localStorage key for persisting per-agent token usage across page
+ *  reloads. The cap itself is also persisted so a logged-in user sees
+ *  their remaining budget even if KRE hasn't streamed usage back yet. */
+const TOKEN_USAGE_KEY = (id: string) => `forgeq:kre:tokens:${id}`;
+
+const KreNexusForm = ({ workspaceId: _wsId, prefill }: { workspaceId: string; prefill: MarketplacePrefill | null }) => {
+  const [agentId, setAgentId] = useState(prefill?.kreAgentId ?? '');
+  const [mode, setMode] = useState<'sandbox' | 'auth'>('sandbox');
+  const [action, setAction] = useState<'chat' | 'run' | 'status'>('chat');
+  const [message, setMessage] = useState('Hello! What can you help me with?');
+  const [sessionId, setSessionId] = useState<string>('');
+  const [jwt, setJwt] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [tokenUsage, setTokenUsage] = useState<{ used: number; limit: number } | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+
+  /** Persist token usage to localStorage so a refresh doesn't reset to 0. */
+  const writeTokenUsage = (u: { used: number; limit: number } | null) => {
+    setTokenUsage(u);
+    try {
+      if (!agentId) return;
+      if (u) localStorage.setItem(TOKEN_USAGE_KEY(agentId), JSON.stringify(u));
+      else localStorage.removeItem(TOKEN_USAGE_KEY(agentId));
+    } catch { /* quota or disabled — ignore */ }
+  };
+
+  /** Whenever the chosen agent changes, hydrate token usage in this priority:
+   *    1. Saved usage in localStorage for that agent (preserves "8000 / 9000 used")
+   *    2. Public token limit from marketplace prefill (shows full 7000 immediately)
+   *    3. Live fetch from /api/proxy/agent-info if neither of the above. */
+  useEffect(() => {
+    if (!agentId.trim()) { setTokenUsage(null); return; }
+    try {
+      const saved = localStorage.getItem(TOKEN_USAGE_KEY(agentId));
+      if (saved) { setTokenUsage(JSON.parse(saved)); return; }
+    } catch { /* ignore */ }
+    if (prefill?.publicTokenLimit && prefill?.kreAgentId === agentId) {
+      setTokenUsage({ used: 0, limit: prefill.publicTokenLimit });
+      return;
+    }
+    // Live probe — best-effort, ignore failure.
+    (async () => {
+      try {
+        const info = await getAgentInfo(agentId.trim());
+        const cap = (info as any)?.publicTokenLimit
+                 ?? (info as any)?.public_token_limit;
+        if (typeof cap === 'number' && cap > 0) {
+          setTokenUsage({ used: 0, limit: cap });
+        }
+      } catch { /* offline / 401 — fine */ }
+    })();
+  }, [agentId, prefill]);
+
+  /** Marketplace "Try in Playground" sync. */
+  useEffect(() => {
+    if (prefill?.protocol === 'kre' && prefill.kreAgentId) {
+      setAgentId(prefill.kreAgentId);
+    }
+  }, [prefill]);
+
+  const run = async () => {
+    if (!agentId.trim()) {
+      toast.error('Enter an agent ID first');
+      return;
+    }
+    setBusy(true);
+    const startedAt = Date.now();
+    try {
+      let result: any;
+      if (action === 'status') {
+        const body = await sandboxStatus(agentId.trim());
+        result = {
+          ok: true,
+          finalText: 'Agent status fetched.',
+          body: { response_json: body },
+          latencyMs: Date.now() - startedAt,
+        };
+      } else if (action === 'chat') {
+        if (mode === 'auth') {
+          if (!jwt.trim()) { toast.error('JWT token required for authenticated mode'); setBusy(false); return; }
+          const r = await authenticatedRun(agentId.trim(), message.trim(), jwt.trim(), sessionId.trim() || null);
+          if (r.session_id) setSessionId(r.session_id);
+          if (r.token_limit_exceeded) {
+            toast.error('Token limit exhausted', { description: r.error || '' });
+          }
+          result = {
+            ok: r.ok,
+            finalText: r.answer ?? '',
+            body: { response_json: r },
+            error: r.error,
+            latencyMs: Date.now() - startedAt,
+            totalTokens: undefined,
+            totalCostUsd: undefined,
+          };
+        } else {
+          const r = await sandboxChat(agentId.trim(), message.trim(), sessionId.trim() || null);
+          const b = r.body || {} as any;
+          if (b.session_id) setSessionId(b.session_id);
+          if (b.public_token_usage) {
+            writeTokenUsage({ used: b.public_token_usage.tokensUsed, limit: b.public_token_usage.tokenLimit });
+          } else if (b.tokensUsed != null && b.tokenLimit != null) {
+            writeTokenUsage({ used: b.tokensUsed, limit: b.tokenLimit });
+          }
+          if (b.token_limit_exceeded) {
+            toast.error('Token limit exhausted', { description: b.error || '' });
+          }
+          result = {
+            ok: !b.token_limit_exceeded && (r.status === 200),
+            finalText: b.response ?? '',
+            body: { response_json: r },
+            error: b.error,
+            latencyMs: r.latency_ms ?? (Date.now() - startedAt),
+            // Expose flat token figures so the result tiles and downstream
+            // consumers don't have to dig into `public_token_usage`.
+            totalTokens: b.public_token_usage?.tokensUsed ?? b.tokensUsed,
+            tokenLimit: b.public_token_usage?.tokenLimit ?? b.tokenLimit,
+            tokensRemaining: b.public_token_usage?.remaining,
+          };
+        }
+      } else {
+        // run task — sandbox always (no auth required by spec)
+        const r = await sandboxRun(agentId.trim(), message.trim());
+        const b = r.body || {} as any;
+        if (b.public_token_usage) {
+          writeTokenUsage({ used: b.public_token_usage.tokensUsed, limit: b.public_token_usage.tokenLimit });
+        }
+        result = {
+          ok: r.status === 200,
+          finalText: b.response ?? '',
+          body: { response_json: r },
+          error: b.error,
+          latencyMs: r.latency_ms ?? (Date.now() - startedAt),
+          totalTokens: b.public_token_usage?.tokensUsed,
+          tokenLimit: b.public_token_usage?.tokenLimit,
+          tokensRemaining: b.public_token_usage?.remaining,
+        };
+      }
+      window.dispatchEvent(new CustomEvent('forgeq:agent-result', { detail: result }));
+      if (result.ok) toast.success(`KRE ${action} · ${result.latencyMs}ms`);
+    } catch (e: any) {
+      toast.error('KRE call failed', { description: e?.message || '' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tokenPct = tokenUsage ? Math.min(100, (tokenUsage.used / Math.max(1, tokenUsage.limit)) * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Cloud className="h-4 w-4 text-indigo-500" />
+        <h3 className="text-base font-semibold">KRE Nexus AI Agent</h3>
+        <span className="ml-auto rounded bg-elevated px-2 py-0.5 font-mono text-[10px] text-text-muted">
+          {KRE_NEXUS_BASE.replace(/^https?:\/\//, '').slice(0, 40)}
+        </span>
+      </div>
+
+      <Field label="Agent ID">
+        <input value={agentId} onChange={(e) => setAgentId(e.target.value)}
+               placeholder="my-sales-agent"
+               data-testid="kre-agent-id"
+               className={inputCls} />
+      </Field>
+
+      {/* Mode toggle */}
+      <div>
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Mode</span>
+          <button type="button" onClick={() => setShowHelp((v) => !v)}
+                  data-testid="kre-mode-help-toggle"
+                  className="grid h-4 w-4 place-items-center rounded-full border border-text-muted/40 text-[9px] font-bold text-text-muted hover:bg-elevated">
+            ?
+          </button>
+        </div>
+        {showHelp && (
+          <div className="mb-2 space-y-2 rounded-md border border-indigo-500/30 bg-indigo-500/5 p-3 text-[11px] leading-relaxed text-text-secondary"
+               data-testid="kre-mode-help">
+            <div>
+              <strong className="text-indigo-600 dark:text-indigo-300">Sandbox</strong> — hits
+              <code className="mx-1 font-mono">/api/proxy/agent-chat/{'{id}'}</code> on KRE Nexus.
+              Auth automatic (your ForgeFuzz login JWT is auto-attached); KRE enforces a public
+              <strong> token budget</strong> (default 7,000 tokens/agent). Use this for quick
+              demos and shareable testing — no extra secret needed.
+            </div>
+            <div>
+              <strong className="text-indigo-600 dark:text-indigo-300">Authenticated</strong> — hits
+              <code className="mx-1 font-mono">/api/agents/{'{id}'}/run</code> with the
+              <em> full MCP tool-loop</em> (multi-step reasoning, tool calls, session persistence).
+              No token budget for agent owners. Paste your KRE Nexus / Firebase JWT — same email
+              that owns the agent on KRE.
+            </div>
+            <div className="text-text-muted">
+              ⚙︎ Execution happens on <strong>KRE Nexus' Cloud Run</strong>, not your backend.
+              ForgeFuzz only relays the request and renders the response. Your data: message →
+              KRE → KRE's model provider → reply.
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2" data-testid="kre-mode-grid">
+          {([
+            { id: 'sandbox', label: 'Sandbox', sub: 'No setup · public token limit' },
+            { id: 'auth',    label: 'Authenticated', sub: 'JWT · full MCP tool-loop' },
+          ] as const).map((m) => (
+            <button key={m.id} type="button" onClick={() => setMode(m.id)}
+                    data-testid={`kre-mode-${m.id}`}
+                    className={cn(
+                      'rounded-lg border p-3 text-left transition-colors',
+                      mode === m.id
+                        ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-300'
+                        : 'border-border bg-surface hover:border-text-muted/50',
+                    )}>
+              <div className={cn('text-sm font-semibold', mode === m.id ? 'text-indigo-600 dark:text-indigo-300' : 'text-text-primary')}>
+                {m.label}
+              </div>
+              <div className="mt-0.5 text-[11px] text-text-muted">{m.sub}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {mode === 'auth' && (
+        <Field label="JWT Bearer Token (ForgeQ or Firebase)">
+          <input type="password" value={jwt} onChange={(e) => setJwt(e.target.value)}
+                 placeholder="eyJhbGciOiJIUzUxMiJ9…"
+                 data-testid="kre-jwt-input"
+                 className={cn(inputCls, 'font-mono')} />
+        </Field>
+      )}
+
+      {/* Action toggle */}
+      <div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Action</div>
+        <div className="inline-flex gap-1 rounded-md border border-border bg-elevated/40 p-1">
+          {([
+            { id: 'chat',   label: 'Chat' },
+            { id: 'run',    label: 'Run Task' },
+            { id: 'status', label: 'Status' },
+          ] as const).map((a) => (
+            <button key={a.id} type="button" onClick={() => setAction(a.id)}
+                    data-testid={`kre-action-${a.id}`}
+                    className={cn(
+                      'rounded px-3 py-1 text-[11px] font-semibold transition-colors',
+                      action === a.id ? 'bg-indigo-500 text-white' : 'text-text-secondary hover:bg-elevated',
+                    )}>
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {action !== 'status' && (
+        <Field label={action === 'chat' ? 'Message' : 'Input / Task'}>
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)}
+                    rows={3}
+                    data-testid="kre-message-input"
+                    className={cn(inputCls, 'resize-y font-mono')} />
+        </Field>
+      )}
+
+      {action === 'chat' && (
+        <Field label="Session ID (optional — preserves conversation)">
+          <input value={sessionId} onChange={(e) => setSessionId(e.target.value)}
+                 placeholder="auto-assigned by server"
+                 data-testid="kre-session-id"
+                 className={cn(inputCls, 'font-mono')} />
+        </Field>
+      )}
+
+      {/* Token usage meter — visible as soon as we know the agent's cap,
+       *  even before the first call. Persisted to localStorage so a
+       *  refresh keeps the running total instead of resetting to 0. */}
+      {tokenUsage && (
+        <div className="rounded-md border border-indigo-500/30 bg-indigo-500/5 p-3"
+             data-testid="kre-token-meter">
+          <div className="mb-1 flex items-center justify-between text-[11px] font-semibold">
+            <span className="text-indigo-700 dark:text-indigo-300">
+              Public Token Budget
+              {tokenUsage.used === 0 && (
+                <span className="ml-1.5 rounded bg-indigo-500/10 px-1 py-0.5 text-[9px] font-mono uppercase text-indigo-500">
+                  fresh
+                </span>
+              )}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-text-muted">
+                {tokenUsage.used.toLocaleString()} / {tokenUsage.limit.toLocaleString()}
+              </span>
+              <button type="button" onClick={() => writeTokenUsage({ used: 0, limit: tokenUsage.limit })}
+                      data-testid="kre-token-reset"
+                      title="Reset local usage counter (the upstream server is unaffected)"
+                      className="rounded border border-border bg-surface px-1.5 py-0 text-[9px] font-mono text-text-muted hover:bg-elevated">
+                reset
+              </button>
+            </div>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-elevated">
+            <div className={cn(
+              'h-full transition-all',
+              tokenPct >= 100 ? 'bg-danger'
+                : tokenPct > 80 ? 'bg-amber-500'
+                : 'bg-indigo-500',
+            )} style={{ width: `${tokenPct}%` }} />
+          </div>
+          {tokenPct >= 100 && (
+            <div className="mt-1.5 text-[10px] text-danger">
+              Budget exhausted — switch to <strong>Authenticated</strong> mode (uses agent owner's quota) or request access from the marketplace card.
+            </div>
+          )}
+        </div>
+      )}
+
+      <button type="button" onClick={run} disabled={busy || !agentId.trim()}
+              data-testid="kre-run-btn"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-indigo-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow hover:bg-indigo-600 disabled:opacity-50">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        {action === 'chat' ? 'Send Chat' : action === 'run' ? 'Run Task' : 'Fetch Status'}
+      </button>
+    </div>
+  );
+};
+
+
 /* ════════════════════════ A2A / ACP / MCP forms ═══════════════════════ */
 const A2aForm = ({ workspaceId, prefill }: { workspaceId: string; prefill: MarketplacePrefill | null }) =>
   <ExternalAgentForm
@@ -412,6 +780,9 @@ const McpForm = ({ workspaceId, prefill }: { workspaceId: string; prefill: Marke
   const [tool, setTool]       = useState('');
   const [args, setArgs]       = useState('{}');
   const [busy, setBusy]       = useState(false);
+  // Inline tools list — also rendered below "List Tools" so the user can
+  // pick a tool without scrolling to the right-hand ResultPanel.
+  const [inlineTools, setInlineTools] = useState<Array<{ name: string; description?: string; inputSchema?: any }>>([]);
 
   // Listen for "Use this tool" clicks coming from the result panel —
   // populates the tool name + a JSON skeleton from the tool's inputSchema
@@ -430,11 +801,20 @@ const McpForm = ({ workspaceId, prefill }: { workspaceId: string; prefill: Marke
     return () => window.removeEventListener('forgeq:mcp-use-tool', onUse as any);
   }, []);
 
+  const useToolInline = (t: { name: string; inputSchema?: any }) => {
+    setTool(t.name);
+    setArgs(skeletonFromSchema(t.inputSchema));
+    document.getElementById('mcp-tool-call-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const runListTools = async () => {
     setBusy(true);
     try {
       const r = await mcpListTools(workspaceId, baseUrl, { transport } as any);
       window.dispatchEvent(new CustomEvent('forgeq:agent-result', { detail: r }));
+      // Mirror locally so the tools list also appears under the button.
+      const parsed = extractMcpTools(r);
+      setInlineTools(parsed ?? []);
     } finally { setBusy(false); }
   };
 
@@ -472,6 +852,41 @@ const McpForm = ({ workspaceId, prefill }: { workspaceId: string; prefill: Marke
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
         List Tools
       </button>
+
+      {/* Inline tools list — picks one to auto-fill the form below. */}
+      {inlineTools.length > 0 && (
+        <div className="space-y-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2"
+             data-testid="ai-testing-mcp-tools-inline">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+            <span>Available tools · {inlineTools.length}</span>
+            <button type="button" onClick={() => setInlineTools([])}
+                    className="text-text-muted hover:text-text-primary">
+              Hide
+            </button>
+          </div>
+          <div className="max-h-56 space-y-1 overflow-auto pr-1">
+            {inlineTools.map((t) => (
+              <button key={t.name} type="button" onClick={() => useToolInline(t)}
+                      data-testid={`mcp-tool-pick-${t.name}`}
+                      className={cn(
+                        'block w-full rounded border bg-surface px-2 py-1.5 text-left transition-colors',
+                        tool === t.name
+                          ? 'border-emerald-400 ring-1 ring-emerald-300'
+                          : 'border-border hover:border-emerald-400/60',
+                      )}>
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-3 w-3 text-emerald-500" />
+                  <span className="font-mono text-[11px] font-semibold">{t.name}</span>
+                </div>
+                {t.description && (
+                  <div className="mt-0.5 line-clamp-2 text-[10px] text-text-muted">{t.description}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <Field label="Tool name">
         <input id="mcp-tool-call-section" value={tool} onChange={(e) => setTool(e.target.value)} placeholder="ask_question"
                className={inputCls} />
@@ -603,9 +1018,29 @@ const ResultPanel = () => {
   const [result, setResult] = useState<DirectAgentRunResult | any | null>(null);
   useEffect(() => {
     const h = (e: any) => setResult(e.detail);
+    // Clear stale result when the user switches between protocol tabs
+    // (KRE → MCP → A2A …). Without this, the previous chat / tool-list
+    // output stays visible on the new tab, which is confusing.
+    const reset = () => setResult(null);
     window.addEventListener('forgeq:agent-result', h as any);
-    return () => window.removeEventListener('forgeq:agent-result', h as any);
+    window.addEventListener('forgeq:agent-reset', reset as any);
+    return () => {
+      window.removeEventListener('forgeq:agent-result', h as any);
+      window.removeEventListener('forgeq:agent-reset', reset as any);
+    };
   }, []);
+
+  // Decide whether the "Response (JSON-RPC)" block adds anything beyond
+  // what the user already sees. When `finalText` is present, the Raw
+  // JSON expandable below already contains the exact same payload (it's
+  // nested inside `result.body.response_json`) — so showing it twice is
+  // just noise. We hide it in that case and let users open Raw JSON if
+  // they want the full envelope.
+  const hasFinal = !!result?.finalText;
+  const showJsonRpc =
+    result?.body?.response_json
+    && !extractMcpTools(result)
+    && !hasFinal;
 
   return (
     <div className="rounded-lg border border-dashed border-border bg-surface/40 p-5"
@@ -626,10 +1061,10 @@ const ResultPanel = () => {
               <pre className="whitespace-pre-wrap text-sm">{result.finalText}</pre>
             </div>
           )}
-          {result.body?.response_json && !extractMcpTools(result) && (
+          {showJsonRpc && (
             <details className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3" open>
               <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-emerald-600">
-                Response (JSON-RPC)
+                Server response
               </summary>
               <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">
                 {typeof result.body.response_json === 'string'
@@ -650,11 +1085,32 @@ const ResultPanel = () => {
               {result.error || result.body.error_message}
             </div>
           )}
-          <div className="grid grid-cols-3 gap-2">
-            <Tile label="Cost"    value={'$' + (result.totalCostUsd ?? 0).toFixed(6)} />
-            <Tile label="Tokens"  value={result.totalTokens ?? '—'} />
-            <Tile label="Latency" value={(result.latencyMs ?? result.body?.latency_ms ?? 0) + ' ms'} />
-          </div>
+          {/* KPI tiles. We pull token usage from a few well-known locations
+              so KRE Nexus (deep-nested `public_token_usage`), Direct Agent
+              (`totalTokens`), and MCP (no usage) all light up correctly. */}
+          {(() => {
+            const usage = extractTokenUsage(result);
+            const used  = usage?.used ?? result.totalTokens;
+            const limit = usage?.limit;
+            const remaining = usage?.remaining;
+            return (
+              <div className={cn('grid gap-2', usage ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3')}>
+                <Tile label="Cost"    value={'$' + (result.totalCostUsd ?? 0).toFixed(6)} />
+                <Tile
+                  label={usage ? 'Tokens used' : 'Tokens'}
+                  value={used != null
+                    ? (limit
+                        ? `${Number(used).toLocaleString()} / ${Number(limit).toLocaleString()}`
+                        : Number(used).toLocaleString())
+                    : '—'}
+                />
+                {usage && remaining != null && (
+                  <Tile label="Remaining" value={Number(remaining).toLocaleString()} />
+                )}
+                <Tile label="Latency" value={(result.latencyMs ?? result.body?.latency_ms ?? 0) + ' ms'} />
+              </div>
+            );
+          })()}
 
           {/* Execution Trace — Postman-style step breakdown */}
           <ExecutionTrace result={result} />
@@ -712,6 +1168,54 @@ function extractMcpTools(result: any): McpToolDef[] | null {
   if (!tools.every((t: any) => typeof t?.name === 'string')) return null;
   return tools as McpToolDef[];
 }
+
+/**
+ * Extract token-usage figures from anywhere in the response envelope.
+ * Handles:
+ *   • KRE Nexus chat — result.body.response_json.body.public_token_usage
+ *     { tokensUsed, tokenLimit, remaining }
+ *   • Direct Agent runner — top-level `totalTokens` + optional `tokenLimit`
+ *   • Misc shapes — `tokensUsed` / `tokens_used` / `usage.totalTokens`
+ */
+function extractTokenUsage(result: any): { used: number; limit?: number; remaining?: number } | null {
+  if (!result) return null;
+  // KRE nested public usage (deepest first, that's where the real numbers live).
+  const kre = result?.body?.response_json?.body?.public_token_usage
+           ?? result?.body?.public_token_usage;
+  if (kre && typeof kre === 'object') {
+    const used = Number(kre.tokensUsed ?? kre.tokens_used ?? kre.used);
+    if (Number.isFinite(used)) {
+      return {
+        used,
+        limit: Number(kre.tokenLimit ?? kre.token_limit ?? kre.limit) || undefined,
+        remaining: Number(kre.remaining) || undefined,
+      };
+    }
+  }
+  // Some KRE payloads send flat fields on the inner body.
+  const inner = result?.body?.response_json?.body;
+  if (inner && (inner.tokensUsed != null || inner.tokens_used != null)) {
+    const used = Number(inner.tokensUsed ?? inner.tokens_used);
+    return {
+      used,
+      limit: Number(inner.tokenLimit ?? inner.token_limit) || undefined,
+      remaining: Number(inner.remaining) || undefined,
+    };
+  }
+  // Direct Agent / generic shapes.
+  const top = result?.totalTokens
+           ?? result?.tokensUsed
+           ?? result?.usage?.totalTokens;
+  if (top != null) {
+    return {
+      used: Number(top),
+      limit: result?.tokenLimit ?? undefined,
+      remaining: result?.tokensRemaining ?? undefined,
+    };
+  }
+  return null;
+}
+
 
 /**
  * Build a minimal JSON skeleton from a JSON-Schema-ish `inputSchema`.

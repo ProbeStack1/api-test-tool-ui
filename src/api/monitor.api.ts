@@ -14,6 +14,7 @@
  */
 import { createHttp } from '@/lib/http';
 import { serviceUrl } from '@/lib/env';
+import { openAuthedEventSource } from '@/lib/sse';
 
 /* ───── types ──────────────────────────────────────────────────── */
 export interface ExtractorSpec {
@@ -325,7 +326,7 @@ export const apiGetPublicStatus = (slug: string) =>
 
 /* ===== SSE stream =============================================== */
 export const openMonitorRunStream = (monitorId: string): EventSource =>
-  new EventSource(`${serviceUrl('monitor')}${BASE}/${monitorId}/run/stream`, { withCredentials: true });
+  openAuthedEventSource(`${serviceUrl('monitor')}${BASE}/${monitorId}/run/stream`, { withCredentials: true });
 
 /* ===== health =================================================== */
 export const apiGetHealth = () =>

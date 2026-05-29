@@ -18,6 +18,7 @@ import {
   type AgentConfig, type AgentType, type AgentProto, type Catalog, type McpServerInfo,
 } from '@/services/aiTesting.service';
 import { cn } from '@/utils/cn';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 export const AgentsView = ({ workspaceId }: { workspaceId: string }) => {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
@@ -25,6 +26,7 @@ export const AgentsView = ({ workspaceId }: { workspaceId: string }) => {
   const [cat, setCat]       = useState<Catalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const confirm = useConfirm();
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -43,7 +45,14 @@ export const AgentsView = ({ workspaceId }: { workspaceId: string }) => {
   useEffect(() => { fetch(); }, [fetch]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this agent?')) return;
+    const ok = await confirm({
+      title: 'Delete this agent configuration?',
+      description: 'Any test suite still bound to this agent will fail until you re-link a new agent.',
+      confirmText: 'Delete agent',
+      tone: 'danger',
+      testId: 'agent-delete-confirm',
+    });
+    if (!ok) return;
     const prev = agents;
     setAgents((p) => p.filter((x) => x.id !== id));
     try {

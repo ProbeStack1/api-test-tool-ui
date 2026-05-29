@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getOverview, getRecentActivity, getTimeseries } from '@/api/dashboard.api';
 import { FeatureSummaryCards } from './FeatureSummaryCards';
+import { AdminDashboardSection } from './AdminDashboardSection';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { cn } from '@/utils/cn';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -79,6 +80,10 @@ export const DashboardPage = () => {
   // scoped to this so different users / different workspaces no longer
   // see each other's monitor runs, collections or audit events.
   const workspaceId = useWorkspaceStore((s) => s.currentId);
+  const currentWs = useWorkspaceStore((s) => s.current);
+  // Owners + Admins see the Admin Dashboard section at the top — extra
+  // context (member roster, all-members activity, exportable report).
+  const isAdmin = currentWs?.myRole === 'OWNER' || currentWs?.myRole === 'ADMIN';
 
   const overviewQ = useQuery({
     queryKey: ['dashboard', 'overview', workspaceId ?? 'all'],
@@ -136,6 +141,13 @@ export const DashboardPage = () => {
 
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="w-full space-y-6 p-6 xl:p-8 2xl:p-10">
+          {/* Admin-only top section --------------------------------- */}
+          {isAdmin && workspaceId && (
+            <AdminDashboardSection
+              workspaceId={workspaceId}
+              workspaceName={currentWs?.name ?? 'this workspace'}
+            />
+          )}
           {/* KPI Tiles ------------------------------------------------- */}
           <section>
             <h2 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">

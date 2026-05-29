@@ -32,6 +32,12 @@ import { buildVarMap, substituteDeep } from '@/utils/resolveVarsLocal';
 import { FancyEmpty } from '@/components/common/FancyEmpty';
 import { AppIcon } from '@/components/icons/AppIcons';
 import { cn } from '@/utils/cn';
+// Robust cURL parser shared with the URL bar. Handles --data-binary,
+// --data-urlencode, -F, -u, line continuations, ANSI-C quoting, etc.
+// The previous inline regex parser was kept ONLY as a fallback for very
+// degenerate input, but we now route the happy path through the shared
+// utility for parity with paste-into-URL-bar.
+import { parseCurl as parseCurlRobust } from '@/utils/parseCurl';
 
 const LS_KEY = 'forgeq.snippetTarget.v1';
 
@@ -73,40 +79,18 @@ const parseQueryString = (url: string): DraftKV[] => {
 
 /* =========================================================================
  *  Parsers (cURL / Postman CLI) — convert edited snippet back to draft
+ *
+ *  For cURL we now delegate to the shared `parseCurlRobust` from
+ *  `@/utils/parseCurl`. That parser supports --data-binary,
+ *  --data-urlencode, -F multipart, -u basic-auth, line continuations,
+ *  ANSI-C quoted strings, etc., matching the URL-bar paste behaviour.
+ *  The previous inline regex one-liner has been removed.
  * ========================================================================= */
 const parseCurl = (s: string): Partial<DraftSnapshot> | null => {
   if (!s.trim()) return null;
-  const cleaned = s.replace(/\\\s*\n/g, ' ').trim();
-  let method = 'GET';
-  let url = '';
-  const headers: DraftKV[] = [];
-  let body = '';
-
-  const mm = cleaned.match(/-X\s+([A-Z]+)/i) || cleaned.match(/--request\s+([A-Z]+)/i);
-  if (mm) method = mm[1].toUpperCase();
-
-  const urlFlag = cleaned.match(/--url\s+['"]?([^\s'"]+)['"]?/i);
-  const bareUrl = cleaned.match(/(?:^|\s)(['"])?(https?:\/\/[^\s'"]+)\1?/);
-  url = (urlFlag?.[1] ?? bareUrl?.[2] ?? '').trim();
-
-  const hdrRx = /(?:-H|--header)\s+['"]([^'"]+)['"]/g;
-  let m: RegExpExecArray | null;
-  while ((m = hdrRx.exec(cleaned)) !== null) {
-    const colon = m[1].indexOf(':');
-    if (colon > 0) headers.push({ name: m[1].slice(0, colon).trim(), value: m[1].slice(colon + 1).trim(), enabled: true });
-  }
-
-  const bodyM = cleaned.match(/(?:-d|--data|--data-raw)\s+['"]([\s\S]+?)['"]\s*(?:\\|$)/);
-  if (bodyM) body = bodyM[1];
-
-  if (!url) return null;
-  const queryParams = parseQueryString(url);
-  const baseUrl = url.split('?')[0];
-  return {
-    method, url: baseUrl, queryParams, headers,
-    bodyKind: body ? 'text' : 'none',
-    bodyText: body || undefined,
-  };
+  const res = parseCurlRobust(s);
+  if (!res) return null;
+  return res.draft;
 };
 
 const parsePostmanCli = (s: string): Partial<DraftSnapshot> | null => {

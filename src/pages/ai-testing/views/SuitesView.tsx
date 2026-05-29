@@ -26,6 +26,7 @@ import {
   type Catalog, type TestSuite, type TestCase, type Assertion,
 } from '@/services/aiTesting.service';
 import { cn } from '@/utils/cn';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 export const SuitesView = ({ workspaceId }: { workspaceId: string }) => {
   const [params, setParams] = useSearchParams();
@@ -108,6 +109,7 @@ const SuiteDetail = ({ workspaceId, suiteId, catalog }: { workspaceId: string; s
   const [suite, setSuite] = useState<TestSuite | null>(null);
   const [cases, setCases] = useState<TestCase[]>([]);
   const [busy, setBusy] = useState<'load' | 'run' | 'dup' | null>('load');
+  const confirm = useConfirm();
 
   useEffect(() => {
     setBusy('load');
@@ -140,7 +142,15 @@ const SuiteDetail = ({ workspaceId, suiteId, catalog }: { workspaceId: string; s
   };
 
   const handleDelete = async () => {
-    if (!confirm('Delete this suite (soft delete)?')) return;
+    const ok = await confirm({
+      title: 'Delete this suite?',
+      description: 'This is a soft-delete — runs and history remain, but the suite will be hidden from listings. You can recover it by contacting an admin.',
+      confirmText: 'Delete suite',
+      cancelText: 'Keep',
+      tone: 'danger',
+      testId: 'suite-delete-confirm',
+    });
+    if (!ok) return;
     try {
       await deleteSuite(workspaceId, suiteId);
       toast.success('Suite deleted');
@@ -158,7 +168,15 @@ const SuiteDetail = ({ workspaceId, suiteId, catalog }: { workspaceId: string; s
   };
 
   const handleDeleteCase = async (id: string) => {
-    if (!confirm('Delete this case?')) return;
+    const ok = await confirm({
+      title: 'Delete this test case?',
+      description: 'The case will be removed from this suite. Runs that already used it stay in history.',
+      confirmText: 'Delete case',
+      cancelText: 'Keep',
+      tone: 'danger',
+      testId: 'case-delete-confirm',
+    });
+    if (!ok) return;
     const prev = cases;
     setCases((p) => p.filter((c) => c.id !== id));
     try { await deleteCase(workspaceId, suiteId, id); toast.success('Case deleted'); }

@@ -22,6 +22,7 @@ import {
 } from '@/services/aiTesting.service';
 import { cn } from '@/utils/cn';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 
 export const RunsView = ({ workspaceId }: { workspaceId: string }) => {
   const [params] = useSearchParams();
@@ -209,6 +210,7 @@ const RunDetail = ({ workspaceId, runId }: { workspaceId: string; runId: string 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'baseline' | 'rerun' | 'cancel' | null>(null);
   const polling = useRef<number | null>(null);
+  const confirm = useConfirm();
 
   const fetch = useCallback(async () => {
     try {
@@ -266,7 +268,15 @@ const RunDetail = ({ workspaceId, runId }: { workspaceId: string; runId: string 
 
   const handleCancel = async () => {
     if (!run) return;
-    if (!confirm('Cancel this run?')) return;
+    const ok = await confirm({
+      title: 'Cancel this run?',
+      description: 'In-flight cases finish their current step, then the run stops. Already-completed cases keep their results.',
+      confirmText: 'Cancel run',
+      cancelText: 'Keep running',
+      tone: 'warning',
+      testId: 'run-cancel-confirm',
+    });
+    if (!ok) return;
     setBusy('cancel');
     try {
       const updated = await cancelRun(workspaceId, run.id);

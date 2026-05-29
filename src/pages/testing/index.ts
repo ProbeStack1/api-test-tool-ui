@@ -3,4 +3,4 @@
  * via `useTestingStore`. This keeps the router clean and makes the
  * URL `/projects/testing` stable across all in-page navigation.
  */
-export { TestingLayout } from './TestingLayout';
+export { TestingPage } from './TestingPage';

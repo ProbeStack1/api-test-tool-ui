@@ -16,7 +16,7 @@ import { listTestSpecs, getTestSpec } from '@/services/testSpec.service';
 import { SpecCasesTab } from '../specs/tabs/SpecCasesTab';
 import { FormatBadge } from '../shared/Badges';
 
-export const AllCasesPage = () => {
+export const AllCasesPage = ({ workspaceId }: { workspaceId: string }) => {
   const ws = useWorkspaceStore((s) => s.current);
   const openSpec = useTestingStore((s) => s.openSpec);
   const setSection = useTestingStore((s) => s.setSection);

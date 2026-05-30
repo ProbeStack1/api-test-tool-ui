@@ -31,7 +31,7 @@ const TABS: { key: 'runner' | 'runs' | 'dashboard' | 'schedules' | 'analytics'; 
   { key: 'analytics',  label: 'Analytics',  icon: LineChart,       testId: 'functional-tab-analytics' },
 ];
 
-export const FunctionalTestsPage = ({ workspaceId }: { workspaceId: string }) => {
+export const FunctionalTestsPage = () => {
   const ws = useWorkspaceStore((s) => s.current);
   const tab = useTestingStore((s) => s.functionalTab);
   const setTab = useTestingStore((s) => s.setFunctionalTab);

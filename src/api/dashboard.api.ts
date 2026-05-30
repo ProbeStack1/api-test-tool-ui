@@ -58,20 +58,26 @@ export interface FeatureSummaryResponse {
   notifications: { unread: number; total: number };
 }
 
-export const getOverview = (workspaceId?: string) =>
-  http.get<OverviewResponse>(`${BASE}/overview`, { params: workspaceId ? { workspaceId } : {} }).then((r) => r.data);
+export const getOverview = (workspaceId?: string, signal?: AbortSignal) =>
+  http.get<OverviewResponse>(`${BASE}/overview`, {
+    params: workspaceId ? { workspaceId } : {},
+    signal,
+  }).then((r) => r.data);
 
-export const getTimeseries = (range: '7d' | '14d' | '30d' = '7d', workspaceId?: string) =>
+export const getTimeseries = (range: '7d' | '14d' | '30d' = '7d', workspaceId?: string, signal?: AbortSignal) =>
   http.get<TimeseriesResponse>(`${BASE}/timeseries`, {
     params: workspaceId ? { range, workspaceId } : { range },
+    signal,
   }).then((r) => r.data);
 
-export const getRecentActivity = (limit = 20, workspaceId?: string) =>
+export const getRecentActivity = (limit = 20, workspaceId?: string, signal?: AbortSignal) =>
   http.get<RecentActivityResponse>(`${BASE}/recent-activity`, {
     params: workspaceId ? { limit, workspaceId } : { limit },
+    signal,
   }).then((r) => r.data);
 
-export const getFeatureSummary = (workspaceId?: string) =>
+export const getFeatureSummary = (workspaceId?: string, signal?: AbortSignal) =>
   http.get<FeatureSummaryResponse>(`${BASE}/feature-summary`, {
     params: workspaceId ? { workspaceId } : {},
+    signal,
   }).then((r) => r.data);

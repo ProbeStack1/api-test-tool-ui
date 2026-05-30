@@ -115,7 +115,7 @@ const toProbeResult = (f: BackendFinding): ProbeResult => ({
   durationMs: f.durationMs,
 });
 
-export const SecurityScanPage = ({ workspaceId }: { workspaceId: string }) => {
+export const SecurityScanPage = () => {
   const [targetUrl, setTargetUrl] = useState('https://httpbin.org/get');
   const [probes, setProbes] = useState<ProbeSpec[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());

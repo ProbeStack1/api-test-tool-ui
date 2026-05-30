@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Beaker } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useLayout } from '@/stores/layout.store';   // ✅ import layout store
+import { useTestingStore } from '@/stores/testing.store';
 
 // Import all view components
 import { SpecsListPage } from './specs/SpecsListPage';
@@ -23,24 +24,26 @@ const ALL_SECTIONS: TestingSection[] = [
 ];
 
 // Helper to decide which component to render for a given section + URL params
-function renderSection(section: TestingSection, workspaceId: string, params: URLSearchParams) {
-  const specId = params.get('specId');
-  const runId = params.get('runId');
-  const loadRunId = params.get('loadRunId');
-
+function renderSection(
+  section: TestingSection,
+  workspaceId: string,
+  specId: string | null,
+  runId: string | null,
+  loadRunId: string | null,
+) {
   switch (section) {
     case 'specs':
-      return specId ? <SpecDetailPage specId={specId} /> : <SpecsListPage workspaceId={workspaceId} />;
+      return specId ? <SpecDetailPage /> : <SpecsListPage />;
     case 'cases':
-      return <AllCasesPage workspaceId={workspaceId} />;
+      return <AllCasesPage />;
     case 'library':
-      return <LibraryPage workspaceId={workspaceId} />;
+      return <LibraryPage />;
     case 'functional':
-      return runId ? <RunDetailPage runId={runId} /> : <FunctionalTestsPage workspaceId={workspaceId} />;
+      return runId ? <RunDetailPage /> : <FunctionalTestsPage />;
     case 'load':
-      return loadRunId ? <LoadRunDetailPage loadRunId={loadRunId} /> : <LoadTestsPage workspaceId={workspaceId} />;
+      return loadRunId ? <LoadRunDetailPage /> : <LoadTestsPage />;
     case 'security':
-      return <SecurityScanPage workspaceId={workspaceId} />;
+      return <SecurityScanPage />;
     default:
       return null;
   }
@@ -51,6 +54,9 @@ export const TestingPage = () => {
   const [params] = useSearchParams();
   const section = (params.get('section') as TestingSection) || 'specs';
   const setPrimaryTab = useLayout((s) => s.setPrimaryTab);   // ✅
+  const selectedSpecId = useTestingStore((s) => s.selectedSpecId);
+  const selectedRunId = useTestingStore((s) => s.selectedRunId);
+  const selectedLoadRunId = useTestingStore((s) => s.selectedLoadRunId);
 
   // ✅ CRITICAL: Set primaryTab to 'testing' so that ContextSidebar renders TestingPanel
   useEffect(() => {
@@ -92,7 +98,13 @@ export const TestingPage = () => {
           aria-hidden={s !== section}
           style={{ display: s === section ? 'block' : 'none' }}
         >
-          {renderSection(s, workspaceId, params)}
+          {renderSection(
+            s,
+            workspaceId,
+            params.get('specId') || selectedSpecId,
+            params.get('runId') || selectedRunId,
+            params.get('loadRunId') || selectedLoadRunId,
+          )}
         </div>
       ))}
     </div>

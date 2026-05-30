@@ -163,24 +163,24 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
               <h2 className="truncate text-base font-semibold">{detail.name}</h2>
               {dStatus && (
                 <span className={cn(
-                  'rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase',
+                  'rounded-full px-1.5 py-0.5 text-[12px] font-semibold uppercase',
                   dStatus === 'deployed' || dStatus === 'available' || dStatus === 'active'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
                     : 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
                 )}>{dStatus}</span>
               )}
               {detail.version && (
-                <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[9px] text-text-muted">
+                <span className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[12px] text-text-muted">
                   v{detail.version}
                 </span>
               )}
               {loadingDetail && <Loader2 className="h-3 w-3 animate-spin text-text-muted" />}
             </div>
-            <div className="mt-0.5 truncate text-[11px] text-text-muted">
+            <div className="mt-0.5 truncate text-sm text-text-muted">
               {detail.ownerName ?? detail.organization ?? 'KRE Nexus'} · {detail.agentType ?? 'AI agent'}
               {detail.modelName ? ` · ${detail.modelName}` : ''}
             </div>
-            <div className="mt-0.5 truncate font-mono text-[10px] text-text-muted">
+            <div className="mt-0.5 truncate font-mono text-sm text-text-muted">
               id: {detail.id}
             </div>
           </div>
@@ -224,7 +224,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
           )}
 
           {/* meta chips */}
-          <div className="flex flex-wrap gap-1.5 text-[10px]">
+          <div className="flex flex-wrap gap-1.5 text-sm">
             {detail.framework        && <Chip icon={Cpu}      label={detail.framework} />}
             {detail.modelName        && <Chip icon={Hash}     label={detail.modelName} />}
             {detail.averageLatencyMs && <Chip icon={Zap}      label={`~${detail.averageLatencyMs} ms`} />}
@@ -237,7 +237,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
           {/* deployment info — Cloud Run URL + region + service */}
           {(deploymentUrl || region || serviceName) && (
             <Section title="Deployment" icon={ServerCog}>
-              <div className="space-y-2 rounded-lg border border-border bg-elevated/40 p-3 text-[11px]">
+              <div className="space-y-2 rounded-lg border border-border bg-elevated/40 p-3 text-sm">
                 {deploymentUrl && (
                   <KvRow label="Base URL">
                     <div className="flex min-w-0 items-center gap-1.5">
@@ -267,7 +267,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
                 {dStatus && (
                   <KvRow label="Status">
                     <span className={cn(
-                      'inline-block rounded-full px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase',
+                      'inline-block rounded-full px-1.5 py-0.5 font-mono text-[12px] font-semibold uppercase',
                       dStatus === 'deployed' || dStatus === 'available' || dStatus === 'active'
                         ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
                         : 'bg-amber-500/15 text-amber-600 dark:text-amber-300',
@@ -281,7 +281,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
           {/* token quota */}
           {quota && (
             <div className="rounded-lg border border-border bg-elevated/40 p-3">
-              <div className="mb-1.5 flex items-center justify-between text-[11px]">
+              <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="font-semibold">Public sandbox quota</span>
                 <span className="font-mono text-text-muted">
                   {quota.used !== null ? `${quota.used} / ` : ''}{quota.limit.toLocaleString()} tokens
@@ -299,7 +299,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
                   />
                 </div>
               ) : (
-                <p className="text-[10px] text-text-muted">
+                <p className="text-sm text-text-muted">
                   Sandbox calls are token-metered. Request full access to remove the cap.
                 </p>
               )}
@@ -307,7 +307,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
                 type="button"
                 data-testid="agent-detail-request-access"
                 onClick={() => setAccessOpen((v) => !v)}
-                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
               >
                 <Mail className="h-3 w-3" /> Request full access
               </button>
@@ -333,7 +333,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
                     data-testid="agent-detail-access-submit"
                     onClick={submitAccess}
                     disabled={requesting || !accessEmail.trim()}
-                    className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-sm font-semibold text-white disabled:opacity-50"
                   >
                     {requesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
                     Send request
@@ -348,7 +348,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
             <Section title={`Capabilities (${detail.capabilities.length})`}>
               <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {detail.capabilities.map((c, i) => (
-                  <li key={i} className="rounded border border-border bg-elevated/40 px-2 py-1 text-[11px]">
+                  <li key={i} className="rounded border border-border bg-elevated/40 px-2 py-1 text-sm">
                     {c}
                   </li>
                 ))}
@@ -361,7 +361,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
             <Section title={`Tools (${detail.tools.length})`} icon={Wrench}>
               <div className="flex flex-wrap gap-1.5">
                 {detail.tools.map((t) => (
-                  <span key={t} className="rounded-full border border-border bg-elevated px-2 py-0.5 font-mono text-[10px]">
+                  <span key={t} className="rounded-full border border-border bg-elevated px-2 py-0.5 font-mono text-sm">
                     {t}
                   </span>
                 ))}
@@ -373,8 +373,8 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
           {detail.deployedApis && detail.deployedApis.length > 0 && (
             <Section title={`Deployed endpoints (${detail.deployedApis.length})`} icon={Globe}>
               <div className="overflow-hidden rounded-md border border-border">
-                <table className="w-full text-[11px]">
-                  <thead className="bg-elevated text-left text-[10px] uppercase text-text-muted">
+                <table className="w-full text-sm">
+                  <thead className="bg-elevated text-left text-sm uppercase text-text-muted">
                     <tr>
                       <th className="w-16 px-2 py-1.5">Method</th>
                       <th className="px-2 py-1.5">Endpoint</th>
@@ -390,7 +390,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
                   </tbody>
                 </table>
               </div>
-              <p className="mt-1.5 text-[10px] text-text-muted">
+              <p className="mt-1.5 text-sm text-text-muted">
                 <ShieldAlert className="-mt-0.5 inline h-3 w-3" /> Public-sandbox endpoints.
                 Click <strong>Import as Collection</strong> above to test them in the request
                 builder with assertions, variables and scheduled runs.
@@ -404,8 +404,8 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
               && detail.endpoints && detail.endpoints.length > 0 && (
             <Section title={`Endpoints (${detail.endpoints.length})`} icon={Globe}>
               <div className="overflow-hidden rounded-md border border-border">
-                <table className="w-full text-[11px]">
-                  <thead className="bg-elevated text-left text-[10px] uppercase text-text-muted">
+                <table className="w-full text-sm">
+                  <thead className="bg-elevated text-left text-sm uppercase text-text-muted">
                     <tr>
                       <th className="w-16 px-2 py-1.5">Method</th>
                       <th className="px-2 py-1.5">Path</th>
@@ -417,11 +417,11 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
                       <tr key={i} className="border-t border-border hover:bg-elevated/40">
                         <td className="px-2 py-1.5">
                           <span className={cn(
-                            'rounded border px-1.5 py-0.5 font-mono text-[9px] font-semibold',
+                            'rounded border px-1.5 py-0.5 font-mono text-[12px] font-semibold',
                             METHOD_TONE[e.method] ?? 'border-border bg-elevated text-text-secondary',
                           )}>{e.method}</span>
                         </td>
-                        <td className="px-2 py-1.5 font-mono text-[11px] text-text-primary">{e.path}</td>
+                        <td className="px-2 py-1.5 font-mono text-sm text-text-primary">{e.path}</td>
                         <td className="px-2 py-1.5 text-text-muted">{e.description ?? '—'}</td>
                       </tr>
                     ))}
@@ -432,7 +432,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
           )}
 
           {loadingDetail && (
-            <div className="flex items-center justify-center py-3 text-[11px] text-text-muted">
+            <div className="flex items-center justify-center py-3 text-sm text-text-muted">
               <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> Loading deeper details from KRE Nexus…
             </div>
           )}
@@ -458,7 +458,7 @@ function EndpointRow({
       >
         <td className="px-2 py-1.5">
           <span className={cn(
-            'rounded border px-1.5 py-0.5 font-mono text-[9px] font-semibold',
+            'rounded border px-1.5 py-0.5 font-mono text-[12px] font-semibold',
             METHOD_TONE[api.method] ?? 'border-border bg-elevated text-text-secondary',
           )}>{api.method}</span>
         </td>
@@ -472,15 +472,15 @@ function EndpointRow({
               </button>
             )}
             <div className="min-w-0">
-              <div className="truncate font-mono text-[11px] text-text-primary">
+              <div className="truncate font-mono text-sm text-text-primary">
                 {api.label && <span className="font-semibold text-text-primary">{api.label} </span>}
                 {api.path}
               </div>
               {api.url && (
-                <div className="truncate font-mono text-[10px] text-text-muted">{api.url}</div>
+                <div className="truncate font-mono text-sm text-text-muted">{api.url}</div>
               )}
               {!api.label && api.description && (
-                <div className="text-[10px] text-text-muted">{api.description}</div>
+                <div className="text-sm text-text-muted">{api.description}</div>
               )}
             </div>
           </div>
@@ -492,7 +492,7 @@ function EndpointRow({
               data-testid={`agent-endpoint-copy-url-${index}`}
               onClick={onCopyUrl}
               title="Copy URL"
-              className="inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] hover:bg-elevated"
+              className="inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-sm hover:bg-elevated"
             >
               <Copy className="h-3 w-3" /> URL
             </button>
@@ -501,7 +501,7 @@ function EndpointRow({
               data-testid={`agent-endpoint-copy-curl-${index}`}
               onClick={onCopyCurl}
               title="Copy as cURL"
-              className="inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] hover:bg-elevated"
+              className="inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-sm hover:bg-elevated"
             >
               <Copy className="h-3 w-3" /> cURL
             </button>
@@ -513,27 +513,27 @@ function EndpointRow({
           <td colSpan={3} className="px-3 py-2">
             {api.url && (
               <div className="mb-2">
-                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-text-muted">Full URL</div>
-                <code className="block break-all rounded bg-surface p-1.5 font-mono text-[10px] text-text-primary">{api.url}</code>
+                <div className="mb-0.5 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Full URL</div>
+                <code className="block break-all rounded bg-surface p-1.5 font-mono text-sm text-text-primary">{api.url}</code>
               </div>
             )}
             {api.requestBody !== undefined && api.requestBody !== null && (
               <div className="mb-2">
-                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-text-muted">Request body</div>
-                <pre className="overflow-auto rounded bg-surface p-2 font-mono text-[10px] text-text-primary max-h-40">
+                <div className="mb-0.5 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Request body</div>
+                <pre className="overflow-auto rounded bg-surface p-2 font-mono text-sm text-text-primary max-h-40">
                   {typeof api.requestBody === 'string' ? api.requestBody : JSON.stringify(api.requestBody, null, 2)}
                 </pre>
               </div>
             )}
             {api.responseFormat !== undefined && api.responseFormat !== null && (
               <div>
-                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-text-muted">Response format</div>
-                <pre className="overflow-auto rounded bg-surface p-2 font-mono text-[10px] text-text-primary max-h-40">
+                <div className="mb-0.5 text-[12px] font-semibold uppercase tracking-wide text-text-muted">Response format</div>
+                <pre className="overflow-auto rounded bg-surface p-2 font-mono text-sm text-text-primary max-h-40">
                   {typeof api.responseFormat === 'string' ? api.responseFormat : JSON.stringify(api.responseFormat, null, 2)}
                 </pre>
               </div>
             )}
-            <div className="mt-2 flex items-center gap-2 text-[10px] text-text-muted">
+            <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
               {api.authRequired ? <ShieldAlert className="h-3 w-3 text-amber-500" /> : null}
               {api.authRequired ? 'Auth required (Bearer)' : 'No auth (sandbox)'}
             </div>
@@ -548,7 +548,7 @@ function EndpointRow({
 function Section({ title, icon: Icon, children }: { title: string; icon?: typeof Bot; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-text-muted">
         {Icon ? <Icon className="h-3 w-3" /> : null}
         {title}
       </div>
@@ -569,8 +569,8 @@ function Chip({ icon: Icon, label }: { icon: typeof Bot; label: string }) {
 function KvRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[110px,1fr] items-center gap-2">
-      <div className="text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
-      <div className="min-w-0 text-[11px] text-text-primary">{children}</div>
+      <div className="text-sm uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="min-w-0 text-sm text-text-primary">{children}</div>
     </div>
   );
 }

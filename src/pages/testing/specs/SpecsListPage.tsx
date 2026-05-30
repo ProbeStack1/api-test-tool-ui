@@ -31,7 +31,7 @@ import { CreateSpecModal } from './CreateSpecModal';
 import { FormatBadge, StatusBadge, formatBytes, formatRelative } from '../shared/Badges';
 import { cn } from '@/utils/cn';
 
-export const SpecsListPage = ({ workspaceId }: { workspaceId: string }) => {
+export const SpecsListPage = () => {
   const ws = useWorkspaceStore((s) => s.current);
   const openSpec = useTestingStore((s) => s.openSpec);
   const qc = useQueryClient();
@@ -72,7 +72,7 @@ export const SpecsListPage = ({ workspaceId }: { workspaceId: string }) => {
           </h1>
           <p className="text-[11px] text-text-muted">
             OpenAPI · Postman · HAR · cURL — auto-detected and persisted in
-            workspace <span className="font-mono text-text-secondary">{ws.name}</span>
+            project <span className="font-mono text-text-secondary">{ws.name}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">

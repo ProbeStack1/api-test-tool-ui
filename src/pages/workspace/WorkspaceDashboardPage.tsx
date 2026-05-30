@@ -107,10 +107,51 @@ export const WorkspaceDashboardPage = () => {
   const navigate = useNavigate();
 
   // data
-  const featQ = useQuery({ queryKey: ["ws-dash", "features", workspaceId ?? "all"], queryFn: () => getFeatureSummary(workspaceId ?? undefined), enabled: !!workspaceId, refetchInterval: 60_000 });
-  const ovQ   = useQuery({ queryKey: ["ws-dash", "overview", workspaceId ?? "all"], queryFn: () => getOverview(workspaceId ?? undefined), enabled: !!workspaceId, refetchInterval: 30_000 });
-  const tsQ   = useQuery({ queryKey: ["ws-dash", "timeseries", range, workspaceId ?? "all"], queryFn: () => getTimeseries(range, workspaceId ?? undefined), enabled: !!workspaceId, refetchInterval: 60_000 });
-  const actQ  = useQuery({ queryKey: ["ws-dash", "recent", workspaceId ?? "all"], queryFn: () => getRecentActivity(30, workspaceId ?? undefined), enabled: !!workspaceId, refetchInterval: 60_000 });
+  // `placeholderData: keepPreviousData` keeps the last good payload visible
+  // while the next poll is in flight. Without this, every 30-60s refetch
+  // would briefly blank the screen — and if the request gets cancelled (long
+  // network round-trip, tab background, etc.), the user sees "—" for tiles
+  // even though the previous successful fetch had real numbers.
+  // refetchInterval is also relaxed — the overview aggregator does heavy
+  // multi-collection Mongo work; 30 s polling created a self-cancellation
+  // loop where each interval triggered a new fetch before the previous
+  // could land.
+  const featQ = useQuery({
+    queryKey: ["ws-dash", "features", workspaceId ?? "all"],
+    queryFn: ({ signal }) => getFeatureSummary(workspaceId ?? undefined, signal),
+    enabled: !!workspaceId,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
+  const ovQ   = useQuery({
+    queryKey: ["ws-dash", "overview", workspaceId ?? "all"],
+    queryFn: ({ signal }) => getOverview(workspaceId ?? undefined, signal),
+    enabled: !!workspaceId,
+    refetchInterval: 120_000,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  });
+  const tsQ   = useQuery({
+    queryKey: ["ws-dash", "timeseries", range, workspaceId ?? "all"],
+    queryFn: ({ signal }) => getTimeseries(range, workspaceId ?? undefined, signal),
+    enabled: !!workspaceId,
+    refetchInterval: 90_000,
+    refetchOnWindowFocus: false,
+    staleTime: 45_000,
+    placeholderData: (prev) => prev,
+  });
+  const actQ  = useQuery({
+    queryKey: ["ws-dash", "recent", workspaceId ?? "all"],
+    queryFn: ({ signal }) => getRecentActivity(30, workspaceId ?? undefined, signal),
+    enabled: !!workspaceId,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
 
   const d  = featQ.data as FeatureSummaryResponse | undefined;
   const ov = ovQ.data;
@@ -201,7 +242,25 @@ export const WorkspaceDashboardPage = () => {
           <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {KPI_DEFS.map((def) => {
               const cell = ov?.kpis?.[def.key] as { total?: number; delta?: number } | undefined;
-              const total = cell?.total;
+              // Cross-source fallback — if the heavier `overview` API
+              // didn't land (race / cancel / 500), use the equivalent
+              // count from the lighter `feature-summary` payload so the
+              // tile shows the SAME number Pulse below already displays.
+              // Without this, users saw "Collections —" up top while
+              // "Pulse: 2 Collections" sat right below it.
+              const fallback = ((): number | undefined => {
+                if (!d) return undefined;
+                switch (def.key) {
+                  case "collections":  return d.requests?.collections;
+                  case "requests":     return d.requests?.savedRequests;
+                  case "monitors":     return d.monitors?.total;
+                  case "monitorRuns":  return d.monitors?.runsLast7d;
+                  case "mocks":        return d.mocks?.total;
+                  case "testSpecs":    return d.testSpecs?.total;
+                  default:             return undefined;
+                }
+              })();
+              const total = cell?.total ?? fallback;
               const delta = cell?.delta;
               const spark = ov?.kpiTrends?.[def.key] as number[] | undefined;
               const Icon = def.icon as any;

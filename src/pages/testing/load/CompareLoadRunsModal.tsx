@@ -118,7 +118,7 @@ const RunPill = ({ label, run }: { label: string; run: LoadRun }) => (
       )}>{run.status}</span>
     </div>
     <div className="mt-0.5 font-mono text-[10px] text-text-muted">
-      {(run.actualRps ?? 0).toFixed(1)} rps · p95 {run.percentiles?.['95'] ?? 0}ms
+      {(run.actualRps ?? 0).toFixed(1)} rps · p95 {run.percentiles?.['p95'] ?? run.percentiles?.['95'] ?? 0}ms
     </div>
   </div>
 );

@@ -35,7 +35,7 @@ export const PublicDocViewerPage = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-text-primary" data-testid="public-doc-viewer">
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
+      <header className="sticky top-0 z-10 flex h-17 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
         <Link
               to="/"
               data-testid="app-header-logo"
@@ -44,7 +44,7 @@ export const PublicDocViewerPage = () => {
               <Logo variant="mark" className="h-12 w-10" />
               <div className="text-left">
                 <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  probestack
+                  ProbeStack
                 </div>
                 <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
                   ForgeFuzz

@@ -228,7 +228,7 @@ const ProjectTab = () => {
             </div>
             <button
               data-testid="project-open-details"
-              onClick={() => navigate(`/project/${selected.id}`)}
+              onClick={() => navigate(`/projects/manage`)}
               className="rounded-md border border-border px-2 py-0.5 text-[10px] text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
             >
               Open

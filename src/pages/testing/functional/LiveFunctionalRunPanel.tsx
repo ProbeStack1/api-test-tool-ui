@@ -63,7 +63,14 @@ interface Props {
 
 interface StreamLine {
   ts: number;
-  kind: "run.start" | "step.start" | "step.end" | "run.done" | "info";
+  kind:
+    | "run.start"
+    | "run.paused"
+    | "run.resumed"
+    | "step.start"
+    | "step.end"
+    | "run.done"
+    | "info";
   text: string;
   ok?: boolean;
 }
@@ -126,6 +133,12 @@ export const LiveFunctionalRunPanel = ({ runId }: Props) => {
       stepCounterRef.current = 0;
       onLine(e as MessageEvent, "run.start");
     });
+    es.addEventListener("run.paused", (e) =>
+      onLine(e as MessageEvent, "run.paused"),
+    );
+    es.addEventListener("run.resumed", (e) =>
+      onLine(e as MessageEvent, "run.resumed"),
+    );
     es.addEventListener("step.start", (e) =>
       onLine(e as MessageEvent, "step.start"),
     );

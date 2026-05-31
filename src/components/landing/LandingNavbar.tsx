@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, Rocket, User, Menu, X, LogIn } from 'lucide-react';
+import { LogOut, Rocket, User, Menu, X, LogIn, Folder, FolderOpen, FolderKanban, FolderCheckIcon, LayoutDashboard, Cog } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSep } from '@/components/ui/DropdownMenu';
@@ -67,11 +67,15 @@ export const LandingNavbar = () => {
   return (
     <nav
       data-testid="landing-navbar"
+      className={`fixed inset-x-0 top-0 z-40 backdrop-blur-md border-b border-border/40 bg-background/80 transition-transform duration-300`}
+    >
+    {/* <nav
+      data-testid="landing-navbar"
       className={`fixed inset-x-0 top-0 z-40 backdrop-blur-md border-b border-border/40 bg-background/80 transition-transform duration-300 ${
         isVisible ? 'translate-y-0' : '-translate-y-full'
       }`}
-    >
-      <div className="flex h-14 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
+    > */}
+      <div className="flex h-17 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
         {/* Logo - left */}
         <Link
               to="/"
@@ -81,7 +85,7 @@ export const LandingNavbar = () => {
               <Logo variant="mark" className="h-12 w-10" />
               <div className="text-left">
                 <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  probestack
+                  ProbeStack
                 </div>
                 <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
                   ForgeFuzz
@@ -172,8 +176,14 @@ export const LandingNavbar = () => {
                 }
               >
                 <DropdownLabel>{email ?? 'Signed in'}</DropdownLabel>
-                <DropdownItem icon={User} onClick={() => nav('/projects/profile')}>
-                  Profile
+                <DropdownItem icon={LayoutDashboard} onClick={() => nav('/projects/dashboard')}>
+                  Dashboard
+                </DropdownItem>
+                <DropdownItem icon={FolderOpen} onClick={() => nav('/projects/collections')}>
+                  Open Collections
+                </DropdownItem>
+                <DropdownItem icon={Cog} onClick={() => nav('/projects/manage')}>
+                  Manage Projects
                 </DropdownItem>
                 <DropdownSep />
                 <DropdownItem icon={LogOut} destructive onClick={handleLogout}>

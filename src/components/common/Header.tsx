@@ -1,6 +1,7 @@
 /**
  * Header — brand + adaptive center (search in 'left' mode, tabs in 'top' mode).
  * Search button + Cmd/Ctrl+K shortcut open the CommandPalette (jump-to nav).
+ * Cmd/Ctrl+Shift+L toggles theme (no browser conflict).
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -14,48 +15,61 @@ import { ThemeToggle } from './ThemeToggle';
 import { HeaderTabs } from './HeaderTabs';
 import { CommandPalette } from './CommandPalette';
 import { useLayout } from '@/stores/layout.store';
+import { useSettings } from '@/stores/settings.store';
 
 export const Header = () => {
   const mode = useLayout((s) => s.sideRailMode);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const theme = useSettings((s) => s.theme);
+  const setTheme = useSettings((s) => s.setTheme);
 
-  // Cmd/Ctrl+K opens the palette; also supports '/' when not typing in an input.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
-      if (isCmdK) { e.preventDefault(); setPaletteOpen(true); return; }
-      if (e.key === 'Escape' && paletteOpen) { setPaletteOpen(false); }
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+
+      // Cmd/Ctrl+K -> command palette
+      if (isCmdOrCtrl && key === 'k') {
+        e.preventDefault();
+        setPaletteOpen(true);
+        return;
+      }
+
+      // Cmd/Ctrl+Shift+L -> toggle theme (conflict-free)
+      if (isCmdOrCtrl && e.shiftKey && key === 'l') {
+        e.preventDefault();
+        setTheme(theme === 'dark' ? 'light' : 'dark');
+        return;
+      }
+
+      if (key === 'escape' && paletteOpen) {
+        setPaletteOpen(false);
+      }
     };
+
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paletteOpen]);
+  }, [paletteOpen, theme, setTheme]);
 
   return (
     <header
       data-testid="app-header"
-      className="grid h-14 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
+      className="grid h-17 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
     >
-      {/* Left — brand */}
-      <Link
-              to="/"
-              data-testid="app-header-logo"
-              className="flex items-center gap-1"
-            >
-              <Logo variant="mark" className="h-12 w-10" />
-              <div className="text-left">
-                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  probestack
-                </div>
-                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
-                  ForgeFuzz
-                </div>
-              </div>
-            </Link>
+      <Link to="/" data-testid="app-header-logo" className="flex items-center gap-1">
+        <Logo variant="mark" className="h-12 w-10" />
+        <div className="text-left">
+          <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+            ProbeStack
+          </div>
+          <div className="font-bold text-2xl tracking-normal leading-tight gradient-text">
+            ForgeFuzz
+          </div>
+        </div>
+      </Link>
 
-      {/* Center — depends on mode */}
       {mode === 'top' ? <HeaderTabs /> : <SearchButton onOpen={() => setPaletteOpen(true)} />}
 
-      {/* Right — actions */}
       <div className="flex items-center justify-end gap-1">
         {mode === 'top' && (
           <Tooltip content="Search" shortcut="⌘K">
@@ -70,7 +84,13 @@ export const Header = () => {
             </Button>
           </Tooltip>
         )}
-        <ThemeToggle />
+
+        <Tooltip content="Toggle theme" shortcut="⌘⇧L">
+          <span className="inline-flex">
+            <ThemeToggle />
+          </span>
+        </Tooltip>
+
         <Tooltip content="Settings" shortcut="⌘,">
           <Button asChild variant="ghost" size="icon" data-testid="header-settings-btn">
             <Link to="/projects/settings" aria-label="Settings">

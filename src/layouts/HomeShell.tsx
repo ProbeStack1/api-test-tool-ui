@@ -60,7 +60,7 @@ export const HomeShell = () => {
           data-testid="home-sidebar"
           className="flex w-56 shrink-0 flex-col border-r border-border bg-surface"
         >
-          <div className="flex h-15 items-center border-b border-border px-3 py-2">
+          <div className="flex h-17 items-center border-b border-border px-3 py-2">
             <Link
               to="/"
               data-testid="app-header-logo"
@@ -69,7 +69,7 @@ export const HomeShell = () => {
               <Logo variant="mark" className="h-12 w-10" />
               <div className="text-left">
                 <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  probestack
+                  ProbeStack
                 </div>
                 <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
                   ForgeFuzz

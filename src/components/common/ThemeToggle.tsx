@@ -17,7 +17,7 @@ export const ThemeToggle = () => {
       size="icon"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       data-testid="theme-toggle"
-      title={`Switch to ${isDark ? 'light' : 'dark'} theme`}
+      // title={`Switch to ${isDark ? 'light' : 'dark'} theme`}
       aria-label="Toggle theme"
     >
       {isDark ? (

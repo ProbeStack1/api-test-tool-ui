@@ -9,6 +9,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from '@/components/common/Header';
 import { StatusBar } from '@/components/common/StatusBar';
+import { TerminalDrawer } from '@/components/common/terminal/TerminalDrawer';
 import { ContextSidebar } from '@/components/common/ContextSidebar';
 import { FeatureRail } from '@/components/common/FeatureRail';
 import { RightRail, RightPanel } from '@/components/common/RightSidebar';
@@ -79,6 +80,7 @@ export const AppShell = () => {
       </div>
       <StatusBar />
       <FloatingChatbot />
+      <TerminalDrawer />
     </div>
   );
 };

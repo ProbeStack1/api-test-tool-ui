@@ -1056,12 +1056,12 @@ const RequestItem = ({
       onDragStart={makeDragStart({ kind: 'request', id: r.id, collectionId: r.collectionId })}
       onContextMenu={(e) => ctx.openAt(e, buildContextItems())}
       className={cn(
-        'group relative flex w-full items-center gap-1 rounded py-1 pr-1 text-xs text-text-primary transition-colors',
+        'group relative flex w-full items-center gap-1 rounded py-0.4 pr-1 text-xs text-text-primary transition-colors',
         isActive ? 'bg-primary-muted' : 'hover:bg-hover',
       )}
       style={{ paddingLeft: 4 + indent * 12 + 20 }}
     >
-      {isActive && <span className="absolute left-0 top-1 h-5 w-[2px] rounded-r bg-primary" />}
+      {isActive && <span className="absolute left-0 top-0 h-5 w-[1px] rounded-l bg-primary" />}
       {isGraphqlRequest(r) ? (
         <span className="w-12 shrink-0 font-mono text-[10px] font-bold text-pink-400" title="GraphQL request">GQL</span>
       ) : (

@@ -44,6 +44,7 @@ const NotificationsPage = l(() => import('@/pages/notifications/NotificationsPag
 const StatusPagePublic = l(() => import('@/pages/testing/monitors/PublicStatusPagePreview'), (m: any) => m.StatusPagePublicView);
 const PublicHubPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicHubPage);
 const PublicDocViewerPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicDocViewerPage);
+const PublicApiDetailPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicApiDetailPage);
 
 const AppShell = l(() => import('@/layouts/AppShell'), (m: any) => m.AppShell);
 const ProjectStandaloneLayout = l(() => import('@/layouts/ProjectStandaloneLayout'), (m: any) => m.ProjectStandaloneLayout);
@@ -144,6 +145,7 @@ const router = createBrowserRouter([
   // The Java service mints share links as `${frontend}/docs/{slug}`, so this
   // route catches them and the React app calls the public JSON endpoint.
   { path: '/api-hub', element: r(<PublicHubPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/api-hub/public/:apiId', element: r(<PublicApiDetailPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/docs/:slug', element: r(<PublicDocViewerPage />), errorElement: <RouteErrorBoundary /> },
 
   // Standalone create/manage project page — minimal chrome, own sidebar.

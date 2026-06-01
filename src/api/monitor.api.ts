@@ -28,6 +28,7 @@ export interface MonitorCreate {
   workspaceId: string;
   collectionId?: string;
   testSpecId?: string;
+  testCaseCategory?: string;
   environmentId?: string;
   name: string;
   description?: string;
@@ -59,6 +60,7 @@ export interface MonitorView {
   workspaceId: string;
   collectionId?: string | null;
   testSpecId?: string | null;
+  testCaseCategory?: string | null;
   environmentId?: string | null;
   name: string;
   description?: string;

@@ -114,7 +114,7 @@ export const ProfilePage = () => {
 
       {/* Hero card */}
       <div className="border-b border-border bg-surface/30 px-6 py-6">
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-5">
+        <div className="flex w-full max-w-5xl items-center gap-5">
           <button
             type="button"
             data-testid="profile-avatar-upload"
@@ -145,11 +145,11 @@ export const ProfilePage = () => {
               ))}
             </div>
           </div>
-          <div className="hidden items-center gap-2 sm:flex">
+          {/* <div className="hidden items-center gap-2 sm:flex">
             <Stat label="Workspaces" value="3" />
             <Stat label="Collections" value="42" />
             <Stat label="Monitors" value="9" />
-          </div>
+          </div> */}
         </div>
       </div>
 

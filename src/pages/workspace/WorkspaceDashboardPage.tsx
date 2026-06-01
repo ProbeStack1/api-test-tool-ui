@@ -339,13 +339,13 @@ export const WorkspaceDashboardPage = () => {
             </div>
           </div>
 
-          <section className="rounded-xl border border-border bg-surface p-4">
+          {/* <section className="rounded-xl border border-border bg-surface p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold">KPI trends · last {range}</h3>
               <button className="text-[11px] text-text-secondary hover:text-text-primary" onClick={() => setDrawer({ title: "KPI trends · matrix", kind: "trends", payload: { kpiTrends: ov?.kpiTrends } })}>Open matrix</button>
             </div>
             <TrendMatrix kpiTrends={ov?.kpiTrends} loading={ovQ.isLoading} />
-          </section>
+          </section> */}
 
           {/* Bento product grid */}
           <BentoGrid d={d} loading={featQ.isLoading} workspaceId={workspaceId!} onOpen={(title, kind, payload) => setDrawer({ title, kind: "bento", payload })} />

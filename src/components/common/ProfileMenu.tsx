@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@radix-ui/react-dropdown-menu';
-import { User, LogOut, UserCog, HelpCircle } from 'lucide-react';
+import { User, LogOut, UserCog, HelpCircle, Cog } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
@@ -74,20 +74,45 @@ export const ProfileMenu = () => {
           'animate-in fade-in-0 zoom-in-95',
         )}
       >
-        <DropdownMenuLabel className="px-3 pb-1 pt-2 text-xs text-text-secondary" data-testid="profile-menu-userblock">
-          <div className="text-[10px] uppercase tracking-wider text-text-muted">Signed in as</div>
-          <div className="mt-0.5 truncate text-sm font-medium text-text-primary" data-testid="profile-menu-name">{displayName}</div>
-          {user?.email && (
-            <div className="truncate text-[11px] text-text-muted" data-testid="profile-menu-email">{user.email}</div>
-          )}
-          {user?.roles?.length ? (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {user.roles.map((r) => (
-                <span key={r} className="inline-flex items-center rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">{r}</span>
-              ))}
-            </div>
-          ) : null}
-        </DropdownMenuLabel>
+        <DropdownMenuLabel
+  className="px-3 pb-1 pt-2 text-xs text-text-secondary"
+  data-testid="profile-menu-userblock"
+>
+  {/* Header row: Signed in as (left) and roles (right) */}
+  <div className="flex items-center justify-between">
+    <div className="text-[10px] uppercase tracking-wider text-text-muted">
+      Signed in as
+    </div>
+    {user?.roles?.length ? (
+      <div className="flex flex-wrap gap-1">
+        {user.roles.map((r) => (
+          <span
+            key={r}
+            className="inline-flex items-center rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary"
+          >
+            {r}
+          </span>
+        ))}
+      </div>
+    ) : null}
+  </div>
+
+  {/* Name and email remain unchanged */}
+  <div
+    className="mt-0.5 truncate text-sm font-medium text-text-primary"
+    data-testid="profile-menu-name"
+  >
+    {displayName}
+  </div>
+  {user?.email && (
+    <div
+      className="truncate text-[11px] text-text-muted"
+      data-testid="profile-menu-email"
+    >
+      {user.email}
+    </div>
+  )}
+</DropdownMenuLabel>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>
           <Link to="/projects/profile" className={menuItem} data-testid="profile-menu-profile">
@@ -100,8 +125,13 @@ export const ProfileMenu = () => {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link to="/projects/manage" className={menuItem} data-testid="profile-menu-help">
+            <Cog className="h-4 w-4" /> Manage Project
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link to="/projects/support" className={menuItem} data-testid="profile-menu-help">
-            <HelpCircle className="h-4 w-4" /> Help & docs
+            <HelpCircle className="h-4 w-4" /> Help & Support
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />

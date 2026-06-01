@@ -46,6 +46,17 @@ export const InlineCreateMonitorForm = ({ workspaceId, onCreated, onCancel }: Pr
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [testSpecId, setTestSpecId] = useState('');
+  /**
+   * Optional category filter — only applies when the monitor source is
+   * a test-spec. Defaults to "POSITIVE" because synthetic uptime checks
+   * want clean green-vs-red signal (the test-spec generator produces
+   * NEGATIVE / VALIDATION / SECURITY cases too which legitimately fail
+   * on a working endpoint and would pollute the dashboard).
+   *
+   * Empty string ('') = "All categories" (back-compat — what the legacy
+   * monitor did silently). The backend ignores blank values.
+   */
+  const [testCaseCategory, setTestCaseCategory] = useState<string>('POSITIVE');
   const [collectionId, setCollectionId] = useState('');
   const [environmentId, setEnvironmentId] = useState('');
   const [scheduleCron, setScheduleCron] = useState('0 */5 * * * *');
@@ -100,7 +111,11 @@ export const InlineCreateMonitorForm = ({ workspaceId, onCreated, onCancel }: Pr
         notifyOnStateChangeOnly,
         tags: tags.trim() ? tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
       };
-      if (src === 'TEST_SPEC')  body.testSpecId   = testSpecId;
+      if (src === 'TEST_SPEC')  {
+        body.testSpecId = testSpecId;
+        // Only forward when set — empty string means "All categories".
+        if (testCaseCategory) body.testCaseCategory = testCaseCategory;
+      }
       if (src === 'COLLECTION') body.collectionId = collectionId;
       return createMonitor(body);
     },
@@ -168,14 +183,42 @@ export const InlineCreateMonitorForm = ({ workspaceId, onCreated, onCancel }: Pr
 
         {/* Source-specific selector */}
         {src === 'TEST_SPEC' ? (
-          <Field label="Test spec" required hint="Pick a saved spec from this project.">
-            <select data-testid="monitor-inline-spec" value={testSpecId} onChange={(e) => setTestSpecId(e.target.value)} className={inputCls()}>
-              <option value="">— select a spec —</option>
-              {specsQ.data?.content.map((s) => (
-                <option key={s.testSpecId} value={s.testSpecId}>{s.name} · {s.format} · {s.testCaseCount} cases</option>
-              ))}
-            </select>
-          </Field>
+          <>
+            <Field label="Test spec" required hint="Pick a saved spec from this project.">
+              <select data-testid="monitor-inline-spec" value={testSpecId} onChange={(e) => setTestSpecId(e.target.value)} className={inputCls()}>
+                <option value="">— select a spec —</option>
+                {specsQ.data?.content.map((s) => (
+                  <option key={s.testSpecId} value={s.testSpecId}>{s.name} · {s.format} · {s.testCaseCount} cases</option>
+                ))}
+              </select>
+            </Field>
+            {/* Category filter — auto-generated test_cases come in 6 buckets
+                (POSITIVE / NEGATIVE / SECURITY / PERFORMANCE / BOUNDARY /
+                VALIDATION). For an uptime monitor we want POSITIVE only so
+                the "expected to fail" negative cases don't flip the
+                monitor to red. Defaults to POSITIVE — switch to "All"
+                only if you really want the full suite to run on every
+                tick. */}
+            <Field
+              label="Test-case category"
+              hint="Filter which generated cases this monitor runs. POSITIVE = happy-path only (recommended for uptime)."
+            >
+              <select
+                data-testid="monitor-inline-category"
+                value={testCaseCategory}
+                onChange={(e) => setTestCaseCategory(e.target.value)}
+                className={inputCls()}
+              >
+                <option value="POSITIVE">POSITIVE — happy path (recommended)</option>
+                <option value="">All categories (POSITIVE + NEGATIVE + …)</option>
+                <option value="NEGATIVE">NEGATIVE</option>
+                <option value="SECURITY">SECURITY</option>
+                <option value="PERFORMANCE">PERFORMANCE</option>
+                <option value="BOUNDARY">BOUNDARY</option>
+                <option value="VALIDATION">VALIDATION</option>
+              </select>
+            </Field>
+          </>
         ) : (
           <Field label="Collection" required>
             <select data-testid="monitor-inline-collection" value={collectionId} onChange={(e) => setCollectionId(e.target.value)} className={inputCls()}>

@@ -6,12 +6,13 @@
  * highlights the rail with a primary-muted background + a left accent
  * stripe — same look in light and dark themes.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLayout, type PrimaryTab } from '@/stores/layout.store';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { prefetchRoute } from '@/app/router';
 import { AppIcon, type IconName } from '@/components/icons/AppIcons';
+import { Globe, BookOpen, ExternalLink } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 const ITEMS: { key: PrimaryTab; icon: IconName; label: string; route: string }[] = [
@@ -81,6 +82,120 @@ export const FeatureRail = () => {
           </Tooltip>
         );
       })}
+      <ApiHubRailItem />
     </aside>
+  );
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+ *  ApiHubRailItem
+ *  Globe icon at the bottom of the rail with a right-flyout menu listing
+ *  "API Catalog" (/home/api-catalog/public) and "API Hub" (/api-hub).
+ *  Both links open in a NEW tab. No routing state is touched — purely
+ *  local hover/click handling.
+ * ────────────────────────────────────────────────────────────────────── */
+const RAIL_LINKS: { label: string; href: string; icon: typeof Globe; description: string }[] = [
+  {
+    label: 'API Catalog',
+    href: '/home/api-catalog/public',
+    icon: BookOpen,
+    description: 'Browse all published APIs',
+  },
+  {
+    label: 'API Hub',
+    href: '/api-hub',
+    icon: Globe,
+    description: 'Public hub — discover APIs',
+  },
+];
+
+const ApiHubRailItem = () => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  const onEnter = () => {
+    if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; }
+    setOpen(true);
+  };
+  const onLeave = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 180);
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative mt-1"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
+      <button
+        data-testid="rail-api-hub-trigger"
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          'group relative flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150',
+          open
+            ? 'bg-primary-muted/40 text-primary'
+            : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+        )}
+      >
+        {open && (
+          <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-primary" />
+        )}
+        <Globe className="h-[17px] w-[17px]" />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          data-testid="rail-api-hub-menu"
+          className="absolute left-[calc(100%+6px)] top-0 z-50 w-60 rounded-md border border-border bg-probestack-bg shadow-lg ring-1 ring-black/5 overflow-hidden animate-in fade-in-0 slide-in-from-left-1 duration-150"
+        >
+          <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+            API Hub
+          </div>
+          {RAIL_LINKS.map(({ label, href, icon: Icon, description }) => (
+            <a
+              key={href}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              role="menuitem"
+              data-testid={`rail-api-hub-link-${label.toLowerCase().replace(/\s+/g, '-')}`}
+              className="flex items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-hover focus:bg-hover focus:outline-none"
+              onClick={() => setOpen(false)}
+            >
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-text-primary">{label}</span>
+                  <ExternalLink className="h-3 w-3 text-text-tertiary" />
+                </div>
+                <p className="mt-0.5 text-[11px] leading-snug text-text-secondary">{description}</p>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };

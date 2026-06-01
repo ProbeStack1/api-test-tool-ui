@@ -12,8 +12,11 @@
  *
  * Layout toggles (left rail / right rail / sideRailMode) live on the far
  * right and are unchanged.
+ *
+ * Combined version: includes standalone Trash button (quick access) and
+ * TerminalToggle (opens terminal drawer).
  */
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 import {
   Home as HomeIcon,
   PanelLeft,
@@ -34,17 +37,19 @@ import {
   Heart,
   Mail,
   Bug,
-} from "lucide-react";
-import { useLayout } from "@/stores/layout.store";
-import { Tooltip } from "@/components/ui/Tooltip";
+  Terminal,
+} from 'lucide-react';
+import { useLayout } from '@/stores/layout.store';
+import { useTerminal } from '@/stores/terminal.store';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   Dropdown,
   DropdownItem,
   DropdownLabel,
   DropdownSep,
-} from "@/components/ui/DropdownMenu";
-import { AttributionFooter } from "./AttributionFooter";
-import { cn } from "@/utils/cn";
+} from '@/components/ui/DropdownMenu';
+import { AttributionFooter } from './AttributionFooter';
+import { cn } from '@/utils/cn';
 
 const Tog = ({
   active,
@@ -66,8 +71,8 @@ const Tog = ({
       onClick={onClick}
       data-testid={testId}
       className={cn(
-        "flex h-5 w-5 items-center justify-center rounded transition-colors",
-        active ? "text-primary" : "text-text-secondary hover:text-text-primary",
+        'flex h-5 w-5 items-center justify-center rounded transition-colors',
+        active ? 'text-primary' : 'text-text-secondary hover:text-text-primary',
       )}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -91,7 +96,7 @@ export const StatusBar = () => {
       data-testid="status-bar"
       className="flex h-8 items-center justify-between border-t border-border bg-surface px-3 text-[11px] text-text-secondary"
     >
-      {/* LEFT — Home menu */}
+      {/* LEFT — Home menu, Tools menu, and standalone Trash button */}
       <div className="flex items-center gap-3">
         <Dropdown
           align="start"
@@ -111,19 +116,19 @@ export const StatusBar = () => {
           <DropdownLabel>Project home</DropdownLabel>
           <DropdownItem
             icon={HomeIcon}
-            onClick={() => nav("/home")}
+            onClick={() => nav('/home')}
             testId="home-menu-home"
           >
-            Home{" "}
-            <span className="ml-auto text-[11px] text-text-muted">/home</span>
+            Home{' '}
+            <span className="ml-auto text-[9px] text-text-muted">/home</span>
           </DropdownItem>
           <DropdownItem
             icon={FolderKanban}
-            onClick={() => nav("/projects/collections")}
+            onClick={() => nav('/projects/collections')}
             testId="home-menu-projects"
           >
-            Projects{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Projects{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects
             </span>
           </DropdownItem>
@@ -131,21 +136,21 @@ export const StatusBar = () => {
           <DropdownLabel>API Catalog</DropdownLabel>
           <DropdownItem
             icon={Globe}
-            onClick={() => nav("/home/api-catalog/public")}
+            onClick={() => nav('/home/api-catalog/public')}
             testId="home-menu-public-network"
           >
-            Public API Network{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Public API Network{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /home/api-catalog/public
             </span>
           </DropdownItem>
           <DropdownItem
             icon={Lock}
-            onClick={() => nav("/home/api-catalog/private")}
+            onClick={() => nav('/home/api-catalog/private')}
             testId="home-menu-private-network"
           >
-            Private API Network{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Private API Network{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /home/api-catalog/private
             </span>
           </DropdownItem>
@@ -153,16 +158,17 @@ export const StatusBar = () => {
           <DropdownItem
             icon={Compass}
             onClick={() =>
-              window.open("/api-hub", "_blank", "noopener,noreferrer")
+              window.open('/api-hub', '_blank', 'noopener,noreferrer')
             }
             testId="home-menu-public-hub"
           >
-            Public API Hub (anonymous){" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Public API Hub (anonymous){' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               ↗ /api-hub
             </span>
           </DropdownItem>
         </Dropdown>
+
         <Dropdown
           align="end"
           side="top"
@@ -181,90 +187,91 @@ export const StatusBar = () => {
           <DropdownLabel>Project tools</DropdownLabel>
           <DropdownItem
             icon={TestTube2}
-            onClick={() => nav("/projects/testing")}
+            onClick={() => nav('/projects/testing')}
             testId="tools-menu-runners"
           >
-            Runners{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Runners{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/testing
             </span>
           </DropdownItem>
           <DropdownItem
             icon={Activity}
-            onClick={() => nav("/projects/monitors")}
+            onClick={() => nav('/projects/monitors')}
             testId="tools-menu-monitor"
           >
-            Monitors{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Monitors{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/monitors
             </span>
           </DropdownItem>
           <DropdownItem
             icon={Heart}
-            onClick={() => nav("/projects/heartbeats")}
+            onClick={() => nav('/projects/heartbeats')}
             testId="tools-menu-heartbeats"
           >
-            Heartbeats{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Heartbeats{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/heartbeats
             </span>
           </DropdownItem>
           <DropdownItem
             icon={Mail}
-            onClick={() => nav("/projects/digests")}
+            onClick={() => nav('/projects/digests')}
             testId="tools-menu-digests"
           >
-            Digest emails{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Digest emails{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/digests
             </span>
           </DropdownItem>
           <DropdownItem
             icon={ClipboardList}
-            onClick={() => nav("/projects/audit")}
+            onClick={() => nav('/projects/audit')}
             testId="tools-menu-audit"
           >
-            Audit log{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Audit log{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/audit
             </span>
           </DropdownItem>
           <DropdownItem
             icon={Bug}
-            onClick={() => nav("/projects/bug-tracker")}
+            onClick={() => nav('/projects/bug-tracker')}
             testId="tools-menu-bug-tracker"
           >
-            Bug Tracker{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Bug Tracker{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/bug-tracker
             </span>
           </DropdownItem>
           <DropdownItem
             icon={Trash2}
-            onClick={() => nav("/projects/trash")}
+            onClick={() => nav('/projects/trash')}
             testId="tools-menu-trash"
           >
-            Trash{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Trash{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/trash
             </span>
           </DropdownItem>
           <DropdownSep />
           <DropdownItem
             icon={Plug}
-            onClick={() => nav("/projects/integrations")}
+            onClick={() => nav('/projects/integrations')}
             testId="tools-menu-webhooks"
           >
-            Webhooks &amp; integrations{" "}
-            <span className="ml-auto text-[11px] text-text-muted">
+            Webhooks &amp; integrations{' '}
+            <span className="ml-auto text-[9px] text-text-muted">
               /projects/integrations
             </span>
           </DropdownItem>
         </Dropdown>
 
+        {/* Standalone Trash button (quick access) — from first version */}
         <button
           data-testid="status-trash-menu"
-          onClick={() => nav("/projects/trash")}
+          onClick={() => nav('/projects/trash')}
           className="flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-hover hover:text-primary"
         >
           <Trash2 className="h-3 w-3" />
@@ -272,18 +279,20 @@ export const StatusBar = () => {
         </button>
       </div>
 
-      {/* RIGHT — Tools menu + layout toggles */}
+      {/* RIGHT — Terminal toggle + layout toggles + attribution */}
       <div className="flex items-center gap-3">
         <span className="mx-1 h-3 w-px bg-border" />
+        <TerminalToggle />
+        <span className="mx-1 h-3 w-px bg-border" />
         <Tog
-          active={sideRailMode === "top"}
+          active={sideRailMode === 'top'}
           onClick={toggleSideRailMode}
           title={
-            sideRailMode === "left"
-              ? "Move navigation to top bar"
-              : "Move navigation to left rail"
+            sideRailMode === 'left'
+              ? 'Move navigation to top bar'
+              : 'Move navigation to left rail'
           }
-          icon={sideRailMode === "left" ? LayoutPanelTop : LayoutPanelLeft}
+          icon={sideRailMode === 'left' ? LayoutPanelTop : LayoutPanelLeft}
           testId="toggle-siderail-mode"
         />
         <span className="mx-1 h-3 w-px bg-border" />
@@ -307,5 +316,33 @@ export const StatusBar = () => {
         <AttributionFooter />
       </div>
     </footer>
+  );
+};
+
+/**
+ * TerminalToggle — small button in the status bar that opens/closes
+ * the bottom (or right-docked) terminal drawer. Shows an active dot
+ * when the drawer is open so users can see its state at a glance.
+ */
+const TerminalToggle = () => {
+  const open = useTerminal((s) => s.open);
+  const toggle = useTerminal((s) => s.toggle);
+  return (
+    <Tooltip content={open ? 'Hide terminal (Ctrl + `)' : 'Open terminal (Ctrl + `)'} side="top">
+      <button
+        type="button"
+        data-testid="status-terminal-toggle"
+        onClick={toggle}
+        className={cn(
+          'flex items-center gap-1 rounded px-1 py-0.5 transition-colors',
+          open
+            ? 'bg-primary/15 text-primary'
+            : 'text-text-secondary hover:bg-hover hover:text-primary',
+        )}
+      >
+        <Terminal className="h-3 w-3" />
+        <span className="text-[10px]">Terminal</span>
+      </button>
+    </Tooltip>
   );
 };

@@ -414,7 +414,7 @@ export const LoginPage = () => {
               <Logo variant="mark" className="h-12 w-10" />
               <div className="text-left">
                 <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  probestack
+                  ProbeStack
                 </div>
                 <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
                   ForgeFuzz

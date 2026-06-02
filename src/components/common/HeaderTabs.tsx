@@ -176,7 +176,7 @@ const ApiHubDropdown = () => {
         )}
       >
         <Globe className="h-3.5 w-3.5 text-text-secondary" />
-        <span>API Hub</span>
+        <span>Marketplace</span>
         <ChevronDown
           className={cn('h-3 w-3 text-text-secondary transition-transform duration-200', open && 'rotate-180')}
         />

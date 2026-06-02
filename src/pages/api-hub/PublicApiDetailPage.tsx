@@ -117,7 +117,7 @@ export const PublicApiDetailPage = () => {
         <Link to="/" className="flex items-center gap-1" data-testid="app-header-logo">
           <Logo variant="mark" className="h-12 w-10" />
           <div className="text-left">
-            <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">probestack</div>
+            <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">ProbeStack</div>
             <div className="font-bold text-2xl tracking-normal leading-tight gradient-text">ForgeFuzz</div>
           </div>
         </Link>

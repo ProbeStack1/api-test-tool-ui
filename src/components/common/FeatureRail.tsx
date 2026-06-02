@@ -171,7 +171,7 @@ const ApiHubRailItem = () => {
           className="absolute left-[calc(100%+6px)] top-0 z-50 w-60 rounded-md border border-border bg-probestack-bg shadow-lg ring-1 ring-black/5 overflow-hidden animate-in fade-in-0 slide-in-from-left-1 duration-150"
         >
           <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-            API Hub
+            Marketplace
           </div>
           {RAIL_LINKS.map(({ label, href, icon: Icon, description }) => (
             <a

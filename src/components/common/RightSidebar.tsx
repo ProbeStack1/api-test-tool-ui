@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Globe, Lock, Building2, ChevronDown, ChevronRight,EyeOff,Eye,
+  ChevronsRight,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useLayout, type RightPanelTab } from '@/stores/layout.store';
@@ -90,6 +91,8 @@ export const RightPanel = () => {
   const width = useLayout((s) => s.rightPanelWidth);
   const nudge = useLayout((s) => s.nudgeRightPanel);
   const isResizing = useLayout((s) => s.isResizing);
+  const expanded = useLayout((s) => s.showRightSidebar);
+  const toggle = useLayout((s) => s.toggleRight);
 
   return (
     <>
@@ -108,6 +111,17 @@ export const RightPanel = () => {
         )}
       >
         <header className="flex h-10 items-center border-b border-border px-3">
+          {expanded && (
+            <Tooltip content="Collapse panel" side="bottom">
+              <button
+                onClick={toggle}
+                className="mr-1 rounded p-0.5 hover:bg-hover"
+                data-testid="right-panel-collapse"
+              >
+                <ChevronsRight className="h-3.5 w-3.5 text-text-muted" />
+              </button>
+            </Tooltip>
+          )}
           <span
             data-testid="right-panel-title"
             className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary"

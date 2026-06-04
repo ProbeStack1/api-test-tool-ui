@@ -42,9 +42,10 @@ const AcceptInvitationPage = l(() => import('@/pages/auth'), (m: any) => m.Accep
 const VerifyEmailPage = l(() => import('@/pages/auth'), (m: any) => m.VerifyEmailPage);
 const NotificationsPage = l(() => import('@/pages/notifications/NotificationsPage'), (m: any) => m.NotificationsPage);
 const StatusPagePublic = l(() => import('@/pages/testing/monitors/PublicStatusPagePreview'), (m: any) => m.StatusPagePublicView);
-const PublicHubPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicHubPage);
+const MarketplacePage = l(() => import('@/pages/api-hub'), (m: any) => m.MarketplacePage);
 const PublicDocViewerPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicDocViewerPage);
 const PublicApiDetailPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicApiDetailPage);
+const PublicAiAgentDetailPage = l(() => import('@/pages/api-hub'), (m: any) => m.PublicAiAgentDetailPage);
 
 const AppShell = l(() => import('@/layouts/AppShell'), (m: any) => m.AppShell);
 const ProjectStandaloneLayout = l(() => import('@/layouts/ProjectStandaloneLayout'), (m: any) => m.ProjectStandaloneLayout);
@@ -144,8 +145,9 @@ const router = createBrowserRouter([
   // Public API Hub — auth-free discovery surface + per-doc viewer.
   // The Java service mints share links as `${frontend}/docs/{slug}`, so this
   // route catches them and the React app calls the public JSON endpoint.
-  { path: '/api-hub', element: r(<PublicHubPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/api-hub', element: r(<MarketplacePage />), errorElement: <RouteErrorBoundary /> },
   { path: '/api-hub/public/:apiId', element: r(<PublicApiDetailPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/api-hub/agents/:agentId', element: r(<PublicAiAgentDetailPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/docs/:slug', element: r(<PublicDocViewerPage />), errorElement: <RouteErrorBoundary /> },
 
   // Standalone create/manage project page — minimal chrome, own sidebar.

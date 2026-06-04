@@ -35,9 +35,14 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
-    // Allow any preview-env wildcard host so the same config works on
-    // localhost and on cloud preview URLs without further edits.
     allowedHosts: true,
+    proxy: {
+      '/a2a-proxy': {
+        target: 'https://a2aregistry.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/a2a-proxy/, '/api/agents'),
+      },
+    },
   },
   build: {
     target: 'es2022',

@@ -50,9 +50,12 @@
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cm6-graphql": "^0.2.1",
     "cmdk": "^1.0.4",
     "codemirror": "^6.0.1",
     "framer-motion": "^12.34.3",
+    "graphql": "16",
+    "graphql-ws": "^6.0.8",
     "httpsnippet-lite": "^3.0.5",
     "idb-keyval": "^6.2.1",
     "lottie-web": "^5.13.0",
@@ -64,6 +67,7 @@
     "react-hook-form": "^7.54.2",
     "react-hotkeys-hook": "^4.6.1",
     "react-is": "^19.2.5",
+    "react-json-view-lite": "^2.5.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.0",
     "react-syntax-highlighter": "^16.1.1",
@@ -72,10 +76,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "zod": "^3.24.1",
-    "zustand": "^5.0.2",
-    "cm6-graphql": "^0.2.1",
-    "graphql": "16",
-    "graphql-ws": "^6.0.8"
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",

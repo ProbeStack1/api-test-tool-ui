@@ -1,0 +1,815 @@
+[
+  {
+    "id": "anthropic-claude-3-5-sonnet",
+    "name": "Claude 3.5 Sonnet",
+    "provider": "Anthropic",
+    "description": "Anthropic's flagship reasoning + agentic model. Best-in-class for tool use, coding, and structured workflows. 200K context window.",
+    "logoUrl": "https://www.anthropic.com/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["llm", "reasoning", "tool-use", "anthropic"],
+    "protocol": "direct",
+    "baseUrl": "https://api.anthropic.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/messages",  "url": "https://api.anthropic.com/v1/messages",  "description": "Create a chat completion (single-turn or multi-turn)." },
+      { "method": "GET",  "path": "/v1/models",    "url": "https://api.anthropic.com/v1/models",    "description": "List available Claude models." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header x-api-key: <ANTHROPIC_API_KEY> and anthropic-version: 2023-06-01."
+  },
+  {
+    "id": "openai-gpt-4o",
+    "name": "OpenAI GPT-4o",
+    "provider": "OpenAI",
+    "description": "OpenAI's multi-modal flagship. Real-time text/audio/vision, tool calling, JSON mode. Production-grade for agentic workflows.",
+    "logoUrl": "https://openai.com/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["llm", "multimodal", "function-calling", "openai"],
+    "protocol": "direct",
+    "baseUrl": "https://api.openai.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.openai.com/v1/chat/completions", "description": "Create a chat completion (supports streaming + tools)." },
+      { "method": "POST", "path": "/v1/embeddings",       "url": "https://api.openai.com/v1/embeddings",       "description": "Generate embeddings for similarity search." },
+      { "method": "POST", "path": "/v1/responses",        "url": "https://api.openai.com/v1/responses",        "description": "Newer Responses API for tool-using assistants." },
+      { "method": "GET",  "path": "/v1/models",           "url": "https://api.openai.com/v1/models",           "description": "List your available models." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <OPENAI_API_KEY>."
+  },
+  {
+    "id": "openai-assistants-v2",
+    "name": "OpenAI Assistants v2",
+    "provider": "OpenAI",
+    "description": "Stateful assistant builder with files, tools (code interpreter / file_search), and threads. The closest thing OpenAI ships to a turn-key 'agent'.",
+    "logoUrl": "https://openai.com/favicon.ico",
+    "category": "Agent Platform",
+    "tags": ["assistants", "agents", "tools", "threads"],
+    "protocol": "direct",
+    "baseUrl": "https://api.openai.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/assistants", "url": "https://api.openai.com/v1/assistants", "description": "Create an assistant." },
+      { "method": "POST", "path": "/v1/threads",    "url": "https://api.openai.com/v1/threads",    "description": "Create a conversation thread." },
+      { "method": "POST", "path": "/v1/threads/{thread_id}/runs", "url": "https://api.openai.com/v1/threads/{thread_id}/runs", "description": "Run an assistant against a thread." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <OPENAI_API_KEY> and OpenAI-Beta: assistants=v2."
+  },
+  {
+    "id": "google-gemini-2-flash",
+    "name": "Google Gemini 2.0 Flash",
+    "provider": "Google",
+    "description": "Google's high-throughput multi-modal LLM with native function calling and a free-tier. Great for fast agentic loops.",
+    "logoUrl": "https://www.google.com/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["llm", "google", "multimodal", "function-calling"],
+    "protocol": "direct",
+    "baseUrl": "https://generativelanguage.googleapis.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1beta/models/gemini-2.0-flash:generateContent", "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", "description": "Generate content (chat / completion)." },
+      { "method": "GET",  "path": "/v1beta/models",                                   "url": "https://generativelanguage.googleapis.com/v1beta/models",                                   "description": "List available Gemini models." }
+    ],
+    "authRequired": true,
+    "authHint": "Append ?key=<GEMINI_API_KEY> to the URL."
+  },
+  {
+    "id": "groq-llama-3-3-70b",
+    "name": "Groq · Llama 3.3 70B",
+    "provider": "Groq",
+    "description": "Fastest inference of open models in the world (~800 tokens/sec). Free dev tier. Drop-in OpenAI-compatible API.",
+    "logoUrl": "https://groq.com/favicon.ico",
+    "category": "LLM Inference",
+    "tags": ["llm", "open-source", "fast", "openai-compatible"],
+    "protocol": "direct",
+    "baseUrl": "https://api.groq.com/openai",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.groq.com/openai/v1/chat/completions", "description": "OpenAI-style chat completion on Groq." },
+      { "method": "GET",  "path": "/v1/models",           "url": "https://api.groq.com/openai/v1/models",           "description": "List available Groq-hosted models." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <GROQ_API_KEY>."
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "provider": "OpenRouter",
+    "description": "Unified gateway to 200+ models (Anthropic, OpenAI, Mistral, Cohere…). Pay-as-you-go, no separate provider keys needed.",
+    "logoUrl": "https://openrouter.ai/favicon.ico",
+    "category": "LLM Gateway",
+    "tags": ["gateway", "multi-provider", "openai-compatible"],
+    "protocol": "direct",
+    "baseUrl": "https://openrouter.ai/api",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://openrouter.ai/api/v1/chat/completions", "description": "OpenAI-style chat completion." },
+      { "method": "GET",  "path": "/v1/models",           "url": "https://openrouter.ai/api/v1/models",           "description": "List every model OpenRouter exposes (free + paid)." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <OPENROUTER_API_KEY>."
+  },
+  {
+    "id": "huggingface-inference",
+    "name": "Hugging Face Inference",
+    "provider": "Hugging Face",
+    "description": "Serverless inference for 200,000+ open-source models. Free tier available. Great for niche / open-source agents.",
+    "logoUrl": "https://huggingface.co/favicon.ico",
+    "category": "Inference",
+    "tags": ["open-source", "inference", "embeddings", "vision"],
+    "protocol": "direct",
+    "baseUrl": "https://api-inference.huggingface.co",
+    "endpoints": [
+      { "method": "POST", "path": "/models/meta-llama/Llama-3.1-8B-Instruct", "url": "https://api-inference.huggingface.co/models/meta-llama/Llama-3.1-8B-Instruct", "description": "Run inference on Llama 3.1 8B Instruct." },
+      { "method": "POST", "path": "/models/sentence-transformers/all-MiniLM-L6-v2", "url": "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2", "description": "Generate 384-dim sentence embeddings." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <HF_TOKEN>."
+  },
+  {
+    "id": "perplexity-sonar",
+    "name": "Perplexity Sonar",
+    "provider": "Perplexity",
+    "description": "Live web-grounded LLM — every response carries source citations. Ideal for research-agent workflows.",
+    "logoUrl": "https://www.perplexity.ai/favicon.ico",
+    "category": "Search Agent",
+    "tags": ["search", "rag", "citations"],
+    "protocol": "direct",
+    "baseUrl": "https://api.perplexity.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/chat/completions", "url": "https://api.perplexity.ai/chat/completions", "description": "Web-grounded chat with inline citations." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <PERPLEXITY_API_KEY>."
+  },
+  {
+    "id": "cohere-command-r-plus",
+    "name": "Cohere Command R+",
+    "provider": "Cohere",
+    "description": "Enterprise-grade RAG + tool-use model. Built-in connectors, multi-step reasoning, and 128K context.",
+    "logoUrl": "https://cohere.com/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["rag", "tools", "enterprise"],
+    "protocol": "direct",
+    "baseUrl": "https://api.cohere.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/v2/chat",      "url": "https://api.cohere.ai/v2/chat",      "description": "Chat with RAG + tools." },
+      { "method": "POST", "path": "/v2/rerank",    "url": "https://api.cohere.ai/v2/rerank",    "description": "Re-rank documents for retrieval." },
+      { "method": "POST", "path": "/v2/embed",     "url": "https://api.cohere.ai/v2/embed",     "description": "Generate embeddings." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <COHERE_API_KEY>."
+  },
+  {
+    "id": "mistral-large",
+    "name": "Mistral Large",
+    "provider": "Mistral",
+    "description": "Mistral's flagship multilingual model with native function calling, code-gen, and JSON mode.",
+    "logoUrl": "https://mistral.ai/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["multilingual", "function-calling", "code"],
+    "protocol": "direct",
+    "baseUrl": "https://api.mistral.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.mistral.ai/v1/chat/completions", "description": "OpenAI-style chat completion." },
+      { "method": "POST", "path": "/v1/embeddings",       "url": "https://api.mistral.ai/v1/embeddings",       "description": "Generate embeddings." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <MISTRAL_API_KEY>."
+  },
+  {
+    "id": "deepseek-chat",
+    "name": "DeepSeek Chat",
+    "provider": "DeepSeek",
+    "description": "Cost-effective frontier reasoning model. Strong at coding + math at a fraction of GPT-4o pricing.",
+    "logoUrl": "https://www.deepseek.com/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["reasoning", "coding", "cheap"],
+    "protocol": "direct",
+    "baseUrl": "https://api.deepseek.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.deepseek.com/v1/chat/completions", "description": "OpenAI-style chat completion." },
+      { "method": "GET",  "path": "/v1/models",           "url": "https://api.deepseek.com/v1/models",           "description": "List DeepSeek models." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <DEEPSEEK_API_KEY>."
+  },
+  {
+    "id": "xai-grok",
+    "name": "xAI Grok",
+    "provider": "xAI",
+    "description": "Elon Musk's xAI flagship model. Real-time X (Twitter) data access, multimodal, OpenAI-compatible.",
+    "logoUrl": "https://x.ai/favicon.ico",
+    "category": "LLM Agent",
+    "tags": ["grok", "realtime", "openai-compatible"],
+    "protocol": "direct",
+    "baseUrl": "https://api.x.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.x.ai/v1/chat/completions", "description": "Chat with Grok." },
+      { "method": "GET",  "path": "/v1/models",           "url": "https://api.x.ai/v1/models",           "description": "List Grok models." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <XAI_API_KEY>."
+  },
+  {
+    "id": "together-llama",
+    "name": "Together AI",
+    "provider": "Together",
+    "description": "Run 100+ open-source models behind a single OpenAI-compatible endpoint. Best price-per-token in the industry.",
+    "logoUrl": "https://www.together.ai/favicon.ico",
+    "category": "LLM Inference",
+    "tags": ["open-source", "inference", "cheap"],
+    "protocol": "direct",
+    "baseUrl": "https://api.together.xyz",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.together.xyz/v1/chat/completions", "description": "OpenAI-style chat completion." },
+      { "method": "GET",  "path": "/v1/models",           "url": "https://api.together.xyz/v1/models",           "description": "List every available model." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <TOGETHER_API_KEY>."
+  },
+  {
+    "id": "replicate",
+    "name": "Replicate",
+    "provider": "Replicate",
+    "description": "Run open-source models — LLMs, image, audio, video — via a unified REST API. Pay per second of compute.",
+    "logoUrl": "https://replicate.com/favicon.ico",
+    "category": "Inference",
+    "tags": ["multimodal", "image", "audio", "video"],
+    "protocol": "direct",
+    "baseUrl": "https://api.replicate.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/predictions", "url": "https://api.replicate.com/v1/predictions", "description": "Create a prediction (run a model)." },
+      { "method": "GET",  "path": "/v1/predictions/{prediction_id}", "url": "https://api.replicate.com/v1/predictions/{prediction_id}", "description": "Poll a running prediction." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Token <REPLICATE_API_TOKEN>."
+  },
+  {
+    "id": "fal-ai",
+    "name": "fal.ai",
+    "provider": "fal.ai",
+    "description": "Lightning-fast inference for image / video / audio models (Flux, Stable Diffusion, SDXL). Sub-second latency.",
+    "logoUrl": "https://fal.ai/favicon.ico",
+    "category": "Image / Video",
+    "tags": ["image", "video", "fast"],
+    "protocol": "direct",
+    "baseUrl": "https://fal.run",
+    "endpoints": [
+      { "method": "POST", "path": "/fal-ai/flux/schnell", "url": "https://fal.run/fal-ai/flux/schnell", "description": "Generate an image with Flux Schnell." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Key <FAL_KEY>."
+  },
+  {
+    "id": "elevenlabs-tts",
+    "name": "ElevenLabs",
+    "provider": "ElevenLabs",
+    "description": "Industry-leading text-to-speech + voice cloning. Used by every major voice-agent platform.",
+    "logoUrl": "https://elevenlabs.io/favicon.ico",
+    "category": "Voice",
+    "tags": ["tts", "voice", "audio"],
+    "protocol": "direct",
+    "baseUrl": "https://api.elevenlabs.io",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/text-to-speech/{voice_id}", "url": "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}", "description": "Generate speech from text." },
+      { "method": "GET",  "path": "/v1/voices", "url": "https://api.elevenlabs.io/v1/voices", "description": "List your voices." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header xi-api-key: <ELEVENLABS_API_KEY>."
+  },
+  {
+    "id": "deepgram-stt",
+    "name": "Deepgram",
+    "provider": "Deepgram",
+    "description": "Real-time speech-to-text with diarization. Used by voice-agent platforms like Vapi and Retell.",
+    "logoUrl": "https://deepgram.com/favicon.ico",
+    "category": "Voice",
+    "tags": ["stt", "voice", "realtime"],
+    "protocol": "direct",
+    "baseUrl": "https://api.deepgram.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/listen", "url": "https://api.deepgram.com/v1/listen", "description": "Transcribe audio (file or URL)." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Token <DEEPGRAM_API_KEY>."
+  },
+  {
+    "id": "tavily-search",
+    "name": "Tavily Search",
+    "provider": "Tavily",
+    "description": "AI-optimised web search API for RAG and research agents. Returns clean markdown + citations.",
+    "logoUrl": "https://tavily.com/favicon.ico",
+    "category": "Search Agent",
+    "tags": ["search", "rag", "web"],
+    "protocol": "direct",
+    "baseUrl": "https://api.tavily.com",
+    "endpoints": [
+      { "method": "POST", "path": "/search", "url": "https://api.tavily.com/search", "description": "AI-optimised web search." },
+      { "method": "POST", "path": "/extract", "url": "https://api.tavily.com/extract", "description": "Extract clean text from a URL." }
+    ],
+    "authRequired": true,
+    "authHint": "Pass api_key in the JSON body."
+  },
+  {
+    "id": "exa-search",
+    "name": "Exa Search",
+    "provider": "Exa",
+    "description": "Neural-embedding search engine purpose-built for agents. Find pages by description, not keywords.",
+    "logoUrl": "https://exa.ai/favicon.ico",
+    "category": "Search Agent",
+    "tags": ["search", "neural", "embedding"],
+    "protocol": "direct",
+    "baseUrl": "https://api.exa.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/search",         "url": "https://api.exa.ai/search",         "description": "Neural / keyword web search." },
+      { "method": "POST", "path": "/contents",       "url": "https://api.exa.ai/contents",       "description": "Fetch full page contents." },
+      { "method": "POST", "path": "/findSimilar",    "url": "https://api.exa.ai/findSimilar",    "description": "Find pages similar to a URL." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header x-api-key: <EXA_API_KEY>."
+  },
+  {
+    "id": "browserbase",
+    "name": "Browserbase",
+    "provider": "Browserbase",
+    "description": "Headless-browser-as-a-service for agentic web automation. Built-in stealth, sessions, recording.",
+    "logoUrl": "https://browserbase.com/favicon.ico",
+    "category": "Browser Agent",
+    "tags": ["browser", "automation", "scraping"],
+    "protocol": "direct",
+    "baseUrl": "https://api.browserbase.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/sessions", "url": "https://api.browserbase.com/v1/sessions", "description": "Create a new browser session." },
+      { "method": "GET",  "path": "/v1/sessions/{id}", "url": "https://api.browserbase.com/v1/sessions/{id}", "description": "Get session details." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header X-BB-API-Key: <BROWSERBASE_API_KEY>."
+  },
+  {
+    "id": "firecrawl",
+    "name": "Firecrawl",
+    "provider": "Firecrawl",
+    "description": "LLM-ready web scraping. Returns clean markdown, schema-extracted data, and crawl jobs.",
+    "logoUrl": "https://firecrawl.dev/favicon.ico",
+    "category": "Scraping Agent",
+    "tags": ["scraping", "crawling", "markdown"],
+    "protocol": "direct",
+    "baseUrl": "https://api.firecrawl.dev",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/scrape", "url": "https://api.firecrawl.dev/v1/scrape", "description": "Scrape a single URL." },
+      { "method": "POST", "path": "/v1/crawl",  "url": "https://api.firecrawl.dev/v1/crawl",  "description": "Start an async crawl job." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <FIRECRAWL_API_KEY>."
+  },
+  {
+    "id": "serpapi",
+    "name": "SerpAPI",
+    "provider": "SerpAPI",
+    "description": "Real-time search-engine results (Google, Bing, DuckDuckGo, …) via a single REST endpoint.",
+    "logoUrl": "https://serpapi.com/favicon.ico",
+    "category": "Search Agent",
+    "tags": ["search", "google", "scraping"],
+    "protocol": "direct",
+    "baseUrl": "https://serpapi.com",
+    "endpoints": [
+      { "method": "GET", "path": "/search", "url": "https://serpapi.com/search", "description": "Run a search; pass q + engine in query params." }
+    ],
+    "authRequired": true,
+    "authHint": "Pass ?api_key=<SERPAPI_KEY> in the URL."
+  },
+  {
+    "id": "stability-ai",
+    "name": "Stability AI",
+    "provider": "Stability AI",
+    "description": "Stable Diffusion family of image-gen models — text-to-image, image-to-image, upscaling.",
+    "logoUrl": "https://stability.ai/favicon.ico",
+    "category": "Image / Video",
+    "tags": ["image", "stable-diffusion"],
+    "protocol": "direct",
+    "baseUrl": "https://api.stability.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/v2beta/stable-image/generate/sd3", "url": "https://api.stability.ai/v2beta/stable-image/generate/sd3", "description": "Generate an image with SD3." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <STABILITY_API_KEY>."
+  },
+  {
+    "id": "runwayml",
+    "name": "Runway",
+    "provider": "Runway",
+    "description": "Gen-3 Alpha video generation — text-to-video, image-to-video. Used by film studios.",
+    "logoUrl": "https://runwayml.com/favicon.ico",
+    "category": "Image / Video",
+    "tags": ["video", "generative"],
+    "protocol": "direct",
+    "baseUrl": "https://api.runwayml.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/image_to_video", "url": "https://api.runwayml.com/v1/image_to_video", "description": "Generate a video from an image prompt." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <RUNWAY_API_KEY>."
+  },
+  {
+    "id": "pinecone-vector",
+    "name": "Pinecone",
+    "provider": "Pinecone",
+    "description": "Production-grade vector database for RAG. Serverless, multi-tenant, namespace-isolated.",
+    "logoUrl": "https://www.pinecone.io/favicon.ico",
+    "category": "Vector DB",
+    "tags": ["vector-db", "rag", "embeddings"],
+    "protocol": "direct",
+    "baseUrl": "https://api.pinecone.io",
+    "endpoints": [
+      { "method": "POST", "path": "/indexes",         "url": "https://api.pinecone.io/indexes",         "description": "Create a new vector index." },
+      { "method": "POST", "path": "/vectors/upsert",  "url": "https://api.pinecone.io/vectors/upsert",  "description": "Upsert vectors into an index." },
+      { "method": "POST", "path": "/query",           "url": "https://api.pinecone.io/query",           "description": "Query nearest neighbours." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Api-Key: <PINECONE_API_KEY>."
+  },
+  {
+    "id": "qdrant",
+    "name": "Qdrant Cloud",
+    "provider": "Qdrant",
+    "description": "Open-source vector database with payload filtering. Self-host or managed cloud.",
+    "logoUrl": "https://qdrant.tech/favicon.ico",
+    "category": "Vector DB",
+    "tags": ["vector-db", "open-source", "filter"],
+    "protocol": "direct",
+    "baseUrl": "https://cloud.qdrant.io",
+    "endpoints": [
+      { "method": "PUT",  "path": "/collections/{collection}",                "url": "https://cloud.qdrant.io/collections/{collection}",                "description": "Create a collection." },
+      { "method": "PUT",  "path": "/collections/{collection}/points",         "url": "https://cloud.qdrant.io/collections/{collection}/points",         "description": "Upsert points." },
+      { "method": "POST", "path": "/collections/{collection}/points/search",  "url": "https://cloud.qdrant.io/collections/{collection}/points/search",  "description": "Search nearest neighbours." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header api-key: <QDRANT_API_KEY>."
+  },
+  {
+    "id": "weaviate",
+    "name": "Weaviate Cloud",
+    "provider": "Weaviate",
+    "description": "Open-source vector database with built-in generative + hybrid search. GraphQL-first.",
+    "logoUrl": "https://weaviate.io/favicon.ico",
+    "category": "Vector DB",
+    "tags": ["vector-db", "graphql", "hybrid-search"],
+    "protocol": "direct",
+    "baseUrl": "https://cluster.weaviate.cloud",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/graphql", "url": "https://cluster.weaviate.cloud/v1/graphql", "description": "GraphQL query (vector + hybrid search)." },
+      { "method": "POST", "path": "/v1/objects", "url": "https://cluster.weaviate.cloud/v1/objects", "description": "Create / batch import objects." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <WEAVIATE_API_KEY>."
+  },
+  {
+    "id": "supabase-vector",
+    "name": "Supabase Vector",
+    "provider": "Supabase",
+    "description": "pgvector-backed vector store inside your Supabase Postgres. Free tier covers small projects.",
+    "logoUrl": "https://supabase.com/favicon.ico",
+    "category": "Vector DB",
+    "tags": ["vector-db", "postgres", "open-source"],
+    "protocol": "direct",
+    "baseUrl": "https://<project>.supabase.co",
+    "endpoints": [
+      { "method": "POST", "path": "/rest/v1/rpc/match_documents", "url": "https://<project>.supabase.co/rest/v1/rpc/match_documents", "description": "Nearest-neighbour search via SQL RPC." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header apikey: <SUPABASE_ANON_KEY> and Authorization: Bearer <USER_JWT>."
+  },
+  {
+    "id": "langsmith",
+    "name": "LangSmith",
+    "provider": "LangChain",
+    "description": "Observability + eval platform for LLM apps. Trace every agent step, dataset-driven evals.",
+    "logoUrl": "https://smith.langchain.com/favicon.ico",
+    "category": "Observability",
+    "tags": ["observability", "eval", "tracing", "langchain"],
+    "protocol": "direct",
+    "baseUrl": "https://api.smith.langchain.com",
+    "endpoints": [
+      { "method": "POST", "path": "/runs/batch", "url": "https://api.smith.langchain.com/runs/batch", "description": "Ingest a batch of run traces." },
+      { "method": "GET",  "path": "/runs",       "url": "https://api.smith.langchain.com/runs",       "description": "Query traces." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header x-api-key: <LANGSMITH_API_KEY>."
+  },
+  {
+    "id": "langflow",
+    "name": "Langflow",
+    "provider": "Langflow",
+    "description": "Visual builder for LangChain agents. Drag-drop flows, deploy as REST endpoints.",
+    "logoUrl": "https://www.langflow.org/favicon.ico",
+    "category": "Agent Platform",
+    "tags": ["no-code", "visual", "langchain"],
+    "protocol": "direct",
+    "baseUrl": "https://<your-langflow-host>",
+    "endpoints": [
+      { "method": "POST", "path": "/api/v1/run/{flow_id}", "url": "https://<your-langflow-host>/api/v1/run/{flow_id}", "description": "Run a deployed flow." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header x-api-key: <LANGFLOW_API_KEY>."
+  },
+  {
+    "id": "n8n-cloud",
+    "name": "n8n",
+    "provider": "n8n",
+    "description": "Open-source workflow automation with 400+ integrations. AI agents via LangChain nodes.",
+    "logoUrl": "https://n8n.io/favicon.ico",
+    "category": "Workflow",
+    "tags": ["workflow", "automation", "no-code"],
+    "protocol": "direct",
+    "baseUrl": "https://<your-n8n-host>",
+    "endpoints": [
+      { "method": "POST", "path": "/webhook/{path}", "url": "https://<your-n8n-host>/webhook/{path}", "description": "Trigger a workflow via webhook." },
+      { "method": "GET",  "path": "/api/v1/workflows", "url": "https://<your-n8n-host>/api/v1/workflows", "description": "List workflows." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header X-N8N-API-KEY: <N8N_API_KEY>."
+  },
+  {
+    "id": "make-com",
+    "name": "Make.com",
+    "provider": "Make",
+    "description": "No-code automation platform — chain hundreds of apps + AI models into visual scenarios.",
+    "logoUrl": "https://www.make.com/favicon.ico",
+    "category": "Workflow",
+    "tags": ["no-code", "workflow", "integrations"],
+    "protocol": "direct",
+    "baseUrl": "https://eu1.make.com",
+    "endpoints": [
+      { "method": "POST", "path": "/api/v2/scenarios/{id}/runs", "url": "https://eu1.make.com/api/v2/scenarios/{id}/runs", "description": "Trigger a Make scenario." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Token <MAKE_API_TOKEN>."
+  },
+  {
+    "id": "zapier-mcp",
+    "name": "Zapier MCP",
+    "provider": "Zapier",
+    "description": "Zapier's MCP server exposes 7,000+ app actions to any MCP-capable agent (Claude Desktop, Cursor, …).",
+    "logoUrl": "https://zapier.com/favicon.ico",
+    "category": "MCP",
+    "tags": ["mcp", "zapier", "integrations"],
+    "protocol": "mcp",
+    "baseUrl": "https://actions.zapier.com",
+    "endpoints": [
+      { "method": "POST", "path": "/mcp/api/v1/tools/list", "url": "https://actions.zapier.com/mcp/api/v1/tools/list", "description": "List the tools exposed by your Zapier MCP server." },
+      { "method": "POST", "path": "/mcp/api/v1/tools/call", "url": "https://actions.zapier.com/mcp/api/v1/tools/call", "description": "Invoke a tool by name with arguments." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <ZAPIER_MCP_KEY>."
+  },
+  {
+    "id": "smithery-mcp",
+    "name": "Smithery (MCP Registry)",
+    "provider": "Smithery",
+    "description": "Open registry of 1,000+ MCP servers. Spin up search, github, postgres, drive servers in one click.",
+    "logoUrl": "https://smithery.ai/favicon.ico",
+    "category": "MCP",
+    "tags": ["mcp", "registry", "tools"],
+    "protocol": "mcp",
+    "baseUrl": "https://registry.smithery.ai",
+    "endpoints": [
+      { "method": "GET", "path": "/servers",        "url": "https://registry.smithery.ai/servers",        "description": "List MCP servers in the registry." },
+      { "method": "GET", "path": "/servers/{name}", "url": "https://registry.smithery.ai/servers/{name}", "description": "Get one MCP server's manifest." }
+    ],
+    "authRequired": false,
+    "authHint": "Public registry — no auth needed for browsing."
+  },
+  {
+    "id": "vapi-voice",
+    "name": "Vapi Voice Agents",
+    "provider": "Vapi",
+    "description": "End-to-end voice-agent platform — STT + LLM + TTS in one API. Powers customer-support agents.",
+    "logoUrl": "https://vapi.ai/favicon.ico",
+    "category": "Voice Agent",
+    "tags": ["voice", "agent", "telephony"],
+    "protocol": "direct",
+    "baseUrl": "https://api.vapi.ai",
+    "endpoints": [
+      { "method": "POST", "path": "/assistant",   "url": "https://api.vapi.ai/assistant",   "description": "Create a voice assistant." },
+      { "method": "POST", "path": "/call",        "url": "https://api.vapi.ai/call",        "description": "Trigger an outbound voice call." },
+      { "method": "POST", "path": "/call/web",    "url": "https://api.vapi.ai/call/web",    "description": "Start an in-browser voice call." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <VAPI_PRIVATE_KEY>."
+  },
+  {
+    "id": "retell-voice",
+    "name": "Retell Voice",
+    "provider": "Retell AI",
+    "description": "Ultra-low-latency voice agents (~600ms). Real-time streaming TTS + STT + LLM.",
+    "logoUrl": "https://retellai.com/favicon.ico",
+    "category": "Voice Agent",
+    "tags": ["voice", "agent", "realtime"],
+    "protocol": "direct",
+    "baseUrl": "https://api.retellai.com",
+    "endpoints": [
+      { "method": "POST", "path": "/create-phone-call", "url": "https://api.retellai.com/create-phone-call", "description": "Trigger an outbound call." },
+      { "method": "POST", "path": "/create-web-call",   "url": "https://api.retellai.com/create-web-call",   "description": "Create an in-browser call." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <RETELL_API_KEY>."
+  },
+  {
+    "id": "kre-nexus-agents",
+    "name": "KRE Nexus",
+    "provider": "ForgeFuzz",
+    "description": "ForgeFuzz's own AI agent marketplace — pre-built test-generation agents you can save to a collection and run inside any project.",
+    "logoUrl": null,
+    "category": "Agent Platform",
+    "tags": ["forgefuzz", "test-gen", "internal"],
+    "protocol": "kre",
+    "baseUrl": "https://forgeq.probestack.io",
+    "endpoints": [
+      { "method": "GET",  "path": "/api/marketplace/agents",            "url": "https://forgeq.probestack.io/api/marketplace/agents",            "description": "List every published KRE Nexus agent." },
+      { "method": "POST", "path": "/api/marketplace/agents/{id}/invoke", "url": "https://forgeq.probestack.io/api/marketplace/agents/{id}/invoke", "description": "Invoke a saved agent." }
+    ],
+    "authRequired": true,
+    "authHint": "Bearer JWT from your ForgeFuzz login."
+  },
+  {
+    "id": "crewai-cloud",
+    "name": "CrewAI Cloud",
+    "provider": "CrewAI",
+    "description": "Multi-agent orchestration — define crews of role-based agents that collaborate on tasks.",
+    "logoUrl": "https://www.crewai.com/favicon.ico",
+    "category": "Multi-agent",
+    "tags": ["multi-agent", "orchestration", "python"],
+    "protocol": "direct",
+    "baseUrl": "https://app.crewai.com",
+    "endpoints": [
+      { "method": "POST", "path": "/api/v1/crews/{id}/kickoff", "url": "https://app.crewai.com/api/v1/crews/{id}/kickoff", "description": "Kick off a crew of agents." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <CREWAI_API_TOKEN>."
+  },
+  {
+    "id": "autogen-studio",
+    "name": "AutoGen Studio",
+    "provider": "Microsoft",
+    "description": "Microsoft's framework for multi-agent conversational AI. Open-source with a hosted Studio UI.",
+    "logoUrl": "https://github.com/microsoft.png",
+    "category": "Multi-agent",
+    "tags": ["multi-agent", "microsoft", "python", "open-source"],
+    "protocol": "direct",
+    "baseUrl": "https://<your-autogen-host>",
+    "endpoints": [
+      { "method": "POST", "path": "/api/team/run", "url": "https://<your-autogen-host>/api/team/run", "description": "Run a saved team of agents." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header X-AutoGen-Key: <AUTOGEN_KEY>."
+  },
+  {
+    "id": "stagehand-browser",
+    "name": "Stagehand",
+    "provider": "Browserbase",
+    "description": "Natural-language browser-automation framework on top of Playwright. Ideal for browser-control agents.",
+    "logoUrl": "https://browserbase.com/favicon.ico",
+    "category": "Browser Agent",
+    "tags": ["browser", "playwright", "automation"],
+    "protocol": "direct",
+    "baseUrl": "https://api.browserbase.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/stagehand/act",     "url": "https://api.browserbase.com/v1/stagehand/act",     "description": "Perform a natural-language action in the browser." },
+      { "method": "POST", "path": "/v1/stagehand/extract", "url": "https://api.browserbase.com/v1/stagehand/extract", "description": "Extract structured data from the current page." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header X-BB-API-Key: <BROWSERBASE_API_KEY>."
+  },
+  {
+    "id": "modal",
+    "name": "Modal",
+    "provider": "Modal Labs",
+    "description": "Serverless GPU compute for AI workloads. Deploy LLMs, fine-tuning jobs, agent backends as REST endpoints.",
+    "logoUrl": "https://modal.com/favicon.ico",
+    "category": "Inference",
+    "tags": ["serverless", "gpu", "deploy"],
+    "protocol": "direct",
+    "baseUrl": "https://<your-org>--<your-app>.modal.run",
+    "endpoints": [
+      { "method": "POST", "path": "/", "url": "https://<your-org>--<your-app>.modal.run/", "description": "Invoke your deployed Modal endpoint." }
+    ],
+    "authRequired": false,
+    "authHint": "Auth depends on how you set up your Modal endpoint (token / header / public)."
+  },
+  {
+    "id": "modelcontext-mcp-github",
+    "name": "GitHub MCP Server",
+    "provider": "Model Context Protocol",
+    "description": "Official MCP server exposing GitHub repos, issues, PRs to any MCP-capable agent.",
+    "logoUrl": "https://modelcontextprotocol.io/favicon.ico",
+    "category": "MCP",
+    "tags": ["mcp", "github", "official"],
+    "protocol": "mcp",
+    "baseUrl": "https://api.githubcopilot.com",
+    "endpoints": [
+      { "method": "POST", "path": "/mcp/tools/list", "url": "https://api.githubcopilot.com/mcp/tools/list", "description": "List the GitHub tools exposed via MCP." },
+      { "method": "POST", "path": "/mcp/tools/call", "url": "https://api.githubcopilot.com/mcp/tools/call", "description": "Invoke a GitHub tool (e.g. create_issue)." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <GITHUB_PAT>."
+  },
+  {
+    "id": "modelcontext-mcp-slack",
+    "name": "Slack MCP Server",
+    "provider": "Model Context Protocol",
+    "description": "Reference MCP server that exposes Slack channels, messages, threads to agents.",
+    "logoUrl": "https://modelcontextprotocol.io/favicon.ico",
+    "category": "MCP",
+    "tags": ["mcp", "slack"],
+    "protocol": "mcp",
+    "baseUrl": "https://slack.com",
+    "endpoints": [
+      { "method": "POST", "path": "/api/chat.postMessage",  "url": "https://slack.com/api/chat.postMessage",  "description": "Post a message to a channel." },
+      { "method": "GET",  "path": "/api/conversations.list", "url": "https://slack.com/api/conversations.list", "description": "List channels." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <SLACK_BOT_TOKEN>."
+  },
+  {
+    "id": "langgraph-cloud",
+    "name": "LangGraph Cloud",
+    "provider": "LangChain",
+    "description": "Stateful, graph-based agent runtime from LangChain. Deploy, persist, time-travel, and stream long-running agents.",
+    "logoUrl": "https://smith.langchain.com/favicon.ico",
+    "category": "Agent Platform",
+    "tags": ["agent", "graph", "stateful", "langchain"],
+    "protocol": "direct",
+    "baseUrl": "https://<your-deployment>.us.langgraph.app",
+    "endpoints": [
+      { "method": "POST", "path": "/threads",                        "url": "https://<your-deployment>.us.langgraph.app/threads",                        "description": "Create a new thread (persistent conversation)." },
+      { "method": "POST", "path": "/threads/{thread_id}/runs",       "url": "https://<your-deployment>.us.langgraph.app/threads/{thread_id}/runs",       "description": "Run a graph against a thread." },
+      { "method": "POST", "path": "/threads/{thread_id}/runs/stream", "url": "https://<your-deployment>.us.langgraph.app/threads/{thread_id}/runs/stream", "description": "Stream events from a graph run (SSE)." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header X-Api-Key: <LANGGRAPH_API_KEY>."
+  },
+  {
+    "id": "letta-memory-agents",
+    "name": "Letta (MemGPT)",
+    "provider": "Letta",
+    "description": "Stateful agents with long-term memory. Persona, persistence, tool use — ideal for personal-assistant style workflows.",
+    "logoUrl": "https://letta.com/favicon.ico",
+    "category": "Agent Platform",
+    "tags": ["memory", "stateful", "memgpt", "persona"],
+    "protocol": "direct",
+    "baseUrl": "https://api.letta.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/agents",                       "url": "https://api.letta.com/v1/agents",                       "description": "Create a persistent agent." },
+      { "method": "POST", "path": "/v1/agents/{agent_id}/messages",   "url": "https://api.letta.com/v1/agents/{agent_id}/messages",   "description": "Send a message to an agent (persists across turns)." },
+      { "method": "GET",  "path": "/v1/agents/{agent_id}/memory",     "url": "https://api.letta.com/v1/agents/{agent_id}/memory",     "description": "Inspect an agent's long-term memory blocks." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <LETTA_API_KEY>."
+  },
+  {
+    "id": "inkeep-rag",
+    "name": "Inkeep",
+    "provider": "Inkeep",
+    "description": "Drop-in AI search + chat for product docs. RAG over your knowledge base with citations.",
+    "logoUrl": "https://inkeep.com/favicon.ico",
+    "category": "Search Agent",
+    "tags": ["rag", "docs", "search", "support"],
+    "protocol": "direct",
+    "baseUrl": "https://api.inkeep.com",
+    "endpoints": [
+      { "method": "POST", "path": "/v1/chat/completions", "url": "https://api.inkeep.com/v1/chat/completions", "description": "OpenAI-style chat over your indexed knowledge base." }
+    ],
+    "authRequired": true,
+    "authHint": "Set header Authorization: Bearer <INKEEP_API_KEY>."
+  },
+  {
+    "id": "kre-nexus-testgen",
+    "name": "KRE Nexus · Test Generator",
+    "provider": "ForgeFuzz",
+    "description": "ForgeFuzz internal agent that auto-generates contract + negative test cases for any imported OpenAPI spec.",
+    "logoUrl": null,
+    "category": "Agent Platform",
+    "tags": ["forgefuzz", "testgen", "internal", "openapi"],
+    "protocol": "kre",
+    "baseUrl": "https://forgeq.probestack.io",
+    "endpoints": [
+      { "method": "POST", "path": "/api/v1/kre/testgen/run",          "url": "https://forgeq.probestack.io/api/v1/kre/testgen/run",          "description": "Generate test suites for a collection." },
+      { "method": "GET",  "path": "/api/v1/kre/testgen/runs/{runId}", "url": "https://forgeq.probestack.io/api/v1/kre/testgen/runs/{runId}", "description": "Fetch test generation status." }
+    ],
+    "authRequired": true,
+    "authHint": "Bearer JWT from your ForgeFuzz login."
+  },
+  {
+    "id": "kre-nexus-safety",
+    "name": "KRE Nexus · Safety Eval",
+    "provider": "ForgeFuzz",
+    "description": "ForgeFuzz safety agent: scans LLM responses for PII, toxicity, jailbreak attempts, and prompt-injection.",
+    "logoUrl": null,
+    "category": "Agent Platform",
+    "tags": ["forgefuzz", "safety", "pii", "jailbreak", "internal"],
+    "protocol": "kre",
+    "baseUrl": "https://forgeq.probestack.io",
+    "endpoints": [
+      { "method": "POST", "path": "/api/v1/kre/safety/scan",          "url": "https://forgeq.probestack.io/api/v1/kre/safety/scan",          "description": "Run a single scan over a prompt/response pair." },
+      { "method": "POST", "path": "/api/v1/kre/safety/scan/batch",    "url": "https://forgeq.probestack.io/api/v1/kre/safety/scan/batch",    "description": "Batch-scan a list of conversation turns." }
+    ],
+    "authRequired": true,
+    "authHint": "Bearer JWT from your ForgeFuzz login."
+  }
+]

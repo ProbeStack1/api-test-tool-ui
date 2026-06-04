@@ -1,28 +1,16 @@
 /**
- * PublicHubPage — `/api-hub`. Postman/Mintlify-style public discovery surface.
- *
- * Renders ONE unified grid that merges two sources:
- *   • ForgeFuzz public docs (every doc users have published with visibility=PUBLIC)
- *   • APIs.guru registry (2,400+ free public OpenAPI specs — GitHub, Stripe,
- *     PokéAPI, OpenWeather, etc.)
- *
- * Filters:
- *   • Free-text search (title / subtitle / tag)
- *   • Provider dropdown (any provider OR "ForgeFuzz" OR a single APIs.guru
- *     domain like "stripe.com")
- *   • Source toggle (all / forgefuzz / public)
- *
- * Try It → import a public API into the logged-in user's workspace as a
- * brand-new collection. Pre-login users get bounced to /login with a
- * returnTo so the import auto-resumes after sign-in.
+ * PublicApisHub – The actual API hub grid (ForgeFuzz docs + APIs.guru)
+ * 
+ * Includes search, filters, cards, pagination, popular strip.
+ * Used inside MarketplacePage.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Globe2, Search, ArrowRight, FileText, Sparkles, Tag, Eye, Loader2,
-  ArrowLeft, Layers, Compass, TrendingUp, Clock, Building2, Filter, Download,
-  ExternalLink, ChevronLeft, ChevronRight,
+  Layers, Building2, Filter, Download, ChevronLeft, ChevronRight, TrendingUp,
+  ChevronDown, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { browsePublicDocs, countPublicDocs, type PublicHubCard } from '@/services/apiDocs.service';
@@ -34,8 +22,6 @@ import {
 } from '@/services/publicApis.service';
 import { useAuth } from '@/stores/auth.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
-import { Logo } from '@/components/common/Logo';
-import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { cn } from '@/utils/cn';
 
 const formatDate = (iso?: string | number | null): string => {
@@ -52,30 +38,41 @@ const FORMAT_BADGE: Record<string, string> = {
   HYBRID: 'bg-warning/10 text-warning border-warning/30',
 };
 
-/** Unified card shape — discriminated union across both data sources. */
 type UnifiedCard =
   | ({ kind: 'forgefuzz' } & PublicHubCard)
   | ({ kind: 'public' } & PublicApiCard);
 
 const PAGE_SIZE = 30;
 
-export const PublicHubPage = () => {
+export const PublicApisHub = () => {
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'forgefuzz' | 'public'>('all');
   const [providerFilter, setProviderFilter] = useState<string>('any');
   const [page, setPage] = useState(0);
+  // Provider dropdown state
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+  const [providerSearch, setProviderSearch] = useState('');
+  const providerRef = useRef<HTMLDivElement>(null);
 
-  // Debounce search 250ms.
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (providerRef.current && !providerRef.current.contains(event.target as Node)) {
+        setShowProviderDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim().toLowerCase()), 250);
     return () => clearTimeout(t);
   }, [q]);
 
-  // Reset pagination whenever any filter changes.
   useEffect(() => { setPage(0); }, [debouncedQ, sourceFilter, providerFilter]);
 
-  /* ── ForgeFuzz public docs (existing) ── */
   const forgeQ = useQuery({
     queryKey: ['public-hub', 'forgefuzz', debouncedQ],
     queryFn: () => browsePublicDocs({ q: debouncedQ || undefined, sort: 'recent', size: 120 }),
@@ -88,16 +85,13 @@ export const PublicHubPage = () => {
     staleTime: 60_000,
   });
 
-  /* ── APIs.guru registry (new) ── */
   const guruQ = useQuery({
     queryKey: ['public-hub', 'apis-guru'],
     queryFn: () => fetchPublicApiCatalog(),
-    // Master list is large + immutable for hours; cache hard.
     staleTime: 60 * 60_000,
     refetchOnWindowFocus: false,
   });
 
-  /* ── Merge + filter ── */
   const merged = useMemo<UnifiedCard[]>(() => {
     const cards: UnifiedCard[] = [];
     if (sourceFilter !== 'public') {
@@ -115,15 +109,19 @@ export const PublicHubPage = () => {
     return Array.from(set);
   }, [guruQ.data]);
 
+  // Filtered providers based on search term
+  const filteredProviders = useMemo(() => {
+    if (!providerSearch) return providers;
+    return providers.filter(p => p.toLowerCase().includes(providerSearch.toLowerCase()));
+  }, [providers, providerSearch]);
+
   const filtered = useMemo(() => {
     return merged.filter((c) => {
-      // Provider filter
       if (providerFilter !== 'any') {
         if (providerFilter === 'ForgeFuzz' && c.kind !== 'forgefuzz') return false;
         if (providerFilter !== 'ForgeFuzz' && c.kind !== 'public') return false;
         if (c.kind === 'public' && c.provider !== providerFilter) return false;
       }
-      // Free-text search
       if (debouncedQ) {
         const hay =
           c.kind === 'forgefuzz'
@@ -135,7 +133,6 @@ export const PublicHubPage = () => {
     });
   }, [merged, providerFilter, debouncedQ]);
 
-  /* ── Pagination ── */
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
   const visible = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
@@ -144,211 +141,221 @@ export const PublicHubPage = () => {
   const guruTotal = guruQ.data?.length ?? 0;
   const isFetching = forgeQ.isFetching || guruQ.isFetching;
 
+  // Helper to reset only provider filter
+  const resetProviderFilter = () => {
+    setProviderFilter('any');
+    setProviderSearch('');
+    setShowProviderDropdown(false);
+  };
+
+  const selectedProviderLabel = providerFilter === 'any' ? 'Any provider' : providerFilter;
+
   return (
-    <div className="flex min-h-screen flex-col bg-background text-text-primary" data-testid="public-hub-page">
-      {/* Slim public header */}
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
-        <Link to="/" data-testid="app-header-logo" className="flex items-center gap-1">
-          <Logo variant="mark" className="h-12 w-10" />
-          <div className="text-left">
-            <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">ProbeStack</div>
-            <div className="font-bold text-2xl tracking-normal leading-tight gradient-text">ForgeFuzz</div>
-          </div>
-        </Link>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
+    <div data-testid="apis-hub-container">
+      {/* Search & Filters – centered */}
+      <div className="mb-6 flex flex-col items-center gap-4">
+        <div className="flex w-full max-w-3xl items-center gap-2 rounded-xl border border-border bg-surface px-0 pl-2  shadow-sm transition-shadow focus-within:border-primary/50 focus-within:shadow-md mx-auto">
+          <Search className="ml-2 h-4 w-4 text-text-muted" />
+          <div className="flex-1 border-l-2 border-border rounded-r-xl ml-2">
+  <input
+    data-testid="hub-search-input"
+    autoFocus
+    value={q}
+    onChange={(e) => setQ(e.target.value)}
+    placeholder="Search by title, provider, or tag — e.g. ‘weather’, ‘stripe’, ‘crypto’…"
+    className="w-full bg-transparent px-3 py-2 text-sm placeholder:text-text-muted rounded-r-xl border-transparent focus:border-primary focus:outline-none"
+  />
+</div>
+          {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin text-text-muted" />}
         </div>
-      </header>
 
-      {/* Hero — bold, search-first. */}
-      <section className="relative isolate overflow-hidden border-b border-border bg-gradient-to-b from-primary/[0.07] via-transparent to-transparent">
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 opacity-[0.18]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
-            backgroundSize: '32px 32px',
-            color: 'var(--color-text-muted)',
-            maskImage: 'radial-gradient(ellipse at top, black 25%, transparent 70%)',
-          }}
-        />
-        <div className="mx-auto max-w-5xl px-6 py-14 text-center sm:py-20">
-          <Link
-            to="/projects/collections"
-            data-testid="hub-back-to-app"
-            className="mb-5 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface/40 px-3 py-1.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to project
-          </Link>
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-medium tracking-wide text-primary" data-testid="hub-tag">
-            <Compass className="h-3.5 w-3.5" /> Public API Hub
-          </div>
-          <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Browse the world&rsquo;s <span className="text-primary">public APIs</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-pretty text-base text-text-secondary sm:text-lg">
-            Discover ForgeFuzz docs <em>and</em> 2,400+ free APIs from APIs.guru. Search, read,
-            and tap <strong>Try It</strong> to clone any API into your workspace as a runnable
-            collection — no account needed to browse.
-          </p>
-
-          {/* Search */}
-          <div className="mx-auto mt-8 flex max-w-2xl items-center gap-2 rounded-2xl border border-border bg-surface p-2 shadow-sm transition-shadow focus-within:border-primary/50 focus-within:shadow-md">
-            <Search className="ml-2 h-4 w-4 text-text-muted" />
-            <input
-              data-testid="hub-search-input"
-              autoFocus
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by title, provider, or tag — e.g. ‘weather’, ‘stripe’, ‘crypto’…"
-              className="flex-1 bg-transparent px-1 py-2 text-sm placeholder:text-text-muted focus:outline-none"
-            />
-            {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin text-text-muted" />}
-          </div>
-
-          {/* Filter row */}
-          <div className="mx-auto mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2 text-xs">
-            {/* Source toggle */}
-            <span className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface/50 p-0.5" data-testid="hub-source-toggle">
-              {([
-                { key: 'all',       label: 'All' },
-                { key: 'forgefuzz', label: 'ForgeFuzz' },
-                { key: 'public',    label: 'Public APIs' },
-              ] as const).map(({ key, label }) => (
-                <button
-                  key={key}
-                  data-testid={`hub-source-${key}`}
-                  onClick={() => setSourceFilter(key)}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
-                    sourceFilter === key
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-text-muted hover:text-text-primary',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </span>
-
-            {/* Provider dropdown */}
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/50 pl-3" data-testid="hub-provider-filter">
-              <Building2 className="h-3 w-3 text-text-muted" />
-              <select
-                data-testid="hub-provider-select"
-                value={providerFilter}
-                onChange={(e) => setProviderFilter(e.target.value)}
-                className="cursor-pointer bg-transparent py-1 pl-1 pr-7 text-[11px] font-medium focus:outline-none"
-              >
-                <option value="any">Any provider</option>
-                {providers.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </span>
-
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/50 px-3 py-1 text-text-muted" data-testid="hub-stat-total">
-              <Layers className="h-3 w-3" />
-              <strong className="font-semibold text-text-primary">{filtered.length}</strong>
-              &nbsp;{filtered.length === 1 ? 'result' : 'results'}
-              <span className="mx-1 text-text-muted/50">·</span>
-              <span title="ForgeFuzz published docs">{ffTotal} ForgeFuzz</span>
-              <span className="mx-1 text-text-muted/50">·</span>
-              <span title="APIs.guru registry">{guruTotal} public</span>
-            </span>
-
-            {(debouncedQ || providerFilter !== 'any' || sourceFilter !== 'all') && (
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+          {/* Source toggle – unchanged */}
+          <span className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface/50 p-0.5" data-testid="hub-source-toggle">
+            {([
+              { key: 'all', label: 'All' },
+              { key: 'forgefuzz', label: 'ForgeFuzz' },
+              { key: 'public', label: 'Public APIs' },
+            ] as const).map(({ key, label }) => (
               <button
-                data-testid="hub-reset-filters"
-                onClick={() => { setQ(''); setProviderFilter('any'); setSourceFilter('all'); }}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-surface/50 px-3 py-1 text-[11px] font-medium text-text-muted hover:text-text-primary"
+                key={key}
+                data-testid={`hub-source-${key}`}
+                onClick={() => setSourceFilter(key)}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition-colors',
+                  sourceFilter === key
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-text-muted hover:text-text-primary',
+                )}
               >
-                <Filter className="h-3 w-3" /> Reset
+                {label}
               </button>
+            ))}
+          </span>
+
+          {/* Custom Provider Dropdown */}
+          <div className="relative" ref={providerRef}>
+            <div
+              data-testid="hub-provider-filter"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/50 pl-3 pr-2 py-1 cursor-pointer hover:bg-surface/70 transition-colors"
+              onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+            >
+              <Building2 className="h-3 w-3 text-text-muted" />
+              <span className="text-[11px] font-medium text-text-primary">
+                {selectedProviderLabel}
+              </span>
+              <ChevronDown className="h-3 w-3 text-text-muted" />
+            </div>
+
+            {showProviderDropdown && (
+              <div className="absolute left-0 top-full mt-1 z-20 w-64 rounded-xl border border-border bg-surface shadow-lg overflow-hidden">
+                <div className="p-2 border-b border-border/50">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+                    <input
+                      type="text"
+                      value={providerSearch}
+                      onChange={(e) => setProviderSearch(e.target.value)}
+                      placeholder="Search provider..."
+                      className="w-full rounded-md border border-border bg-elevated pl-7 pr-2 py-1.5 text-[11px] outline-none focus:border-primary"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </div>
+                <ul className="max-h-64 overflow-y-auto">
+                  <li
+                    className={cn(
+                      'px-3 py-2 text-[11px] cursor-pointer hover:bg-hover transition-colors',
+                      providerFilter === 'any' && 'bg-primary/10 text-primary font-semibold'
+                    )}
+                    onClick={() => {
+                      setProviderFilter('any');
+                      setShowProviderDropdown(false);
+                      setProviderSearch('');
+                    }}
+                  >
+                    Any provider
+                  </li>
+                  {filteredProviders.slice(0, 8).map((p) => (
+                    <li
+                      key={p}
+                      className={cn(
+                        'px-3 py-2 text-[11px] cursor-pointer hover:bg-hover transition-colors',
+                        providerFilter === p && 'bg-primary/10 text-primary font-semibold'
+                      )}
+                      onClick={() => {
+                        setProviderFilter(p);
+                        setShowProviderDropdown(false);
+                        setProviderSearch('');
+                      }}
+                    >
+                      {p}
+                    </li>
+                  ))}
+                  {filteredProviders.length > 8 && (
+                    <li className="px-3 py-2 text-[10px] text-text-muted text-center border-t border-border/50">
+                      {filteredProviders.length - 8} more providers (use search)
+                    </li>
+                  )}
+                  {filteredProviders.length === 0 && (
+                    <li className="px-3 py-2 text-[10px] text-text-muted text-center">
+                      No matching providers
+                    </li>
+                  )}
+                </ul>
+              </div>
             )}
           </div>
+
+          {/* Reset Provider Button (appears only when a specific provider is selected) */}
+          {/* {providerFilter !== 'any' && (
+            <button
+              onClick={resetProviderFilter}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-surface/50 px-2 py-1 text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
+              title="Clear provider filter"
+            >
+              <X className="h-3 w-3" />
+              <span>Clear</span>
+            </button>
+          )} */}
+
+          {/* Stats – unchanged */}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/50 px-3 py-1 text-text-muted" data-testid="hub-stat-total">
+            <Layers className="h-3 w-3" />
+            <strong className="font-semibold text-text-primary">{filtered.length}</strong>
+            &nbsp;{filtered.length === 1 ? 'result' : 'results'}
+            <span className="mx-1 text-text-muted/50">·</span>
+            <span title="ForgeFuzz published docs">{ffTotal} ForgeFuzz</span>
+            <span className="mx-1 text-text-muted/50">·</span>
+            <span title="APIs.guru registry">{guruTotal} public</span>
+          </span>
+
+          {/* Global Reset (unchanged) */}
+          {(debouncedQ || providerFilter !== 'any' || sourceFilter !== 'all') && (
+            <button
+              data-testid="hub-reset-filters"
+              onClick={() => { setQ(''); setProviderFilter('any'); setSourceFilter('all'); setProviderSearch(''); }}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-surface/50 px-3 py-1 text-[11px] font-medium text-text-muted hover:text-text-primary"
+            >
+              <Filter className="h-3 w-3" /> Reset all
+            </button>
+          )}
         </div>
-      </section>
+      </div>
 
-      {/* Grid */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10" data-testid="hub-main">
-        {/* Popular APIs strip — featured providers users almost certainly
-            recognise. Click jumps to the existing filter pipeline so the
-            grid below already does the work. Hidden when the user is
-            actively filtering or has chosen ForgeFuzz-only. */}
-        {sourceFilter !== 'forgefuzz' && !debouncedQ && providerFilter === 'any' && (
-          <PopularStrip
-            cards={guruQ.data ?? []}
-            onPick={(p) => setProviderFilter(p)}
-          />
-        )}
+      {/* Popular APIs strip (unchanged) */}
+      {sourceFilter !== 'forgefuzz' && !debouncedQ && providerFilter === 'any' && (
+        <PopularStrip cards={guruQ.data ?? []} onPick={(p) => setProviderFilter(p)} />
+      )}
 
-        {(forgeQ.isLoading || guruQ.isLoading) && filtered.length === 0 ? (
-          <SkeletonGrid />
-        ) : (forgeQ.isError && guruQ.isError) ? (
-          <ErrorState message="Couldn’t load either source — check your network and retry." />
-        ) : filtered.length === 0 ? (
-          <EmptyState filtered={!!debouncedQ || providerFilter !== 'any' || sourceFilter !== 'all'} />
-        ) : (
-          <>
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="hub-grid">
-              {visible.map((c) =>
-                c.kind === 'forgefuzz'
-                  ? <ForgeCard key={`ff-${c.slug}`} card={c} />
-                  : <PublicCard key={c.id} card={c} />,
-              )}
-            </ul>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <nav className="mt-10 flex items-center justify-center gap-2 text-xs" data-testid="hub-pagination">
-                <button
-                  data-testid="hub-page-prev"
-                  disabled={safePage === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 font-medium text-text-secondary transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Prev
-                </button>
-                <span className="text-text-muted">
-                  Page <strong className="text-text-primary">{safePage + 1}</strong> of <strong className="text-text-primary">{totalPages}</strong>
-                </span>
-                <button
-                  data-testid="hub-page-next"
-                  disabled={safePage >= totalPages - 1}
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 font-medium text-text-secondary transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Next <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </nav>
+      {/* Grid & Pagination (unchanged) */}
+      {(forgeQ.isLoading || guruQ.isLoading) && filtered.length === 0 ? (
+        <SkeletonGrid />
+      ) : (forgeQ.isError && guruQ.isError) ? (
+        <ErrorState message="Couldn’t load either source — check your network and retry." />
+      ) : filtered.length === 0 ? (
+        <EmptyState filtered={!!debouncedQ || providerFilter !== 'any' || sourceFilter !== 'all'} />
+      ) : (
+        <>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="hub-grid">
+            {visible.map((c) =>
+              c.kind === 'forgefuzz'
+                ? <ForgeCard key={`ff-${c.slug}`} card={c} />
+                : <PublicCard key={c.id} card={c} />,
             )}
-          </>
-        )}
-      </main>
+          </ul>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-surface/40 py-6">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 text-xs text-text-muted sm:flex-row">
-          <span>Powered by ProbeStack · Public APIs from APIs.guru (Apache-2.0)</span>
-          <Link
-            to="/projects/home"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
-            data-testid="hub-footer-cta"
-          >
-            <Sparkles className="h-3 w-3" /> Publish your own API doc <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-      </footer>
+          {totalPages > 1 && (
+            <nav className="mt-10 flex items-center justify-center gap-2 text-xs" data-testid="hub-pagination">
+              <button
+                data-testid="hub-page-prev"
+                disabled={safePage === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 font-medium text-text-secondary transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Prev
+              </button>
+              <span className="text-text-muted">
+                Page <strong className="text-text-primary">{safePage + 1}</strong> of <strong className="text-text-primary">{totalPages}</strong>
+              </span>
+              <button
+                data-testid="hub-page-next"
+                disabled={safePage >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 font-medium text-text-secondary transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </nav>
+          )}
+        </>
+      )}
     </div>
   );
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Card components                                                     */
-/* ──────────────────────────────────────────────────────────────────── */
-
+// ---------- Card Components (unchanged) ----------
 const ForgeCard = ({ card }: { card: PublicHubCard }) => {
   const fmt = (card.format ?? '').toUpperCase();
   const badgeCls = FORMAT_BADGE[fmt] ?? FORMAT_BADGE.MANUAL;
@@ -360,10 +367,10 @@ const ForgeCard = ({ card }: { card: PublicHubCard }) => {
       >
         <div className="flex items-start gap-3">
           {card.logoUrl ? (
-            <img src={card.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover" />
+            <img src={card.logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-md border border-border object-cover" />
           ) : (
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-              <FileText className="h-4 w-4" />
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-sm border border-primary/30 bg-primary/10 text-primary">
+              <FileText className="h-8 w-8" />
             </div>
           )}
           <div className="min-w-0 flex-1">
@@ -415,7 +422,6 @@ const PublicCard = ({ card }: { card: PublicApiCard }) => {
     e.preventDefault();
     e.stopPropagation();
     if (!isAuthed) {
-      // Redirect to login; preserve where we wanted to land
       const returnTo = `/api-hub?try=${encodeURIComponent(card.id)}`;
       navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`);
       return;
@@ -455,10 +461,10 @@ const PublicCard = ({ card }: { card: PublicApiCard }) => {
       >
         <div className="flex items-start gap-3">
           {card.logoUrl ? (
-            <img src={card.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg border border-border bg-white object-contain p-1"
+            <img src={card.logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-md border border-border bg-white object-contain p-1"
                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           ) : (
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
               <Globe2 className="h-4 w-4" />
             </div>
           )}
@@ -515,8 +521,6 @@ const PublicCard = ({ card }: { card: PublicApiCard }) => {
   );
 };
 
-/* ──────────────────────────────────────────────────────────────────── */
-
 const SkeletonGrid = () => (
   <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="hub-skeleton">
     {Array.from({ length: 9 }).map((_, i) => (
@@ -555,12 +559,6 @@ const ErrorState = ({ message }: { message: string }) => (
   </div>
 );
 
-/* ──────────────────────────────────────────────────────────────────── */
-/*  Popular APIs strip                                                  */
-/*  Featured row at the top of the grid — taps clamp the provider       */
-/*  filter so the grid below auto-narrows to that provider's APIs.      */
-/* ──────────────────────────────────────────────────────────────────── */
-
 const POPULAR_PROVIDERS = [
   { id: 'stripe.com',     label: 'Stripe',    blurb: 'Payments, billing, invoicing' },
   { id: 'github.com',     label: 'GitHub',    blurb: 'Code hosting + issues + actions' },
@@ -578,7 +576,6 @@ interface PopularStripProps {
 }
 
 const PopularStrip = ({ cards, onPick }: PopularStripProps) => {
-  // Index provider → first matching card (for logo + count).
   const byProvider = useMemo(() => {
     const m = new Map<string, { logoUrl: string | null; count: number }>();
     for (const c of cards) {
@@ -593,7 +590,6 @@ const PopularStrip = ({ cards, onPick }: PopularStripProps) => {
     return m;
   }, [cards]);
 
-  // Drop providers that have zero matches in the registry (avoids dead tiles).
   const tiles = POPULAR_PROVIDERS.filter((p) => byProvider.has(p.id));
   if (tiles.length === 0) return null;
 
@@ -608,8 +604,7 @@ const PopularStrip = ({ cards, onPick }: PopularStripProps) => {
           <TrendingUp className="h-3 w-3" /> Trending
         </span>
       </div>
-
-      <ul className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <ul className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 px-4">
         {tiles.map((p) => {
           const info = byProvider.get(p.id);
           return (
@@ -618,17 +613,17 @@ const PopularStrip = ({ cards, onPick }: PopularStripProps) => {
                 type="button"
                 data-testid={`hub-popular-${p.id}`}
                 onClick={() => onPick(p.id)}
-                className="group flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                className="group flex w-full items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
               >
                 {info?.logoUrl ? (
                   <img
                     src={info.logoUrl}
                     alt=""
-                    className="h-9 w-9 shrink-0 rounded-lg border border-border bg-white object-contain p-1"
+                    className="h-12 w-12 shrink-0 rounded-full border border-border bg-white object-contain"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
                 ) : (
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
                     <Globe2 className="h-4 w-4" />
                   </div>
                 )}
@@ -651,5 +646,3 @@ const PopularStrip = ({ cards, onPick }: PopularStripProps) => {
     </section>
   );
 };
-
-export default PublicHubPage;

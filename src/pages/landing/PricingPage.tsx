@@ -5,7 +5,6 @@
  */
 import '@/styles/landing.css';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
-import ParticleBackground from '@/components/landing/sections/ParticleBackground';
 import LandingFooter from '@/components/landing/sections/LandingFooter';
 import { useNavigate } from 'react-router-dom';
 import { Check, ArrowRight, Sparkles } from 'lucide-react';
@@ -111,14 +110,7 @@ export const PricingPage = () => {
       data-testid="pricing-page"
       className="landing-bg noise-overlay relative min-h-screen overflow-y-auto"
     >
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute -left-1/4 -top-1/4 h-[55%] w-[55%] animate-float rounded-full bg-[#ff5b1f]/20 blur-[120px]" />
-        <div
-          className="absolute -bottom-1/4 -right-1/4 h-[55%] w-[55%] animate-float rounded-full bg-[#1fbf9a]/20 blur-[120px]"
-          style={{ animationDelay: '2s', animationDuration: '8s' }}
-        />
-        <ParticleBackground />
-      </div>
+
 
       <LandingNavbar />
 

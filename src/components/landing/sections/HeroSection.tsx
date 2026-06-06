@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { bootstrapUser } from '@/services/user.service';
 import StartTestingModal from '../modals/StartTestingModal';
 import AnimatedTerminal from './AnimatedTerminal';
-
 const API_LINES = [
   { method: 'POST', endpoint: '/api/v1/users', status: '201', time: '45ms', ok: true },
   { method: 'GET', endpoint: '/api/v1/products', status: '200', time: '32ms', ok: true },
@@ -17,12 +16,10 @@ const API_LINES = [
   { method: 'GET', endpoint: '/api/v1/health', status: '200', time: '12ms', ok: true },
   { method: 'POST', endpoint: '/api/v1/webhooks', status: '201', time: '94ms', ok: true },
 ];
-
 function TerminalAnimation() {
   const [visibleLines, setVisibleLines] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const containerRef = useRef(null);
-
   useEffect(() => {
     if (currentIdx >= API_LINES.length) {
       const timer = setTimeout(() => {
@@ -37,13 +34,11 @@ function TerminalAnimation() {
     }, 600 + Math.random() * 400);
     return () => clearTimeout(timer);
   }, [currentIdx]);
-
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [visibleLines]);
-
   // Theme-aware method colors using CSS variables
   const methodColor = (m: string) => {
     const colors: Record<string, string> = {
@@ -56,7 +51,6 @@ function TerminalAnimation() {
     };
     return colors[m] || 'var(--color-text-muted)';
   };
-
   return (
     <div data-testid="terminal-animation" className="w-full max-w-6xl mx-auto mt-12">
       <div className="rounded-xl overflow-hidden border border-border shadow-2xl shadow-black/20 dark:shadow-black/40 ring-1 ring-primary/10 hover:ring-primary/30 transition-all duration-500">
@@ -72,7 +66,6 @@ function TerminalAnimation() {
             <span className="font-mono">ForgeFuzz ~ api-runner</span>
           </div>
         </div>
-
         {/* Terminal Body */}
         <div
           ref={containerRef}
@@ -109,11 +102,9 @@ function TerminalAnimation() {
     </div>
   );
 }
-
 function RocketButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
-
   const handleClick = useCallback(() => {
     if (isLaunching) return;
     setIsLaunching(true);
@@ -122,7 +113,6 @@ function RocketButton({ onClick, children }: { onClick: () => void; children: Re
       setTimeout(() => setIsLaunching(false), 200);
     }, 600);
   }, [isLaunching, onClick]);
-
   return (
     <button
       data-testid="start-testing-btn"
@@ -171,16 +161,13 @@ function RocketButton({ onClick, children }: { onClick: () => void; children: Re
     </button>
   );
 }
-
 export default function HeroSection() {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
-
   const prefill =
     new URL(window.location.href).searchParams.get('email') ||
     localStorage.getItem('userEmail') ||
     'admin@forgecrux.com';
-
   const handleBootstrap = async (email: string) => {
     const cached = localStorage.getItem('userEmail');
     const toastId = toast.loading('Syncing your account…');
@@ -188,6 +175,7 @@ export default function HeroSection() {
       const u = await bootstrapUser(email);
       toast.success(`Welcome, ${u.name || u.email}`, { id: toastId });
       window.location.href = '/workspace';
+      window.location.href = '/projects';
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Could not sync account', {
         id: toastId,
@@ -196,13 +184,13 @@ export default function HeroSection() {
       if (cached && localStorage.getItem('userId') && cached.toLowerCase() === email.toLowerCase()) {
         setTimeout(() => {
           window.location.href = '/workspace';
+          window.location.href = '/projects';
         }, 1200);
       } else {
         throw err;
       }
     }
   };
-
   return (
     <section
       data-testid="hero-section"
@@ -215,21 +203,19 @@ export default function HeroSection() {
             <Zap className="w-4 h-4" />
             The API lifecycle platform — built for shipping teams
           </div>
-
           <h1
             data-testid="hero-title"
             className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animate-fade-in-up animation-delay-100 gradient-text font-display leading-[1.05] tracking-tight"
           >
             The API platform that ships with its own QA team.
           </h1>
-
           <p className="text-md md:text-lg text-text-secondary mb-3 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 leading-relaxed">
             Design, mock, test, monitor, secure and document every API — from spec to incident response — in one workspace.
+            Design, mock, test, monitor, secure and document every API — from spec to incident response — in one collaborative project.
           </p>
           <p className="text-xs md:text-sm text-text-muted mb-8 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 font-mono">
              production microservices · SOC2-ready audit trail · powered by ForgeFuzz
           </p>
-
           <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up animation-delay-300">
             <RocketButton onClick={() => navigate('/login')}>
               Start free →
@@ -243,13 +229,11 @@ export default function HeroSection() {
             </a>
           </div>
         </div>
-
         <div className="animate-fade-in-up animation-delay-500 mt-8 px-30">
           {/* <TerminalAnimation /> */}
           <AnimatedTerminal/>
         </div>
       </div>
-
       <StartTestingModal
         open={modalOpen}
         initialEmail={prefill}

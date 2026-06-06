@@ -44,7 +44,7 @@ const DashboardMock = () => (
     {/* Main */}
     <div className="col-span-10 grid grid-cols-4 grid-rows-3 gap-3">
       {[
-        { label: 'WORKSPACES', value: '12', delta: '+3', icon: FolderGit2 },
+        { label: 'PROJECTS', value: '12', delta: '+3', icon: FolderGit2 },
         { label: 'COLLECTIONS', value: '847', delta: '+24', icon: FileCode2 },
         { label: 'MONITORS LIVE', value: '38', delta: '+5', icon: Radar },
         { label: 'OPEN BUGS', value: '17', delta: '-4', icon: Bug },
@@ -136,7 +136,7 @@ const CollectionsMock = () => (
 
 const VariablesMock = () => (
   <div className="h-full p-5 grid grid-cols-5 gap-3">
-    {['GLOBAL', 'WORKSPACE', 'COLLECTION', 'ENV', 'LOCAL'].map((scope, i) => (
+    {['GLOBAL', 'PROJECT', 'COLLECTION', 'ENV', 'LOCAL'].map((scope, i) => (
       <div key={scope} className="rounded-lg border border-border/60 bg-elevated/40 p-3 flex flex-col">
         <div className="flex items-center justify-between mb-2.5">
           <span className="font-mono text-[9.5px] text-text-muted tracking-wider">{scope}</span>

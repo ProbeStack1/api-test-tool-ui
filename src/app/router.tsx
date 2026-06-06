@@ -17,6 +17,7 @@ import { lazy, Suspense } from 'react';
 import { RouteFallback } from '@/components/skeletons/RouteFallback';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
 import { RequireAuth } from './RequireAuth';
+import { AiTestingFeaturePage } from '@/pages/landing';
 
 type LazyWithPrefetch<T = any> = React.LazyExoticComponent<React.ComponentType<T>> & {
   prefetch: () => Promise<unknown>;
@@ -33,6 +34,14 @@ const l = <T extends object>(load: () => Promise<T>, pick: (m: T) => React.Compo
 const LandingPage = l(() => import('@/pages/landing'), (m: any) => m.LandingPage);
 const SolutionsPage = l(() => import('@/pages/landing'), (m: any) => m.SolutionsPage);
 const PricingPage = l(() => import('@/pages/landing'), (m: any) => m.PricingPage);
+const FeaturesPage = l(() => import('@/pages/landing'), (m: any) => m.FeaturesPage);
+const HowItWorksPage = l(() => import('@/pages/landing'), (m: any) => m.HowItWorksPage);
+const GetAccessPage = l(() => import('@/pages/landing'), (m: any) => m.GetAccessPage);
+const ApiFuzzingPage = l(() => import('@/pages/landing'), (m: any) => m.ApiFuzzingPage);
+const TestingSuitePage = l(() => import('@/pages/landing'), (m: any) => m.TestingSuitePage);
+const AiTestingfeaturePage = l(() => import('@/pages/landing'), (m: any) => m.AiTestingFeaturePage);
+const MockSandboxPage = l(() => import('@/pages/landing'), (m: any) => m.MockSandboxPage);
+const BlogPage = l(() => import('@/pages/landing'), (m: any) => m.BlogPage);
 const HomeIntroPage = l(() => import('@/pages/home-intro'), (m: any) => m.HomeIntroPage);
 const HomeShell = l(() => import('@/layouts/HomeShell'), (m: any) => m.HomeShell);
 const ApiCatalogPage = l(() => import('@/pages/api-catalog'), (m: any) => m.ApiCatalogPage);
@@ -116,9 +125,18 @@ const StatusPagePublicSlugRoute = () => {
 
 const router = createBrowserRouter([
   { path: '/', element: r(<LandingPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/products', element: <Navigate to="/solutions" replace /> },
+  { path: '/features', element: r(<FeaturesPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/how-it-works', element: r(<HowItWorksPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/get-access', element: r(<GetAccessPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/solutions', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/solutions/request-builder', element: r(<ApiFuzzingPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/solutions/load-functional-testing', element: r(<TestingSuitePage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/solutions/ai-llm-testing', element: r(<AiTestingFeaturePage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/solutions/mock-sandbox', element: r(<MockSandboxPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/pricing', element: r(<PricingPage />), errorElement: <RouteErrorBoundary /> },
-  // Home shell — Postman-style left rail (Home / Workspaces /
+  { path: '/blog', element: r(<BlogPage />), errorElement: <RouteErrorBoundary /> },
+  // Home shell — left rail (Home / Workspaces /
   // Integrations / API Catalog / Reports + Private/Public API Network).
   // Nested children render inside `HomeShell`'s `<Outlet/>`.
   {

@@ -26,7 +26,7 @@ const PILLARS: Pillar[] = [
   {
     icon: Boxes,
     num: '01',
-    title: 'Workspaces & Collections',
+    title: 'Projects & Collections',
     tagline: 'Postman muscle memory, GitHub-grade organisation.',
     bullets: [
       'Project → Collections → Folders → Requests',
@@ -43,6 +43,7 @@ const PILLARS: Pillar[] = [
     tagline: 'No more "works on my machine" for API calls.',
     bullets: [
       '5-level resolution: Global → Workspace → Collection → Env → Local',
+      '5-level resolution: Global → Project → Collection → Env → Local',
       'SECRET vars masked in UI, audit log & exports',
       'Templating: {{BASE_URL}}/{{API_VERSION}}/users/{{id}}',
       'Pre-request scripts inject dynamic values',
@@ -136,6 +137,7 @@ export default function PillarsSection() {
         <div className="text-center max-w-3xl mx-auto mb-14 animate-fade-in-up">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium mb-4 border border-primary/20">
             Eight pillars · one workspace
+            Eight pillars · one project
           </div>
           <h2 className="text-3xl md:text-5xl font-bold gradient-text font-display mb-4 leading-tight">
             Everything an API ships through. In one tab.

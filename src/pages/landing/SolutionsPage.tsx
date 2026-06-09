@@ -889,7 +889,7 @@ const IntegrationCard: React.FC<{ name:string; desc:string; keyName:string; bran
 
               {/* footer */}
               <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-card/60 text-[10px] font-mono text-text-secondary">
-                <span>https://forgefuzz.com/solutions</span>
+                <span>https://forgefuzz.com/capabilities</span>
                 <span>INTELLIGENT RUNNER STAGE</span>
               </div>
             </motion.div>

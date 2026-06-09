@@ -104,7 +104,7 @@ const GridBackdrop = () => (
     />
     {/* <Glow className="-top-40 -left-24 h-[560px] w-[560px]" intensity={18} /> */}
     {/* <Glow className="top-1/4 -right-28 h-[580px] w-[580px]" intensity={14} /> */}
-    <Glow className="top-2 left-5  h-[520px] w-[520px]" intensity={10} />
+    {/* <Glow className="top-2 left-5  h-[520px] w-[520px]" intensity={10} /> */}
   </div>
 );
 
@@ -112,13 +112,11 @@ const Pulse: React.FC<{ active?: boolean }> = ({ active = true }) => (
   <span className="relative inline-flex h-2 w-2">
     {active && (
       <span
-        className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-        style={{ background: primary(80) }}
+        className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 bg-green-500"
       />
     )}
     <span
-      className="relative inline-flex h-2 w-2 rounded-full"
-      style={{ background: "var(--primary)" }}
+      className="relative inline-flex h-2 w-2 rounded-full bg-green-600"
     />
   </span>
 );

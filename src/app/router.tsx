@@ -125,15 +125,15 @@ const StatusPagePublicSlugRoute = () => {
 
 const router = createBrowserRouter([
   { path: '/', element: r(<LandingPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/products', element: <Navigate to="/solutions" replace /> },
+  { path: '/products', element: <Navigate to="/capabilities" replace /> },
   { path: '/features', element: r(<FeaturesPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/how-it-works', element: r(<HowItWorksPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/get-access', element: r(<GetAccessPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/solutions', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/solutions/request-builder', element: r(<ApiFuzzingPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/solutions/load-functional-testing', element: r(<TestingSuitePage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/solutions/ai-llm-testing', element: r(<AiTestingFeaturePage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/solutions/mock-sandbox', element: r(<MockSandboxPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/capabilities', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/capabilities/request-builder', element: r(<ApiFuzzingPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/capabilities/load-functional-testing', element: r(<TestingSuitePage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/capabilities/ai-llm-testing', element: r(<AiTestingFeaturePage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/capabilities/mock-sandbox', element: r(<MockSandboxPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/pricing', element: r(<PricingPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/blog', element: r(<BlogPage />), errorElement: <RouteErrorBoundary /> },
   // Home shell — left rail (Home / Workspaces /

@@ -54,24 +54,24 @@ type Solution = {
 const SOLUTIONS: Solution[] = [
   {
     id: "request",
-    label: "Request Builder",
-    to: "/solutions/request-builder",
-    desc: "Create, test & debug API requests with variables.",
+    label: "Collection & Request Builder",
+    to: "/capabilities/request-builder",
+    desc: "Create collections, test & debug API requests with variables.",
     icon: Zap,
     accent: "text-sky-400",
   },
   {
     id: "load",
     label: "Load & Functional Testing",
-    to: "/solutions/load-functional-testing",
+    to: "/capabilities/load-functional-testing",
     desc: "Simulate traffic, validate performance & correctness.",
     icon: Activity,
     accent: "text-emerald-400",
   },
   {
     id: "ai",
-    label: "AI Agents & LLM Testing",
-    to: "/solutions/ai-llm-testing",
+    label: "Agentic AI & LLM Testing",
+    to: "/capabilities/ai-llm-testing",
     desc: "Test LLM integrations, prompt injection & agents.",
     icon: Bot,
     accent: "text-fuchsia-400",
@@ -79,13 +79,13 @@ const SOLUTIONS: Solution[] = [
   {
     id: "mock",
     label: "Mock Sandbox",
-    to: "/solutions/mock-sandbox",
+    to: "/capabilities/mock-sandbox",
     desc: "Spin up instant API mocks without infra.",
     icon: Server,
     accent: "text-amber-400",
   },
-  // { id: 'fuzz',     label: 'API Fuzzing & Security',   to: '/solutions/api-fuzzing',      desc: 'OWASP API:2023 probes with severity scoring.',      icon: ShieldCheck, accent: 'text-rose-400' },
-  // { id: 'contract', label: 'Contract Verification',    to: '/solutions/contract-testing', desc: 'Catch breaking schema changes before they ship.',   icon: GitCompare,  accent: 'text-violet-400' },
+  // { id: 'fuzz',     label: 'API Fuzzing & Security',   to: '/capabilities/api-fuzzing',      desc: 'OWASP API:2023 probes with severity scoring.',      icon: ShieldCheck, accent: 'text-rose-400' },
+  // { id: 'contract', label: 'Contract Verification',    to: '/capabilities/contract-testing', desc: 'Catch breaking schema changes before they ship.',   icon: GitCompare,  accent: 'text-violet-400' },
 ];
 
 /* ---------- Animated icon wrapper (lordicon-style) ---------- */
@@ -243,7 +243,7 @@ export const LandingNavbar = () => {
               }`}
               aria-expanded={solutionsOpen}
             >
-              Solutions
+              Capabilities
               {isSolutionsActive && (
                 <motion.span
                   layoutId="solutions-dot"
@@ -330,7 +330,7 @@ export const LandingNavbar = () => {
                       })}
 
                       <Link
-                        to="/solutions"
+                        to="/capabilities"
                         onClick={() => setSolutionsOpen(false)}
                         onMouseEnter={() => setHoveredId("__all")}
                         onMouseLeave={() => setHoveredId(null)}
@@ -362,7 +362,7 @@ export const LandingNavbar = () => {
                           <Sparkles className="h-3.5 w-3.5" />
                         </motion.span>
                         <span className="relative text-[12.5px] font-semibold text-primary">
-                          View all solutions
+                          View all Capabilities
                         </span>
                         <ArrowRight className="relative h-3.5 w-3.5 text-primary transition-transform group-hover:translate-x-0.5" />
                       </Link>
@@ -492,7 +492,7 @@ export const LandingNavbar = () => {
                 <div
                   className={`px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] ${isSolutionsActive ? "text-primary" : "text-text-secondary"}`}
                 >
-                  Solutions {isSolutionsActive && "•"}
+                  Services {isSolutionsActive && "•"}
                 </div>
                 <div className="grid grid-cols-2 gap-1">
                   {SOLUTIONS.map((s) => {
@@ -516,11 +516,11 @@ export const LandingNavbar = () => {
                   })}
                 </div>
                 <Link
-                  to="/solutions"
+                  to="/capabilities"
                   onClick={() => setMobileOpen(false)}
                   className="mt-2 flex items-center justify-center gap-1 rounded-md bg-primary/10 px-2 py-1.5 text-[12px] font-semibold text-primary"
                 >
-                  View all solutions <ArrowRight className="h-3 w-3" />
+                  View all Capabilities <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
 

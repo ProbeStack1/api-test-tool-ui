@@ -499,7 +499,7 @@ export const HowItWorksPage: React.FC = () => {
                     </ul>
 
                     <button
-                      onClick={() => navigate('/solutions')}
+                      onClick={() => navigate('/capabilities')}
                       className="mt-6 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:gap-2.5 transition-all"
                     >
                       Learn more <ArrowRight className="w-3.5 h-3.5" />
@@ -545,7 +545,7 @@ export const HowItWorksPage: React.FC = () => {
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <button
-                  onClick={() => navigate('/solutions')}
+                  onClick={() => navigate('/capabilities')}
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition shadow-[0_0_30px_-5px_hsl(var(--primary))]"
                 >
                   Interactive Demo <ArrowRight className="w-4 h-4" />

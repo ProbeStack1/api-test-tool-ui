@@ -37,6 +37,9 @@ import {
   Rocket,
   Moon,
   Sun,
+  Building2,
+  CheckCircle2,
+  User,
 } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { useSettings } from '@/stores/settings.store';
@@ -45,6 +48,7 @@ import { userMgmtService } from '@/services/userMgmt.service';
 import { cn } from '@/utils/cn';
 
 type Mode = 'signin' | 'signup';
+type Audience = 'individual' | 'enterprise';
 
 const HIGHLIGHTS = [
   { icon: Boxes,       title: '32 + MCP servers',   desc: 'Catalog · health · audit trail' },
@@ -269,6 +273,7 @@ export const LoginPage = () => {
   const isDark = theme === 'dark';
 
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [audience, setAudience] = useState<Audience>('individual'); // NEW
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -487,242 +492,264 @@ export const LoginPage = () => {
             )}
           >
             {/* Mobile logo — only when left pane is hidden */}
-            <Link
-              to="/"
-              data-testid="auth-logo-mobile"
-              className="mb-6 inline-flex items-center gap-2 lg:hidden"
-            >
-              <Logo variant="mark" className="h-10 w-8" />
-              <span className="bg-gradient-to-r from-[#ff5b1f] to-[#1fbf9a] bg-clip-text text-xl font-bold text-transparent">
-                ForgeFuzz
-              </span>
-            </Link>
+                <Link
+                  to="/"
+                  data-testid="auth-logo-mobile"
+                  className="mb-6 inline-flex items-center gap-2 lg:hidden"
+                >
+                  <Logo variant="mark" className="h-10 w-8" />
+                  <span className="bg-gradient-to-r from-[#ff5b1f] to-[#1fbf9a] bg-clip-text text-xl font-bold text-transparent">
+                    ForgeFuzz
+                  </span>
+                </Link>
 
-            {/* Tab toggle */}
-            <div
-              role="tablist"
-              data-testid="auth-mode-tabs"
-              className={cn(
-                'mb-7 grid grid-cols-2 rounded-lg border p-1',
-                isDark ? 'border-white/10 bg-white/[0.03]' : 'border-black/10 bg-black/[0.04]',
-              )}
-            >
-              {(['signin', 'signup'] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === m}
-                  data-testid={m === 'signin' ? 'auth-tab-signin' : 'auth-tab-signup'}
-                  onClick={() => setMode(m)}
+            {/* --- NEW: Audience toggle (Individual / Enterprise) --- */}
+            <AudienceToggle
+              isDark={isDark}
+              value={audience}
+              onChange={setAudience}
+            />
+
+            
+
+            {/* --- Conditional content --- */}
+            {audience === 'individual' ? (
+              <>
+                
+
+                {/* Tab toggle */}
+                {/* <div
+                  role="tablist"
+                  data-testid="auth-mode-tabs"
                   className={cn(
-                    'rounded-md px-3 py-2 text-sm font-medium transition-all',
-                    mode === m
-                      ? 'bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a] text-white shadow-lg shadow-[#ff5b1f]/20'
-                      : isDark
-                        ? 'text-white/55 hover:text-white'
-                        : 'text-gray-500 hover:text-gray-900',
+                    'mb-7 grid grid-cols-2 rounded-lg border p-1',
+                    isDark ? 'border-white/10 bg-white/[0.03]' : 'border-black/10 bg-black/[0.04]',
                   )}
                 >
-                  {m === 'signin' ? 'Sign in' : 'Create account'}
-                </button>
-              ))}
-            </div>
-
-            <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{title}</h1>
-            <p className={cn('mt-1 text-sm', isDark ? 'text-white/55' : 'text-gray-500')}>{subtitle}</p>
-
-            {/* OAuth row (stub buttons — wired in Phase 1) */}
-            <div className="mt-6 grid grid-cols-2 gap-2.5">
-              <OAuthButton testid="auth-oauth-google" label="Google" iconUrl="https://www.google.com/favicon.ico" isDark={isDark} />
-              <OAuthButton testid="auth-oauth-github" label="GitHub" icon={<Github className="h-4 w-4" />} isDark={isDark} />
-            </div>
-
-            <div
-              className={cn(
-                'my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]',
-                isDark ? 'text-white/35' : 'text-gray-400',
-              )}
-            >
-              <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
-              or with email
-              <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
-            </div>
-
-            <form data-testid="auth-form" onSubmit={onSubmit} className="space-y-3.5">
-              {/* Status banners — info (post-signup) + error (server-rejected). */}
-              {infoMsg && (
-                <div data-testid="auth-info"
-                     className={cn(
-                       'rounded-lg border px-3 py-2 text-[12px]',
-                       isDark
-                         ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                         : 'border-emerald-500/40 bg-emerald-50 text-emerald-800',
-                     )}>
-                  {infoMsg}
-                </div>
-              )}
-              {errorMsg && (
-                <div data-testid="auth-error"
-                     className={cn(
-                       'rounded-lg border px-3 py-2 text-[12px]',
-                       isDark
-                         ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                         : 'border-rose-500/40 bg-rose-50 text-rose-700',
-                     )}>
-                  {errorMsg}
-                </div>
-              )}
-
-              {mode === 'signup' && (
-                <>
-                  <Field
-                    icon={UserIcon}
-                    testid="auth-input-name"
-                    placeholder="Full name"
-                    value={form.name}
-                    onChange={onChange('name')}
-                    required
-                    isDark={isDark}
-                  />
-                  <Field
-                    icon={Boxes}
-                    testid="auth-input-company"
-                    placeholder="Company / Team (optional)"
-                    value={form.company}
-                    onChange={onChange('company')}
-                    isDark={isDark}
-                  />
-                </>
-              )}
-
-              <Field
-                icon={Mail}
-                testid="auth-input-email"
-                type="email"
-                placeholder="you@company.com"
-                value={form.email}
-                onChange={onChange('email')}
-                required
-                autoComplete="email"
-                isDark={isDark}
-              />
-
-              <Field
-                icon={Lock}
-                testid="auth-input-password"
-                type={showPwd ? 'text' : 'password'}
-                placeholder={mode === 'signup' ? 'Create a strong password' : 'Password'}
-                value={form.password}
-                onChange={onChange('password')}
-                required
-                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                isDark={isDark}
-                trailing={
-                  <button
-                    type="button"
-                    data-testid="auth-toggle-password"
-                    onClick={() => setShowPwd((p) => !p)}
-                    className={isDark ? 'text-white/45 hover:text-white' : 'text-gray-400 hover:text-gray-700'}
-                    aria-label={showPwd ? 'Hide password' : 'Show password'}
-                  >
-                    {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
-              />
-
-              {mode === 'signin' ? (
-                <div className="flex items-center justify-between pt-1 text-[12px]">
-                  <label className={cn('inline-flex cursor-pointer items-center gap-2', isDark ? 'text-white/60' : 'text-gray-600')}>
-                    <input
-                      type="checkbox"
-                      data-testid="auth-remember"
-                      checked={form.remember}
-                      onChange={onChange('remember')}
+                  {(['signin', 'signup'] as Mode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === m}
+                      data-testid={m === 'signin' ? 'auth-tab-signin' : 'auth-tab-signup'}
+                      onClick={() => setMode(m)}
                       className={cn(
-                        'h-3.5 w-3.5 rounded accent-[#ff5b1f]',
-                        isDark ? 'border-white/20 bg-white/5' : 'border-black/20 bg-white',
+                        'rounded-md px-3 py-2 text-sm font-medium transition-all',
+                        mode === m
+                          ? 'bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a] text-white shadow-lg shadow-[#ff5b1f]/20'
+                          : isDark
+                            ? 'text-white/55 hover:text-white'
+                            : 'text-gray-500 hover:text-gray-900',
                       )}
-                    />
-                    Remember me
-                  </label>
-                  <button
-                    type="button"
-                    data-testid="auth-forgot-password"
-                    className="text-[#ff8c4a] hover:text-[#ffb400]"
-                  >
-                    Forgot password?
-                  </button>
+                    >
+                      {m === 'signin' ? 'Sign in' : 'Create account'}
+                    </button>
+                  ))}
+                </div> */}
+
+                <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{title}</h1>
+                <p className={cn('mt-1 text-sm', isDark ? 'text-white/55' : 'text-gray-500')}>{subtitle}</p>
+
+                {/* OAuth row (stub buttons) */}
+                <div className="mt-6 grid grid-cols-2 gap-2.5">
+                  <OAuthButton testid="auth-oauth-google" label="Google" iconUrl="https://www.google.com/favicon.ico" isDark={isDark} />
+                  <OAuthButton testid="auth-oauth-github" label="GitHub" icon={<Github className="h-4 w-4" />} isDark={isDark} />
                 </div>
-              ) : (
-                <p className={cn('pt-1 text-[11px] leading-relaxed', isDark ? 'text-white/45' : 'text-gray-500')}>
-                  By creating an account you agree to ForgeFuzz's
-                  {' '}
-                  <a href="/terms" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Terms</a>
-                  {' '}and{' '}
-                  <a href="/privacy" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Privacy</a>.
+
+                <div
+                  className={cn(
+                    'my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]',
+                    isDark ? 'text-white/35' : 'text-gray-400',
+                  )}
+                >
+                  <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
+                  or with email
+                  <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
+                </div>
+
+                <form data-testid="auth-form" onSubmit={onSubmit} className="space-y-3.5">
+                  {/* Status banners — info (post-signup) + error (server-rejected). */}
+                  {infoMsg && (
+                    <div data-testid="auth-info"
+                         className={cn(
+                           'rounded-lg border px-3 py-2 text-[12px]',
+                           isDark
+                             ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                             : 'border-emerald-500/40 bg-emerald-50 text-emerald-800',
+                         )}>
+                      {infoMsg}
+                    </div>
+                  )}
+                  {errorMsg && (
+                    <div data-testid="auth-error"
+                         className={cn(
+                           'rounded-lg border px-3 py-2 text-[12px]',
+                           isDark
+                             ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
+                             : 'border-rose-500/40 bg-rose-50 text-rose-700',
+                         )}>
+                      {errorMsg}
+                    </div>
+                  )}
+
+                  {mode === 'signup' && (
+                    <>
+                      <Field
+                        icon={UserIcon}
+                        testid="auth-input-name"
+                        placeholder="Full name"
+                        value={form.name}
+                        onChange={onChange('name')}
+                        required
+                        isDark={isDark}
+                      />
+                      <Field
+                        icon={Boxes}
+                        testid="auth-input-company"
+                        placeholder="Company / Team (optional)"
+                        value={form.company}
+                        onChange={onChange('company')}
+                        isDark={isDark}
+                      />
+                    </>
+                  )}
+
+                  <Field
+                    icon={Mail}
+                    testid="auth-input-email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={form.email}
+                    onChange={onChange('email')}
+                    required
+                    autoComplete="email"
+                    isDark={isDark}
+                  />
+
+                  <Field
+                    icon={Lock}
+                    testid="auth-input-password"
+                    type={showPwd ? 'text' : 'password'}
+                    placeholder={mode === 'signup' ? 'Create a strong password' : 'Password'}
+                    value={form.password}
+                    onChange={onChange('password')}
+                    required
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    isDark={isDark}
+                    trailing={
+                      <button
+                        type="button"
+                        data-testid="auth-toggle-password"
+                        onClick={() => setShowPwd((p) => !p)}
+                        className={isDark ? 'text-white/45 hover:text-white' : 'text-gray-400 hover:text-gray-700'}
+                        aria-label={showPwd ? 'Hide password' : 'Show password'}
+                      >
+                        {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    }
+                  />
+
+                  {mode === 'signin' ? (
+                    <div className="flex items-center justify-between pt-1 text-[12px]">
+                      <label className={cn('inline-flex cursor-pointer items-center gap-2', isDark ? 'text-white/60' : 'text-gray-600')}>
+                        <input
+                          type="checkbox"
+                          data-testid="auth-remember"
+                          checked={form.remember}
+                          onChange={onChange('remember')}
+                          className={cn(
+                            'h-3.5 w-3.5 rounded accent-[#ff5b1f]',
+                            isDark ? 'border-white/20 bg-white/5' : 'border-black/20 bg-white',
+                          )}
+                        />
+                        Remember me
+                      </label>
+                      <button
+                        type="button"
+                        data-testid="auth-forgot-password"
+                        className="text-[#ff8c4a] hover:text-[#ffb400]"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  ) : (
+                    <p className={cn('pt-1 text-[11px] leading-relaxed', isDark ? 'text-white/45' : 'text-gray-500')}>
+                      By creating an account you agree to ForgeFuzz's
+                      {' '}
+                      <a href="/terms" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Terms</a>
+                      {' '}and{' '}
+                      <a href="/privacy" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Privacy</a>.
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    data-testid="auth-submit-btn"
+                    disabled={submitting}
+                    className="group mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#ff5b1f]/25 transition-all hover:shadow-[#ff5b1f]/45 disabled:opacity-60"
+                  >
+                    {submitting ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
+                    ) : (
+                      <>
+                        {mode === 'signin' ? 'Sign in' : 'Create account'}
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </>
+                    )}
+                  </button>
+
+                  {/* <button
+                    type="button"
+                    data-testid="auth-skip-btn"
+                    onClick={onSkip}
+                    className={cn(
+                      'inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all',
+                      isDark
+                        ? 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#1fbf9a]/40 hover:text-white'
+                        : 'border-black/10 bg-black/[0.03] text-gray-600 hover:border-[#1fbf9a]/55 hover:text-gray-900',
+                    )}
+                  >
+                    <Rocket className="h-4 w-4 text-[#1fbf9a]" />
+                    Continue to demo workspace
+                  </button> */}
+                </form>
+
+                <p className={cn('mt-6 text-center text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>
+                  {mode === 'signin' ? (
+                    <>
+                      Don't have an account?{' '}
+                      <button
+                        type="button"
+                        data-testid="auth-switch-signup"
+                        onClick={() => setMode('signup')}
+                        className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
+                      >
+                        Create one →
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Already on ForgeFuzz?{' '}
+                      <button
+                        type="button"
+                        data-testid="auth-switch-signin"
+                        onClick={() => setMode('signin')}
+                        className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
+                      >
+                        Sign in →
+                      </button>
+                    </>
+                  )}
                 </p>
-              )}
-
-              <button
-                type="submit"
-                data-testid="auth-submit-btn"
-                disabled={submitting}
-                className="group mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#ff5b1f]/25 transition-all hover:shadow-[#ff5b1f]/45 disabled:opacity-60"
-              >
-                {submitting ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
-                ) : (
-                  <>
-                    {mode === 'signin' ? 'Sign in' : 'Create account'}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </>
-                )}
-              </button>
-
-              {/* <button
-                type="button"
-                data-testid="auth-skip-btn"
-                onClick={onSkip}
-                className={cn(
-                  'inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all',
-                  isDark
-                    ? 'border-white/10 bg-white/[0.03] text-white/70 hover:border-[#1fbf9a]/40 hover:text-white'
-                    : 'border-black/10 bg-black/[0.03] text-gray-600 hover:border-[#1fbf9a]/55 hover:text-gray-900',
-                )}
-              >
-                <Rocket className="h-4 w-4 text-[#1fbf9a]" />
-                Continue to demo workspace
-              </button> */}
-            </form>
-
-            <p className={cn('mt-6 text-center text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>
-              {mode === 'signin' ? (
-                <>
-                  Don't have an account?{' '}
-                  <button
-                    type="button"
-                    data-testid="auth-switch-signup"
-                    onClick={() => setMode('signup')}
-                    className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
-                  >
-                    Create one →
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already on ForgeFuzz?{' '}
-                  <button
-                    type="button"
-                    data-testid="auth-switch-signin"
-                    onClick={() => setMode('signin')}
-                    className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
-                  >
-                    Sign in →
-                  </button>
-                </>
-              )}
-            </p>
+              </>
+            ) : (
+              /* --- Enterprise redirect panel --- */
+              <EnterpriseRedirect
+                isDark={isDark}
+                onBack={() => setAudience('individual')}
+              />
+            )}
           </div>
         </main>
       </div>
@@ -803,3 +830,240 @@ const OAuthButton = ({
     {label}
   </button>
 );
+
+// ============================================================
+// NEW: Audience toggle (Individual / Enterprise)
+// ============================================================
+const AudienceToggle = ({
+  isDark,
+  value,
+  onChange,
+}: {
+  isDark: boolean;
+  value: Audience;
+  onChange: (v: Audience) => void;
+}) => {
+
+  return (
+    <div className="mb-5">
+      <div
+        className={cn(
+          'relative flex rounded-md p-1',
+          isDark ? 'bg-white/5 ring-1 ring-white/10' : 'bg-gray-100',
+        )}
+      >
+        <span
+          className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-md border-2 border-[#ff5b1f] bg-[#ff5b1f]/10 transition-all duration-300 ease-out"
+          style={{ left: value === 'individual' ? 4 : 'calc(50% + 0px)' }}
+        />
+
+        {(['individual', 'enterprise'] as Audience[]).map((v) => {
+          const isActive = value === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange(v)}
+              className={cn(
+                'relative z-10 flex-1 rounded-sm px-4 py-2 text-sm font-medium transition-colors',
+                // Active: primary text, no background (the pill handles that)
+                isActive
+                  ? 'text-[#ff5b1f]'
+                  : isDark
+                    ? 'text-white/60 hover:text-white'
+                    : 'text-gray-500 hover:text-gray-900',
+                // Add icons and gap
+                'flex items-center justify-center gap-2',
+              )}
+            >
+              {v === 'individual' ? (
+                <User className="h-4 w-4" />
+              ) : (
+                <Building2 className="h-4 w-4" />
+              )}
+              {v === 'individual' ? 'Individual' : 'Enterprise'}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// NEW: Enterprise redirect animation (in-card, ~3.4s)
+// ============================================================
+const EnterpriseRedirect = ({
+  isDark,
+  onBack,
+}: {
+  isDark: boolean;
+  onBack: () => void;
+}) => {
+  const steps = useMemo(
+    () => [
+      { label: 'Detecting account type', sub: 'Enterprise workspace' },
+      { label: 'Enterprise plan selected', sub: 'Routing to ProbeStack' },
+      {
+        label: 'ForgeFuzz is a ProbeStack product',
+        sub: 'Verifying secure gateway',
+      },
+      { label: 'Opening probestack.io/signup', sub: 'Launching new tab…' },
+    ],
+    [],
+  );
+
+  const TOTAL_MS = 3400;
+  const [active, setActive] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    const start = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / TOTAL_MS);
+      setProgress(p);
+      setActive(Math.min(steps.length - 1, Math.floor(p * steps.length)));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    const redirect = window.setTimeout(() => {
+      window.open(
+        'https://probestack.io/signup',
+        '_blank',
+        'noopener,noreferrer',
+      );
+      setOpened(true);
+    }, TOTAL_MS);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(redirect);
+    };
+  }, [steps.length]);
+
+  return (
+    <div className="flex flex-col pt-2">
+      {/* Animated emblem */}
+      <div className="relative mx-auto mt-4 h-24 w-24">
+        <div className="absolute inset-0 animate-ping rounded-full bg-[#ff5b1f]/25" />
+        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] shadow-2xl shadow-[#ff5b1f]/40" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Building2 className="h-10 w-10 text-white" />
+        </div>
+      </div>
+
+      <h2 className="mt-5 text-center text-xl font-semibold tracking-tight">
+        Routing to Enterprise
+      </h2>
+      <p
+        className={cn(
+          'mx-auto mt-1 max-w-xs text-center text-sm',
+          isDark ? 'text-white/60' : 'text-gray-500',
+        )}
+      >
+        ForgeFuzz Enterprise is provisioned via{' '}
+        <span className="font-medium text-[#ffb400]">probestack.io</span>
+      </p>
+
+      {/* Steps */}
+      <ul className="mt-5 space-y-2">
+        {steps.map((s, i) => {
+          const done = i < active;
+          const current = i === active;
+          return (
+            <li
+              key={s.label}
+              className={cn(
+                'flex items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-300',
+                current
+                  ? isDark
+                    ? 'border-[#ff5b1f]/40 bg-[#ff5b1f]/10'
+                    : 'border-[#ff5b1f]/40 bg-[#ff5b1f]/5'
+                  : isDark
+                    ? 'border-white/5 bg-white/[0.02]'
+                    : 'border-gray-200 bg-white',
+              )}
+              style={{
+                opacity: i > active ? 0.45 : 1,
+                transform: current ? 'translateX(2px)' : 'translateX(0)',
+              }}
+            >
+              <span
+                className={cn(
+                  'flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold',
+                  done
+                    ? 'bg-emerald-500 text-white'
+                    : current
+                      ? 'bg-gradient-to-br from-[#ff5b1f] to-[#ff8c4a] text-white animate-bounce'
+                      : isDark
+                        ? 'bg-white/10 text-white/60'
+                        : 'bg-gray-200 text-gray-500',
+                )}
+              >
+                {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{s.label}</p>
+                <p
+                  className={cn(
+                    'truncate text-[11px]',
+                    isDark ? 'text-white/50' : 'text-gray-500',
+                  )}
+                >
+                  {s.sub}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Progress bar */}
+      <div
+        className={cn(
+          'mt-5 h-1.5 w-full overflow-hidden rounded-full',
+          isDark ? 'bg-white/10' : 'bg-gray-200',
+        )}
+      >
+        <div
+          className="h-full bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] transition-[width] duration-150 ease-linear"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+
+      {/* Post-redirect helper (in case popup blocker stops new tab) */}
+      {opened && (
+        <p
+          className={cn(
+            'mt-3 text-center text-[11px]',
+            isDark ? 'text-white/55' : 'text-gray-500',
+          )}
+        >
+          Didn&apos;t open?{' '}
+          <a
+            href="https://probestack.io/signup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
+          >
+            Click here
+          </a>
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={onBack}
+        className={cn(
+          'mt-4 self-center text-xs font-medium underline-offset-4 hover:underline',
+          isDark ? 'text-white/60' : 'text-gray-500',
+        )}
+      >
+        ← Back to Individual
+      </button>
+    </div>
+  );
+};

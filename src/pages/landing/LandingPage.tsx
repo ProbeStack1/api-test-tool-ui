@@ -4,7 +4,7 @@
  *   Hero (copy refreshed, terminal + particles untouched)
  *   → LiveStats   → Pillars (8)   → Analytics   → HowItWorks
  *   → UseCases    → ShowcaseGallery   → IntegrationPartners
- *   → CTASection  → LandingFooter
+ *   → CTASection  → Footer
  *
  * Theme/background untouched per user requirement — only the section
  * roster + nav + copy got refreshed. New sections lazily compose
@@ -24,7 +24,7 @@ import ShowcaseGallery from '@/components/landing/sections/ShowcaseGallery';
 import IntegrationPartners from '@/components/landing/sections/IntegrationPartners';
 import CTASection from '@/components/landing/sections/CTASection';
 import ParticleBackground from '@/components/landing/sections/ParticleBackground';
-import LandingFooter from '@/components/landing/sections/LandingFooter';
+import Footer from '@/components/landing/sections/LandingFooter';
 import CursorGlow from '@/components/landing/sections/CursorGlow';
 
 export const LandingPage = () => (
@@ -56,7 +56,7 @@ export const LandingPage = () => (
       <ShowcaseGallery />
       <IntegrationPartners />
       <CTASection />
-      <LandingFooter />
+      <Footer />
     </div>
   </div>
 );

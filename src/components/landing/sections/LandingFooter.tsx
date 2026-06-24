@@ -1,207 +1,105 @@
-/**
- * LandingFooter — final footer aligned with LANDING_PAGE_SPEC.md §10:
- * Product · Solutions · Pricing · Docs · Changelog · Status · Security · Contact.
- * Pure markup, no new colours — uses existing `bg-surface` / `text-text-*`
- * tokens so it inherits the theme automatically.
- */
-import { Link } from 'react-router-dom';
-import { Logo } from '@/components/common/Logo';
-import { useEffect, useRef } from 'react';
+import React from "react";
+import { Link } from "react-router-dom";
+import { Twitter, Github, Linkedin, Mail } from "lucide-react";
 
-// ---------- Canvas particle field (dots + link lines) ----------
-const CanvasParticles = () => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    let raf = 0;
-    let w = 0,
-      h = 0,
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    type P = { x: number; y: number; vx: number; vy: number; r: number; c: string };
-    const colors = ["#ff4400", "#1e00ff", "#00ff33"];
-    let particles: P[] = [];
-
-    const resize = () => {
-      w = canvas.clientWidth;
-      h = canvas.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      ctx.scale(dpr, dpr);
-      const count = Math.min(70, Math.floor((w * h) / 22000));
-      particles = Array.from({ length: count }, () => ({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.25,
-        vy: (Math.random() - 0.5) * 0.25,
-        r: Math.random() * 2 + 1,
-        c: colors[Math.floor(Math.random() * colors.length)],
-      }));
-    };
-
-    const tick = () => {
-      ctx.clearRect(0, 0, w, h);
-      for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0 || p.x > w) p.vx *= -1;
-        if (p.y < 0 || p.y > h) p.vy *= -1;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.c;
-        ctx.globalAlpha = 0.65;
-        ctx.fill();
-      }
-      // link lines
-      ctx.globalAlpha = 1;
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const a = particles[i],
-            b = particles[j];
-          const dx = a.x - b.x,
-            dy = a.y - b.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 < 120 * 120) {
-            ctx.strokeStyle = `rgba(255,255,255,${0.16 * (1 - d2 / (120 * 120))})`;
-            ctx.lineWidth = 0.6;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-
-    resize();
-    tick();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 h-full w-full"
-      style={{ pointerEvents: "none" }}
-    />
-  );
+type FooterLink = {
+  name: string;
+  path: string;
 };
 
-const COLS: { title: string; links: { label: string; href: string; external?: boolean }[] }[] = [
-  {
-    title: 'Product',
-    links: [
-      { label: 'Workspaces',       href: '/#pillars' },
-      { label: 'Mock Server',      href: '/#pillars' },
-      { label: 'Functional Tests', href: '/#pillars' },
-      { label: 'Load Tests',       href: '/#pillars' },
-      { label: 'Security Scan',    href: '/#pillars' },
-      { label: 'Bug Tracker',      href: '/#pillars' },
-      { label: 'Monitors',         href: '/#pillars' },
-      { label: 'MCP Studio',       href: '/#pillars' },
-    ],
-  },
-  {
-    title: 'Solutions',
-    links: [
-      { label: 'QA Engineers',         href: '/solutions#qa' },
-      { label: 'Backend Developers',   href: '/solutions#dev' },
-      { label: 'DevOps / SRE',         href: '/solutions#devops' },
-      { label: 'Security Teams',       href: '/solutions#sec' },
-      { label: 'API Product Managers', href: '/solutions#pm' },
-    ],
-  },
-  {
-    title: 'Resources',
-    links: [
-      { label: 'Pricing',    href: '/pricing' },
-      { label: 'Docs',       href: '/api-hub' },
-      { label: 'API Hub',    href: '/api-hub' },
-      { label: 'Changelog',  href: '/changelog' },
-      { label: 'Status',     href: '/status/forgeq' },
-      { label: 'Security',   href: '/#security' },
-    ],
-  },
-  {
-    title: 'Company',
-    links: [
-      { label: 'About',      href: '/#about' },
-      { label: 'Contact',    href: 'mailto:hello@probestack.io', external: true },
-      { label: 'GitHub',     href: 'https://github.com/ForgeCrux', external: true },
-      { label: 'Twitter',    href: 'https://twitter.com/probestack', external: true },
-    ],
-  },
-];
+type FooterLinks = Record<string, FooterLink[]>;
 
-export default function LandingFooter() {
+type SocialLink = {
+  icon: React.ElementType;
+  href: string;
+  label: string;
+};
+
+const Footer: React.FC = () => {
+  const currentYear = new Date().getFullYear();
+
+  const footerLinks: FooterLinks = {
+    Product: [
+      { name: "Features", path: "/features" },
+      { name: "How It Works", path: "/how-it-works" },
+      { name: "Pricing", path: "/pricing" },
+      { name: "Marketplace", path: "/api-hub" },
+    ],
+    Capabilities: [
+      { name: "Collection & Request Builder", path: "/capabilities/request-builder" },
+      { name: "Load & Functional Testing", path: "/capabilities/load-functional-testing" },
+      { name: "Agentic AI & LLM Testing", path: "/capabilities/ai-llm-testing" },
+      { name: "Mock Server", path: "/capabilities/mock-sandbox" },
+    ],
+    Company: [
+      { name: "About Us", path: "/about-us" },
+      { name: "Careers", path: "/careers" },
+      { name: "Blog", path: "/blog" },
+      { name: "Contact", path: "/contact" },
+    ],
+    Legal: [
+      { name: "Privacy Policy", path: "/privacy-policy" },
+      { name: "Terms of Service", path: "/terms-of-service" },
+      { name: "Security", path: "/security" },
+      { name: "GDPR", path: "/gdpr" },
+    ],
+  };
+
+  const socialLinks: SocialLink[] = [
+    { icon: Twitter, href: "#", label: "Twitter" },
+    { icon: Github, href: "#", label: "GitHub" },
+    { icon: Linkedin, href: "#", label: "LinkedIn" },
+    { icon: Mail, href: "mailto:contact@probestack.com", label: "Email" },
+  ];
+
   return (
-    <footer
-      data-testid="landing-footer"
-      className="relative z-10 border-t border-border bg-surface/40 backdrop-blur-xs"
-    >
-      {/* Canvas particle field with dynamic connecting lines */}
-      <CanvasParticles />
-
-      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-14">
-        <div className="grid gap-10 md:grid-cols-5">
-          {/* Brand block */}
-          <div className="md:col-span-1">
-            <Link to="/" data-testid="auth-logo-link" className="inline-flex items-center gap-2">
-            <Logo variant="mark" className="h-12 w-10" />
-            <div>
-              <div className="text-[0.75rem] uppercase tracking-[0.18em] text-white/60">
-                probestack
+    <footer className="gradient-bg relative bg-background-light border-t border-border footer-main">
+      <div className="mx-auto max-w-8xl px-16 py-12 sm:px-6 lg:px-20">
+        <div className="mb-12 grid grid-cols-2 gap-8 md:grid-cols-6">
+          <div className="col-span-2">
+            <Link to="/" className="mb-4 flex items-center space-x-3 group">
+              <img
+                src="/assets/justlogo.png"
+                alt="ProbeStack logo"
+                className="h-10 w-auto"
+              />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground leading-tight">ProbeStack</span>
+                <span className="text-2xl font-extrabold gradient-text">ForgeFuzz</span>
               </div>
-              <div className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-2xl font-bold leading-tight text-transparent">
-                ForgeFuzz
-              </div>
+            </Link>
+            <p className="mb-6 max-w-xs text-md text-muted-foreground">
+              AI-powered API design and catalog platform. Build, document, and
+              share APIs with your team effortlessly.
+            </p>
+            <div className="flex space-x-4">
+              {socialLinks.map((social) => (
+                <a
+                  key={social.label}
+                  href={social.href}
+                  aria-label={social.label}
+                  className="group rounded-lg bg-elevated p-4 transition-colors hover:text-primary"
+                >
+                  <social.icon className="h-5 w-5 text-muted-foreground transition-colors group-hover:text-primary" />
+                </a>
+              ))}
             </div>
-          </Link>
-            <p className="text-xs text-text-secondary leading-relaxed">
-              The API lifecycle platform that ships with its own QA team — spec to incident, one workspace.
-            </p>
-            <p className="mt-3 text-[10px] font-mono text-text-muted">
-              SOC2-ready · GDPR · audit log retention
-            </p>
           </div>
 
-          {/* Link columns */}
-          {COLS.map((col) => (
-            <div key={col.title}>
-              <h4 className="text-[11px] uppercase tracking-wider font-semibold text-text-primary mb-3">
-                {col.title}
-              </h4>
-              <ul className="space-y-2">
-                {col.links.map((link) => (
-                  <li key={link.label}>
-                    {link.external ? (
-                      <a
-                        href={link.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-text-secondary hover:text-primary transition-colors"
-                        data-testid={`footer-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link
-                        to={link.href}
-                        className="text-xs text-text-secondary hover:text-primary transition-colors"
-                        data-testid={`footer-link-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        {link.label}
-                      </Link>
-                    )}
+          {Object.entries(footerLinks).map(([category, links]) => (
+            <div key={category}>
+              <h3 className="mb-4 font-heading font-semibold text-foreground">
+                {category}
+              </h3>
+              <ul className="space-y-3">
+                {links.map((link) => (
+                  <li key={link.name}>
+                    <Link
+                      to={link.path}
+                      className="text-md text-text-muted transition-colors hover:text-primary"
+                    >
+                      {link.name}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -209,15 +107,53 @@ export default function LandingFooter() {
           ))}
         </div>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-[11px] text-text-muted">
-            © {new Date().getFullYear()} ProbeStack · ForgeFuzz. All rights reserved.
-          </p>
-          <p className="text-[10px] font-mono text-text-muted">
-            {/* 16 microservices · MongoDB Atlas · Gemini-powered AI */}
-          </p>
+        <div className="border-border pt-8">
+          <div className="flex flex-col items-center justify-between space-y-4 text-md text-muted-foreground md:flex-row md:space-y-0">
+            <p>© {currentYear} ProbeStack. All rights reserved.</p>
+            <p>Built with ❤️ for developers worldwide</p>
+          </div>
+        </div>
+      </div>
+      <div className="relative overflow-hidden py-12">
+        <div className="mx-auto max-w-6xl px-4">
+          <a href="https://probestack.io/" target="_blank" rel="noopener noreferrer" aria-label="Visit ProbeStack">
+            <svg
+              viewBox="0 0 1200 180"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-full cursor-pointer"
+              aria-label="PROBESTACK"
+            >
+              <defs>
+                <linearGradient id="footer-probestack-outline" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#ff5b1f" />
+                  <stop offset="40%" stopColor="#ffb400" />
+                  <stop offset="100%" stopColor="#1fbf9a" />
+                </linearGradient>
+              </defs>
+              <text
+                x="50%"
+                y="50%"
+                dominantBaseline="middle"
+                fill="none"
+                fontFamily="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+                fontSize="136"
+                fontWeight="700"
+                lengthAdjust="spacingAndGlyphs"
+                letterSpacing="0.25em"
+                stroke="url(#footer-probestack-outline)"
+                strokeOpacity="0.82"
+                strokeWidth="3.25"
+                textAnchor="middle"
+                textLength="1120"
+              >
+                PROBESTACK
+              </text>
+            </svg>
+          </a>
         </div>
       </div>
     </footer>
   );
-}
+};
+
+export default Footer;

@@ -69,8 +69,7 @@ const Footer: React.FC = () => {
               </div>
             </Link>
             <p className="mb-6 max-w-xs text-md text-muted-foreground">
-              AI-powered API design and catalog platform. Build, document, and
-              share APIs with your team effortlessly.
+              The API Testing platform that ships with its own QA team — spec to incident, one workspace.
             </p>
             <div className="flex space-x-4">
               {socialLinks.map((social) => (

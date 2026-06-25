@@ -190,7 +190,7 @@ export const LandingNavbar = () => {
 
   const navLinkCls = (active: boolean) =>
     `px-3 py-1.5 text-[14px] font-medium transition-colors ${
-      active ? "text-primary" : "hover:text-primary"
+      active ? "text-primary" : ""
     }`;
 
   // Pointer for the selected indicator inside the grid

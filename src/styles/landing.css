@@ -421,3 +421,11 @@ html.light .term-card { background-color: #ffffff !important; border-color: rgba
     background-position: center, 20% -10%, 80% 0%, center;
     background-blend-mode: normal, screen, screen, normal;
 }
+
+header.fixed nav a:not(.text-primary):hover {
+  color: var(--color-primary) !important;
+}
+
+footer a:not(.text-primary):hover {
+  color: var(--color-primary) !important;
+}

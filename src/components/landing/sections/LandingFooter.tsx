@@ -40,8 +40,8 @@ const Footer: React.FC = () => {
     Legal: [
       { name: "Privacy Policy", path: "/privacy-policy" },
       { name: "Terms of Service", path: "/terms-of-service" },
-      { name: "Security", path: "/security" },
-      { name: "GDPR", path: "/gdpr" },
+      // { name: "Security", path: "/security" },
+      // { name: "GDPR", path: "/gdpr" },
     ],
   };
 

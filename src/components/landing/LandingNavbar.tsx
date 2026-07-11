@@ -180,7 +180,7 @@ export const LandingNavbar = () => {
 
   const handleGoToApp = () => {
     window.scrollTo({ top: 0, behavior: "instant" });
-    nav(isAuthed ? "/projects" : "/login");
+    nav(isAuthed ? "/projects" : "/login?mode=signup");
   };
   const handleLogout = () => {
     clear();

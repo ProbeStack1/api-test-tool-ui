@@ -45,6 +45,7 @@ import { Logo } from '@/components/common/Logo';
 import { useSettings } from '@/stores/settings.store';
 import { useAuth } from '@/stores/auth.store';
 import { userMgmtService } from '@/services/userMgmt.service';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, auth } from '@/lib/firebase';
 import { cn } from '@/utils/cn';
 
 type Mode = 'signin' | 'signup';
@@ -305,43 +306,61 @@ export const LoginPage = () => {
   const onChange = (k: keyof typeof form) => (e: any) =>
     setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setInfoMsg(null);
-    setSubmitting(true);
-    try {
-      if (mode === 'signup') {
-        // Username = the local-part of the email so the user doesn't have to
-        // type yet another identifier (matches our backend's @NotBlank constraint).
-        const username = (form.email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
-        await userMgmtService.register({
-          email:     form.email.trim(),
-          username,
-          password:  form.password,
-          firstName: form.name.trim() || undefined,
-        });
-        setInfoMsg('Account created — check your inbox for the verification link, then sign in.');
-        setMode('signin');
-        return;
-      }
-      // signin
-      const pair = await userMgmtService.login({
-        emailOrUsername: form.email.trim(),
-        password:        form.password,
+const onSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+  setErrorMsg(null);
+  setInfoMsg(null);
+  setSubmitting(true);
+  try {
+    if (mode === 'signup') {
+      // Signup flow
+      const userCred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
+      const firebaseUser = userCred.user;
+      const uid = firebaseUser.uid;
+
+      await userMgmtService.register({
+        userId: uid,
+        email: form.email.trim(),
+        firstName: form.name.trim() || undefined,
+        lastName: undefined,
       });
-      setSession(pair);
-      // Honour ?next=… that RequireAuth left for us, falling back to the
-      // canonical landing page.
-      const next = params.get('next');
-      nav(next && next.startsWith('/') ? decodeURIComponent(next) : '/projects/collections');
-    } catch (err: any) {
-      // userMgmt.service throws { status, code, message, errors }
-      setErrorMsg(err?.message || 'Authentication failed. Please try again.');
-    } finally {
-      setSubmitting(false);
+
+      setInfoMsg('Account created — check your inbox for the verification link, then sign in.');
+      setMode('signin');
+      return;
     }
-  };
+
+    // Signin flow
+    const userCred = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
+    const firebaseUser = userCred.user;
+    const idToken = await firebaseUser.getIdToken();
+
+    const payload = JSON.parse(atob(idToken.split('.')[1]));
+    const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
+
+    const user = await userMgmtService.me(idToken);
+
+    useAuth.getState().setSession({
+      accessToken: idToken,
+      refreshToken: '',
+      expiresInSec,
+      user,
+    });
+
+    const next = params.get('next');
+    nav(next && next.startsWith('/') ? decodeURIComponent(next) : '/projects/collections');
+  } catch (err: any) {
+    // 🔥 NEW: Hide all Firebase auth errors behind a single generic message
+    if (err.code && err.code.startsWith('auth/')) {
+      setErrorMsg('Invalid email or password. Please try again.');
+    } else {
+      // Network or other unexpected errors – still show a generic message
+      setErrorMsg(err?.message || 'Authentication failed. Please try again.');
+    }
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const onSkip = () => nav('/projects/collections');
 

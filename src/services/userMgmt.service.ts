@@ -53,20 +53,21 @@ export interface TokenPair {
 }
 
 export const userMgmtService = {
-  register: (req: { email: string; username: string; password: string; firstName?: string; lastName?: string }) =>
+  //  CHANGED: register now expects userId (Firebase UID) and no password.
+  register: (req: { userId: string; email: string; firstName?: string; lastName?: string }) =>
     userMgmtHttp.post<UserView>('/api/v1/users/register', req).then((r) => r.data),
 
-  login: (req: { emailOrUsername: string; password: string }) =>
-    userMgmtHttp.post<TokenPair>('/api/v1/users/login', req).then((r) => r.data),
+  //  REMOVED: login and refresh are deprecated (handled by Firebase SDK).
+  // login: ...   // removed
+  // refresh: ... // removed
 
-  refresh: (refreshToken: string) =>
-    userMgmtHttp.post<TokenPair>('/api/v1/users/refresh', { refreshToken }).then((r) => r.data),
-
+  //  logout still calls backend (no‑op) but we can keep it.
   logout: (refreshToken: string, accessToken: string) =>
     userMgmtHttp.post<void>('/api/v1/users/logout', { refreshToken }, {
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then((r) => r.data),
 
+  //  me – used after login to fetch full user profile from MongoDB.
   me: (accessToken: string) =>
     userMgmtHttp.get<UserView>('/api/v1/users/me', {
       headers: { Authorization: `Bearer ${accessToken}` },

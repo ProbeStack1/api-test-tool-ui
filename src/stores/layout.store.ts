@@ -70,7 +70,7 @@ export interface LayoutState {
 }
 
 const DEFAULTS = {
-  sideRailMode: 'left' as SideRailMode,
+  sideRailMode: 'top' as SideRailMode,
   primaryTab: 'collection' as PrimaryTab,
   primaryTabStamp: 0,
   showLeftSidebar: true,

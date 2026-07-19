@@ -133,11 +133,33 @@ const buildFullUrl = (url: string, q: DraftKV[]): string => {
   return url.includes('?') ? `${url}&${qs}` : `${url}?${qs}`;
 };
 
-const gCurl = (m: string, u: string, q: DraftKV[], h: DraftKV[], b: string): string => {
+const gCurl = (
+  m: string,
+  u: string,
+  q: DraftKV[],
+  h: DraftKV[],
+  b: string,
+  bodyKind: DraftSnapshot['bodyKind'],
+  bodyForm?: DraftKV[]
+): string => {
   if (!u) return '';
   let out = `curl -X ${m} '${buildFullUrl(u, q)}'`;
   h.forEach((hd) => { out += ` \\\n  -H '${hd.name}: ${hd.value ?? ''}'`; });
-  if (['POST', 'PUT', 'PATCH'].includes(m) && b) out += ` \\\n  -d '${b.replace(/'/g, "'\\''")}'`;
+
+if (bodyKind === 'multipart' && bodyForm && bodyForm.length) {
+  // Add -F for each field
+  bodyForm.forEach((f) => {
+    out += ` \\\n  -F '${f.name}=${f.value}'`;
+  });
+} else if (bodyKind === 'form-urlencoded' && bodyForm && bodyForm.length) {
+  // Build urlencoded string from bodyForm
+  const urlencoded = bodyForm
+    .map((f) => `${encodeURIComponent(f.name)}=${encodeURIComponent(f.value)}`)
+    .join('&');
+  out += ` \\\n  -d '${urlencoded.replace(/'/g, "'\\''")}'`;
+} else if ((bodyKind === 'json' || bodyKind === 'raw' || bodyKind === 'text') && b) {
+  out += ` \\\n  -d '${b.replace(/'/g, "'\\''")}'`;
+}
   return out;
 };
 
@@ -258,7 +280,7 @@ const generate = (lang: string, d: DraftSnapshot): string => {
   const h = (d.headers ?? []).filter((x) => x.name?.trim() && (x.enabled ?? true));
   const body = d.bodyText ?? '';
   switch (lang) {
-    case 'curl':                   return gCurl(method, url, q, h, body);
+    case 'curl':                   return gCurl(method, url, q, h, body, d.bodyKind, d.bodyForm);
     case 'postman':                return gPostman(method, url, q, h, body);
     case 'javascript-fetch':       return gFetch(method, url, q, h, body);
     case 'javascript-jquery':      return gJQuery(method, url, q, h, body);

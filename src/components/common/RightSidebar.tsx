@@ -559,7 +559,7 @@ const RAIL: { key: RightPanelTab; icon: IconName; label: string }[] = [
 ];
 
 // ============================================================
-// 🔥 UPDATED RightRail — auto‑expands on hover
+//  UPDATED RightRail — auto‑expands on hover
 // ============================================================
 export const RightRail = () => {
   const activeTab = useLayout((s) => s.rightPanelTab);
@@ -570,7 +570,8 @@ export const RightRail = () => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<number | null>(null);
 
-  const handleMouseEnter = () => {
+  // Hover handlers for each button
+  const handleButtonMouseEnter = () => {
     if (hoverTimeoutRef.current) {
       window.clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
@@ -578,7 +579,7 @@ export const RightRail = () => {
     setIsHovered(true);
   };
 
-  const handleMouseLeave = () => {
+  const handleButtonMouseLeave = () => {
     if (hoverTimeoutRef.current) {
       window.clearTimeout(hoverTimeoutRef.current);
     }
@@ -598,64 +599,70 @@ export const RightRail = () => {
   return (
     <aside
       data-testid="right-rail"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={cn(
-        'flex shrink-0 flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out',
-        isHovered ? 'w-48' : 'w-14',
-      )}
+      // 🔥 Removed onMouseEnter/Leave from here
+      className="relative w-14 shrink-0 flex flex-col py-2 overflow-visible"
     >
-      {RAIL.map(({ key, icon, label }) => {
-        const active = expanded && activeTab === key;
+      <div
+        className={cn(
+          'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-50',
+          isHovered ? 'w-48' : 'w-14'
+        )}
+        style={{ willChange: 'width' }}
+      >
+        {RAIL.map(({ key, icon, label }) => {
+          const active = expanded && activeTab === key;
 
-        const button = (
-          <button
-            data-testid={`right-rail-${key}`}
-            onClick={() => onClick(key)}
-            className={cn(
-              'group relative flex h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
-              isHovered ? 'w-full' : 'w-9',
-              // 🔥 Selected design — match left sidebar
-              active
-                ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 to-transparent text-primary'
-                : 'text-text-secondary hover:bg-hover hover:text-text-primary',
-            )}
-          >
-            <AppIcon
-              name={icon}
-              animated
-              active={active}
+          const button = (
+            <button
+              data-testid={`right-rail-${key}`}
+              onClick={() => onClick(key)}
+              // 🔥 Hover handlers on button
+              onMouseEnter={handleButtonMouseEnter}
+              onMouseLeave={handleButtonMouseLeave}
               className={cn(
-                'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
+                'group relative flex h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
+                isHovered ? 'w-full' : 'w-9',
                 active
-                  ? 'text-primary'
-                  : 'text-text-secondary group-hover:text-primary',
-              )}
-            />
-            <span
-              className={cn(
-                'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
-                isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
-                active ? 'text-primary' : 'text-text-secondary',
+                  ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 to-transparent text-primary'
+                  : 'text-text-secondary hover:bg-hover hover:text-text-primary',
               )}
             >
-              {label}
-            </span>
-          </button>
-        );
+              <AppIcon
+                name={icon}
+                animated
+                active={active}
+                className={cn(
+                  'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
+                  active
+                    ? 'text-primary'
+                    : 'text-text-secondary group-hover:text-primary',
+                )}
+              />
+              <span
+                className={cn(
+                  'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
+                  isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
+                  active ? 'text-primary' : 'text-text-secondary',
+                )}
+              >
+                {label}
+              </span>
+            </button>
+          );
 
-        return (
-          <div key={key} className="flex w-full items-center justify-start">
-            {isHovered ? (
-              button
-            ) : (
-              <Tooltip content={label} side="left">
-                {button}
-              </Tooltip>
-            )}
-          </div>
-        );
-      })}
+          return (
+            <div key={key} className="flex w-full items-center justify-start">
+              {isHovered ? (
+                button
+              ) : (
+                <Tooltip content={label} side="left">
+                  {button}
+                </Tooltip>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </aside>
   );
 };

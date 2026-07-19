@@ -301,6 +301,28 @@ export function parseCurl(input: string): ParseCurlResult | null {
     else                     { bodyKind = 'text'; bodyText = body; }
   }
 
+    // Detect urlencoded body if Content-Type header indicates it
+  const isUrlEncoded = headers.some(
+    (h) => h.name.toLowerCase() === 'content-type' &&
+           h.value.toLowerCase().includes('application/x-www-form-urlencoded')
+  );
+
+  if (isUrlEncoded && body) {
+    // Parse body as URL-encoded key-value pairs
+    const pairs = body.split('&').filter(Boolean).map((p) => {
+      const eq = p.indexOf('=');
+      if (eq === -1) return { name: p, value: '', enabled: true };
+      return {
+        name: p.slice(0, eq),
+        value: p.slice(eq + 1),
+        enabled: true,
+      };
+    });
+    bodyKind = 'form-urlencoded';
+    bodyForm = pairs;
+    bodyText = undefined; // clear raw text because we now have structured form
+  }
+
   // Friendly summary for the toast.
   const notes: string[] = [];
   notes.push(`${method} ${baseUrl}`);

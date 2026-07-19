@@ -270,6 +270,95 @@ export const RequestBuilderPage = () => {
   const setSnapshot = useRequestDraftStore((s) => s.setSnapshot);
   const clearSnapshot = useRequestDraftStore((s) => s.clear);
 
+  // ---- Backend → Frontend body mapper ----
+const mapBackendBodyToFrontend = (backendBody: any): RequestBody => {
+  if (!backendBody || backendBody.mode === 'NONE') {
+    return { mode: 'none' };
+  }
+
+  const mode = backendBody.mode;
+  const raw = backendBody.raw ?? '';
+  const formFields = backendBody.formFields ?? [];
+  const graphql = backendBody.graphql;
+
+  switch (mode) {
+    case 'RAW_JSON':
+      return {
+        mode: 'raw',
+        raw,
+        language: 'json',
+        formData: [],
+        urlEncoded: [],
+        graphql: undefined,
+      };
+    case 'RAW_TEXT':
+      return {
+        mode: 'raw',
+        raw,
+        language: 'text',
+        formData: [],
+        urlEncoded: [],
+        graphql: undefined,
+      };
+    case 'RAW_XML':
+      return {
+        mode: 'raw',
+        raw,
+        language: 'xml' as any,
+        formData: [],
+        urlEncoded: [],
+        graphql: undefined,
+      };
+    case 'FORM_DATA':
+      return {
+        mode: 'form-data',
+        raw: '',
+        language: 'json',
+        formData: formFields.map((f: any, i: number) => ({
+          id: `fd_${i}`,
+          key: f.key || '',
+          type: (f.type === 'file' ? 'file' : 'text') as 'text' | 'file',
+          value: f.type === 'file'
+            ? (f.fileRef ? { kind: 'forgeq', id: f.fileRef, name: f.value || 'File' } : { kind: 'none' })
+            : (f.value ?? ''),
+          enabled: f.enabled !== false,
+          description: f.description,
+        })),
+        urlEncoded: [],
+        graphql: undefined,
+      };
+    case 'FORM_URLENCODED':
+      return {
+        mode: 'x-www-form-urlencoded',
+        raw: '',
+        language: 'json',
+        formData: [],
+        urlEncoded: formFields.map((f: any, i: number) => ({
+          id: `ue_${i}`,
+          key: f.key || '',
+          value: f.value ?? '',
+          enabled: f.enabled !== false,
+          description: f.description,
+        })),
+        graphql: undefined,
+      };
+    case 'GRAPHQL':
+      return {
+        mode: 'graphql',
+        raw: '',
+        language: 'json',
+        formData: [],
+        urlEncoded: [],
+        graphql: {
+          query: graphql?.query ?? '',
+          variables: graphql?.variables ?? '',
+        },
+      };
+    default:
+      return { mode: 'none' };
+  }
+};
+
   /* ─────── One-shot handoff pickup (History → builder) ─────── *
    * When the user hits "Edit & Try" on the History page, that page
    * drops a full snapshot into the store's `pendingHandoff` slot and
@@ -316,10 +405,20 @@ export const RequestBuilderPage = () => {
       queryParams: params.map((p) => ({ name: p.key, value: p.value, enabled: p.enabled !== false })),
       headers: headers.map((h) => ({ name: h.key, value: h.value, enabled: h.enabled !== false })),
       bodyKind,
-      bodyText: body.mode === 'raw' ? (body as any).content ?? '' : undefined,
-      bodyForm: (body.mode === 'form-data' || body.mode === 'x-www-form-urlencoded')
-        ? ((body as any).fields ?? []).map((f: any) => ({ name: f.key, value: f.value, enabled: f.enabled !== false }))
-        : undefined,
+      bodyText: body.mode === 'raw' ? (body as any).raw ?? '' : undefined,
+      bodyForm: (body.mode === 'form-data')
+  ? ((body as any).formData ?? []).filter((f: any) => f.enabled !== false && f.key).map((f: any) => ({
+      name: f.key,
+      value: f.value,
+      enabled: f.enabled !== false
+    }))
+  : (body.mode === 'x-www-form-urlencoded')
+    ? ((body as any).urlEncoded ?? []).filter((f: any) => f.enabled !== false && f.key).map((f: any) => ({
+        name: f.key,
+        value: f.value,
+        enabled: f.enabled !== false
+      }))
+    : undefined,
     });
     return () => { /* keep last snapshot — user may toggle tabs */ };
   }, [active?.id, active?.name, method, url, params, headers, body, setSnapshot]);
@@ -346,31 +445,12 @@ export const RequestBuilderPage = () => {
         description: h.description, enabled: h.enabled !== false,
       })),
     );
-    const b = loadedRequest.body || { mode: 'none' };
-    setBody({
-      mode: (b.mode || 'none') as any,
-      raw: b.raw ?? '',
-      language: (b.language ?? 'json') as any,
-      formData: b.formdata ? b.formdata.map((r: any, i: number) => ({
-        id: `fd_${i}`, key: r.key || '',
-        type: (r.type || 'text') as 'text' | 'file',
-        value: r.type === 'file' ? { kind: 'none' } as FileValue : (r.value || ''),
-        enabled: r.enabled !== false, description: r.description,
-      })) : [],
-      urlEncoded: b.urlencoded ? b.urlencoded.map((r: any, i: number) => ({
-        id: `ue_${i}`, key: r.key || '', value: r.value || '',
-        enabled: r.enabled !== false, description: r.description,
-      })) : [],
-      // GraphQL: hydrate the inner { query, variables } so the
-      // CodeMirror editor and the variables JSON editor have content
-      // on mount. Backend stores variables as a JSON string already.
-      graphql: ((b as any).mode === 'graphql' || (b as any).mode === 'GRAPHQL' || (b as any).graphql)
-        ? {
-            query:     (b as any).graphql?.query     ?? '',
-            variables: (b as any).graphql?.variables ?? '',
-          }
-        : undefined,
-    });
+
+    const frontendBody = mapBackendBodyToFrontend(loadedRequest.body);
+setBody(frontendBody);
+// (Optional) Body tab auto-open
+if (frontendBody.mode !== 'none') setTab('Body');
+
     const a = loadedRequest.auth || { type: 'none' };
     setAuth({ type: normalizeAuth(a.type), config: a });
     setPreScript(loadedRequest.preRequestScript ?? '');
@@ -418,14 +498,41 @@ export const RequestBuilderPage = () => {
       setBody({ mode: 'raw', language: 'json', raw: d.bodyText });
     } else if (d.bodyKind === 'text' && d.bodyText !== undefined) {
       setBody({ mode: 'raw', language: 'text', raw: d.bodyText });
-    } else if (d.bodyKind === 'multipart' && d.bodyForm) {
-      setBody({
-        mode: 'form-data',
-        formData: d.bodyForm.map((f) => ({
-          id: crypto.randomUUID(), key: f.name, value: f.value, enabled: f.enabled ?? true, type: 'text',
-        })),
-      });
-    } else if (d.bodyKind === 'none') {
+    }  else if (d.bodyKind === 'multipart' && d.bodyForm) {
+  setBody({
+    mode: 'form-data',
+    formData: d.bodyForm.map((f) => {
+      const isFile = f.value.startsWith('@');
+      let value: string | FileValue = f.value;
+      if (isFile) {
+        const filePath = f.value.slice(1); // remove @
+        const fileName = filePath.split(/[\\/]/).pop() || filePath;
+        value = { kind: 'local', name: fileName };
+      }
+      return {
+        id: crypto.randomUUID(),
+        key: f.name,
+        type: isFile ? 'file' : 'text',
+        value,
+        enabled: f.enabled ?? true,
+      };
+    }),
+  });
+} else if (d.bodyKind === 'form-urlencoded' && d.bodyForm) {  
+  setBody({
+    mode: 'x-www-form-urlencoded',
+    raw: '',
+    language: 'json' as any,
+    formData: [],
+    urlEncoded: d.bodyForm.map((f) => ({
+      id: crypto.randomUUID(),
+      key: f.name,
+      value: f.value,
+      enabled: f.enabled ?? true,
+    })),
+    graphql: undefined,
+  });
+}  else if (d.bodyKind === 'none') {
       setBody({ mode: 'none' });
     }
     markDirty();
@@ -476,6 +583,7 @@ export const RequestBuilderPage = () => {
       setDirty(false);
       setSavingState('saved');
       if (active?.id) setMeta(active.id, { dirty: false });
+      qc.invalidateQueries({ queryKey: ['request', active.id] });
     } catch (e: any) {
       setSavingState('idle');
       toast.error(e.message || 'Save failed');

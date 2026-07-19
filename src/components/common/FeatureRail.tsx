@@ -229,6 +229,18 @@
  * API Hub shows right flyout when collapsed, inline sub-items when expanded
  * with staggered slide-in animation. On hover, only icon turns primary.
  */
+/**
+ * FeatureRail — narrow left icon column (primary tab selector).
+ *
+ * Theme-friendly: every icon uses {@link AppIcon} (Lordicon) which adapts
+ * its accent colour from the live CSS theme variable. The selected state
+ * highlights the rail with a primary-muted background + a left accent
+ * stripe — same look in light and dark themes.
+ *
+ * Hover behavior: rail visually expands/collapses (labels show/hide) but
+ * does NOT affect the right-side content area. Only manual toggle
+ * (via layout store) shifts the content.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLayout, type PrimaryTab } from '@/stores/layout.store';
@@ -270,11 +282,38 @@ export const FeatureRail = () => {
 
   // Rail expand/collapse state
   const [isHovered, setIsHovered] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  // 🔥 Hover handlers for each button
+  const handleButtonMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHovered(true);
+  };
+
+  const handleButtonMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setIsHovered(false);
+    }, 150);
+  };
+
+  // Keep expanded when hovering submenu items
+  const handleSubmenuMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const match = ROUTE_TAB.find(([re]) => re.test(loc.pathname));
     if (match && match[1] !== active) setTab(match[1]);
-  }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loc.pathname]);
 
   const matched = ROUTE_TAB.find(([re]) => re.test(loc.pathname));
   const visualActive = matched ? matched[1] : null;
@@ -282,100 +321,106 @@ export const FeatureRail = () => {
   return (
     <aside
       data-testid="feature-rail"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={cn(
-        'flex shrink-0 flex-col gap-1 border-r border-border bg-surface py-2 transition-all duration-500 ease-in-out',
-        isHovered ? 'w-48' : 'w-12',
-      )}
+      // 🔥 Removed onMouseEnter/Leave from here — now handled per button
+      className="relative w-12 shrink-0 flex flex-col py-2 overflow-visible"
     >
-      {ITEMS.map(({ key, icon, label, route }) => {
-        const isActive = visualActive === key;
+      {/* Inner container that visually expands on hover */}
+      <div
+        className={cn(
+          'absolute left-0 top-0 h-full flex flex-col gap-1 border-r border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-50',
+          isHovered ? 'w-48' : 'w-12'
+        )}
+        style={{ willChange: 'width' }}
+      >
+        {ITEMS.map(({ key, icon, label, route }) => {
+          const isActive = visualActive === key;
 
-        const button = (
-          <button
-            data-testid={`rail-${key}`}
-            onClick={() => { setTab(key); nav(route); }}
-            onPointerEnter={() => prefetchRoute(route)}
-            onFocus={() => prefetchRoute(route)}
-            className={cn(
-              'group relative flex h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
-              isHovered ? 'w-full' : 'w-9',
-isActive
-  ? 'border-l-2 border-primary bg-gradient-to-r from-primary/15 to-primary/2 text-primary'
-  : 'text-text-secondary hover:bg-hover',
-            )}
-          >
-            {/* {isActive && (
-              <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-primary" />
-            )} */}
-            <AppIcon
-              name={icon}
-              animated
-              active={isActive}
+          const button = (
+            <button
+              data-testid={`rail-${key}`}
+              onClick={() => { setTab(key); nav(route); }}
+              onPointerEnter={() => prefetchRoute(route)}
+              onFocus={() => prefetchRoute(route)}
+              // 🔥 Hover handlers on button
+              onMouseEnter={handleButtonMouseEnter}
+              onMouseLeave={handleButtonMouseLeave}
               className={cn(
-                'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
+                'group relative flex h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
+                isHovered ? 'w-full' : 'w-9',
                 isActive
-                  ? 'text-primary'
-                  : 'text-text-secondary group-hover:text-primary',
-              )}
-            />
-            <span
-              className={cn(
-                'ml-2 text-sm font-medium transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap',
-                isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
-                isActive ? 'text-primary' : 'text-text-secondary',
+                  ? 'border-l-2 border-primary bg-gradient-to-r from-primary/15 to-primary/2 text-primary'
+                  : 'text-text-secondary hover:bg-hover',
               )}
             >
-              {label}
-            </span>
-          </button>
-        );
+              <AppIcon
+                name={icon}
+                animated
+                active={isActive}
+                className={cn(
+                  'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
+                  isActive
+                    ? 'text-primary'
+                    : 'text-text-secondary group-hover:text-primary',
+                )}
+              />
+              <span
+                className={cn(
+                  'ml-2 text-sm font-medium transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap',
+                  isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
+                  isActive ? 'text-primary' : 'text-text-secondary',
+                )}
+              >
+                {label}
+              </span>
+            </button>
+          );
 
-        return (
-          <div key={key} className="flex w-full items-center justify-start">
-            {isHovered ? (
-              button
-            ) : (
-              <Tooltip content={label} side="right">
-                {button}
-              </Tooltip>
-            )}
-          </div>
-        );
-      })}
-      <ApiHubRailItem isHovered={isHovered} />
+          return (
+            <div key={key} className="flex w-full items-center justify-start">
+              {isHovered ? (
+                button
+              ) : (
+                <Tooltip content={label} side="right">
+                  {button}
+                </Tooltip>
+              )}
+            </div>
+          );
+        })}
+        <ApiHubRailItem
+          isHovered={isHovered}
+          onHoverEnter={handleButtonMouseEnter}
+          onHoverLeave={handleButtonMouseLeave}
+          onSubmenuEnter={handleSubmenuMouseEnter}
+        />
+      </div>
     </aside>
   );
 };
 
 /* ──────────────────────────────────────────────────────────────────────
  *  ApiHubRailItem
- *  Globe icon at the bottom of the rail with adaptive behavior:
- *  - Collapsed rail → right flyout (same as before).
- *  - Expanded rail  → inline sub-items (API Catalog, API Hub) inside
- *    the sidebar with staggered slide-in delay.
- *  Hover: only icon turns primary.
  * ────────────────────────────────────────────────────────────────────── */
 const RAIL_LINKS: { label: string; href: string; icon: typeof Globe }[] = [
-  {
-    label: 'API Catalog',
-    href: '/home/api-catalog/public',
-    icon: BookOpen,
-  },
-  {
-    label: 'API Hub',
-    href: '/api-hub',
-    icon: Globe,
-  },
+  { label: 'API Catalog', href: '/home/api-catalog/public', icon: BookOpen },
+  { label: 'API Hub', href: '/api-hub', icon: Globe },
 ];
 
-const ApiHubRailItem = ({ isHovered }: { isHovered: boolean }) => {
+const ApiHubRailItem = ({
+  isHovered,
+  onHoverEnter,
+  onHoverLeave,
+  onSubmenuEnter,
+}: {
+  isHovered: boolean;
+  onHoverEnter: () => void;
+  onHoverLeave: () => void;
+  onSubmenuEnter: () => void;
+}) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
 
-  // Click outside / Escape handling
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -403,39 +448,6 @@ const ApiHubRailItem = ({ isHovered }: { isHovered: boolean }) => {
 
   const subVisible = isHovered && open;
 
-  // --- Collapsed view: right flyout (unchanged) ---
-  // const renderFlyout = () => (
-  //   <div
-  //     role="menu"
-  //     data-testid="rail-api-hub-menu"
-  //     className="absolute left-[calc(100%+6px)] top-0 z-50 w-60 rounded-md border border-border bg-probestack-bg shadow-lg ring-1 ring-black/5 overflow-hidden animate-in fade-in-0 slide-in-from-left-1 duration-150"
-  //   >
-  //     <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-  //       Marketplace
-  //     </div>
-  //     {RAIL_LINKS.map(({ label, href, icon: Icon }) => (
-  //       <a
-  //         key={href}
-  //         href={href}
-  //         target="_blank"
-  //         rel="noopener noreferrer"
-  //         role="menuitem"
-  //         data-testid={`rail-api-hub-link-${label.toLowerCase().replace(/\s+/g, '-')}`}
-  //         className="flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-hover focus:bg-hover focus:outline-none"
-  //         onClick={() => setOpen(false)}
-  //       >
-  //         <Icon className="h-4 w-4 shrink-0 text-text-secondary" />
-  //         <div className="min-w-0 flex-1">
-  //           <div className="flex items-center gap-1.5">
-  //             <span className="text-xs font-semibold text-text-primary">{label}</span>
-  //           </div>
-  //         </div>
-  //       </a>
-  //     ))}
-  //   </div>
-  // );
-
-  // --- Expanded view: inline sub-items with staggered slide-in ---
   const renderInlineSubItems = () => (
     <div
       className="w-full overflow-hidden transition-all duration-300 ease-in-out"
@@ -472,24 +484,23 @@ const ApiHubRailItem = ({ isHovered }: { isHovered: boolean }) => {
       onMouseEnter={handleOpen}
       onMouseLeave={handleClose}
     >
-      {/* Main API Hub button */}
       <button
         data-testid="rail-api-hub-trigger"
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
+        // 🔥 Hover handlers from parent
+        onMouseEnter={onHoverEnter}
+        onMouseLeave={onHoverLeave}
         className={cn(
           'group relative flex h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
           isHovered ? 'w-full' : 'w-9',
-open
-  ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 to-transparent text-primary'
-  : 'text-text-secondary hover:bg-hover',
+          open
+            ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 to-transparent text-primary'
+            : 'text-text-secondary hover:bg-hover',
         )}
       >
-        {/* {open && (
-          <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-primary" />
-        )} */}
         <Globe
           className={cn(
             'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
@@ -516,10 +527,11 @@ open
       </button>
 
       {/* Inline sub-items — only when expanded */}
-      {isHovered && renderInlineSubItems()}
-
-      {/* Flyout — only when collapsed */}
-      {/* {!isHovered && open && renderFlyout()} */}
+      {isHovered && (
+        <div onMouseEnter={onSubmenuEnter}>
+          {renderInlineSubItems()}
+        </div>
+      )}
     </div>
   );
 };

@@ -393,35 +393,56 @@ const mapBackendBodyToFrontend = (backendBody: any): RequestBody => {
     setDirty(true);
   }, []); // run exactly once on mount
 
-  useEffect(() => {
-    const kindMap: Record<string, any> = { none: 'none', raw: body.mode === 'raw' && (body as any).language === 'json' ? 'json' : 'raw', 'form-data': 'multipart', 'x-www-form-urlencoded': 'form-urlencoded' };
-    const bodyKind = kindMap[body.mode] ?? 'none';
-    setSnapshot({
-      source: 'request-builder',
-      id: active?.id ?? null,
-      name: active?.name,
-      method,
-      url,
-      queryParams: params.map((p) => ({ name: p.key, value: p.value, enabled: p.enabled !== false })),
-      headers: headers.map((h) => ({ name: h.key, value: h.value, enabled: h.enabled !== false })),
-      bodyKind,
-      bodyText: body.mode === 'raw' ? (body as any).raw ?? '' : undefined,
-      bodyForm: (body.mode === 'form-data')
-  ? ((body as any).formData ?? []).filter((f: any) => f.enabled !== false && f.key).map((f: any) => ({
-      name: f.key,
-      value: f.value,
-      enabled: f.enabled !== false
-    }))
-  : (body.mode === 'x-www-form-urlencoded')
-    ? ((body as any).urlEncoded ?? []).filter((f: any) => f.enabled !== false && f.key).map((f: any) => ({
-        name: f.key,
-        value: f.value,
-        enabled: f.enabled !== false
-      }))
-    : undefined,
-    });
-    return () => { /* keep last snapshot — user may toggle tabs */ };
-  }, [active?.id, active?.name, method, url, params, headers, body, setSnapshot]);
+useEffect(() => {
+  const kindMap: Record<string, any> = { 
+    none: 'none', 
+    raw: body.mode === 'raw' && (body as any).language === 'json' ? 'json' : 'raw', 
+    'form-data': 'multipart', 
+    'x-www-form-urlencoded': 'form-urlencoded' 
+  };
+  const bodyKind = kindMap[body.mode] ?? 'none';
+  setSnapshot({
+    source: 'request-builder',
+    id: active?.id ?? null,
+    name: active?.name,
+    method,
+    url,
+    queryParams: params.map((p) => ({ name: p.key, value: p.value, enabled: p.enabled !== false })),
+    headers: headers.map((h) => ({ name: h.key, value: h.value, enabled: h.enabled !== false })),
+    bodyKind,
+    bodyText: body.mode === 'raw' ? (body as any).raw ?? '' : undefined,
+    bodyForm: (body.mode === 'form-data')
+      ? ((body as any).formData ?? []).filter((f: any) => f.enabled !== false && f.key).map((f: any) => {
+          let value: any = f.value;
+          // If this is a file field, convert the FileValue to a string with '@'
+          if (f.type === 'file') {
+            if (typeof value === 'object' && value !== null) {
+              // FileValue objects have 'name' property
+              const name = value.name || 'file';
+              value = `@${name}`;
+            } else if (typeof value === 'string') {
+              // Already a string, ensure it starts with '@'
+              value = value.startsWith('@') ? value : `@${value}`;
+            } else {
+              value = '@file';
+            }
+          }
+          return {
+            name: f.key,
+            value: value,
+            enabled: f.enabled !== false
+          };
+        })
+      : (body.mode === 'x-www-form-urlencoded')
+        ? ((body as any).urlEncoded ?? []).filter((f: any) => f.enabled !== false && f.key).map((f: any) => ({
+            name: f.key,
+            value: f.value,
+            enabled: f.enabled !== false
+          }))
+        : undefined,
+  });
+  return () => { /* keep last snapshot — user may toggle tabs */ };
+}, [active?.id, active?.name, method, url, params, headers, body, setSnapshot]);
   useEffect(() => () => { clearSnapshot(); }, [clearSnapshot]);
 
   /* Track each in-flight request so tab-switching never cancels it AND
@@ -498,7 +519,7 @@ if (frontendBody.mode !== 'none') setTab('Body');
       setBody({ mode: 'raw', language: 'json', raw: d.bodyText });
     } else if (d.bodyKind === 'text' && d.bodyText !== undefined) {
       setBody({ mode: 'raw', language: 'text', raw: d.bodyText });
-    }  else if (d.bodyKind === 'multipart' && d.bodyForm) {
+    }   else if (d.bodyKind === 'multipart' && d.bodyForm) {
   setBody({
     mode: 'form-data',
     formData: d.bodyForm.map((f) => {
@@ -507,7 +528,9 @@ if (frontendBody.mode !== 'none') setTab('Body');
       if (isFile) {
         const filePath = f.value.slice(1); // remove @
         const fileName = filePath.split(/[\\/]/).pop() || filePath;
-        value = { kind: 'local', name: fileName };
+        // Create a dummy File object to satisfy FileValue type
+        const dummyFile = new File([], fileName, { type: 'application/octet-stream' });
+        value = { kind: 'local', name: fileName, file: dummyFile, size: 0 };
       }
       return {
         id: crypto.randomUUID(),

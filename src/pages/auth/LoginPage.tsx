@@ -765,9 +765,11 @@ const onSubmit = async (e: FormEvent) => {
             ) : (
               /* --- Enterprise redirect panel --- */
               <EnterpriseRedirect
-                isDark={isDark}
-                onBack={() => setAudience('individual')}
-              />
+  isDark={isDark}
+  onBack={() => setAudience('individual')}
+  mode={mode}
+  redirectUri={import.meta.env.VITE_CALLBACK_URL || `${window.location.origin}/auth/callback`}
+/>
             )}
           </div>
         </main>
@@ -915,9 +917,13 @@ const AudienceToggle = ({
 const EnterpriseRedirect = ({
   isDark,
   onBack,
+  mode,
+  redirectUri,
 }: {
   isDark: boolean;
   onBack: () => void;
+  mode: Mode;
+  redirectUri: string;
 }) => {
   const steps = useMemo(
     () => [
@@ -927,9 +933,9 @@ const EnterpriseRedirect = ({
         label: 'ForgeFuzz is a ProbeStack product',
         sub: 'Verifying secure gateway',
       },
-      { label: 'Opening probestack.io/signup', sub: 'Launching new tab…' },
+      { label: `Opening probestack.io/${mode === 'signin' ? 'login' : 'signup'}`, sub: 'Launching new tab…' },
     ],
-    [],
+    [mode],
   );
 
   const TOTAL_MS = 3400;
@@ -948,12 +954,15 @@ const EnterpriseRedirect = ({
     };
     raf = requestAnimationFrame(tick);
 
+    const baseUrl = 'https://probestack.io';
+    const path = mode === 'signin' ? '/login' : '/signup';
+    let url = `${baseUrl}${path}`;
+if (mode === 'signin') {
+  url += `?redirect_uri=${encodeURIComponent(redirectUri)}`;
+}
+
     const redirect = window.setTimeout(() => {
-      window.open(
-        'https://probestack.io/signup',
-        '_blank',
-        'noopener,noreferrer',
-      );
+      window.open(url, '_blank', 'noopener,noreferrer');
       setOpened(true);
     }, TOTAL_MS);
 
@@ -961,11 +970,10 @@ const EnterpriseRedirect = ({
       cancelAnimationFrame(raf);
       window.clearTimeout(redirect);
     };
-  }, [steps.length]);
+  }, [steps.length, mode, redirectUri]);
 
   return (
     <div className="flex flex-col pt-2">
-      {/* Animated emblem */}
       <div className="relative mx-auto mt-4 h-24 w-24">
         <div className="absolute inset-0 animate-ping rounded-full bg-[#ff5b1f]/25" />
         <div className="absolute inset-2 rounded-full bg-gradient-to-br from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] shadow-2xl shadow-[#ff5b1f]/40" />
@@ -987,7 +995,6 @@ const EnterpriseRedirect = ({
         <span className="font-medium text-[#ffb400]">probestack.io</span>
       </p>
 
-      {/* Steps */}
       <ul className="mt-5 space-y-2">
         {steps.map((s, i) => {
           const done = i < active;
@@ -1040,7 +1047,6 @@ const EnterpriseRedirect = ({
         })}
       </ul>
 
-      {/* Progress bar */}
       <div
         className={cn(
           'mt-5 h-1.5 w-full overflow-hidden rounded-full',
@@ -1053,7 +1059,6 @@ const EnterpriseRedirect = ({
         />
       </div>
 
-      {/* Post-redirect helper (in case popup blocker stops new tab) */}
       {opened && (
         <p
           className={cn(
@@ -1063,9 +1068,9 @@ const EnterpriseRedirect = ({
         >
           Didn&apos;t open?{' '}
           <a
-            href="https://probestack.io/signup"
+           href={`https://probestack.io/${mode === 'signin' ? 'login' : 'signup'}${mode === 'signin' ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener noreferrer" 
             className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
           >
             Click here

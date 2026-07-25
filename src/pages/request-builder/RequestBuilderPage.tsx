@@ -450,35 +450,43 @@ useEffect(() => {
   const inflightRef = useRef<Map<string, AbortController>>(new Map());
 
   /* Fetch the full saved request whenever activeId points to a real UUID. */
-  const { data: loadedRequest } = useQuery({
-    queryKey: ['request', active?.id],
-    queryFn: () => getRequest(active!.id),
-    enabled: isSavedRequest,
-  });
-  useEffect(() => {
-    if (!loadedRequest) return;
-    setMethod((loadedRequest.method || 'GET') as Method);
-    setUrl(loadedRequest.url?.raw ?? '');
-    setParams(parseUrlParams(loadedRequest.url?.raw ?? ''));
-    setHeaders(
-      (loadedRequest.headers ?? []).map((h: any, i: number) => ({
-        id: `h_${i}`, key: h.key || '', value: h.value || '',
-        description: h.description, enabled: h.enabled !== false,
-      })),
-    );
+const { data: loadedRequest } = useQuery({
+  queryKey: ['request', active?.id],
+  queryFn: () => {
+    if (!active) {
+      return Promise.reject(new Error('No active request'));
+    }
+    return getRequest(active.id);
+  },
+  enabled: isSavedRequest,
+});
+useEffect(() => {
+  if (!loadedRequest) return;
+  setMethod((loadedRequest.method || 'GET') as Method);
+  setUrl(loadedRequest.url?.raw ?? '');
+  setParams(parseUrlParams(loadedRequest.url?.raw ?? ''));
+  setHeaders(
+    (loadedRequest.headers ?? []).map((h: any, i: number) => ({
+      id: `h_${i}`, key: h.key || '', value: h.value || '',
+      description: h.description, enabled: h.enabled !== false,
+    })),
+  );
 
-    const frontendBody = mapBackendBodyToFrontend(loadedRequest.body);
-setBody(frontendBody);
-// (Optional) Body tab auto-open
-if (frontendBody.mode !== 'none') setTab('Body');
+  const frontendBody = mapBackendBodyToFrontend(loadedRequest.body);
+  setBody(frontendBody);
+  if (frontendBody.mode !== 'none') setTab('Body');
 
-    const a = loadedRequest.auth || { type: 'none' };
-    setAuth({ type: normalizeAuth(a.type), config: a });
-    setPreScript(loadedRequest.preRequestScript ?? '');
-    setTestScript(loadedRequest.testScript ?? '');
-    setDirty(false);
-    setMeta(active!.id, { collectionId: loadedRequest.collectionId, folderId: loadedRequest.folderId ?? null });
-  }, [loadedRequest, active?.id, setMeta]);
+  const a = loadedRequest.auth || { type: 'none' };
+  setAuth({ type: normalizeAuth(a.type), config: a });
+  setPreScript(loadedRequest.preRequestScript ?? '');
+  setTestScript(loadedRequest.testScript ?? '');
+  setDirty(false);
+
+  // FIX: Guard against undefined active
+  if (active) {
+    setMeta(active.id, { collectionId: loadedRequest.collectionId, folderId: loadedRequest.folderId ?? null });
+  }
+}, [loadedRequest, active?.id, setMeta]);
 
   /* URL ↔ params bidirectional sync. */
   const onUrlChange = (next: string) => { setUrl(next); setParams(parseUrlParams(next)); markDirty(); };

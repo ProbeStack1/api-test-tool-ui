@@ -34,11 +34,11 @@ export const LandingPage = () => (
   >
       <CursorGlow/>
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div className="absolute -left-1/4 -top-1/4 h-[55%] w-[55%] animate-float rounded-full bg-[#ff5b1f]/25 blur-[120px]" />
+      {/* <div className="absolute -left-1/4 -top-1/4 h-[55%] w-[55%] animate-float rounded-full bg-[#ff5b1f]/25 blur-[120px]" />
       <div
         className="absolute -bottom-1/4 -right-1/4 h-[55%] w-[55%] animate-float rounded-full bg-[#1fbf9a]/22 blur-[120px]"
         style={{ animationDelay: '2s', animationDuration: '8s' }}
-      />
+      /> */}
       <ParticleBackground />
     </div>
 

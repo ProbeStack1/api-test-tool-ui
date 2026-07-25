@@ -72,8 +72,8 @@ export const GetAccessPage = () => {
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-text-primary">OWASP Compliant Assertions</h4>
-                  <p className="text-xs text-text-muted leading-relaxed">Fully automated test cases built from your specification schemas.</p>
+                  <h4 className="text-[14px] font-bold text-text-primary">OWASP Compliant Assertions</h4>
+                  <p className="text-[14px] text-text-muted leading-relaxed">Fully automated test cases built from your specification schemas.</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">
@@ -81,8 +81,8 @@ export const GetAccessPage = () => {
                   <Users2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-text-primary">Shared Team Projects</h4>
-                  <p className="text-xs text-text-muted leading-relaxed">Sync tokens and collections with granular read/write roles.</p>
+                  <h4 className="text-[14px] font-bold text-text-primary">Shared Team Projects</h4>
+                  <p className="text-[14px] text-text-muted leading-relaxed">Sync tokens and collections with granular read/write roles.</p>
                 </div>
               </div>
               <div className="flex gap-3 items-start">
@@ -90,21 +90,36 @@ export const GetAccessPage = () => {
                   <Lock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-text-primary">Granular Security Checks</h4>
-                  <p className="text-xs text-text-muted leading-relaxed">Continuous compliance filters enforced before release tags.</p>
+                  <h4 className="text-[14px] font-bold text-text-primary">Granular Security Checks</h4>
+                  <p className="text-[14px] text-text-muted leading-relaxed">Continuous compliance filters enforced before release tags.</p>
                 </div>
               </div>
+            </div>
+
+            {/* Contact Details */}
+            <div className=" ml-10">
+              <h3 className="text-sm font-bold text-text-primary font-display uppercase tracking-wider mb-3">
+                Contact Details
+              </h3>
+              <div className="space-y-2 text-[14px] text-text-secondary">
+                <p><span className="font-semibold text-text-primary">Email:</span> support@forgefuzz.com</p>
+                <p><span className="font-semibold text-text-primary">Phone:</span> +1 (555) 123-4567</p>
+                <p><span className="font-semibold text-text-primary">Address:</span> 123 Security Blvd, Suite 200, SF, CA</p>
+              </div>
+              <p className="text-[14px] text-text-muted mt-3">
+                For any queries, feel free to <a href="mailto:support@forgefuzz.com" className="text-primary hover:underline">email us</a>.
+              </p>
             </div>
           </div>
 
           {/* Right Side: Contact Request Form */}
-          <div className="lg:col-span-7 bg-surface/90 border border-border rounded-2xl p-6 md:p-10 shadow-2xl relative">
+          <div className="lg:col-span-7 bg-surface/90 border border-border rounded-2xl mt-16 p-6 md:p-10 shadow-2xl relative">
             {!isSubmitted ? (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <h3 className="text-xl font-bold text-text-primary font-display mb-1">
                   Submit Access Request
                 </h3>
-                <p className="text-text-secondary text-xs">
+                <p className="text-text-secondary text-[14px]">
                   Provide your work details, and our dev leads will coordinate your staging access.
                 </p>
 
@@ -117,7 +132,7 @@ export const GetAccessPage = () => {
                       placeholder="Jane Doe"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded text-xs text-text-primary focus:border-primary outline-none transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded text-[14px] text-text-primary focus:border-primary outline-none transition-colors"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -128,7 +143,7 @@ export const GetAccessPage = () => {
                       placeholder="jane@company.com"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded text-xs text-text-primary focus:border-primary outline-none transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded text-[14px] text-text-primary focus:border-primary outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -142,7 +157,7 @@ export const GetAccessPage = () => {
                       placeholder="Acme Corp"
                       value={formData.company}
                       onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded text-xs text-text-primary focus:border-primary outline-none transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded text-[14px] text-text-primary focus:border-primary outline-none transition-colors"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -152,7 +167,7 @@ export const GetAccessPage = () => {
                       placeholder="Lead Dev / QA Engineer"
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded text-xs text-text-primary focus:border-primary outline-none transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded text-[14px] text-text-primary focus:border-primary outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -164,13 +179,13 @@ export const GetAccessPage = () => {
                     placeholder="Tell us about your active workflows, schema sizes, and concurrency goals..."
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    className="w-full p-3 bg-surface border border-border rounded text-xs text-text-primary focus:border-primary outline-none transition-colors resize-none"
+                    className="w-full p-3 bg-surface border border-border rounded text-[14px] text-text-primary focus:border-primary outline-none transition-colors resize-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full h-11 inline-flex items-center justify-center gap-2 rounded bg-primary text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+                  className="w-full h-11 inline-flex items-center justify-center gap-2 rounded bg-primary text-white text-[14px] font-semibold hover:opacity-90 transition-opacity"
                 >
                   Request Early Access <ArrowRight className="w-4 h-4" />
                 </button>
@@ -186,7 +201,7 @@ export const GetAccessPage = () => {
                 </p>
                 <button
                   onClick={() => navigate('/')}
-                  className="mt-6 inline-flex items-center gap-1.5 px-4 py-2 bg-surface border border-border rounded text-xs text-text-primary hover:text-primary transition-colors"
+                  className="mt-6 inline-flex items-center gap-1.5 px-4 py-2 bg-surface border border-border rounded text-[14px] text-text-primary hover:text-primary transition-colors"
                 >
                   Return to Home Page
                 </button>

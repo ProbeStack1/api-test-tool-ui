@@ -128,7 +128,7 @@ const router = createBrowserRouter([
   { path: '/products', element: <Navigate to="/capabilities" replace /> },
   { path: '/features', element: r(<FeaturesPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/how-it-works', element: r(<HowItWorksPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/get-access', element: r(<GetAccessPage />), errorElement: <RouteErrorBoundary /> },
+  { path: '/contact', element: r(<GetAccessPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/capabilities', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/capabilities/request-builder', element: r(<ApiFuzzingPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/capabilities/load-functional-testing', element: r(<TestingSuitePage />), errorElement: <RouteErrorBoundary /> },

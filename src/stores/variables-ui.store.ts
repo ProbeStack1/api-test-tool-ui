@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
+import { useAuth } from './auth.store'; 
 
 export type VarScope = 'GLOBAL' | 'WORKSPACE' | 'ENVIRONMENT' | 'COLLECTION' | 'LOCAL';
 
@@ -23,7 +24,7 @@ interface VariablesUiState {
   openTabs: OpenEnvTab[];
   /** id of the currently focused tab — null means we show the scope's list. */
   activeTabId: string | null;
-
+  userId: string | null; 
   setScope: (s: VarScope) => void;
   openTab: (t: OpenEnvTab) => void;
   closeTab: (id: string) => void;
@@ -32,6 +33,7 @@ interface VariablesUiState {
   /** Optional column toggles for the env list table. */
   columns: { createdAt: boolean; updatedAt: boolean };
   toggleColumn: (key: 'createdAt' | 'updatedAt') => void;
+  clear: () => void;
 }
 
 export const useVariablesUi = create<VariablesUiState>()(
@@ -40,25 +42,40 @@ export const useVariablesUi = create<VariablesUiState>()(
       scope: 'ENVIRONMENT',
       openTabs: [],
       activeTabId: null,
+      userId: null, 
+
       setScope: (scope) => set({ scope, activeTabId: null }),
-      openTab: (t) =>
+
+      openTab: (t) => {
+        const userId = useAuth.getState().user?.userId ?? null; 
         set((s) => ({
           openTabs: s.openTabs.find((x) => x.id === t.id) ? s.openTabs : [...s.openTabs, t],
           activeTabId: t.id,
           scope: t.scope,
-        })),
+          userId, 
+        }));
+      },
+
       closeTab: (id) =>
         set((s) => {
           const tabs = s.openTabs.filter((x) => x.id !== id);
           const next = s.activeTabId === id ? (tabs[tabs.length - 1]?.id ?? null) : s.activeTabId;
           return { openTabs: tabs, activeTabId: next };
         }),
+
       focusTab: (activeTabId) => set({ activeTabId }),
+
       renameTab: (id, name) =>
         set((s) => ({ openTabs: s.openTabs.map((t) => (t.id === id ? { ...t, name } : t)) })),
+
       columns: { createdAt: false, updatedAt: false },
       toggleColumn: (key) =>
         set((s) => ({ columns: { ...s.columns, [key]: !s.columns[key] } })),
+
+      clear: () => { 
+        set({ scope: 'ENVIRONMENT', openTabs: [], activeTabId: null, userId: null, columns: { createdAt: false, updatedAt: false } });
+        useVariablesUi.persist.clearStorage();
+      },
     }),
     {
       name: 'forgeq-variables-ui',

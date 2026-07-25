@@ -210,8 +210,8 @@ export default function HeroSection() {
             The API platform that ships with its own QA team.
           </h1>
           <p className="text-md md:text-lg text-text-secondary mb-3 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 leading-relaxed">
-            Design, mock, test, monitor, secure and document every API — from spec to incident response — in one workspace.
-            Design, mock, test, monitor, secure and document every API — from spec to incident response — in one collaborative project.
+            Design, mock, test, monitor, secure and document every API - from spec to incident response - in one workspace.
+            Design, mock, test, monitor, secure and document every API - from spec to incident response - in one collaborative project.
           </p>
           <p className="text-xs md:text-sm text-text-muted mb-8 max-w-2xl mx-auto animate-fade-in-up animation-delay-200 font-mono">
              production microservices · SOC2-ready audit trail · powered by ForgeFuzz

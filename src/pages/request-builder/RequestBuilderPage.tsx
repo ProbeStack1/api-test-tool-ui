@@ -1081,6 +1081,8 @@ useEffect(() => {
               sending={sending}
               tabId={active?.id}
               requestId={isSavedRequest ? active?.id : undefined}
+              preScriptSource={preScript}
+              testScriptSource={testScript} 
             />
           </>
         )}

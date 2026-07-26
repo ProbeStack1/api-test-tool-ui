@@ -47,6 +47,7 @@ const HomeShell = l(() => import('@/layouts/HomeShell'), (m: any) => m.HomeShell
 const ApiCatalogPage = l(() => import('@/pages/api-catalog'), (m: any) => m.ApiCatalogPage);
 const ReportsPlaceholder = l(() => import('@/pages/home-intro/ReportsPlaceholder'), (m: any) => m.ReportsPlaceholder);
 const LoginPage = l(() => import('@/pages/auth'), (m: any) => m.LoginPage);
+const PasswordVerifyPage = l(() => import('@/pages/auth'), (m: any) => m.PasswordVerifyPage);
 const AcceptInvitationPage = l(() => import('@/pages/auth'), (m: any) => m.AcceptInvitationPage);
 const VerifyEmailPage = l(() => import('@/pages/auth'), (m: any) => m.VerifyEmailPage);
 const NotificationsPage = l(() => import('@/pages/notifications/NotificationsPage'), (m: any) => m.NotificationsPage);
@@ -159,6 +160,8 @@ const router = createBrowserRouter([
   { path: '/invite/accept', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/auth/verify-email', element: r(<VerifyEmailPage />), errorElement: <RouteErrorBoundary /> },
   { path: '/status/:slug', element: r(<StatusPagePublicSlugRoute />), errorElement: <RouteErrorBoundary /> },
+
+  { path: '/password', element: r(<PasswordVerifyPage />), errorElement: <RouteErrorBoundary /> },
 
   // Public API Hub — auth-free discovery surface + per-doc viewer.
   // The Java service mints share links as `${frontend}/docs/{slug}`, so this

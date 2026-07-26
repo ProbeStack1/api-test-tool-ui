@@ -2,26 +2,23 @@
  * ResponsePanel — ForgeFuzz response viewer.
  *
  *   Outer tabs (TOP, the panel's main sections):
- *     Response · Logs · Validation Results · Collection Run · Debug Info
+ *     Response · Logs · Scripts · Validation Results · Collection Run · Debug Info
  *
- *   The "Response" tab has its own sub-toolbar:
- *     [ Body ] [ Headers ]   [JSON ▾]                     ⟲ ⌗ 🔍 ⧉
+ *   The "Scripts" tab has its own sub-toolbar:
+ *     [ Pre-request ] [ Test ]
  *
- *   Right-side meta chips (always visible) and their hover popovers:
- *     [200 OK]  ·  1.56 s  ·  1.04 KB  ·  🌐   |  Save Response  ⋯
- *      ↳ status — meaning popover
- *      ↳ time   — waterfall (Prepare → Send → Wait → Receive …) with each
- *                 phase starting where the previous one ends (staircase).
- *      ↳ size   — Response/Request size breakdown
- *      ↳ globe  — Network info (HTTP version, addresses, TLS)
+ *   Status indicators on the Scripts tab:
+ *     • 🟢 Green dot → scripts executed and passed
+ *     • 🔴 Red dot → scripts failed
+ *     • 🟡 Amber dot → scripts skipped
+ *     • No dot → no scripts ran
  *
- *   The body uses our CodeEditor (CodeMirror) in read-only mode; the
- *   format dropdown swaps the highlight language. Search shows an inline
- *   bar inside the response panel that scrolls to and highlights matches
- *   in the body using the browser's window.find as a baseline.
+ *   Errors are displayed as collapsible cards:
+ *     • Collapsed: shows the error message
+ *     • Expanded: shows the full script that failed
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Circle, Clock, Copy, Download, Globe, MoreHorizontal, Repeat, Search, Wand2, WrapText, X } from 'lucide-react';
+import { Check, ChevronDown, Circle, Clock, Copy, Download, Globe, MoreHorizontal, Repeat, Search, Wand2, WrapText, X, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -63,14 +60,14 @@ const STATUS_MEANING: Record<number, string> = {
   503: 'Service unavailable. The server is currently unable to handle the request.',
 };
 
-const OUTER_TABS = ['Response', 'Logs', 'Validation Results', 'Collection Run', 'Debug Info'] as const;
+const OUTER_TABS = ['Response', 'Logs', 'Scripts', 'Validation Results', 'Collection Run', 'Debug Info'] as const;
 type OuterTab = (typeof OUTER_TABS)[number];
 
 const FORMATS = ['json', 'text', 'html', 'xml'] as const;
 type Fmt = (typeof FORMATS)[number];
 
 export const ResponsePanel = ({
-  height, onClose, result, sending, tabId, requestId,
+  height, onClose, result, sending, tabId, requestId, preScriptSource, testScriptSource,
 }: {
   height: number;
   onClose: () => void;
@@ -78,13 +75,17 @@ export const ResponsePanel = ({
   sending: boolean;
   tabId?: string;
   requestId?: string;
+  preScriptSource?: string;
+  testScriptSource?: string;
 }) => {
   const [outer, setOuter]   = useState<OuterTab>('Response');
   const [sub, setSub]       = useState<'body' | 'headers'>('body');
+  const [scriptsSub, setScriptsSub] = useState<'pre' | 'test'>('pre');
   const [fmt, setFmt]       = useState<Fmt>('json');
   const [wrap, setWrap]     = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
+  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const bodyContainer = useRef<HTMLDivElement | null>(null);
 
   /* Auto-switch to Debug Info tab the first time a streaming run pushes
@@ -118,6 +119,44 @@ export const ResponsePanel = ({
   }, [body, fmt]);
 
   const lang: CodeLanguage = fmt === 'json' ? 'json' : fmt === 'html' ? 'html' : fmt === 'xml' ? 'xml' : 'text';
+
+// Determine the script status dot color for the Scripts tab
+const scriptsStatus = useMemo(() => {
+  const scripts = result?.scripts;
+  if (!scripts) return { dot: null, label: 'No scripts' };
+  
+  const pre = scripts.preRequest;
+  const test = scripts.test;
+  
+  // Check if any script was actually provided (non‑empty source)
+  const hasPreScript = preScriptSource && preScriptSource.trim().length > 0;
+  const hasTestScript = testScriptSource && testScriptSource.trim().length > 0;
+  const hasAnyScript = hasPreScript || hasTestScript;
+  
+  // If no script was provided at all, show "No scripts"
+  if (!hasAnyScript) {
+    return { dot: null, label: 'No scripts' };
+  }
+  
+  // Check if any script had errors or failed assertions
+  const preFailed = pre.executed && (pre.errors?.length > 0);
+  const testFailed = test.executed && (test.errors?.length > 0 || test.assertions?.some((a: any) => !a.passed));
+  
+  // Check if scripts were skipped (script provided but not executed)
+  const preSkipped = hasPreScript && !pre.executed;
+  const testSkipped = hasTestScript && !test.executed;
+  
+  if (preFailed || testFailed) {
+    return { dot: 'red', label: 'Scripts failed' };
+  }
+  if (preSkipped || testSkipped) {
+    return { dot: 'amber', label: 'Scripts skipped' };
+  }
+  if (pre.executed || test.executed) {
+    return { dot: 'green', label: 'Scripts passed' };
+  }
+  return { dot: null, label: 'No scripts' };
+}, [result?.scripts, preScriptSource, testScriptSource]);
 
   const onCopy = () => {
     const txt = sub === 'headers' ? headersTxt : prettyBody;
@@ -165,17 +204,29 @@ export const ResponsePanel = ({
         <div className="flex items-center" data-testid="response-outer-tabs">
           {OUTER_TABS.map((t) => {
             const tid = t.toLowerCase().replace(/\s+/g, '-');
+            const isScriptsTab = t === 'Scripts';
             return (
               <button
                 key={t}
                 onClick={() => setOuter(t)}
                 data-testid={`response-tab-${tid}`}
                 className={cn(
-                  'relative h-9 px-3 text-[11.5px] font-semibold transition-colors',
+                  'relative flex h-9 items-center gap-1.5 px-3 text-xs font-semibold transition-colors',
                   outer === t ? 'text-primary' : 'text-text-primary/80 hover:text-text-primary',
                 )}
               >
                 {t}
+                {isScriptsTab && scriptsStatus.dot && (
+                  <span
+                    className={cn(
+                      'inline-block h-1.5 w-1.5 rounded-full',
+                      scriptsStatus.dot === 'green' && 'bg-success',
+                      scriptsStatus.dot === 'red' && 'bg-red-500',
+                      scriptsStatus.dot === 'amber' && 'bg-amber-500',
+                    )}
+                    title={scriptsStatus.label}
+                  />
+                )}
                 {outer === t && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />}
               </button>
             );
@@ -248,22 +299,59 @@ export const ResponsePanel = ({
         </div>
       )}
 
+      {/* Scripts sub-tabs */}
+      {outer === 'Scripts' && (
+        <div className="flex items-center gap-1 border-b border-border bg-surface/50 px-3 py-1.5">
+          <SubTab id="pre" active={scriptsSub === 'pre'} onClick={() => setScriptsSub('pre')}>
+            Pre‑request
+          </SubTab>
+          <SubTab id="test" active={scriptsSub === 'test'} onClick={() => setScriptsSub('test')}>
+            Test
+          </SubTab>
+        </div>
+      )}
+
       {/* Live execution stepper — only visible on Response and Debug Info tabs while/after streaming. */}
       {tabId && (outer === 'Response' || outer === 'Debug Info') && <LiveStepperStrip tabId={tabId} />}
 
-      {/* BODY area — every child either:
-       *   (a) is wrapped in `absolute inset-0 overflow-auto` so the
-       *       response content scrolls *inside* this panel, OR
-       *   (b) renders its own internal scroller (e.g. Monaco).
-       * This way the request-builder workspace above never gains a
-       * scrollbar from response data — only the panel itself does. */}
+      {/* BODY area */}
       <div className="relative min-h-0 flex-1 overflow-hidden" ref={bodyContainer}>
         {outer === 'Response' && sub === 'body'    && <BodyView sending={sending} result={result} prettyBody={prettyBody} lang={lang} wrap={wrap} />}
         {outer === 'Response' && sub === 'headers' && (
-          <div className="absolute inset-0 overflow-auto"><HeadersView headers={headers} /></div>
+          <div className="absolute inset-0 overflow-auto"><HeadersView headers={headers} sentHeaders={result?.sentHeaders} /></div>
         )}
-        {outer === 'Logs'              && (
+        {outer === 'Logs' && (
           <div className="absolute inset-0 overflow-auto"><LogsView result={result} sending={sending} tabId={tabId} requestId={requestId} /></div>
+        )}
+        {outer === 'Scripts' && (
+          <div className="absolute inset-0 overflow-auto p-4">
+            {result?.scripts ? (
+              scriptsSub === 'pre' ? (
+                <ScriptDetail 
+                  script={result.scripts.preRequest} 
+                  title="Pre‑request Script" 
+                  expandedErrors={expandedErrors}
+                  setExpandedErrors={setExpandedErrors}
+                  source={preScriptSource} 
+                />
+              ) : (
+                <ScriptDetail 
+                  script={result.scripts.test} 
+                  title="Test Script" 
+                  expandedErrors={expandedErrors}
+                  setExpandedErrors={setExpandedErrors}
+                  source={testScriptSource}
+                />
+              )
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center text-text-muted">
+                  <p className="text-sm">No script data available</p>
+                  <p className="text-xs">Send a request with a pre‑request or test script to see results here.</p>
+                </div>
+              </div>
+            )}
+          </div>
         )}
         {outer === 'Validation Results' && (
           <div className="absolute inset-0 overflow-auto"><ValidationView result={result} /></div>
@@ -298,6 +386,205 @@ export const ResponsePanel = ({
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+/**
+ * Extract line number from error message, or guess by searching the source
+ * for the identifier mentioned in the error.
+ */
+const extractErrorLine = (error: string, source?: string): number | null => {
+  // 1. Try to parse line number from error (format: "at <file>:line:col")
+  let match = error.match(/at\s+<[^>]+>:(\d+):\d+/);
+  if (match) return parseInt(match[1], 10);
+  
+  // 2. Try to find a line number at the end (fallback)
+  match = error.match(/:(\d+):\d+$/);
+  if (match) return parseInt(match[1], 10);
+  
+  // 3. If we have source and error contains an identifier, search for it
+  if (source) {
+    // Extract identifier: e.g., "consol" from "ReferenceError: consol is not defined"
+    const idMatch = error.match(/(?:ReferenceError|TypeError|SyntaxError):\s*(\w+)/);
+    if (idMatch) {
+      const identifier = idMatch[1];
+      const lines = source.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(identifier)) {
+          return i + 1; // 1‑based line number
+        }
+      }
+    }
+  }
+  
+  return null;
+};
+
+/* ───── Script Detail ───── */
+const ScriptDetail = ({ 
+  script, 
+  title,
+  expandedErrors,
+  source,
+  setExpandedErrors
+}: { 
+  script: any; 
+  title: string;
+  expandedErrors: Set<string>;
+  setExpandedErrors: React.Dispatch<React.SetStateAction<Set<string>>>;
+  source?: string; 
+}) => {
+  if (!script) return <div className="text-xs italic text-text-muted">No script executed.</div>;
+
+  const toggleError = (id: string) => {
+    setExpandedErrors((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3 border-b border-border pb-2">
+        <span className="text-sm font-semibold">{title}</span>
+        {script.executed ? (
+  <span className="text-success">✓ Executed</span>
+) : source && source.trim().length > 0 ? (
+  <span className="text-muted">⏭ Skipped</span>
+) : (
+  <span className="text-text-muted">No script</span>
+)}
+        {script.durationMs != null && (
+          <span className="text-xs text-text-muted">⏱ {script.durationMs}ms</span>
+        )}
+        {script.errors?.length > 0 && (
+          <span className="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-500">
+            {script.errors.length} error{script.errors.length > 1 ? 's' : ''}
+          </span>
+        )}
+        {script.assertions?.some((a: any) => !a.passed) && (
+          <span className="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-500">
+            Failed assertions
+          </span>
+        )}
+      </div>
+
+      {/* Logs */}
+      {script.logs?.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-text-muted">Logs</div>
+          <div className="rounded p-2 font-mono text-xs max-h-48 overflow-auto">
+            {script.logs.map((log: string, i: number) => (
+              <div key={i} className="border-b border-border/30 py-0.5 last:border-0"> {log}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Assertions */}
+      {script.assertions?.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-text-muted">Assertions</div>
+          <div className="space-y-0.5">
+            {script.assertions.map((a: any, i: number) => (
+              <div key={i} className="flex items-center gap-2 rounded px-2 py-1 text-xs">
+                {a.passed ? <span className="text-success">✓</span> : <span className="text-red-500">✗</span>}
+                <span className={a.passed ? 'text-text-primary' : 'text-red-500'}>{a.name}</span>
+                {a.message && <span className="text-text-muted">({a.message})</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+{/* Errors - Expandable */}
+{script.errors?.length > 0 && (
+  <div>
+    <div className="text-xs font-medium text-text-muted text-red-500">Errors</div>
+    <div className="space-y-1">
+      {script.errors.map((error: string, i: number) => {
+        const id = `${title}-error-${i}`;
+        const isExpanded = expandedErrors.has(id);
+        const errorLine = extractErrorLine(error, source);
+        const errorLines: string[] = [];
+        
+        // Extract the specific line(s) from the source
+        if (errorLine !== null && source) {
+          const lines = source.split('\n');
+          // Show the line itself (and maybe the line before/after for context)
+          const start = Math.max(0, errorLine - 2);
+          const end = Math.min(lines.length, errorLine + 1);
+          for (let j = start; j < end; j++) {
+            const prefix = j + 1 === errorLine ? '→ ' : '  ';
+            errorLines.push(`${prefix}${lines[j]}`);
+          }
+        }
+        
+        return (
+          <div key={i} className="rounded border border-red-500/30 bg-red-500/5">
+            <button
+              onClick={() => toggleError(id)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-red-500/5"
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-3 w-3 shrink-0 text-text-muted" />
+              ) : (
+                <ChevronRight className="h-3 w-3 shrink-0 text-text-muted" />
+              )}
+              <span className="text-red-500 truncate">{error}</span>
+              <span className="ml-auto text-[10px] text-text-muted">
+                {isExpanded ? 'Collapse' : 'Expand'}
+              </span>
+            </button>
+            
+            {isExpanded && (
+              <div className="border-t border-red-500/30 p-3 space-y-2">
+                {/* Error details */}
+                <div>
+                  <div className="text-xs text-text-muted">Error:</div>
+                  <pre className="whitespace-pre-wrap break-words rounded bg-surface/60 p-2 font-mono text-xs text-red-500">
+                    {error}
+                  </pre>
+                </div>
+                
+                {/* Show ONLY the problematic line (with arrow marker) */}
+                {source && errorLines.length > 0 && (
+                  <div>
+                    <div className="text-xs text-text-muted">Problematic line:</div>
+                    <pre className="whitespace-pre-wrap break-words rounded bg-surface/60 p-2 font-mono text-xs text-text-primary">
+                      {errorLines.join('\n')}
+                    </pre>
+                  </div>
+                )}
+                
+                {/* Fallback: show full script if line number couldn't be parsed */}
+                {source && errorLines.length === 0 && (
+                  <div>
+                    <div className="text-xs text-text-muted">Full script (line unknown):</div>
+                    <pre className="whitespace-pre-wrap break-words rounded bg-surface/60 p-2 font-mono text-xs text-text-primary">
+                      {source}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+      {/* Success state */}
+      {script.executed && script.errors?.length === 0 && script.assertions?.every((a: any) => a.passed) && (
+        <div className="rounded border border-success/30 bg-success/5 p-3 text-xs text-success">
+          ✓ All checks passed
+        </div>
+      )}
     </div>
   );
 };
@@ -390,8 +677,26 @@ const BodyView = ({
   );
 };
 
-const HeadersView = ({ headers }: { headers: { key: string; value: string }[] }) => (
+const HeadersView = ({ headers, sentHeaders }: { headers: { key: string; value: string }[]; sentHeaders?: Array<{ key: string; value: string; source: string; isSecret: boolean }> }) => (
   <div className="overflow-auto p-3 text-[11px]" data-testid="response-headers">
+    {sentHeaders && sentHeaders.length > 0 && (
+      <>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Request Headers</div>
+        <table className="w-full font-mono">
+          <tbody>
+            {sentHeaders.map((h, i) => (
+              <tr key={i} className="border-b border-border/40">
+                <td className="py-1 pr-4 text-text-secondary">{h.key}</td>
+                <td className="py-1 text-text-primary break-all">{h.value}</td>
+                <td className="py-1 pl-4 text-right text-[9px] text-text-muted">{h.source}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <hr className="my-2 border-border" />
+      </>
+    )}
+    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Response Headers</div>
     {headers.length === 0 ? (
       <div className="italic text-text-muted">No headers.</div>
     ) : (
@@ -720,8 +1025,8 @@ const NetworkChip = ({ result }: { result: ExecutionResult | null }) => {
           <Row k="TLS Protocol" v={n.tlsProtocol || '—'} />
           <Row k="Cipher Name" v={n.cipherName || '—'} />
           <Row k="Certificate CN" v={n.certCN || '—'} />
-          <Row k="Issuer CN" v={n.issuerCN || '—'} />
-          <Row k="Valid Until" v={n.validUntil || '—'} />
+          <Row k="Issuer CN" v={n.issuerCN || n.certIssuerCN || '—'} />
+          <Row k="Valid Until" v={n.validUntil || n.certValidUntil || '—'} />
           {(n.hostnameWarning || n.tlsWarning) && (
             <div className="mt-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-warning">
               {n.hostnameWarning || n.tlsWarning}

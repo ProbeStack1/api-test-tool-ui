@@ -5,7 +5,20 @@
  * Exports `auth` instance and a helper to get a fresh ID token.
  */
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  signInWithPopup,
+  type User,
+} from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -40,4 +53,10 @@ export {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  signInWithPopup,
 };

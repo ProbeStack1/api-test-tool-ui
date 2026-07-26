@@ -254,10 +254,10 @@ export default function AnimatedTerminal() {
         </div>
 
         {/* Body */}
-        <div
-          ref={bodyRef}
-          className="relative h-[360px] overflow-hidden bg-[#0a0c11] px-4 py-3 font-mono text-[12.5px] leading-relaxed"
-        >
+<div
+  ref={bodyRef}
+  className="relative h-[200px] sm:h-[340px] overflow-hidden bg-[#0a0c11] px-4 py-3 font-mono text-[12.5px] leading-relaxed"
+>
           <div
             className="will-change-transform transition-transform duration-300 ease-out"
             style={{ transform: `translateY(-${shift}px)` }}

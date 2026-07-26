@@ -76,6 +76,22 @@ export interface ExecutionResultPhase {
 }
 export type ExecutionResult = Omit<ExecutionResultDto, 'phases'> & {
   phases: ExecutionResultPhase[];
+  scripts?: {
+    preRequest: {
+      executed: boolean;
+      durationMs: number | null;
+      logs: string[];
+      errors: string[];
+      assertions: any[];
+    };
+    test: {
+      executed: boolean;
+      durationMs: number | null;
+      logs: string[];
+      errors: string[];
+      assertions: Array<{ name: string; passed: boolean; message?: string }>;
+    };
+  };
 };
 export type UploadedFile = UploadedFileDto;
 export type RequestShareLink = RequestShareDto;

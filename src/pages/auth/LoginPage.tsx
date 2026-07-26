@@ -40,12 +40,14 @@ import {
   Building2,
   CheckCircle2,
   User,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 import { useSettings } from '@/stores/settings.store';
 import { useAuth } from '@/stores/auth.store';
 import { userMgmtService } from '@/services/userMgmt.service';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, auth } from '@/lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, auth ,GoogleAuthProvider, GithubAuthProvider, signInWithPopup, } from '@/lib/firebase';
 import { cn } from '@/utils/cn';
 
 type Mode = 'signin' | 'signup';
@@ -362,6 +364,56 @@ const onSubmit = async (e: FormEvent) => {
   }
 };
 
+const handleOAuthLogin = async (provider: GoogleAuthProvider | GithubAuthProvider) => {
+  setErrorMsg(null);
+  setInfoMsg(null);
+  setSubmitting(true);
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const firebaseUser = result.user;
+    const idToken = await firebaseUser.getIdToken();
+
+    // Try to fetch user from backend – auto‑register if 404
+    let user;
+    try {
+      user = await userMgmtService.me(idToken);
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        await userMgmtService.register({
+          userId: firebaseUser.uid,
+          email: firebaseUser.email ?? '',
+          firstName: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
+          lastName: undefined,
+        });
+        user = await userMgmtService.me(idToken);
+      } else {
+        throw err;
+      }
+    }
+
+    const payload = JSON.parse(atob(idToken.split('.')[1]));
+    const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
+
+    useAuth.getState().setSession({
+      accessToken: idToken,
+      refreshToken: '',
+      expiresInSec,
+      user,
+    });
+
+    nav('/projects/collections');
+  } catch (err: any) {
+console.error('OAuth error:', err); // <-- ADD THIS
+if (err.code && err.code.startsWith('auth/')) {
+  setErrorMsg('OAuth sign-in failed. Please try again.');
+} else {
+  setErrorMsg(err?.message || 'Authentication failed.');
+}
+  } finally {
+    setSubmitting(false);
+  }
+};
+
   const onSkip = () => nav('/projects/collections');
 
   return (
@@ -516,10 +568,15 @@ const onSubmit = async (e: FormEvent) => {
                   data-testid="auth-logo-mobile"
                   className="mb-6 inline-flex items-center gap-2 lg:hidden"
                 >
-                  <Logo variant="mark" className="h-10 w-8" />
-                  <span className="bg-gradient-to-r from-[#ff5b1f] to-[#1fbf9a] bg-clip-text text-xl font-bold text-transparent">
-                    ForgeFuzz
-                  </span>
+                  <Logo variant="mark" className="h-12 w-10" />
+              <div className="text-left">
+                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                  ProbeStack
+                </div>
+                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                  ForgeFuzz
+                </div>
+              </div>
                 </Link>
 
             {/* --- NEW: Audience toggle (Individual / Enterprise) --- */}
@@ -571,10 +628,22 @@ const onSubmit = async (e: FormEvent) => {
                 <p className={cn('mt-1 text-sm', isDark ? 'text-white/55' : 'text-gray-500')}>{subtitle}</p>
 
                 {/* OAuth row (stub buttons) */}
-                <div className="mt-6 grid grid-cols-2 gap-2.5">
-                  <OAuthButton testid="auth-oauth-google" label="Google" iconUrl="https://www.google.com/favicon.ico" isDark={isDark} />
-                  <OAuthButton testid="auth-oauth-github" label="GitHub" icon={<Github className="h-4 w-4" />} isDark={isDark} />
-                </div>
+<div className="mt-6 grid grid-cols-2 gap-2.5">
+  <OAuthButton 
+    testid="auth-oauth-google" 
+    label="Google" 
+    iconUrl="https://www.google.com/favicon.ico" 
+    isDark={isDark} 
+    onClick={() => handleOAuthLogin(new GoogleAuthProvider())} 
+  />
+  <OAuthButton 
+    testid="auth-oauth-github" 
+    label="GitHub" 
+    icon={<Github className="h-4 w-4" />} 
+    isDark={isDark} 
+    onClick={() => handleOAuthLogin(new GithubAuthProvider())} 
+  />
+</div>
 
                 <div
                   className={cn(
@@ -684,21 +753,21 @@ const onSubmit = async (e: FormEvent) => {
                         />
                         Remember me
                       </label>
-                      <button
-                        type="button"
-                        data-testid="auth-forgot-password"
-                        className="text-[#ff8c4a] hover:text-[#ffb400]"
-                      >
-                        Forgot password?
-                      </button>
+<button
+  type="button"
+  data-testid="auth-forgot-password"
+  onClick={() => nav('/password?mode=forgot')}
+  className="text-[#ff8c4a] hover:text-[#ffb400]"
+>
+  Forgot password?
+</button>
                     </div>
                   ) : (
                     <p className={cn('pt-1 text-[11px] leading-relaxed', isDark ? 'text-white/45' : 'text-gray-500')}>
-                      By creating an account you agree to ForgeFuzz's
-                      {' '}
-                      <a href="/terms" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Terms</a>
+                      By creating an account you agree to our                      {' '}
+                      <a href="https://probestack.io/terms-of-service" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-800 hover:text-gray-900'}>Terms of Service</a>
                       {' '}and{' '}
-                      <a href="/privacy" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-700 hover:text-gray-900'}>Privacy</a>.
+                      <a href="https://probestack.io/privacy-policy" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-800 hover:text-gray-900'}>Privacy Policy</a>.
                     </p>
                   )}
 
@@ -826,16 +895,19 @@ const OAuthButton = ({
   icon,
   iconUrl,
   isDark = true,
+  onClick,
 }: {
   testid: string;
   label: string;
   icon?: React.ReactNode;
   iconUrl?: string;
   isDark?: boolean;
+  onClick?: () => void;
 }) => (
   <button
     type="button"
     data-testid={testid}
+    onClick={onClick}
     className={cn(
       'inline-flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-all',
       isDark
@@ -914,6 +986,187 @@ const AudienceToggle = ({
 // ============================================================
 // NEW: Enterprise redirect animation (in-card, ~3.4s)
 // ============================================================
+// const EnterpriseRedirect = ({
+//   isDark,
+//   onBack,
+//   mode,
+//   redirectUri,
+// }: {
+//   isDark: boolean;
+//   onBack: () => void;
+//   mode: Mode;
+//   redirectUri: string;
+// }) => {
+//   const steps = useMemo(
+//     () => [
+//       { label: 'Detecting account type', sub: 'Enterprise workspace' },
+//       { label: 'Enterprise plan selected', sub: 'Routing to ProbeStack' },
+//       {
+//         label: 'ForgeFuzz is a ProbeStack product',
+//         sub: 'Verifying secure gateway',
+//       },
+//       { label: `Opening probestack.io/${mode === 'signin' ? 'login' : 'signup'}`, sub: 'Launching new tab…' },
+//     ],
+//     [mode],
+//   );
+
+//   const TOTAL_MS = 3400;
+//   const [active, setActive] = useState(0);
+//   const [progress, setProgress] = useState(0);
+//   const [opened, setOpened] = useState(false);
+
+//   useEffect(() => {
+//     const start = performance.now();
+//     let raf = 0;
+//     const tick = (t: number) => {
+//       const p = Math.min(1, (t - start) / TOTAL_MS);
+//       setProgress(p);
+//       setActive(Math.min(steps.length - 1, Math.floor(p * steps.length)));
+//       if (p < 1) raf = requestAnimationFrame(tick);
+//     };
+//     raf = requestAnimationFrame(tick);
+
+//     const baseUrl = 'https://probestack.io';
+//     const path = mode === 'signin' ? '/login' : '/signup';
+//     let url = `${baseUrl}${path}`;
+// if (mode === 'signin') {
+//   url += `?redirect_uri=${encodeURIComponent(redirectUri)}`;
+// }
+
+//     const redirect = window.setTimeout(() => {
+//       window.open(url, '_blank', 'noopener,noreferrer');
+//       setOpened(true);
+//     }, TOTAL_MS);
+
+//     return () => {
+//       cancelAnimationFrame(raf);
+//       window.clearTimeout(redirect);
+//     };
+//   }, [steps.length, mode, redirectUri]);
+
+//   return (
+//     <div className="flex flex-col pt-2">
+//       <div className="relative mx-auto mt-4 h-24 w-24">
+//         <div className="absolute inset-0 animate-ping rounded-full bg-[#ff5b1f]/25" />
+//         <div className="absolute inset-2 rounded-full bg-gradient-to-br from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] shadow-2xl shadow-[#ff5b1f]/40" />
+//         <div className="absolute inset-0 flex items-center justify-center">
+//           <Building2 className="h-10 w-10 text-white" />
+//         </div>
+//       </div>
+
+//       <h2 className="mt-5 text-center text-xl font-semibold tracking-tight">
+//         Routing to Enterprise
+//       </h2>
+//       <p
+//         className={cn(
+//           'mx-auto mt-1 max-w-xs text-center text-sm',
+//           isDark ? 'text-white/60' : 'text-gray-500',
+//         )}
+//       >
+//         ForgeFuzz Enterprise is provisioned via{' '}
+//         <span className="font-medium text-[#ffb400]">probestack.io</span>
+//       </p>
+
+//       <ul className="mt-5 space-y-2">
+//         {steps.map((s, i) => {
+//           const done = i < active;
+//           const current = i === active;
+//           return (
+//             <li
+//               key={s.label}
+//               className={cn(
+//                 'flex items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-300',
+//                 current
+//                   ? isDark
+//                     ? 'border-[#ff5b1f]/40 bg-[#ff5b1f]/10'
+//                     : 'border-[#ff5b1f]/40 bg-[#ff5b1f]/5'
+//                   : isDark
+//                     ? 'border-white/5 bg-white/[0.02]'
+//                     : 'border-gray-200 bg-white',
+//               )}
+//               style={{
+//                 opacity: i > active ? 0.45 : 1,
+//                 transform: current ? 'translateX(2px)' : 'translateX(0)',
+//               }}
+//             >
+//               <span
+//                 className={cn(
+//                   'flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold',
+//                   done
+//                     ? 'bg-emerald-500 text-white'
+//                     : current
+//                       ? 'bg-gradient-to-br from-[#ff5b1f] to-[#ff8c4a] text-white animate-bounce'
+//                       : isDark
+//                         ? 'bg-white/10 text-white/60'
+//                         : 'bg-gray-200 text-gray-500',
+//                 )}
+//               >
+//                 {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
+//               </span>
+//               <div className="min-w-0 flex-1">
+//                 <p className="truncate text-sm font-medium">{s.label}</p>
+//                 <p
+//                   className={cn(
+//                     'truncate text-[11px]',
+//                     isDark ? 'text-white/50' : 'text-gray-500',
+//                   )}
+//                 >
+//                   {s.sub}
+//                 </p>
+//               </div>
+//             </li>
+//           );
+//         })}
+//       </ul>
+
+//       <div
+//         className={cn(
+//           'mt-5 h-1.5 w-full overflow-hidden rounded-full',
+//           isDark ? 'bg-white/10' : 'bg-gray-200',
+//         )}
+//       >
+//         <div
+//           className="h-full bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] transition-[width] duration-150 ease-linear"
+//           style={{ width: `${progress * 100}%` }}
+//         />
+//       </div>
+
+//       {opened && (
+//         <p
+//           className={cn(
+//             'mt-3 text-center text-[11px]',
+//             isDark ? 'text-white/55' : 'text-gray-500',
+//           )}
+//         >
+//           Didn&apos;t open?{' '}
+//           <a
+//            href={`https://probestack.io/${mode === 'signin' ? 'login' : 'signup'}${mode === 'signin' ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`}
+//             target="_blank"
+//             rel="noopener noreferrer" 
+//             className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
+//           >
+//             Click here
+//           </a>
+//         </p>
+//       )}
+
+//       <button
+//         type="button"
+//         onClick={onBack}
+//         className={cn(
+//           'mt-4 self-center text-xs font-medium underline-offset-4 hover:underline',
+//           isDark ? 'text-white/60' : 'text-gray-500',
+//         )}
+//       >
+//         ← Back to Individual
+//       </button>
+//     </div>
+//   );
+// };
+
+// ============================================================
+// Enterprise panel (manual action buttons)
+// ============================================================
 const EnterpriseRedirect = ({
   isDark,
   onBack,
@@ -925,65 +1178,26 @@ const EnterpriseRedirect = ({
   mode: Mode;
   redirectUri: string;
 }) => {
-  const steps = useMemo(
-    () => [
-      { label: 'Detecting account type', sub: 'Enterprise workspace' },
-      { label: 'Enterprise plan selected', sub: 'Routing to ProbeStack' },
-      {
-        label: 'ForgeFuzz is a ProbeStack product',
-        sub: 'Verifying secure gateway',
-      },
-      { label: `Opening probestack.io/${mode === 'signin' ? 'login' : 'signup'}`, sub: 'Launching new tab…' },
-    ],
-    [mode],
-  );
+  const baseUrl = 'https://probestack.io';
+  const loginUrl = `${baseUrl}/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
+  const signupUrl = `${baseUrl}/signup`;
 
-  const TOTAL_MS = 3400;
-  const [active, setActive] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [opened, setOpened] = useState(false);
-
-  useEffect(() => {
-    const start = performance.now();
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / TOTAL_MS);
-      setProgress(p);
-      setActive(Math.min(steps.length - 1, Math.floor(p * steps.length)));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    const baseUrl = 'https://probestack.io';
-    const path = mode === 'signin' ? '/login' : '/signup';
-    let url = `${baseUrl}${path}`;
-if (mode === 'signin') {
-  url += `?redirect_uri=${encodeURIComponent(redirectUri)}`;
-}
-
-    const redirect = window.setTimeout(() => {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setOpened(true);
-    }, TOTAL_MS);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(redirect);
-    };
-  }, [steps.length, mode, redirectUri]);
+  const openUrl = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
-    <div className="flex flex-col pt-2">
+    <div className="flex flex-col items-center pt-2">
+      {/* Icon */}
       <div className="relative mx-auto mt-4 h-24 w-24">
-        <div className="absolute inset-0 animate-ping rounded-full bg-[#ff5b1f]/25" />
-        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] shadow-2xl shadow-[#ff5b1f]/40" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] shadow-2xl shadow-[#ff5b1f]/40" />
         <div className="absolute inset-0 flex items-center justify-center">
           <Building2 className="h-10 w-10 text-white" />
         </div>
       </div>
 
       <h2 className="mt-5 text-center text-xl font-semibold tracking-tight">
-        Routing to Enterprise
+        Enterprise Workspace
       </h2>
       <p
         className={cn(
@@ -992,97 +1206,44 @@ if (mode === 'signin') {
         )}
       >
         ForgeFuzz Enterprise is provisioned via{' '}
-        <span className="font-medium text-[#ffb400]">probestack.io</span>
+        <span className="font-medium text-[#ff8c4a] hover:text-[#ff8c4a]/70"><a href="https://probestack.io">probestack.io</a></span>
+        <br />
+        Choose an option below to continue.
       </p>
 
-      <ul className="mt-5 space-y-2">
-        {steps.map((s, i) => {
-          const done = i < active;
-          const current = i === active;
-          return (
-            <li
-              key={s.label}
-              className={cn(
-                'flex items-center gap-3 rounded-lg border px-3 py-2 transition-all duration-300',
-                current
-                  ? isDark
-                    ? 'border-[#ff5b1f]/40 bg-[#ff5b1f]/10'
-                    : 'border-[#ff5b1f]/40 bg-[#ff5b1f]/5'
-                  : isDark
-                    ? 'border-white/5 bg-white/[0.02]'
-                    : 'border-gray-200 bg-white',
-              )}
-              style={{
-                opacity: i > active ? 0.45 : 1,
-                transform: current ? 'translateX(2px)' : 'translateX(0)',
-              }}
-            >
-              <span
-                className={cn(
-                  'flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold',
-                  done
-                    ? 'bg-emerald-500 text-white'
-                    : current
-                      ? 'bg-gradient-to-br from-[#ff5b1f] to-[#ff8c4a] text-white animate-bounce'
-                      : isDark
-                        ? 'bg-white/10 text-white/60'
-                        : 'bg-gray-200 text-gray-500',
-                )}
-              >
-                {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{s.label}</p>
-                <p
-                  className={cn(
-                    'truncate text-[11px]',
-                    isDark ? 'text-white/50' : 'text-gray-500',
-                  )}
-                >
-                  {s.sub}
-                </p>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="mt-10 w-full space-y-6">
+        {/* Login button */}
+        <button
+          type="button"
+          onClick={() => openUrl(loginUrl)}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#ff5b1f] to-[#ff8c4a] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#ff5b1f]/25 transition-all hover:shadow-[#ff5b1f]/45"
+        >
+          <LogIn className="h-4 w-4" />
+          Login to Enterprise
+        </button>
 
-      <div
-        className={cn(
-          'mt-5 h-1.5 w-full overflow-hidden rounded-full',
-          isDark ? 'bg-white/10' : 'bg-gray-200',
-        )}
-      >
-        <div
-          className="h-full bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] transition-[width] duration-150 ease-linear"
-          style={{ width: `${progress * 100}%` }}
-        />
-      </div>
-
-      {opened && (
-        <p
+        {/* Create account button */}
+        <button
+          type="button"
+          onClick={() => openUrl(signupUrl)}
           className={cn(
-            'mt-3 text-center text-[11px]',
-            isDark ? 'text-white/55' : 'text-gray-500',
+            'inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all',
+            isDark
+              ? 'border-white/10 bg-white/[0.03] text-white/80 hover:border-[#1fbf9a]/40 hover:text-white'
+              : 'border-black/10 bg-black/[0.03] text-gray-600 hover:border-[#1fbf9a]/55 hover:text-gray-900',
           )}
         >
-          Didn&apos;t open?{' '}
-          <a
-           href={`https://probestack.io/${mode === 'signin' ? 'login' : 'signup'}${mode === 'signin' ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`}
-            target="_blank"
-            rel="noopener noreferrer" 
-            className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
-          >
-            Click here
-          </a>
-        </p>
-      )}
+          <UserPlus className="h-4 w-4" />
+          Create new Enterprise Account
+        </button>
+      </div>
 
+      {/* Back to Individual button */}
       <button
         type="button"
         onClick={onBack}
         className={cn(
-          'mt-4 self-center text-xs font-medium underline-offset-4 hover:underline',
+          'mt-6 self-center text-xs font-medium underline-offset-4 hover:underline',
           isDark ? 'text-white/60' : 'text-gray-500',
         )}
       >

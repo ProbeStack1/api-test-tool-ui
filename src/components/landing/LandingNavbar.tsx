@@ -200,7 +200,7 @@ export const LandingNavbar = () => {
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-transform duration-300 bg-probestack-bg/70 backdrop-blur border-b border-border`}
     >
-      <div className="flex h-17 items-center justify-between px-6 sm:px-10 lg:px-16 xl:px-24">
+      <div className="flex h-17 items-center justify-between px-6 sm:px-10 lg:px-10">
         <Link
           to="/"
           data-testid="app-header-logo"
@@ -407,6 +407,7 @@ export const LandingNavbar = () => {
 
         {/* Right cluster */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <button
             className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface"
             onClick={() => setMobileOpen((o) => !o)}
@@ -418,7 +419,6 @@ export const LandingNavbar = () => {
               <Menu className="h-4 w-4" />
             )}
           </button>
-          <ThemeToggle />
 
           {!isAuthed ? (
             <>
@@ -428,12 +428,6 @@ export const LandingNavbar = () => {
               >
                 <LogIn className="h-4 w-4" /> Sign in
               </Link>
-              <button
-                onClick={handleGoToApp}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
-              >
-                <Rocket className="h-4 w-4" /> Get started →
-              </button>
             </>
           ) : (
             <>
@@ -441,7 +435,7 @@ export const LandingNavbar = () => {
                 onClick={handleGoToApp}
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
               >
-                <Rocket className="h-4 w-4" /> Open app →
+                {/* <Rocket className="h-4 w-4" /> Open app → */}
               </button>
               <Dropdown
                 trigger={

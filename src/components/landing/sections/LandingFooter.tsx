@@ -18,32 +18,36 @@ type SocialLink = {
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
 
-  const footerLinks: FooterLinks = {
-    Product: [
-      { name: "Features", path: "/features" },
-      { name: "How It Works", path: "/how-it-works" },
-      { name: "Pricing", path: "/pricing" },
-      { name: "Marketplace", path: "/api-hub" },
-    ],
-    Capabilities: [
-      { name: "Collection & Request Builder", path: "/capabilities/request-builder" },
-      { name: "Load & Functional Testing", path: "/capabilities/load-functional-testing" },
-      { name: "Agentic AI & LLM Testing", path: "/capabilities/ai-llm-testing" },
-      { name: "Mock Server", path: "/capabilities/mock-sandbox" },
-    ],
-    Company: [
-      { name: "About Us", path: "/about-us" },
-      { name: "Careers", path: "/careers" },
-      { name: "Blog", path: "/blog" },
-      { name: "Contact", path: "/contact" },
-    ],
-    Legal: [
-      { name: "Privacy Policy", path: "/privacy-policy" },
-      { name: "Terms of Service", path: "/terms-of-service" },
-      // { name: "Security", path: "/security" },
-      // { name: "GDPR", path: "/gdpr" },
-    ],
-  };
+const footerLinks: FooterLinks = {
+  Product: [
+    { name: "Features", path: "/features" },
+    { name: "How It Works", path: "/how-it-works" },
+    { name: "Pricing", path: "/pricing" },
+    { name: "Marketplace", path: "/api-hub" },
+  ],
+  Capabilities: [
+    { name: "Collection & Request Builder", path: "/capabilities/request-builder" },
+    { name: "Load & Functional Testing", path: "/capabilities/load-functional-testing" },
+    { name: "Agentic AI & LLM Testing", path: "/capabilities/ai-llm-testing" },
+    { name: "Mock Server", path: "/capabilities/mock-sandbox" },
+  ],
+  Resources: [
+    { name: "Documentation", path: "https://probestack.io/documentation" },
+    { name: "Release Notes", path: "https://probestack.io/release-notes" },
+    { name: "Community", path: "https://community.probestack.io" },
+    { name: "Support", path: "https://support.probestack.io" },
+  ],
+  Company: [
+    { name: "About Us", path: "https://probestack.io/about-us" },
+    { name: "Careers", path: "https://probestack.io/careers" },
+    { name: "Blog", path: "/blog" },
+    { name: "Contact", path: "/contact" },
+  ],
+  Legal: [
+    { name: "Privacy Policy", path: "https://probestack.io/privacy-policy" },
+    { name: "Terms of Service", path: "https://probestack.io/terms-of-service" },
+  ],
+};
 
   const socialLinks: SocialLink[] = [
     { icon: Twitter, href: "#", label: "Twitter" },
@@ -54,8 +58,8 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="gradient-bg relative bg-background-light border-t border-border footer-main">
-      <div className="mx-auto max-w-8xl px-16 py-12 sm:px-6 lg:px-20">
-        <div className="mb-12 grid grid-cols-2 gap-8 md:grid-cols-6">
+      <div className="mx-auto max-w-8xl px-6 py-12 sm:px-6 lg:px-20">
+        <div className="mb-12 grid grid-cols-2 gap-8 md:grid-cols-7">
           <div className="col-span-2">
             <Link to="/" className="mb-4 flex items-center space-x-3 group">
               <img
@@ -64,8 +68,8 @@ const Footer: React.FC = () => {
                 className="h-10 w-auto"
               />
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground leading-tight">ProbeStack</span>
-                <span className="text-2xl font-extrabold gradient-text">ForgeFuzz</span>
+                <span className="text-2xl font-extrabold gradient-text">ProbeStack</span>
+                <span className="text-[10px] text-[#f2c24d] leading-tight">Probing Deeper, Stacking Precision</span>
               </div>
             </Link>
             <p className="mb-6 max-w-xs text-md text-muted-foreground">
@@ -91,16 +95,27 @@ const Footer: React.FC = () => {
                 {category}
               </h3>
               <ul className="space-y-3">
-                {links.map((link) => (
-                  <li key={link.name}>
-                    <Link
-                      to={link.path}
-                      className="text-md text-text-muted transition-colors hover:text-primary"
-                    >
-                      {link.name}
-                    </Link>
-                  </li>
-                ))}
+{links.map((link) => (
+  <li key={link.name}>
+    {link.path.startsWith('http') ? (
+      <a
+        href={link.path}
+        target="_blank"         
+        rel="noopener noreferrer"
+        className="text-md text-text-muted transition-colors hover:text-primary"
+      >
+        {link.name}
+      </a>
+    ) : (
+      <Link
+        to={link.path}
+        className="text-md text-text-muted transition-colors hover:text-primary"
+      >
+        {link.name}
+      </Link>
+    )}
+  </li>
+))}
               </ul>
             </div>
           ))}

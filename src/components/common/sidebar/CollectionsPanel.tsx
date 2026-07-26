@@ -660,6 +660,7 @@ const CollectionNode = ({
   return (
     <>
     <Row
+    size="lg" 
       expanded={expanded}
       onToggle={onToggle}
       icon={<FolderOpen className="h-3.5 w-3.5 text-primary" />}
@@ -913,6 +914,7 @@ const FolderNode = ({
 
   return (
     <Row
+    size="md"
       expanded={expanded}
       onToggle={onToggle}
       icon={<FolderOpen className="h-3.5 w-3.5 text-text-secondary" />}
@@ -1056,16 +1058,16 @@ const RequestItem = ({
       onDragStart={makeDragStart({ kind: 'request', id: r.id, collectionId: r.collectionId })}
       onContextMenu={(e) => ctx.openAt(e, buildContextItems())}
       className={cn(
-        'group relative flex w-full items-center gap-1 rounded py-0.4 pr-1 text-xs text-text-primary transition-colors',
+        'group relative flex w-full items-center gap-1 rounded pr-1 text-[11px] text-text-primary transition-colors',
         isActive ? 'bg-primary-muted' : 'hover:bg-hover',
       )}
       style={{ paddingLeft: 4 + indent * 12 + 20 }}
     >
       {isActive && <span className="absolute left-0 top-0 h-5 w-[1px] rounded-l bg-primary" />}
       {isGraphqlRequest(r) ? (
-        <span className="w-12 shrink-0 font-mono text-[10px] font-bold text-pink-400" title="GraphQL request">GQL</span>
+        <span className="w-10 shrink-0 font-mono text-[10px] font-bold text-pink-400" title="GraphQL request">GQL</span>
       ) : (
-        <span className={cn('w-12 shrink-0 font-mono text-[10px] font-bold', MC[r.method])}>{r.method}</span>
+        <span className={cn('w-10 shrink-0 font-mono text-[10px] font-bold', MC[r.method])}>{r.method}</span>
       )}
       {editing ? (
         <RowRenameInputInline
@@ -1273,18 +1275,27 @@ interface RowProps {
   draggable?: boolean;
   dragPayload?: DnDPayload;
   dropHandlers?: ReturnType<typeof useDropTarget>;
+  size?: 'lg' | 'md' | 'sm';
 }
 
 const Row = ({
   expanded, onToggle, icon, label, indent = 0, bold, testId,
   menu, contextItems, editing, onRenameDone, deleteTitle, deleteDescription, onDelete, children,
-  draggable, dragPayload, dropHandlers,
+  draggable, dragPayload, dropHandlers,size = 'md'
 }: RowProps) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const rowRef = useRef<HTMLDivElement | null>(null);
   const askDelete = () => setConfirmDelete(true);
   const ctx = useRowContextMenu();
+
+  // Add this map right before the return statement
+const sizeClasses = {
+  lg: 'text-sm py-1',      // For Collections (bigger than current)
+  md: 'text-xs py-0.5',    // For Folders (same as current default)
+  sm: 'text-[10px] py-0.5',// For Requests (smaller)
+};
+ const currentSize = sizeClasses[size];
 
   return (
     <div>

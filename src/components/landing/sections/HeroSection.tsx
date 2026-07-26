@@ -197,15 +197,15 @@ export default function HeroSection() {
       className="relative z-10 shrink-0 overflow-hidden border-b border-border"
     >
       <div className="absolute inset-0 grid-pattern opacity-30 dark:opacity-50" />
-      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-10 relative">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24 py-10 relative mt-16 sm:mt-10 md:mt-4 lg:mt-2">
         <div className="text-center max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 backdrop-blur-sm text-primary rounded-full text-sm font-medium mb-6 border border-primary/20 shadow-lg shadow-primary/5 animate-fade-in-up">
             <Zap className="w-4 h-4" />
-            The API lifecycle platform — built for shipping teams
+            The API lifecycle platform - built for shipping teams
           </div>
           <h1
             data-testid="hero-title"
-            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animate-fade-in-up animation-delay-100 gradient-text font-display leading-[1.05] tracking-tight"
+            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animate-fade-in-up animation-delay-100 gradient-text font-display leading-[1.05] tracking-tight mt-2 lg:mt-0"
           >
             The API platform that ships with its own QA team.
           </h1>
@@ -229,7 +229,7 @@ export default function HeroSection() {
             </a>
           </div>
         </div>
-        <div className="animate-fade-in-up animation-delay-500 mt-8 px-30">
+        <div className="animate-fade-in-up animation-delay-500  px-0 sm:px-0 md:px-10 lg:px-16 xl:px-24 mt-16 sm:mt-12 md:mt-10 lg:mt-8">
           {/* <TerminalAnimation /> */}
           <AnimatedTerminal/>
         </div>

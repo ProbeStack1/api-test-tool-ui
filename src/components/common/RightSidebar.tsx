@@ -604,7 +604,7 @@ export const RightRail = () => {
     >
       <div
         className={cn(
-          'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-50',
+          'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-9',
           isHovered ? 'w-48' : 'w-14'
         )}
         style={{ willChange: 'width' }}

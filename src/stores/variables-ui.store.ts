@@ -34,6 +34,10 @@ interface VariablesUiState {
   columns: { createdAt: boolean; updatedAt: boolean };
   toggleColumn: (key: 'createdAt' | 'updatedAt') => void;
   clear: () => void;
+  snapshotTabEnvId: string | null;
+  snapshotTabEnvName: string | null;
+  openSnapshotsTab: (envId: string, envName: string) => void;
+  closeSnapshotsTab: () => void;
 }
 
 export const useVariablesUi = create<VariablesUiState>()(
@@ -43,6 +47,8 @@ export const useVariablesUi = create<VariablesUiState>()(
       openTabs: [],
       activeTabId: null,
       userId: null, 
+      snapshotTabEnvId: null,
+      snapshotTabEnvName: null,
 
       setScope: (scope) => set({ scope, activeTabId: null }),
 
@@ -76,6 +82,10 @@ export const useVariablesUi = create<VariablesUiState>()(
         set({ scope: 'ENVIRONMENT', openTabs: [], activeTabId: null, userId: null, columns: { createdAt: false, updatedAt: false } });
         useVariablesUi.persist.clearStorage();
       },
+openSnapshotsTab: (envId, envName) =>
+  set({ snapshotTabEnvId: envId, snapshotTabEnvName: envName, activeTabId: 'snapshots' }),
+closeSnapshotsTab: () =>
+  set({ snapshotTabEnvId: null, snapshotTabEnvName: null, activeTabId: null }),
     }),
     {
       name: 'forgeq-variables-ui',

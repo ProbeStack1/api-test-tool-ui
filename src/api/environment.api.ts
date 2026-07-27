@@ -65,9 +65,14 @@ export interface EnvironmentDto {
 export interface EnvSnapshotDto {
   id: string;
   environmentId: string;
+  version: number;
   label: string;
   createdAt: string;
-  createdByEmail?: string;
+  createdBy?: {
+    userId: string;
+    email: string;
+    name: string;
+  } | null;
   variableCount: number;
   secretCount: number;
   auto: boolean;

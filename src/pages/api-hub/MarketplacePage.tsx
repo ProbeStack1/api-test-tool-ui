@@ -27,11 +27,10 @@ import {
   Pause,
   Play,
 } from "lucide-react";
-import { Logo } from "@/components/common/Logo";
-import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { cn } from "@/utils/cn";
 import { PublicApisHub } from "./PublicApisHub";
 import { PublicAiAgents } from "./PublicAiAgents";
+import { LandingNavbar } from "@/components/landing/LandingNavbar"; // ✅ new import
 
 export const MarketplacePage = () => {
   // ── URL-synced tab state
@@ -81,30 +80,11 @@ export const MarketplacePage = () => {
 
   return (
     <div className="min-h-screen bg-background text-text-primary">
-      {/* Header – second code wala (sticky, gradient text) */}
-      <header className="sticky top-0 z-20 flex h-17 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur">
-        <Link
-          to="/"
-          data-testid="app-header-logo"
-          className="flex items-center gap-1"
-        >
-          <Logo variant="mark" className="h-12 w-10" />
-          <div className="text-left">
-            <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-              ProbeStack
-            </div>
-            <div className="font-bold text-2xl tracking-normal leading-tight gradient-text">
-              ForgeFuzz
-            </div>
-          </div>
-        </Link>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-        </div>
-      </header>
+      {/* ✅ Replaced header with LandingNavbar */}
+      <LandingNavbar />
 
-      {/* Hero with Tabs — split layout (first design) + second code's background */}
-      <section className="relative isolate overflow-hidden border-b border-border bg-gradient-to-b from-primary/[0.07] via-transparent to-transparent">
+      {/* Hero with Tabs — added pt-[68px] to offset fixed navbar */}
+      <section className="relative isolate overflow-hidden border-b border-border bg-gradient-to-b from-primary/[0.07] via-transparent to-transparent pt-[68px] pb-16">
         {/* Grid pattern – exactly like second code */}
         <div
           aria-hidden
@@ -122,7 +102,7 @@ export const MarketplacePage = () => {
         />
 
         {/* Split hero content */}
-        <div className="relative z-10 mx-auto max-w-8xl px-30 pt-14 pb-16">
+        <div className="relative z-10 mx-auto max-w-8xl px-30 pt-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* LEFT — text + tabs */}
             <div className="space-y-7">
@@ -134,7 +114,7 @@ export const MarketplacePage = () => {
                     "rounded-full px-5 py-2 text-sm font-semibold transition-colors",
                     activeTab === "apis"
                       ? "bg-primary text-white shadow-sm"
-                      : "text-text-secondary hover:bg-elevated hover:text-text-primary"
+                      : "text-text-secondary hover:bg-elevated hover:text-text-primary",
                   )}
                   data-testid="hub-tab-apis"
                 >
@@ -147,7 +127,7 @@ export const MarketplacePage = () => {
                     "rounded-full px-5 py-2 text-sm font-semibold transition-colors",
                     activeTab === "agents"
                       ? "bg-primary text-white shadow-sm"
-                      : "text-text-secondary hover:bg-elevated hover:text-text-primary"
+                      : "text-text-secondary hover:bg-elevated hover:text-text-primary",
                   )}
                   data-testid="hub-tab-agents"
                 >
@@ -219,7 +199,7 @@ export const MarketplacePage = () => {
                     onClick={() => handleDotClick("apis")}
                     className={cn(
                       "h-1.5 rounded-full transition-all",
-                      activeTab === "apis" ? "w-8 bg-primary" : "w-2 bg-border"
+                      activeTab === "apis" ? "w-8 bg-primary" : "w-2 bg-border",
                     )}
                   />
                   <button
@@ -227,11 +207,15 @@ export const MarketplacePage = () => {
                     onClick={() => handleDotClick("agents")}
                     className={cn(
                       "h-1.5 rounded-full transition-all",
-                      activeTab === "agents" ? "w-8 bg-primary" : "w-2 bg-border"
+                      activeTab === "agents"
+                        ? "w-8 bg-primary"
+                        : "w-2 bg-border",
                     )}
                   />
                   <button
-                    aria-label={isPlaying ? "Pause auto-rotate" : "Resume auto-rotate"}
+                    aria-label={
+                      isPlaying ? "Pause auto-rotate" : "Resume auto-rotate"
+                    }
                     onClick={() => setIsPlaying((p) => !p)}
                     className="ml-2 grid h-7 w-7 place-items-center rounded-full border border-border bg-elevated/70 backdrop-blur text-text-secondary hover:text-text-primary hover:bg-elevated transition"
                   >
@@ -252,7 +236,7 @@ export const MarketplacePage = () => {
                   "absolute inset-0 transition-all duration-500",
                   activeTab === "apis"
                     ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-3 pointer-events-none"
+                    : "opacity-0 translate-y-3 pointer-events-none",
                 )}
               >
                 <ApisVisual />
@@ -262,7 +246,7 @@ export const MarketplacePage = () => {
                   "absolute inset-0 transition-all duration-500",
                   activeTab === "agents"
                     ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-3 pointer-events-none"
+                    : "opacity-0 translate-y-3 pointer-events-none",
                 )}
               >
                 <AgentsVisual />
@@ -409,7 +393,11 @@ function AgentsVisual() {
             >
               <div
                 className="absolute"
-                style={{ top: radiusInset, left: "50%", transform: "translateX(-50%)"}}
+                style={{
+                  top: radiusInset,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                }}
               >
                 <div className="grid h-11 w-11 place-items-center rounded-full bg-elevated border border-border shadow-lg">
                   <img

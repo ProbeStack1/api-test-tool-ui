@@ -29,6 +29,9 @@ import {
   GitCompare,
   ArrowRight,
   Sparkles,
+  LayoutDashboard,
+  FolderOpen,
+  Settings,
 } from "lucide-react";
 import { Logo } from "@/components/common/Logo";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
@@ -431,12 +434,12 @@ export const LandingNavbar = () => {
             </>
           ) : (
             <>
-              <button
+              {/* <button
                 onClick={handleGoToApp}
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
               >
-                {/* <Rocket className="h-4 w-4" /> Open app → */}
-              </button>
+                <Rocket className="h-4 w-4" /> Open app →
+              </button> */}
               <Dropdown
                 trigger={
                   <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-white text-sm font-semibold">
@@ -446,17 +449,29 @@ export const LandingNavbar = () => {
               >
                 <DropdownLabel>{email ?? "Signed in"}</DropdownLabel>
                 <DropdownItem onClick={() => nav("/projects/dashboard")}>
-                  Dashboard
+                  <span className="flex items-center gap-2 whitespace-nowrap">
+                    <LayoutDashboard className="h-4 w-4" />
+                    Dashboard
+                  </span>
                 </DropdownItem>
                 <DropdownItem onClick={() => nav("/projects/collections")}>
-                  Open Collections
+                  <span className="flex items-center gap-2 whitespace-nowrap">
+                    <FolderOpen className="h-4 w-4" />
+                    Open Collections
+                  </span>
                 </DropdownItem>
                 <DropdownItem onClick={() => nav("/projects/manage")}>
-                  Manage Projects
+                  <span className="flex items-center gap-2 whitespace-nowrap">
+                    <Settings className="h-4 w-4" />
+                    Manage Projects
+                  </span>
                 </DropdownItem>
                 <DropdownSep />
                 <DropdownItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" /> Logout
+                  <span className="flex items-center gap-2 whitespace-nowrap text-red-500">
+                    <LogOut className="h-4 w-4 text-red-500" />
+                    Logout
+                  </span>
                 </DropdownItem>
               </Dropdown>
             </>

@@ -19,8 +19,8 @@
  *   floating Sun/Moon button lets the user flip themes in-place without
  *   bouncing back to the workspace header.
  */
-import { useEffect, useMemo, useState, type FormEvent, useRef } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState, type FormEvent, useRef } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   Eye,
@@ -42,22 +42,45 @@ import {
   User,
   LogIn,
   UserPlus,
-} from 'lucide-react';
-import { Logo } from '@/components/common/Logo';
-import { useSettings } from '@/stores/settings.store';
-import { useAuth } from '@/stores/auth.store';
-import { userMgmtService } from '@/services/userMgmt.service';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, auth ,GoogleAuthProvider, GithubAuthProvider, signInWithPopup, } from '@/lib/firebase';
-import { cn } from '@/utils/cn';
+} from "lucide-react";
+import { Logo } from "@/components/common/Logo";
+import { useSettings } from "@/stores/settings.store";
+import { useAuth } from "@/stores/auth.store";
+import { userMgmtService } from "@/services/userMgmt.service";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  auth,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  signInWithPopup,
+} from "@/lib/firebase";
+import { cn } from "@/utils/cn";
 
-type Mode = 'signin' | 'signup';
-type Audience = 'individual' | 'enterprise';
+type Mode = "signin" | "signup";
+type Audience = "individual" | "enterprise";
 
 const HIGHLIGHTS = [
-  { icon: Boxes,       title: '32 + MCP servers',   desc: 'Catalog · health · audit trail' },
-  { icon: TestTube2,   title: 'Functional + Load',  desc: 'p50/p95 charts · live SSE runs'  },
-  { icon: ShieldCheck, title: 'API Governance',     desc: 'Spec drift · security gates'     },
-  { icon: Activity,    title: 'Real-time Monitors', desc: '99.94 % observed uptime'         },
+  {
+    icon: Boxes,
+    title: "32 + MCP servers",
+    desc: "Catalog · health · audit trail",
+  },
+  {
+    icon: TestTube2,
+    title: "Functional + Load",
+    desc: "p50/p95 charts · live SSE runs",
+  },
+  {
+    icon: ShieldCheck,
+    title: "API Governance",
+    desc: "Spec drift · security gates",
+  },
+  {
+    icon: Activity,
+    title: "Real-time Monitors",
+    desc: "99.94 % observed uptime",
+  },
 ];
 
 // ---------- Canvas particle field (dots + link lines) ----------
@@ -73,7 +96,14 @@ const CanvasParticles = ({ isDark }: { isDark: boolean }) => {
       h = 0,
       dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    type P = { x: number; y: number; vx: number; vy: number; r: number; c: string };
+    type P = {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      r: number;
+      c: string;
+    };
     const colors = isDark
       ? ["#ff4400", "#1e00ff", "#00ff33"]
       : ["#ff5b1f", "#1fbf9a", "#ffb400"];
@@ -98,7 +128,7 @@ const CanvasParticles = ({ isDark }: { isDark: boolean }) => {
 
     // Pick the link-line colour to match the current theme so the
     // particle web stays visible (white-on-dark, black-on-light).
-    const linkRgb = isDark ? '255,255,255' : '17,24,39';
+    const linkRgb = isDark ? "255,255,255" : "17,24,39";
 
     const tick = () => {
       ctx.clearRect(0, 0, w, h);
@@ -162,30 +192,38 @@ const PARTICLE_CONFIG = {
 
 const CSSParticles = () => {
   const particles = useMemo(() => {
-    const logos = Array.from({ length: PARTICLE_CONFIG.logos.count }, (_, i) => ({
-      id: `l${i}`,
-      isLogo: true,
-      size:
-        PARTICLE_CONFIG.logos.minSize +
-        Math.random() * (PARTICLE_CONFIG.logos.maxSize - PARTICLE_CONFIG.logos.minSize),
-      left: `${Math.random() * 100}%`,
-      duration: `${14 + Math.random() * 20}s`,
-      delay: `-${Math.random() * 25}s`,
-      driftX: `${(Math.random() - 0.5) * 80}px`,
-      opacity: 0.06 + Math.random() * 0.18,
-    }));
-    const bubbles = Array.from({ length: PARTICLE_CONFIG.bubbles.count }, (_, i) => ({
-      id: `b${i}`,
-      isLogo: false,
-      size:
-        PARTICLE_CONFIG.bubbles.minSize +
-        Math.random() * (PARTICLE_CONFIG.bubbles.maxSize - PARTICLE_CONFIG.bubbles.minSize),
-      left: `${Math.random() * 100}%`,
-      duration: `${14 + Math.random() * 20}s`,
-      delay: `-${Math.random() * 25}s`,
-      driftX: `${(Math.random() - 0.5) * 80}px`,
-      opacity: 0.5 + Math.random() * 0.3,
-    }));
+    const logos = Array.from(
+      { length: PARTICLE_CONFIG.logos.count },
+      (_, i) => ({
+        id: `l${i}`,
+        isLogo: true,
+        size:
+          PARTICLE_CONFIG.logos.minSize +
+          Math.random() *
+            (PARTICLE_CONFIG.logos.maxSize - PARTICLE_CONFIG.logos.minSize),
+        left: `${Math.random() * 100}%`,
+        duration: `${14 + Math.random() * 20}s`,
+        delay: `-${Math.random() * 25}s`,
+        driftX: `${(Math.random() - 0.5) * 80}px`,
+        opacity: 0.06 + Math.random() * 0.18,
+      }),
+    );
+    const bubbles = Array.from(
+      { length: PARTICLE_CONFIG.bubbles.count },
+      (_, i) => ({
+        id: `b${i}`,
+        isLogo: false,
+        size:
+          PARTICLE_CONFIG.bubbles.minSize +
+          Math.random() *
+            (PARTICLE_CONFIG.bubbles.maxSize - PARTICLE_CONFIG.bubbles.minSize),
+        left: `${Math.random() * 100}%`,
+        duration: `${14 + Math.random() * 20}s`,
+        delay: `-${Math.random() * 25}s`,
+        driftX: `${(Math.random() - 0.5) * 80}px`,
+        opacity: 0.5 + Math.random() * 0.3,
+      }),
+    );
     return [...logos, ...bubbles];
   }, []);
 
@@ -195,21 +233,28 @@ const CSSParticles = () => {
         <div
           key={p.id}
           className="particle-rise"
-          style={{
-            left: p.left,
-            width: `${p.size}px`,
-            height: `${p.size}px`,
-            "--duration": p.duration,
-            "--delay": p.delay,
-            "--drift-x": p.driftX,
-            opacity: p.opacity,
-          } as React.CSSProperties}
+          style={
+            {
+              left: p.left,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              "--duration": p.duration,
+              "--delay": p.delay,
+              "--drift-x": p.driftX,
+              opacity: p.opacity,
+            } as React.CSSProperties
+          }
         >
           {p.isLogo ? (
             <img
               src="/assets/justlogo.png"
               alt=""
-              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
@@ -263,8 +308,11 @@ export const LoginPage = () => {
   const [params, setParams] = useSearchParams();
   // Allow deep-link via either `?mode=signup` OR the `/register` route
   // (router maps both `/login` and `/register` to this component).
-  const onRegisterRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/register');
-  const initialMode: Mode = params.get('mode') === 'signup' || onRegisterRoute ? 'signup' : 'signin';
+  const onRegisterRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/register");
+  const initialMode: Mode =
+    params.get("mode") === "signup" || onRegisterRoute ? "signup" : "signin";
 
   // Inherit whichever theme the user was on (landing / workspace / direct
   // link). The settings store already mounts <html data-theme> on boot,
@@ -273,155 +321,177 @@ export const LoginPage = () => {
   // this screen.
   const theme = useSettings((s) => s.theme);
   const setTheme = useSettings((s) => s.setTheme);
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [audience, setAudience] = useState<Audience>('individual'); // NEW
+  const [audience, setAudience] = useState<Audience>("individual"); // NEW
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [infoMsg, setInfoMsg]   = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const setSession = useAuth((s) => s.setSession);
   const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    company: '',
+    name: "",
+    email: "",
+    password: "",
+    company: "",
     remember: true,
   });
 
   // Keep URL state in sync so deep-links bookmark correctly.
   useEffect(() => {
     const next = new URLSearchParams(params);
-    if (mode === 'signup') next.set('mode', 'signup');
-    else next.delete('mode');
+    if (mode === "signup") next.set("mode", "signup");
+    else next.delete("mode");
     setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const title = mode === 'signin' ? 'Welcome back' : 'Create your account';
+  const title = mode === "signin" ? "Welcome back" : "Create your account";
   const subtitle =
-    mode === 'signin'
-      ? 'Sign in to your ForgeFuzz workspace.'
-      : 'Start shipping reliable APIs in minutes.';
+    mode === "signin"
+      ? "Sign in to your ForgeFuzz workspace."
+      : "Start shipping reliable APIs in minutes.";
 
   const onChange = (k: keyof typeof form) => (e: any) =>
-    setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+    setForm((f) => ({
+      ...f,
+      [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
+    }));
 
-const onSubmit = async (e: FormEvent) => {
-  e.preventDefault();
-  setErrorMsg(null);
-  setInfoMsg(null);
-  setSubmitting(true);
-  try {
-    if (mode === 'signup') {
-      // Signup flow
-      const userCred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
-      const firebaseUser = userCred.user;
-      const uid = firebaseUser.uid;
-
-      await userMgmtService.register({
-        userId: uid,
-        email: form.email.trim(),
-        firstName: form.name.trim() || undefined,
-        lastName: undefined,
-      });
-
-      setInfoMsg('Account created — check your inbox for the verification link, then sign in.');
-      setMode('signin');
-      return;
-    }
-
-    // Signin flow
-    const userCred = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
-    const firebaseUser = userCred.user;
-    const idToken = await firebaseUser.getIdToken();
-
-    const payload = JSON.parse(atob(idToken.split('.')[1]));
-    const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
-
-    const user = await userMgmtService.me(idToken);
-
-    useAuth.getState().setSession({
-      accessToken: idToken,
-      refreshToken: '',
-      expiresInSec,
-      user,
-    });
-
-    const next = params.get('next');
-    nav(next && next.startsWith('/') ? decodeURIComponent(next) : '/projects/collections');
-  } catch (err: any) {
-    // 🔥 NEW: Hide all Firebase auth errors behind a single generic message
-    if (err.code && err.code.startsWith('auth/')) {
-      setErrorMsg('Invalid email or password. Please try again.');
-    } else {
-      // Network or other unexpected errors – still show a generic message
-      setErrorMsg(err?.message || 'Authentication failed. Please try again.');
-    }
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-const handleOAuthLogin = async (provider: GoogleAuthProvider | GithubAuthProvider) => {
-  setErrorMsg(null);
-  setInfoMsg(null);
-  setSubmitting(true);
-  try {
-    const result = await signInWithPopup(auth, provider);
-    const firebaseUser = result.user;
-    const idToken = await firebaseUser.getIdToken();
-
-    // Try to fetch user from backend – auto‑register if 404
-    let user;
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setSubmitting(true);
     try {
-      user = await userMgmtService.me(idToken);
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
+      if (mode === "signup") {
+        // Signup flow
+        const userCred = await createUserWithEmailAndPassword(
+          auth,
+          form.email.trim(),
+          form.password,
+        );
+        const firebaseUser = userCred.user;
+        const uid = firebaseUser.uid;
+
         await userMgmtService.register({
-          userId: firebaseUser.uid,
-          email: firebaseUser.email ?? '',
-          firstName: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
+          userId: uid,
+          email: form.email.trim(),
+          firstName: form.name.trim() || undefined,
           lastName: undefined,
         });
-        user = await userMgmtService.me(idToken);
-      } else {
-        throw err;
+
+        setInfoMsg(
+          "Account created — check your inbox for the verification link, then sign in.",
+        );
+        setMode("signin");
+        return;
       }
+
+      // Signin flow
+      const userCred = await signInWithEmailAndPassword(
+        auth,
+        form.email.trim(),
+        form.password,
+      );
+      const firebaseUser = userCred.user;
+      const idToken = await firebaseUser.getIdToken();
+
+      const payload = JSON.parse(atob(idToken.split(".")[1]));
+      const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
+
+      const user = await userMgmtService.me(idToken);
+
+      useAuth.getState().setSession({
+        accessToken: idToken,
+        refreshToken: "",
+        expiresInSec,
+        user,
+      });
+
+      const next = params.get("next");
+      nav(
+        next && next.startsWith("/")
+          ? decodeURIComponent(next)
+          : "/projects/collections",
+      );
+    } catch (err: any) {
+      // 🔥 NEW: Hide all Firebase auth errors behind a single generic message
+      if (err.code && err.code.startsWith("auth/")) {
+        setErrorMsg("Invalid email or password. Please try again.");
+      } else {
+        // Network or other unexpected errors – still show a generic message
+        setErrorMsg(err?.message || "Authentication failed. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
     }
+  };
 
-    const payload = JSON.parse(atob(idToken.split('.')[1]));
-    const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
+  const handleOAuthLogin = async (
+    provider: GoogleAuthProvider | GithubAuthProvider,
+  ) => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setSubmitting(true);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      const idToken = await firebaseUser.getIdToken();
 
-    useAuth.getState().setSession({
-      accessToken: idToken,
-      refreshToken: '',
-      expiresInSec,
-      user,
-    });
+      // Try to fetch user from backend – auto‑register if 404
+      let user;
+      try {
+        user = await userMgmtService.me(idToken);
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          await userMgmtService.register({
+            userId: firebaseUser.uid,
+            email: firebaseUser.email ?? "",
+            firstName:
+              firebaseUser.displayName ??
+              firebaseUser.email?.split("@")[0] ??
+              "User",
+            lastName: undefined,
+          });
+          user = await userMgmtService.me(idToken);
+        } else {
+          throw err;
+        }
+      }
 
-    nav('/projects/collections');
-  } catch (err: any) {
-console.error('OAuth error:', err); // <-- ADD THIS
-if (err.code && err.code.startsWith('auth/')) {
-  setErrorMsg('OAuth sign-in failed. Please try again.');
-} else {
-  setErrorMsg(err?.message || 'Authentication failed.');
-}
-  } finally {
-    setSubmitting(false);
-  }
-};
+      const payload = JSON.parse(atob(idToken.split(".")[1]));
+      const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
 
-  const onSkip = () => nav('/projects/collections');
+      useAuth.getState().setSession({
+        accessToken: idToken,
+        refreshToken: "",
+        expiresInSec,
+        user,
+      });
+
+      nav("/projects/collections");
+    } catch (err: any) {
+      console.error("OAuth error:", err); // <-- ADD THIS
+      if (err.code && err.code.startsWith("auth/")) {
+        setErrorMsg("OAuth sign-in failed. Please try again.");
+      } else {
+        setErrorMsg(err?.message || "Authentication failed.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onSkip = () => nav("/projects/collections");
 
   return (
     <div
       data-testid="auth-page"
       className={cn(
-        'relative min-h-screen w-full overflow-hidden transition-colors duration-300',
-        isDark ? 'bg-[#0b0d12] text-white' : 'bg-[#f6f7fb] text-[#1f2937]',
+        "relative min-h-screen w-full overflow-hidden transition-colors duration-300",
+        isDark ? "bg-[#0b0d12] text-white" : "bg-[#f6f7fb] text-[#1f2937]",
       )}
     >
       {/* Inject keyframes for rising particles */}
@@ -431,15 +501,15 @@ if (err.code && err.code.startsWith('auth/')) {
           control so the user keeps the same affordance everywhere. */}
       <button
         type="button"
-        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        onClick={() => setTheme(isDark ? "light" : "dark")}
         data-testid="auth-theme-toggle"
-        aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-        title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+        title={isDark ? "Switch to light theme" : "Switch to dark theme"}
         className={cn(
-          'absolute right-5 top-5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition-all',
+          "absolute right-5 top-5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur transition-all",
           isDark
-            ? 'border-white/15 bg-white/[0.06] text-white hover:border-[#ff5b1f]/45 hover:bg-white/[0.1]'
-            : 'border-black/10 bg-white/70 text-[#1f2937] hover:border-[#ff5b1f]/55 hover:bg-white',
+            ? "border-white/15 bg-white/[0.06] text-white hover:border-[#ff5b1f]/45 hover:bg-white/[0.1]"
+            : "border-black/10 bg-white/70 text-[#1f2937] hover:border-[#ff5b1f]/55 hover:bg-white",
         )}
       >
         {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -449,23 +519,23 @@ if (err.code && err.code.startsWith('auth/')) {
       <div className="pointer-events-none absolute inset-0 z-0">
         <div
           className={cn(
-            'absolute -left-1/4 -top-1/4 h-[60%] w-[60%] animate-pulse rounded-full blur-[140px]',
-            isDark ? 'bg-[#ff5b1f]/25' : 'bg-[#ff5b1f]/18',
+            "absolute -left-1/4 -top-1/4 h-[60%] w-[60%] animate-pulse rounded-full blur-[140px]",
+            isDark ? "bg-[#ff5b1f]/25" : "bg-[#ff5b1f]/18",
           )}
         />
         <div
           className={cn(
-            'absolute -bottom-1/4 -right-1/4 h-[55%] w-[55%] animate-pulse rounded-full blur-[140px]',
-            isDark ? 'bg-[#1fbf9a]/20' : 'bg-[#1fbf9a]/14',
+            "absolute -bottom-1/4 -right-1/4 h-[55%] w-[55%] animate-pulse rounded-full blur-[140px]",
+            isDark ? "bg-[#1fbf9a]/20" : "bg-[#1fbf9a]/14",
           )}
-          style={{ animationDelay: '1.5s' }}
+          style={{ animationDelay: "1.5s" }}
         />
         <div
           className={cn(
-            'absolute inset-0',
+            "absolute inset-0",
             isDark
-              ? 'opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:48px_48px]'
-              : 'opacity-[0.06] [background-image:linear-gradient(rgba(0,0,0,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.6)_1px,transparent_1px)] [background-size:48px_48px]',
+              ? "opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:48px_48px]"
+              : "opacity-[0.06] [background-image:linear-gradient(rgba(0,0,0,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.6)_1px,transparent_1px)] [background-size:48px_48px]",
           )}
         />
       </div>
@@ -483,9 +553,144 @@ if (err.code && err.code.startsWith('auth/')) {
           className="hidden flex-col justify-between p-10 lg:flex lg:p-14"
         >
           <Link
+            to="/"
+            data-testid="app-header-logo"
+            className="flex items-center gap-1"
+          >
+            <Logo variant="mark" className="h-12 w-10" />
+            <div className="text-left">
+              <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
+                ProbeStack
+              </div>
+              <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
+                ForgeFuzz
+              </div>
+            </div>
+          </Link>
+
+          <div className="space-y-8">
+            <div>
+              <div
+                className={cn(
+                  "mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+                  isDark
+                    ? "border-white/10 bg-white/[0.04] text-white/70"
+                    : "border-black/10 bg-white/70 text-gray-700",
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-[#ffb400]" />
+                The API workbench engineers actually enjoy
+              </div>
+              <h2 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
+                Design, test &amp; ship
+                <br />
+                <span className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-transparent">
+                  reliable APIs
+                </span>{" "}
+                — together.
+              </h2>
+              <p
+                className={cn(
+                  "mt-3 max-w-md text-base",
+                  isDark ? "text-white/65" : "text-gray-600",
+                )}
+              >
+                Collections, MCP servers, mocks, functional tests, load runs and
+                live monitors — all in one workspace, hardened for production
+                demos.
+              </p>
+            </div>
+
+            <ul className="grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
+              {HIGHLIGHTS.map(({ icon: Icon, title: t, desc }) => (
+                <li
+                  key={t}
+                  className={cn(
+                    "group rounded-xl border p-3 backdrop-blur-sm transition-all hover:-translate-y-0.5",
+                    isDark
+                      ? "border-white/10 bg-white/[0.03] hover:border-[#ff5b1f]/40 hover:bg-white/[0.06]"
+                      : "border-black/10 bg-white/70 hover:border-[#ff5b1f]/50 hover:bg-white",
+                  )}
+                >
+                  <div className="mb-1.5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff5b1f]/25 to-[#1fbf9a]/25">
+                    <Icon
+                      className={cn(
+                        "h-4 w-4",
+                        isDark ? "text-white" : "text-gray-800",
+                      )}
+                    />
+                  </div>
+                  <div
+                    className={cn(
+                      "text-sm font-semibold",
+                      isDark ? "text-white" : "text-gray-900",
+                    )}
+                  >
+                    {t}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-xs",
+                      isDark ? "text-white/55" : "text-gray-500",
+                    )}
+                  >
+                    {desc}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div
+            className={cn(
+              "flex items-center gap-4 text-xs",
+              isDark ? "text-white/45" : "text-gray-500",
+            )}
+          >
+            <span>© ProbeStack 2026</span>
+            <span
+              className={cn(
+                "h-1 w-1 rounded-full",
+                isDark ? "bg-white/30" : "bg-black/30",
+              )}
+            />
+            <Link
+              to="/pricing"
+              className={isDark ? "hover:text-white/80" : "hover:text-gray-800"}
+            >
+              Pricing
+            </Link>
+            <span
+              className={cn(
+                "h-1 w-1 rounded-full",
+                isDark ? "bg-white/30" : "bg-black/30",
+              )}
+            />
+            <a
+              href="/docs/customer-api-v1"
+              className={isDark ? "hover:text-white/80" : "hover:text-gray-800"}
+            >
+              Docs
+            </a>
+          </div>
+        </aside>
+
+        {/* === RIGHT: form card ===================================== */}
+        <main className="flex items-center justify-center p-6 sm:p-10">
+          <div
+            data-testid="auth-card"
+            className={cn(
+              "w-full max-w-[440px] rounded-2xl border p-7 shadow-[0_30px_80px_-30px_rgba(255,91,31,0.35)] backdrop-blur-2xl sm:p-9",
+              isDark
+                ? "border-white/10 bg-[#13161d]/85"
+                : "border-black/10 bg-white/85",
+            )}
+          >
+            {/* Mobile logo — only when left pane is hidden */}
+            <Link
               to="/"
-              data-testid="app-header-logo"
-              className="flex items-center gap-1"
+              data-testid="auth-logo-mobile"
+              className="mb-6 inline-flex items-center gap-2 lg:hidden"
             >
               <Logo variant="mark" className="h-12 w-10" />
               <div className="text-left">
@@ -498,87 +703,6 @@ if (err.code && err.code.startsWith('auth/')) {
               </div>
             </Link>
 
-          <div className="space-y-8">
-            <div>
-              <div
-                className={cn(
-                  'mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
-                  isDark ? 'border-white/10 bg-white/[0.04] text-white/70' : 'border-black/10 bg-white/70 text-gray-700',
-                )}
-              >
-                <Sparkles className="h-3.5 w-3.5 text-[#ffb400]" />
-                The API workbench engineers actually enjoy
-              </div>
-              <h2 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
-                Design, test &amp; ship
-                <br />
-                <span className="bg-gradient-to-r from-[#ff5b1f] via-[#ffb400] to-[#1fbf9a] bg-clip-text text-transparent">
-                  reliable APIs
-                </span>{' '}
-                — together.
-              </h2>
-              <p className={cn('mt-3 max-w-md text-base', isDark ? 'text-white/65' : 'text-gray-600')}>
-                Collections, MCP servers, mocks, functional tests, load runs and
-                live monitors — all in one workspace, hardened for production demos.
-              </p>
-            </div>
-
-            <ul className="grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
-              {HIGHLIGHTS.map(({ icon: Icon, title: t, desc }) => (
-                <li
-                  key={t}
-                  className={cn(
-                    'group rounded-xl border p-3 backdrop-blur-sm transition-all hover:-translate-y-0.5',
-                    isDark
-                      ? 'border-white/10 bg-white/[0.03] hover:border-[#ff5b1f]/40 hover:bg-white/[0.06]'
-                      : 'border-black/10 bg-white/70 hover:border-[#ff5b1f]/50 hover:bg-white',
-                  )}
-                >
-                  <div className="mb-1.5 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff5b1f]/25 to-[#1fbf9a]/25">
-                    <Icon className={cn('h-4 w-4', isDark ? 'text-white' : 'text-gray-800')} />
-                  </div>
-                  <div className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-gray-900')}>{t}</div>
-                  <div className={cn('text-xs', isDark ? 'text-white/55' : 'text-gray-500')}>{desc}</div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className={cn('flex items-center gap-4 text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>
-            <span>© ProbeStack 2026</span>
-            <span className={cn('h-1 w-1 rounded-full', isDark ? 'bg-white/30' : 'bg-black/30')} />
-            <Link to="/pricing" className={isDark ? 'hover:text-white/80' : 'hover:text-gray-800'}>Pricing</Link>
-            <span className={cn('h-1 w-1 rounded-full', isDark ? 'bg-white/30' : 'bg-black/30')} />
-            <a href="/docs/customer-api-v1" className={isDark ? 'hover:text-white/80' : 'hover:text-gray-800'}>Docs</a>
-          </div>
-        </aside>
-
-        {/* === RIGHT: form card ===================================== */}
-        <main className="flex items-center justify-center p-6 sm:p-10">
-          <div
-            data-testid="auth-card"
-            className={cn(
-              'w-full max-w-[440px] rounded-2xl border p-7 shadow-[0_30px_80px_-30px_rgba(255,91,31,0.35)] backdrop-blur-2xl sm:p-9',
-              isDark ? 'border-white/10 bg-[#13161d]/85' : 'border-black/10 bg-white/85',
-            )}
-          >
-            {/* Mobile logo — only when left pane is hidden */}
-                <Link
-                  to="/"
-                  data-testid="auth-logo-mobile"
-                  className="mb-6 inline-flex items-center gap-2 lg:hidden"
-                >
-                  <Logo variant="mark" className="h-12 w-10" />
-              <div className="text-left">
-                <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-                  ProbeStack
-                </div>
-                <div className="font-bold  text-2xl tracking-normal leading-tight gradient-text">
-                  ForgeFuzz
-                </div>
-              </div>
-                </Link>
-
             {/* --- NEW: Audience toggle (Individual / Enterprise) --- */}
             <AudienceToggle
               isDark={isDark}
@@ -586,13 +710,9 @@ if (err.code && err.code.startsWith('auth/')) {
               onChange={setAudience}
             />
 
-            
-
             {/* --- Conditional content --- */}
-            {audience === 'individual' ? (
+            {audience === "individual" ? (
               <>
-                
-
                 {/* Tab toggle */}
                 {/* <div
                   role="tablist"
@@ -624,71 +744,103 @@ if (err.code && err.code.startsWith('auth/')) {
                   ))}
                 </div> */}
 
-                <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{title}</h1>
-                <p className={cn('mt-1 text-sm', isDark ? 'text-white/55' : 'text-gray-500')}>{subtitle}</p>
+                <h1
+                  className={cn(
+                    "text-2xl font-bold",
+                    isDark ? "text-white" : "text-gray-900",
+                  )}
+                >
+                  {title}
+                </h1>
+                <p
+                  className={cn(
+                    "mt-1 text-sm",
+                    isDark ? "text-white/55" : "text-gray-500",
+                  )}
+                >
+                  {subtitle}
+                </p>
 
                 {/* OAuth row (stub buttons) */}
-<div className="mt-6 grid grid-cols-2 gap-2.5">
-  <OAuthButton 
-    testid="auth-oauth-google" 
-    label="Google" 
-    iconUrl="https://www.google.com/favicon.ico" 
-    isDark={isDark} 
-    onClick={() => handleOAuthLogin(new GoogleAuthProvider())} 
-  />
-  <OAuthButton 
-    testid="auth-oauth-github" 
-    label="GitHub" 
-    icon={<Github className="h-4 w-4" />} 
-    isDark={isDark} 
-    onClick={() => handleOAuthLogin(new GithubAuthProvider())} 
-  />
-</div>
+                <div className="mt-6 grid grid-cols-2 gap-2.5">
+                  <OAuthButton
+                    testid="auth-oauth-google"
+                    label="Google"
+                    iconUrl="https://www.google.com/favicon.ico"
+                    isDark={isDark}
+                    onClick={() => handleOAuthLogin(new GoogleAuthProvider())}
+                  />
+                  <OAuthButton
+                    testid="auth-oauth-github"
+                    label="GitHub"
+                    icon={<Github className="h-4 w-4" />}
+                    isDark={isDark}
+                    onClick={() => handleOAuthLogin(new GithubAuthProvider())}
+                  />
+                </div>
 
                 <div
                   className={cn(
-                    'my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]',
-                    isDark ? 'text-white/35' : 'text-gray-400',
+                    "my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]",
+                    isDark ? "text-white/35" : "text-gray-400",
                   )}
                 >
-                  <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
+                  <span
+                    className={cn(
+                      "h-px flex-1",
+                      isDark ? "bg-white/10" : "bg-black/10",
+                    )}
+                  />
                   or with email
-                  <span className={cn('h-px flex-1', isDark ? 'bg-white/10' : 'bg-black/10')} />
+                  <span
+                    className={cn(
+                      "h-px flex-1",
+                      isDark ? "bg-white/10" : "bg-black/10",
+                    )}
+                  />
                 </div>
 
-                <form data-testid="auth-form" onSubmit={onSubmit} className="space-y-3.5">
+                <form
+                  data-testid="auth-form"
+                  onSubmit={onSubmit}
+                  className="space-y-3.5"
+                >
                   {/* Status banners — info (post-signup) + error (server-rejected). */}
                   {infoMsg && (
-                    <div data-testid="auth-info"
-                         className={cn(
-                           'rounded-lg border px-3 py-2 text-[12px]',
-                           isDark
-                             ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                             : 'border-emerald-500/40 bg-emerald-50 text-emerald-800',
-                         )}>
+                    <div
+                      data-testid="auth-info"
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-[12px]",
+                        isDark
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                          : "border-emerald-500/40 bg-emerald-50 text-emerald-800",
+                      )}
+                    >
                       {infoMsg}
                     </div>
                   )}
                   {errorMsg && (
-                    <div data-testid="auth-error"
-                         className={cn(
-                           'rounded-lg border px-3 py-2 text-[12px]',
-                           isDark
-                             ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                             : 'border-rose-500/40 bg-rose-50 text-rose-700',
-                         )}>
+                    <div
+                      data-testid="auth-error"
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-[12px]",
+                        isDark
+                          ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
+                          : "border-rose-500/40 bg-rose-50 text-rose-700",
+                      )}
+                    >
                       {errorMsg}
                     </div>
                   )}
 
-                  {mode === 'signup' && (
+                  {mode === "signup" && (
                     <>
                       <Field
                         icon={UserIcon}
                         testid="auth-input-name"
                         placeholder="Full name"
                         value={form.name}
-                        onChange={onChange('name')}
+                        onChange={onChange("name")}
                         required
                         isDark={isDark}
                       />
@@ -697,7 +849,7 @@ if (err.code && err.code.startsWith('auth/')) {
                         testid="auth-input-company"
                         placeholder="Company / Team (optional)"
                         value={form.company}
-                        onChange={onChange('company')}
+                        onChange={onChange("company")}
                         isDark={isDark}
                       />
                     </>
@@ -709,7 +861,7 @@ if (err.code && err.code.startsWith('auth/')) {
                     type="email"
                     placeholder="you@company.com"
                     value={form.email}
-                    onChange={onChange('email')}
+                    onChange={onChange("email")}
                     required
                     autoComplete="email"
                     isDark={isDark}
@@ -718,56 +870,101 @@ if (err.code && err.code.startsWith('auth/')) {
                   <Field
                     icon={Lock}
                     testid="auth-input-password"
-                    type={showPwd ? 'text' : 'password'}
-                    placeholder={mode === 'signup' ? 'Create a strong password' : 'Password'}
+                    type={showPwd ? "text" : "password"}
+                    placeholder={
+                      mode === "signup"
+                        ? "Create a strong password"
+                        : "Password"
+                    }
                     value={form.password}
-                    onChange={onChange('password')}
+                    onChange={onChange("password")}
                     required
-                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    autoComplete={
+                      mode === "signup" ? "new-password" : "current-password"
+                    }
                     isDark={isDark}
                     trailing={
                       <button
                         type="button"
                         data-testid="auth-toggle-password"
                         onClick={() => setShowPwd((p) => !p)}
-                        className={isDark ? 'text-white/45 hover:text-white' : 'text-gray-400 hover:text-gray-700'}
-                        aria-label={showPwd ? 'Hide password' : 'Show password'}
+                        className={
+                          isDark
+                            ? "text-white/45 hover:text-white"
+                            : "text-gray-400 hover:text-gray-700"
+                        }
+                        aria-label={showPwd ? "Hide password" : "Show password"}
                       >
-                        {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPwd ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     }
                   />
 
-                  {mode === 'signin' ? (
+                  {mode === "signin" ? (
                     <div className="flex items-center justify-between pt-1 text-[12px]">
-                      <label className={cn('inline-flex cursor-pointer items-center gap-2', isDark ? 'text-white/60' : 'text-gray-600')}>
+                      <label
+                        className={cn(
+                          "inline-flex cursor-pointer items-center gap-2",
+                          isDark ? "text-white/60" : "text-gray-600",
+                        )}
+                      >
                         <input
                           type="checkbox"
                           data-testid="auth-remember"
                           checked={form.remember}
-                          onChange={onChange('remember')}
+                          onChange={onChange("remember")}
                           className={cn(
-                            'h-3.5 w-3.5 rounded accent-[#ff5b1f]',
-                            isDark ? 'border-white/20 bg-white/5' : 'border-black/20 bg-white',
+                            "h-3.5 w-3.5 rounded accent-[#ff5b1f]",
+                            isDark
+                              ? "border-white/20 bg-white/5"
+                              : "border-black/20 bg-white",
                           )}
                         />
                         Remember me
                       </label>
-<button
-  type="button"
-  data-testid="auth-forgot-password"
-  onClick={() => nav('/password?mode=forgot')}
-  className="text-[#ff8c4a] hover:text-[#ffb400]"
->
-  Forgot password?
-</button>
+                      <button
+                        type="button"
+                        data-testid="auth-forgot-password"
+                        onClick={() => nav("/password?mode=forgot")}
+                        className="text-[#ff8c4a] hover:text-[#ffb400]"
+                      >
+                        Forgot password?
+                      </button>
                     </div>
                   ) : (
-                    <p className={cn('pt-1 text-[11px] leading-relaxed', isDark ? 'text-white/45' : 'text-gray-500')}>
-                      By creating an account you agree to our                      {' '}
-                      <a href="https://probestack.io/terms-of-service" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-800 hover:text-gray-900'}>Terms of Service</a>
-                      {' '}and{' '}
-                      <a href="https://probestack.io/privacy-policy" className={isDark ? 'text-white/70 hover:text-white' : 'text-gray-800 hover:text-gray-900'}>Privacy Policy</a>.
+                    <p
+                      className={cn(
+                        "pt-1 text-[11px] leading-relaxed",
+                        isDark ? "text-white/45" : "text-gray-500",
+                      )}
+                    >
+                      By creating an account you agree to our{" "}
+                      <a
+                        href="https://probestack.io/terms-of-service"
+                        className={
+                          isDark
+                            ? "text-white/70 hover:text-white"
+                            : "text-gray-800 hover:text-gray-900"
+                        }
+                      >
+                        Terms of Service
+                      </a>{" "}
+                      and{" "}
+                      <a
+                        href="https://probestack.io/privacy-policy"
+                        className={
+                          isDark
+                            ? "text-white/70 hover:text-white"
+                            : "text-gray-800 hover:text-gray-900"
+                        }
+                      >
+                        Privacy Policy
+                      </a>
+                      .
                     </p>
                   )}
 
@@ -781,7 +978,7 @@ if (err.code && err.code.startsWith('auth/')) {
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
                     ) : (
                       <>
-                        {mode === 'signin' ? 'Sign in' : 'Create account'}
+                        {mode === "signin" ? "Sign in" : "Create account"}
                         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                       </>
                     )}
@@ -803,14 +1000,19 @@ if (err.code && err.code.startsWith('auth/')) {
                   </button> */}
                 </form>
 
-                <p className={cn('mt-6 text-center text-xs', isDark ? 'text-white/45' : 'text-gray-500')}>
-                  {mode === 'signin' ? (
+                <p
+                  className={cn(
+                    "mt-6 text-center text-xs",
+                    isDark ? "text-white/45" : "text-gray-500",
+                  )}
+                >
+                  {mode === "signin" ? (
                     <>
-                      Don't have an account?{' '}
+                      Don't have an account?{" "}
                       <button
                         type="button"
                         data-testid="auth-switch-signup"
-                        onClick={() => setMode('signup')}
+                        onClick={() => setMode("signup")}
                         className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
                       >
                         Create one →
@@ -818,11 +1020,11 @@ if (err.code && err.code.startsWith('auth/')) {
                     </>
                   ) : (
                     <>
-                      Already on ForgeFuzz?{' '}
+                      Already on ForgeFuzz?{" "}
                       <button
                         type="button"
                         data-testid="auth-switch-signin"
-                        onClick={() => setMode('signin')}
+                        onClick={() => setMode("signin")}
                         className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
                       >
                         Sign in →
@@ -834,11 +1036,14 @@ if (err.code && err.code.startsWith('auth/')) {
             ) : (
               /* --- Enterprise redirect panel --- */
               <EnterpriseRedirect
-  isDark={isDark}
-  onBack={() => setAudience('individual')}
-  mode={mode}
-  redirectUri={import.meta.env.VITE_CALLBACK_URL || `${window.location.origin}/auth/callback`}
-/>
+                isDark={isDark}
+                onBack={() => setAudience("individual")}
+                mode={mode}
+                redirectUri={
+                  import.meta.env.VITE_CALLBACK_URL ||
+                  `${window.location.origin}/auth/callback`
+                }
+              />
             )}
           </div>
         </main>
@@ -865,24 +1070,26 @@ const Field = ({
 } & React.InputHTMLAttributes<HTMLInputElement>) => (
   <div
     className={cn(
-      'group relative flex items-center rounded-lg border transition-all',
+      "group relative flex items-center rounded-lg border transition-all",
       isDark
-        ? 'border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]'
-        : 'border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white',
+        ? "border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]"
+        : "border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white",
     )}
   >
     <Icon
       className={cn(
-        'ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]',
-        isDark ? 'text-white/40' : 'text-gray-400',
+        "ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]",
+        isDark ? "text-white/40" : "text-gray-400",
       )}
     />
     <input
       {...rest}
       data-testid={testid}
       className={cn(
-        'flex-1 bg-transparent px-3 py-2.5 text-sm outline-none',
-        isDark ? 'text-white placeholder-white/35' : 'text-gray-900 placeholder-gray-400',
+        "flex-1 bg-transparent px-3 py-2.5 text-sm outline-none",
+        isDark
+          ? "text-white placeholder-white/35"
+          : "text-gray-900 placeholder-gray-400",
       )}
     />
     {trailing && <div className="mr-3">{trailing}</div>}
@@ -909,10 +1116,10 @@ const OAuthButton = ({
     data-testid={testid}
     onClick={onClick}
     className={cn(
-      'inline-flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-all',
+      "inline-flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-all",
       isDark
-        ? 'border-white/10 bg-white/[0.03] text-white/80 hover:border-white/25 hover:bg-white/[0.06] hover:text-white'
-        : 'border-black/10 bg-white/70 text-gray-700 hover:border-black/25 hover:bg-white hover:text-gray-900',
+        ? "border-white/10 bg-white/[0.03] text-white/80 hover:border-white/25 hover:bg-white/[0.06] hover:text-white"
+        : "border-black/10 bg-white/70 text-gray-700 hover:border-black/25 hover:bg-white hover:text-gray-900",
     )}
   >
     {iconUrl ? (
@@ -936,21 +1143,20 @@ const AudienceToggle = ({
   value: Audience;
   onChange: (v: Audience) => void;
 }) => {
-
   return (
     <div className="mb-5">
       <div
         className={cn(
-          'relative flex rounded-md p-1',
-          isDark ? 'bg-white/5 ring-1 ring-white/10' : 'bg-gray-100',
+          "relative flex rounded-md p-1",
+          isDark ? "bg-white/5 ring-1 ring-white/10" : "bg-gray-100",
         )}
       >
         <span
           className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-md border-2 border-[#ff5b1f] bg-[#ff5b1f]/10 transition-all duration-300 ease-out"
-          style={{ left: value === 'individual' ? 4 : 'calc(50% + 0px)' }}
+          style={{ left: value === "individual" ? 4 : "calc(50% + 0px)" }}
         />
 
-        {(['individual', 'enterprise'] as Audience[]).map((v) => {
+        {(["individual", "enterprise"] as Audience[]).map((v) => {
           const isActive = value === v;
           return (
             <button
@@ -958,23 +1164,23 @@ const AudienceToggle = ({
               type="button"
               onClick={() => onChange(v)}
               className={cn(
-                'relative z-10 flex-1 rounded-sm px-4 py-2 text-sm font-medium transition-colors',
+                "relative z-10 flex-1 rounded-sm px-4 py-2 text-sm font-medium transition-colors",
                 // Active: primary text, no background (the pill handles that)
                 isActive
-                  ? 'text-[#ff5b1f]'
+                  ? "text-[#ff5b1f]"
                   : isDark
-                    ? 'text-white/60 hover:text-white'
-                    : 'text-gray-500 hover:text-gray-900',
+                    ? "text-white/60 hover:text-white"
+                    : "text-gray-500 hover:text-gray-900",
                 // Add icons and gap
-                'flex items-center justify-center gap-2',
+                "flex items-center justify-center gap-2",
               )}
             >
-              {v === 'individual' ? (
+              {v === "individual" ? (
                 <User className="h-4 w-4" />
               ) : (
                 <Building2 className="h-4 w-4" />
               )}
-              {v === 'individual' ? 'Individual' : 'Enterprise'}
+              {v === "individual" ? "Individual" : "Enterprise"}
             </button>
           );
         })}
@@ -1142,7 +1348,7 @@ const AudienceToggle = ({
 //           <a
 //            href={`https://probestack.io/${mode === 'signin' ? 'login' : 'signup'}${mode === 'signin' ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : ''}`}
 //             target="_blank"
-//             rel="noopener noreferrer" 
+//             rel="noopener noreferrer"
 //             className="font-medium text-[#ffb400] hover:text-[#ff8c4a]"
 //           >
 //             Click here
@@ -1178,12 +1384,12 @@ const EnterpriseRedirect = ({
   mode: Mode;
   redirectUri: string;
 }) => {
-  const baseUrl = 'https://probestack.io';
+  const baseUrl = "https://probestack.io";
   const loginUrl = `${baseUrl}/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
   const signupUrl = `${baseUrl}/signup`;
 
   const openUrl = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -1201,12 +1407,14 @@ const EnterpriseRedirect = ({
       </h2>
       <p
         className={cn(
-          'mx-auto mt-1 max-w-xs text-center text-sm',
-          isDark ? 'text-white/60' : 'text-gray-500',
+          "mx-auto mt-1 max-w-xs text-center text-sm",
+          isDark ? "text-white/60" : "text-gray-500",
         )}
       >
-        ForgeFuzz Enterprise is provisioned via{' '}
-        <span className="font-medium text-[#ff8c4a] hover:text-[#ff8c4a]/70"><a href="https://probestack.io">probestack.io</a></span>
+        ForgeFuzz Enterprise is provisioned via{" "}
+        <span className="font-medium text-[#ff8c4a] hover:text-[#ff8c4a]/70">
+          <a href="https://probestack.io">probestack.io</a>
+        </span>
         <br />
         Choose an option below to continue.
       </p>
@@ -1227,10 +1435,10 @@ const EnterpriseRedirect = ({
           type="button"
           onClick={() => openUrl(signupUrl)}
           className={cn(
-            'inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all',
+            "inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all",
             isDark
-              ? 'border-white/10 bg-white/[0.03] text-white/80 hover:border-[#1fbf9a]/40 hover:text-white'
-              : 'border-black/10 bg-black/[0.03] text-gray-600 hover:border-[#1fbf9a]/55 hover:text-gray-900',
+              ? "border-white/10 bg-white/[0.03] text-white/80 hover:border-[#1fbf9a]/40 hover:text-white"
+              : "border-black/10 bg-black/[0.03] text-gray-600 hover:border-[#1fbf9a]/55 hover:text-gray-900",
           )}
         >
           <UserPlus className="h-4 w-4" />
@@ -1243,8 +1451,8 @@ const EnterpriseRedirect = ({
         type="button"
         onClick={onBack}
         className={cn(
-          'mt-6 self-center text-xs font-medium underline-offset-4 hover:underline',
-          isDark ? 'text-white/60' : 'text-gray-500',
+          "mt-6 self-center text-xs font-medium underline-offset-4 hover:underline",
+          isDark ? "text-white/60" : "text-gray-500",
         )}
       >
         ← Back to Individual

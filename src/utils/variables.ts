@@ -20,6 +20,8 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listEnvironmentsFull, type Environment } from '@/services/environment.service';
 import { useWorkspaceStore } from '@/stores/workspace.store';
+import { useSettings } from '@/stores/settings.store';
+import { useRequests } from '@/stores/requests.store';
 
 export type VarStatus = 'active' | 'inactive' | 'missing';
 export const VAR_REGEX = /\{\{\s*([a-zA-Z_][\w.-]*)\s*\}\}/g;
@@ -40,28 +42,27 @@ export interface VariableIndex {
 
 export const useVariableIndex = (): VariableIndex => {
   const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
+  const activeEnvId = useSettings((s) => s.activeEnvId);
+
+  // Get the active request's collection ID
+  const activeId = useRequests((s) => s.activeId);
+  const openRequests = useRequests((s) => s.open);
+  const activeRequest = openRequests.find((r) => r.id === activeId);
+  const activeCollectionId = activeRequest?.collectionId;
+
   const { data: envs = [] } = useQuery({
     queryKey: ['envs', workspaceId],
-    // Java's list endpoint returns *summaries* (no `variables` array), so
-    // we must hydrate each env's detail to resolve `{{var}}` references.
-    // `reveal=true` decrypts SECRET values in dev-bypass mode for the
-    // tooltip preview.
     queryFn: () => listEnvironmentsFull(workspaceId, true),
     enabled: !!workspaceId,
   });
 
   return useMemo(() => {
-    // Build maps with PRECEDENCE-AWARE ORDER so that the highest-priority
-    // scope's value wins when the same KEY exists across multiple scopes.
-    //
-    // Resolution order (lowest→highest, later overwrites earlier):
-    //   1. GLOBAL          (org-wide, lowest priority)
-    //   2. WORKSPACE       (project)
-    //   3. COLLECTION      (per-collection)
-    //   4. ENVIRONMENT     (only the *active* one — others go in inactiveMap)
-    //   (LOCAL is runtime-only — handled by the script engine, not here.)
+    // Precedence order (lowest → highest, later overwrites earlier)
     const PRECEDENCE: Record<string, number> = {
-      GLOBAL: 1, WORKSPACE: 2, COLLECTION: 3, ENVIRONMENT: 4,
+      GLOBAL: 1,
+      WORKSPACE: 2,
+      COLLECTION: 3,
+      ENVIRONMENT: 4,
     };
     const sorted = [...(envs as Environment[])].sort(
       (a, b) => (PRECEDENCE[a.scope] ?? 99) - (PRECEDENCE[b.scope] ?? 99),
@@ -69,19 +70,40 @@ export const useVariableIndex = (): VariableIndex => {
 
     const activeMap = new Map<string, { value: string; envName: string; scope: string }>();
     const inactiveMap = new Map<string, { envName: string; scope: string }>();
+
     for (const e of sorted) {
-      const alwaysActive = e.scope === 'WORKSPACE' || e.scope === 'GLOBAL' || e.scope === 'COLLECTION';
-      const isActive = alwaysActive || e.isActive;
+      // Determine if this environment's variables should be active
+      let isActive = false;
+
+      if (e.scope === 'GLOBAL' || e.scope === 'WORKSPACE') {
+        // Global and Workspace are always active
+        isActive = true;
+      } else if (e.scope === 'ENVIRONMENT') {
+        // Environment is active only if it's the selected one
+        isActive = !!(e.isActive || e.id === activeEnvId);
+      } else if (e.scope === 'COLLECTION') {
+        // Collection is active only if the active request belongs to it
+        const collId = (e.tags as any)?.collectionId;
+        isActive = !!(activeCollectionId && collId === activeCollectionId);
+      }
+
       for (const v of e.variables ?? []) {
         if (!v.enabled) continue;
+
         if (isActive) {
           // Higher-precedence scope (later in sorted array) overwrites lower.
           activeMap.set(v.key, { value: v.value, envName: e.name, scope: e.scope });
-        } else if (!inactiveMap.has(v.key) && !activeMap.has(v.key)) {
-          inactiveMap.set(v.key, { envName: e.name, scope: e.scope });
+        } else {
+          // Only add inactive ENVIRONMENT variables to the inactive map.
+          // COLLECTION variables from other collections are ignored completely.
+          if (e.scope === 'ENVIRONMENT' && !inactiveMap.has(v.key) && !activeMap.has(v.key)) {
+            inactiveMap.set(v.key, { envName: e.name, scope: e.scope });
+          }
+          // For COLLECTION: if not active, skip entirely (do not add to inactiveMap)
         }
       }
     }
+
     return {
       lookup: (name: string): VarHit => {
         const a = activeMap.get(name);
@@ -92,7 +114,7 @@ export const useVariableIndex = (): VariableIndex => {
       },
       activeNames: Array.from(activeMap.keys()).sort(),
     };
-  }, [envs]);
+  }, [envs, activeEnvId, activeCollectionId]);
 };
 
 /* Tailwind colour classes keyed by status — reused by every highlighted input. */

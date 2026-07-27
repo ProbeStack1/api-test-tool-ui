@@ -1718,7 +1718,6 @@ const DirectVarTable = ({
 };
 
 /* ─── Env detail view (used by ENVIRONMENT scope only) ───────────────── */
-/* ─── Env detail view (used by ENVIRONMENT scope only) ───────────────── */
 const EnvDetailView = ({ env }: { env: Environment }) => {
   const settings = useSettings();
   const renameTab = useVariablesUi((s) => s.renameTab);
@@ -1728,7 +1727,7 @@ const EnvDetailView = ({ env }: { env: Environment }) => {
   const [name, setName] = useState(env.name);
   const [editingName, setEditingName] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<number | null>(null); // ✅ fixed: number
+  const debounceTimerRef = useRef<number | null>(null);
 
   // Local color for immediate UI feedback
   const [localColor, setLocalColor] = useState(env.color || "#34d399");
@@ -1738,7 +1737,7 @@ const EnvDetailView = ({ env }: { env: Environment }) => {
     setLocalColor(env.color || "#34d399");
     // Clear any pending save when switching envs
     if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
+      window.clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
   }, [env.id, env.color]);
@@ -1747,7 +1746,7 @@ const EnvDetailView = ({ env }: { env: Environment }) => {
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+        window.clearTimeout(debounceTimerRef.current);
       }
     };
   }, []);
@@ -1759,11 +1758,11 @@ const EnvDetailView = ({ env }: { env: Environment }) => {
 
     // Clear any existing timer
     if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
+      window.clearTimeout(debounceTimerRef.current);
     }
 
     // Schedule API call after 2 seconds of inactivity
-    debounceTimerRef.current = setTimeout(async () => {
+    debounceTimerRef.current = window.setTimeout(async () => {
       try {
         await updateEnvironment(env.id, { color: newColor });
         await qc.invalidateQueries({ queryKey: ["environments"] });

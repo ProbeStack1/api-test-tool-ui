@@ -28,12 +28,30 @@ export interface ApiError {
 }
 
 /**
+ * Helper to read a cookie by name.
+ * Used for enterprise auth (ps_auth_token).
+ */
+const getCookie = (name: string): string | null => {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+};
+
+/**
  * Auth header strategy:
- *   1. Try to get a fresh Firebase ID token from the current user.
- *   2. If no user, fall back to stored token (from Zustand) – though it might be stale.
- *   3. Dev‑bypass fallback (if enabled).
+ *   1. Enterprise cookie (ps_auth_token) – Highest priority for enterprise users.
+ *   2. Try to get a fresh Firebase ID token from the current user.
+ *   3. If no user, fall back to stored token (from Zustand) – though it might be stale.
+ *   4. Dev‑bypass fallback (if enabled).
  */
 const authHeader = async (): Promise<Record<string, string>> => {
+  // STEP 1: Enterprise Cookie (Highest Priority)
+  const enterpriseToken = getCookie('ps_auth_token');
+  if (enterpriseToken) {
+    return { Authorization: `Bearer ${enterpriseToken}` };
+  }
+
+  // STEP 2: Individual Firebase
   try {
     const token = await getIdToken();
     return { Authorization: `Bearer ${token}` };
@@ -83,7 +101,7 @@ export const createHttp = (service: ServiceName): AxiosInstance => {
       // If we get a 401, the token is invalid/expired.
       // Clear auth and redirect to login (they will re-authenticate via Firebase).
       if (status === 401) {
-        clearAuth();
+        await clearAuth(); 
         // Only redirect if not already on login page.
         if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
           window.location.assign('/login');

@@ -11,6 +11,14 @@ import { useVariablesUi } from '@/stores/variables-ui.store';
 // import { useRunHistoryStore } from '@/stores/runHistory.store'; 
 
 export const App = () => {
+  // NEW: Bootstrap enterprise session on application mount.
+  useEffect(() => {
+    const bootstrap = async () => {
+      await useAuth.getState().bootstrapFromCookie();
+    };
+    bootstrap();
+  }, []);
+
   // Auth sync: clear user-specific data on userId mismatch
   useEffect(() => {
     const unsubscribe = useAuth.subscribe((authState) => {

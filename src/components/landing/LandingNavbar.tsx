@@ -185,8 +185,8 @@ export const LandingNavbar = () => {
     window.scrollTo({ top: 0, behavior: "instant" });
     nav(isAuthed ? "/projects" : "/login?mode=signup");
   };
-  const handleLogout = () => {
-    clear();
+  const handleLogout = async () => {
+    await clear();    
     nav("/login");
   };
   const initial = email ? email.charAt(0).toUpperCase() : "U";

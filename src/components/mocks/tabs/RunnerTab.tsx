@@ -125,7 +125,7 @@ export const RunnerTab = ({
         url: { raw: finalUrl },
         headers: composedHeaders(),
         body: body && (['POST','PUT','PATCH'].includes(method))
-          ? { mode: 'raw', raw: body, language: bodyLang }
+          ? { mode: 'RAW_JSON', raw: body, language: bodyLang }
           : undefined,
       } as any);
       const respBody = (r as any).response?.body ?? '';

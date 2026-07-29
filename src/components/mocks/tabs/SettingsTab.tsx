@@ -110,10 +110,12 @@ export const SettingsTab = ({ mock }: { mock: MockServer }) => {
         )}
       </Section>
 
-      {/* Record mode */}
+      {/* Record mode — disabled because backend implementation is not yet available */}
+      {/* 
       <Section icon={Pin} title="Record mode" description="When ON, every unmatched real request is automatically captured as a new endpoint draft. Pair with Proxy fallback for record-replay testing.">
         <Toggle testId="settings-record" label="Record unmatched requests as new endpoints" value={record} onChange={setRecord} />
       </Section>
+      */}
 
       {/* Save */}
       <div className="flex justify-end pt-2">

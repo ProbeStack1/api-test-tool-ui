@@ -7,7 +7,7 @@
  *   • Endpoint rows. Each row shows method/path/status with quick
  *     toggle / Test (Send → Runner tab) / Open / Delete actions.
  *     Click the path opens the advanced editor with these sections:
- *       Response (status, body, headers)
+ *       Response (status, body, headers, pathMatchMode)
  *       Variants     — multiple responses with weights/selection
  *       Matchers     — query / header / JSONPath / body-contains
  *       Validation   — required headers, content-type, JSON Schema
@@ -22,7 +22,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Plus, Power, Trash2, Check, PlayCircle, ListTree, Send, ChevronDown, ChevronRight,
-  Filter, Shield, Zap, Layers, Clock,
+  Filter, Shield, Zap, Layers, Clock, AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
@@ -30,11 +30,14 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { RowConfirm } from '@/components/common/sidebar/collections/RowConfirm';
 import {
   createEndpoint, updateEndpoint, deleteEndpoint, toggleEndpoint,
-  type MockServer, type MockEndpoint,
+  type MockServer, type MockEndpoint, type PathMatchMode,
 } from '@/services/mock.service';
 import { MethodBadge } from '../parts/MethodBadge';
 import { StatusBadge } from '../parts/StatusBadge';
 import { cn } from '@/utils/cn';
+
+// Methods that can have a request body
+const BODY_METHODS = ['POST', 'PUT', 'PATCH'];
 
 export const EndpointsTab = ({
   mock, endpoints, onRunEndpoint,
@@ -99,8 +102,10 @@ const NewEndpointDraft = ({
 }: { onCancel: () => void; onSave: (body: Partial<MockEndpoint>) => Promise<void> }) => {
   const [method, setMethod] = useState('GET');
   const [path, setPath] = useState('');
+  const [pathMatchMode, setPathMatchMode] = useState<PathMatchMode>('EXACT');
   const [status, setStatus] = useState(200);
   const [body, setBody] = useState('{\n  "ok": true\n}');
+
   return (
     <div className="rounded-md border border-primary/40 bg-primary/5 p-3" data-testid="endpoints-new-draft">
       <header className="mb-2 text-xs font-semibold">New endpoint</header>
@@ -120,6 +125,17 @@ const NewEndpointDraft = ({
           data-testid="endpoints-new-path"
           className="h-7 flex-1 rounded-md border border-border bg-probestack-bg px-2 font-mono text-xs"
         />
+        <select
+          value={pathMatchMode}
+          onChange={(e) => setPathMatchMode(e.target.value as PathMatchMode)}
+          data-testid="endpoints-new-pattern"
+          className="h-7 rounded-md border border-border bg-probestack-bg px-2 text-xs"
+        >
+          <option value="EXACT">Exact match</option>
+          <option value="PATH_PARAMS">Path params ({`/users/:id`})</option>
+          <option value="REGEX">Regex</option>
+          <option value="WILDCARD">Wildcard ({`*`} / {`**`})</option>
+        </select>
         <input
           type="number"
           value={status}
@@ -141,7 +157,7 @@ const NewEndpointDraft = ({
           data-testid="endpoints-new-save"
           disabled={!path.trim()}
           onClick={() => onSave({
-            method, pathPattern: path,
+            method, pathPattern: path, pathMatchMode,
             responses: [{ statusCode: status, bodyLanguage: 'json', body }],
           } as any)}
         >
@@ -167,10 +183,15 @@ const EndpointRow = ({
   const [draft, setDraft] = useState<MockEndpoint>(ep);
   useEffect(() => { setDraft(ep); }, [ep.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const hasBody = BODY_METHODS.includes(draft.method?.toUpperCase() || 'GET');
+
   const save = async () => {
     await updateEndpoint(mockId, ep.id, {
+      method: draft.method,
+      pathPattern: draft.pathPattern,
+      pathMatchMode: draft.pathMatchMode || 'EXACT',
       responses: draft.responses,
-      responseSelection: (draft as any).responseSelection,
+      responseSelection: (draft as any).responseSelection || 'FIRST',
       matchers: (draft as any).matchers,
       validation: (draft as any).validation,
       chaos: (draft as any).chaos,
@@ -283,9 +304,9 @@ const EndpointRow = ({
           </nav>
           <div className="p-3">
             {section === 'response'   && <ResponseSection draft={draft} setDraft={setDraft} />}
-            {section === 'variants'   && <VariantsSection draft={draft} setDraft={setDraft} />}
+            {section === 'variants'   && <VariantsSection draft={draft} setDraft={setDraft} hasBody={hasBody} />}
             {section === 'matchers'   && <MatchersSection draft={draft} setDraft={setDraft} />}
-            {section === 'validation' && <ValidationSection draft={draft} setDraft={setDraft} />}
+            {section === 'validation' && <ValidationSection draft={draft} setDraft={setDraft} hasBody={hasBody} />}
             {section === 'chaos'      && <ChaosSection draft={draft} setDraft={setDraft} />}
             {section === 'window'     && <WindowSection draft={draft} setDraft={setDraft} />}
           </div>
@@ -307,8 +328,8 @@ type DraftProps = {
   setDraft: (next: MockEndpoint) => void;
 };
 
-const Label = ({ children }: { children: React.ReactNode }) => (
-  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">{children}</div>
+const Label = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <div className={cn("mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted", className)}>{children}</div>
 );
 
 const ResponseSection = ({ draft, setDraft }: DraftProps) => {
@@ -319,45 +340,101 @@ const ResponseSection = ({ draft, setDraft }: DraftProps) => {
     setDraft({ ...draft, responses: next });
   };
   return (
-    <div className="grid gap-3 sm:grid-cols-[120px_1fr]" data-testid={`ep-section-response-${draft.id}`}>
-      <div>
-        <Label>Status code</Label>
-        <input
-          type="number"
-          value={v.statusCode}
-          onChange={(e) => update({ statusCode: parseInt(e.target.value) || 200 })}
-          data-testid={`ep-status-${draft.id}`}
-          className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
-        />
-        <div className="mt-3">
-          <Label>Body language</Label>
+    <div className="space-y-3" data-testid={`ep-section-response-${draft.id}`}>
+      <div className="grid gap-2 sm:grid-cols-[120px_1fr_180px]">
+        <div>
+          <Label>Method</Label>
           <select
-            value={v.bodyLanguage ?? 'json'}
-            onChange={(e) => update({ bodyLanguage: e.target.value as any })}
-            data-testid={`ep-bodylang-${draft.id}`}
+            value={draft.method}
+            onChange={(e) => {
+              const newMethod = e.target.value;
+              // If switching to a non-body method, reset responseSelection to FIRST
+              const hasBody = BODY_METHODS.includes(newMethod.toUpperCase());
+              const currentSelection = (draft as any).responseSelection;
+              const updates: any = { method: newMethod };
+              if (!hasBody && currentSelection === 'CONDITIONAL') {
+                updates.responseSelection = 'FIRST';
+              }
+              setDraft({ ...draft, ...updates });
+            }}
+            data-testid={`ep-method-${draft.id}`}
             className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
           >
-            {['json','text','xml','html'].map((l) => <option key={l} value={l}>{l}</option>)}
+            {['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS','*'].map((m) => <option key={m} value={m}>{m === '*' ? 'ANY' : m}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>Path pattern</Label>
+          <input
+            value={draft.pathPattern}
+            onChange={(e) => setDraft({ ...draft, pathPattern: e.target.value })}
+            data-testid={`ep-path-${draft.id}`}
+            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 font-mono text-xs"
+          />
+        </div>
+        <div>
+          <Label>Path match mode</Label>
+          <select
+            value={draft.pathMatchMode || 'EXACT'}
+            onChange={(e) => setDraft({ ...draft, pathMatchMode: e.target.value as any })}
+            data-testid={`ep-pathmode-${draft.id}`}
+            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+          >
+            <option value="EXACT">Exact</option>
+            <option value="PATH_PARAMS">Path params ({`/users/:id`})</option>
+            <option value="REGEX">Regex</option>
+            <option value="WILDCARD">Wildcard ({`*`} / {`**`})</option>
           </select>
         </div>
       </div>
-      <div>
-        <Label>Response body</Label>
-        <textarea
-          value={v.body ?? ''}
-          onChange={(e) => update({ body: e.target.value })}
-          data-testid={`ep-body-${draft.id}`}
-          className="h-40 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-xs outline-none hover:border-primary/40 focus:border-primary"
-        />
+      <div className="grid gap-3 sm:grid-cols-[120px_1fr]">
+        <div>
+          <Label>Status code</Label>
+          <input
+            type="number"
+            value={v.statusCode}
+            onChange={(e) => update({ statusCode: parseInt(e.target.value) || 200 })}
+            data-testid={`ep-status-${draft.id}`}
+            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+          />
+          <div className="mt-3">
+            <Label>Body language</Label>
+            <select
+              value={v.bodyLanguage ?? 'json'}
+              onChange={(e) => update({ bodyLanguage: e.target.value as any })}
+              data-testid={`ep-bodylang-${draft.id}`}
+              className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            >
+              {['json','text','xml','html'].map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <Label>Response body</Label>
+          <textarea
+            value={v.body ?? ''}
+            onChange={(e) => update({ body: e.target.value })}
+            data-testid={`ep-body-${draft.id}`}
+            className="h-40 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-xs outline-none hover:border-primary/40 focus:border-primary"
+          />
+        </div>
       </div>
     </div>
   );
 };
 
-const VariantsSection = ({ draft, setDraft }: DraftProps) => {
+const VariantsSection = ({ draft, setDraft, hasBody }: DraftProps & { hasBody: boolean }) => {
   const variants = draft.responses ?? [];
-  const sel = (draft as any).responseSelection ?? 'FIRST_MATCH';
+  const sel = (draft as any).responseSelection ?? 'FIRST';
   const update = (patch: Partial<MockEndpoint>) => setDraft({ ...draft, ...patch });
+
+  // If selection is CONDITIONAL but hasBody is false, force reset to FIRST
+  useEffect(() => {
+    if (sel === 'CONDITIONAL' && !hasBody) {
+      update({ ...({ responseSelection: 'FIRST' } as any) });
+    }
+  }, [hasBody, sel]);
+
   return (
     <div className="space-y-3" data-testid={`ep-section-variants-${draft.id}`}>
       <div className="flex items-center gap-3">
@@ -367,19 +444,27 @@ const VariantsSection = ({ draft, setDraft }: DraftProps) => {
             value={sel}
             onChange={(e) => update({ ...({ responseSelection: e.target.value } as any) })}
             data-testid={`ep-selection-${draft.id}`}
-            className="h-8 w-44 rounded border border-border bg-probestack-bg px-2 text-xs"
+            className="h-8 w-52 rounded border border-border bg-probestack-bg px-2 text-xs"
           >
-            <option value="FIRST_MATCH">First match (default)</option>
-            <option value="RANDOM">Random</option>
+            <option value="FIRST">First (default)</option>
+            <option value="ROUND_ROBIN">Round-robin</option>
             <option value="WEIGHTED">Weighted (uses weight)</option>
-            <option value="SEQUENTIAL">Sequential / round-robin</option>
+            <option value="CONDITIONAL" disabled={!hasBody}>
+              Conditional (uses when) {!hasBody && "(requires POST/PUT/PATCH)"}
+            </option>
           </select>
+          {!hasBody && sel === 'CONDITIONAL' && (
+            <div className="mt-1 flex items-center gap-1 text-[10px] text-warning">
+              <AlertCircle className="h-3 w-3" /> 
+              Conditional variants require a request body. Switch to POST/PUT/PATCH.
+            </div>
+          )}
         </div>
         <Button
           variant="outline"
           data-testid={`ep-add-variant-${draft.id}`}
           onClick={() => update({
-            responses: [...variants, { statusCode: 200, body: '', bodyLanguage: 'json', name: `Variant ${variants.length + 1}`, weight: 1 } as any],
+            responses: [...variants, { statusCode: 200, body: '', bodyLanguage: 'json', name: `Variant ${variants.length + 1}`, weight: 1, when: [] } as any],
           })}
         >
           <Plus className="h-3.5 w-3.5" /> Add variant
@@ -431,6 +516,33 @@ const VariantsSection = ({ draft, setDraft }: DraftProps) => {
               </button>
             </Tooltip>
           </div>
+          {sel === 'CONDITIONAL' && (
+            <div className="mt-2">
+              <Label>Conditions (JSONPath, one per line, all must match)</Label>
+              {!hasBody && (
+                <div className="mb-1.5 flex items-center gap-1.5 rounded bg-warning/10 p-1.5 text-[11px] text-warning">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Conditional responses require a request body. This endpoint uses GET, so conditions will not be evaluated.
+                </div>
+              )}
+              <textarea
+                value={((v as any).when || []).join('\n')}
+                onChange={(e) => {
+                  const next = variants.slice();
+                  const when = e.target.value.split('\n').map(s => s.trim()).filter(Boolean);
+                  (next[i] as any) = { ...v, when };
+                  update({ responses: next });
+                }}
+                disabled={!hasBody}
+                data-testid={`ep-variant-when-${draft.id}-${i}`}
+                className={cn(
+                  "h-16 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-[11px] outline-none focus:border-primary",
+                  !hasBody && "opacity-50 cursor-not-allowed"
+                )}
+                placeholder='$.status == "active"&#10;$.user.role == "admin"'
+              />
+            </div>
+          )}
           <textarea
             value={v.body ?? ''}
             onChange={(e) => {
@@ -485,92 +597,227 @@ const MatchersSection = ({ draft, setDraft }: DraftProps) => {
   );
 };
 
-const ValidationSection = ({ draft, setDraft }: DraftProps) => {
-  const v = (draft as any).validation ?? { requiredHeaders: [], requireContentTypeJson: false, jsonSchema: '' };
+const ValidationSection = ({ draft, setDraft, hasBody }: DraftProps & { hasBody: boolean }) => {
+  const v = (draft as any).validation ?? {
+    requiredHeaders: [],
+    requireContentTypeJson: false,
+    jsonSchema: '',
+    authMode: 'API_KEY_HEADER',
+    authExpected: '',
+    authKeyName: 'X-Auth-Token',
+    requiredContentTypes: [],
+  };
   const upd = (patch: any) => setDraft({ ...draft, ...({ validation: { ...v, ...patch } } as any) });
+
   return (
     <div className="space-y-3" data-testid={`ep-section-validation-${draft.id}`}>
-      <p className="text-[11px] text-text-muted">Reject malformed requests with 4xx <strong>before</strong> the response is served. Treat your mock like a real upstream.</p>
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={!!v.requireContentTypeJson}
-          onChange={(e) => upd({ requireContentTypeJson: e.target.checked })}
-          data-testid={`ep-val-ctjson-${draft.id}`}
-          className="h-3 w-3 accent-[var(--color-primary)]"
-        />
-        <span className="text-[11px]">Require <code className="rounded bg-elevated px-1 font-mono">Content-Type: application/json</code> on body methods</span>
-      </div>
-      <div>
-        <Label>Required header keys (one per line)</Label>
-        <textarea
-          value={(v.requiredHeaders ?? []).join('\n')}
-          onChange={(e) => upd({ requiredHeaders: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })}
-          data-testid={`ep-val-headers-${draft.id}`}
-          className="h-20 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-[11px] outline-none focus:border-primary"
-          placeholder={'Authorization\nX-Tenant'}
-        />
-      </div>
-      <div>
-        <Label>JSON Schema (optional)</Label>
-        <textarea
-          value={v.jsonSchema ?? ''}
-          onChange={(e) => upd({ jsonSchema: e.target.value })}
-          data-testid={`ep-val-schema-${draft.id}`}
-          className="h-32 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-[11px] outline-none focus:border-primary"
-          placeholder='{"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}}'
-        />
+      {!hasBody && (
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-2.5 text-[11px] text-warning">
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>
+              <strong>Validation is disabled for this endpoint.</strong>
+              JSON Schema, required headers, and body checks only apply to requests with a body (POST, PUT, PATCH).
+              For GET/HEAD/DELETE, use Matchers (query/headers) above.
+            </span>
+          </div>
+        </div>
+      )}
+      <div className={cn(!hasBody && "opacity-50 pointer-events-none select-none")}>
+
+        {/* --- AUTH --- */}
+        <div>
+          <Label>Auth Mode</Label>
+          <select
+            value={v.authMode || 'NONE'}
+            onChange={(e) => upd({ authMode: e.target.value })}
+            data-testid={`ep-val-authmode-${draft.id}`}
+            className="h-8 w-48 rounded border border-border bg-probestack-bg px-2 text-xs"
+          >
+            <option value="NONE">None</option>
+            <option value="BEARER">Bearer Token</option>
+            <option value="BASIC">Basic Auth</option>
+            <option value="API_KEY_HEADER">API Key (Header)</option>
+            <option value="API_KEY_QUERY">API Key (Query)</option>
+          </select>
+        </div>
+
+        {(v.authMode === 'BEARER' || v.authMode === 'BASIC' || v.authMode === 'API_KEY_HEADER' || v.authMode === 'API_KEY_QUERY') && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <Label>Auth Expected (Token / Credentials)</Label>
+              <input
+                value={v.authExpected || ''}
+                onChange={(e) => upd({ authExpected: e.target.value })}
+                data-testid={`ep-val-authexp-${draft.id}`}
+                className="h-8 w-full rounded border border-border bg-probestack-bg px-2 font-mono text-xs"
+                placeholder={v.authMode === 'BEARER' ? 'my-secret-token' : v.authMode === 'BASIC' ? 'user:pass' : 'api-key-value'}
+              />
+            </div>
+            {(v.authMode === 'API_KEY_HEADER' || v.authMode === 'API_KEY_QUERY') && (
+              <div>
+                <Label>Key Name</Label>
+                <input
+                  value={v.authKeyName || 'X-API-Key'}
+                  onChange={(e) => upd({ authKeyName: e.target.value })}
+                  data-testid={`ep-val-authkey-${draft.id}`}
+                  className="h-8 w-full rounded border border-border bg-probestack-bg px-2 font-mono text-xs"
+                  placeholder="X-API-Key"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- Required Content Types --- */}
+        <div>
+          <Label>Required Content-Types (comma-separated)</Label>
+          <input
+            value={(v.requiredContentTypes || []).join(', ')}
+            onChange={(e) => upd({ requiredContentTypes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+            data-testid={`ep-val-contenttypes-${draft.id}`}
+            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            placeholder="application/json, application/xml"
+          />
+        </div>
+
+        {/* --- Existing: Require Content-Type JSON --- */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={!!v.requireContentTypeJson}
+            onChange={(e) => upd({ requireContentTypeJson: e.target.checked })}
+            data-testid={`ep-val-ctjson-${draft.id}`}
+            className="h-3 w-3 accent-[var(--color-primary)]"
+          />
+          <span className="text-[11px]">Require <code className="rounded bg-elevated px-1 font-mono">Content-Type: application/json</code> on body methods</span>
+        </div>
+
+        {/* --- Required Headers --- */}
+        <div>
+          <Label>Required header keys (one per line)</Label>
+          <textarea
+            value={(v.requiredHeaders ?? []).join('\n')}
+            onChange={(e) => upd({ requiredHeaders: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })}
+            data-testid={`ep-val-headers-${draft.id}`}
+            className="h-20 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-[11px] outline-none focus:border-primary"
+            placeholder={'Authorization\nX-Tenant'}
+          />
+        </div>
+
+        {/* --- JSON Schema --- */}
+        <div>
+          <Label>JSON Schema (optional)</Label>
+          <textarea
+            value={v.jsonSchema ?? ''}
+            onChange={(e) => upd({ jsonSchema: e.target.value })}
+            data-testid={`ep-val-schema-${draft.id}`}
+            className="h-32 w-full resize-none rounded border border-border bg-probestack-bg p-2 font-mono text-[11px] outline-none focus:border-primary"
+            placeholder='{"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}}'
+          />
+        </div>
       </div>
     </div>
   );
 };
 
 const ChaosSection = ({ draft, setDraft }: DraftProps) => {
-  const c = (draft as any).chaos ?? { errorRate: 0, errorStatus: 500, latencyMs: 0, latencyJitterMs: 0 };
+  const c = (draft as any).chaos ?? {
+    errorRatePct: 0,
+    errorStatus: 500,
+    enabled: true,
+    partialBodyPct: 0,
+    latencySpikePct: 0,
+    latencySpikeMs: 0,
+    connectionResetPct: 0,
+  };
   const upd = (patch: any) => setDraft({ ...draft, ...({ chaos: { ...c, ...patch } } as any) });
+  
   return (
     <div className="space-y-3" data-testid={`ep-section-chaos-${draft.id}`}>
       <p className="text-[11px] text-text-muted">Inject realistic failure modes. Useful for testing retries, timeouts, and circuit-breakers in your client.</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label>Error rate ({(c.errorRate * 100).toFixed(0)}%)</Label>
-          <input
-            type="range" min={0} max={1} step={0.05}
-            value={c.errorRate ?? 0}
-            onChange={(e) => upd({ errorRate: parseFloat(e.target.value) })}
-            data-testid={`ep-chaos-rate-${draft.id}`}
-            className="w-full accent-[var(--color-primary)]"
-          />
-        </div>
-        <div>
-          <Label>Error status</Label>
-          <input
-            type="number"
-            value={c.errorStatus ?? 500}
-            onChange={(e) => upd({ errorStatus: parseInt(e.target.value) || 500 })}
-            data-testid={`ep-chaos-status-${draft.id}`}
-            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
-          />
-        </div>
-        <div>
-          <Label>Latency (ms)</Label>
-          <input
-            type="number" min={0}
-            value={c.latencyMs ?? 0}
-            onChange={(e) => upd({ latencyMs: parseInt(e.target.value) || 0 })}
-            data-testid={`ep-chaos-latency-${draft.id}`}
-            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
-          />
-        </div>
-        <div>
-          <Label>Latency jitter ± (ms)</Label>
-          <input
-            type="number" min={0}
-            value={c.latencyJitterMs ?? 0}
-            onChange={(e) => upd({ latencyJitterMs: parseInt(e.target.value) || 0 })}
-            data-testid={`ep-chaos-jitter-${draft.id}`}
-            className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
-          />
+      
+      {/* Enable/Disable toggle */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={c.enabled !== false}
+          onChange={(e) => upd({ enabled: e.target.checked })}
+          data-testid={`ep-chaos-enabled-${draft.id}`}
+          className="h-3.5 w-3.5 accent-[var(--color-primary)]"
+        />
+        <span className="text-[11px]">Enable chaos injection</span>
+      </div>
+
+      <div className={cn(!c.enabled && "opacity-50 pointer-events-none")}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Error Rate */}
+          <div>
+            <Label>Error rate ({(c.errorRatePct || 0)}%)</Label>
+            <input
+              type="range" min={0} max={100} step={1}
+              value={c.errorRatePct ?? 0}
+              onChange={(e) => upd({ errorRatePct: parseInt(e.target.value) })}
+              data-testid={`ep-chaos-rate-${draft.id}`}
+              className="w-full accent-[var(--color-primary)]"
+            />
+          </div>
+          <div>
+            <Label>Error status</Label>
+            <input
+              type="number"
+              value={c.errorStatus ?? 500}
+              onChange={(e) => upd({ errorStatus: parseInt(e.target.value) || 500 })}
+              data-testid={`ep-chaos-status-${draft.id}`}
+              className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            />
+          </div>
+          
+          {/* Latency Spike */}
+          <div>
+            <Label>Latency spike (%)</Label>
+            <input
+              type="number" min={0} max={100}
+              value={c.latencySpikePct ?? 0}
+              onChange={(e) => upd({ latencySpikePct: parseInt(e.target.value) || 0 })}
+              data-testid={`ep-chaos-spike-pct-${draft.id}`}
+              className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            />
+          </div>
+          <div>
+            <Label>Latency spike (ms)</Label>
+            <input
+              type="number" min={0}
+              value={c.latencySpikeMs ?? 0}
+              onChange={(e) => upd({ latencySpikeMs: parseInt(e.target.value) || 0 })}
+              data-testid={`ep-chaos-spike-ms-${draft.id}`}
+              className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            />
+          </div>
+
+          {/* Partial Body */}
+          <div>
+            <Label>Partial body (%)</Label>
+            <input
+              type="number" min={0} max={100}
+              value={c.partialBodyPct ?? 0}
+              onChange={(e) => upd({ partialBodyPct: parseInt(e.target.value) || 0 })}
+              data-testid={`ep-chaos-partial-${draft.id}`}
+              className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            />
+          </div>
+
+          {/* Connection Reset */}
+          <div>
+            <Label>Connection reset (%)</Label>
+            <input
+              type="number" min={0} max={100}
+              value={c.connectionResetPct ?? 0}
+              onChange={(e) => upd({ connectionResetPct: parseInt(e.target.value) || 0 })}
+              data-testid={`ep-chaos-reset-${draft.id}`}
+              className="h-8 w-full rounded border border-border bg-probestack-bg px-2 text-xs"
+            />
+          </div>
         </div>
       </div>
     </div>

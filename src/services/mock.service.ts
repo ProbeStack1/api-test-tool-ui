@@ -55,6 +55,9 @@ export interface MockHit extends MockHitDto {
   endpoint_id?: string | null;
   status_code?: number;
   hit_at?: string;
+  remoteIp?: string;    
+  userAgent?: string;    
+  durationMs?: number; 
 }
 export type ContractDiffRun = ContractDiffRunDto;
 export type { ContractDiffFinding } from '@/api/mock.api';
@@ -66,12 +69,23 @@ const normMock = (m: MockServerDto): MockServer => ({
   stats: m.stats ?? { totalRequests: 0, matched: 0, unmatched: 0 },
   recordMode: !!m.recordMode,
 });
-const normHit = (h: MockHitDto): MockHit => ({
-  ...h,
+const normHit = (h: any): MockHit => ({
+  id: h.id,
+  mockId: h.mockId,
+  endpointId: h.endpointId ?? null,
+  method: h.method,
+  path: h.path,
+  matched: h.outcome === 'match',   
+  statusCode: h.status ?? 200,     
+  hitAt: h.timestamp,            
+  durationMs: h.totalMs ?? 0,   
+  remoteIp: h.remoteIp,
+  userAgent: h.userAgent,
+  // preserve legacy snake_case fields
   mock_id: h.mockId,
-  endpoint_id: h.endpointId,
-  status_code: h.statusCode,
-  hit_at: h.hitAt,
+  endpoint_id: h.endpointId ?? null,
+  status_code: h.status ?? 200,
+  hit_at: h.timestamp,
 });
 
 /* ───────── dummy fallback (UI-only, OFF by default) ────────────────────── */

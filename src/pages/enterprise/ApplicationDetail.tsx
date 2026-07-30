@@ -91,7 +91,7 @@ export const ApplicationDetail = () => {
           </p>
         </div>
         <a
-          href={`https://probestack.io/applications/${app.id}`}
+          href={`https://probestack.io`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"

@@ -4,6 +4,7 @@
  * Why  : Keeps header lean; expandable without bloating Header.tsx.
  * Usage: <ProfileMenu /> inside Header right-cluster.
  */
+import React from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,17 +32,31 @@ const initialsOf = (u: { firstName?: string; lastName?: string; username: string
   return (u.email[0] ?? 'U').toUpperCase();
 };
 
+/** Show first 5 chars, then truncate with ellipsis */
+const shortName = (name: string, max = 5): string => {
+  if (!name) return 'Guest';
+  if (name.length <= max) return name;
+  return `${name.slice(0, max)}…`;
+};
+
 export const ProfileMenu = () => {
   const navigate = useNavigate();
   const user = useAuth((s) => s.user);
   const refreshToken = useAuth((s) => s.refreshToken);
   const accessToken = useAuth((s) => s.accessToken);
   const clear = useAuth((s) => s.clear);
+  const accountType = useAuth((s) => s.accountType);
+  const isEnterprise = accountType === 'ENTERPRISE';
 
   const displayName = user
     ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.username || user.email
     : 'Guest';
   const initials = initialsOf(user);
+
+  // Trigger pe kya dikhana hai (name ya email)
+  // Name chahiye to: shortName(displayName, 5)
+  // Email chahiye to: shortName(user?.email ?? displayName, 5)
+  const triggerText = shortName(user?.email ?? displayName, 20);
 
   const onSignOut = async () => {
     try {
@@ -61,11 +76,35 @@ export const ProfileMenu = () => {
         <button
           data-testid="profile-menu-trigger"
           aria-label="Profile menu"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-muted text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+          className="relative flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 transition-colors hover:bg-hover"
         >
-          {user ? initials : <User className="h-4 w-4" />}
+          {/* Circular avatar */}
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-muted text-xs font-semibold text-primary">
+            {user ? initials : <User className="h-4 w-4" />}
+          </span>
+
+          {/* Name / Email — first 5 letters */}
+          <span className="max-w-[90px] truncate text-sm font-medium text-text-primary">
+            {triggerText}
+          </span>
+
+          {/* E badge — bottom-right of the rectangle + tooltip only on E hover */}
+          {isEnterprise && (
+            <>
+              <span className="peer absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-[8px] font-bold text-primary ring-2 ring-surface">
+                E
+              </span>
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary opacity-0 shadow-md transition-opacity duration-150 peer-hover:opacity-100"
+              >
+                Enterprise
+              </span>
+            </>
+          )}
         </button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent
         align="end"
         sideOffset={6}
@@ -75,44 +114,47 @@ export const ProfileMenu = () => {
         )}
       >
         <DropdownMenuLabel
-  className="px-3 pb-1 pt-2 text-xs text-text-secondary"
-  data-testid="profile-menu-userblock"
->
-  {/* Header row: Signed in as (left) and roles (right) */}
-  <div className="flex items-center justify-between">
-    <div className="text-[10px] uppercase tracking-wider text-text-muted">
-      Signed in as
-    </div>
-    {user?.roles?.length ? (
-      <div className="flex flex-wrap gap-1">
-        {user.roles.map((r) => (
-          <span
-            key={r}
-            className="inline-flex items-center rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary"
-          >
-            {r}
-          </span>
-        ))}
-      </div>
-    ) : null}
-  </div>
+          className="px-3 pb-1 pt-2 text-xs text-text-secondary"
+          data-testid="profile-menu-userblock"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted">
+              Signed in as
+            </div>
+            {isEnterprise && (
+              <span className="inline-flex items-center rounded bg-primary/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                Enterprise
+              </span>
+            )}
+            {user?.roles?.length ? (
+              <div className="flex flex-wrap gap-1">
+                {user.roles.map((r) => (
+                  <span
+                    key={r}
+                    className="inline-flex items-center rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary"
+                  >
+                    {r}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
-  {/* Name and email remain unchanged */}
-  <div
-    className="mt-0.5 truncate text-sm font-medium text-text-primary"
-    data-testid="profile-menu-name"
-  >
-    {displayName}
-  </div>
-  {user?.email && (
-    <div
-      className="truncate text-[11px] text-text-muted"
-      data-testid="profile-menu-email"
-    >
-      {user.email}
-    </div>
-  )}
-</DropdownMenuLabel>
+          <div
+            className="mt-0.5 truncate text-sm font-medium text-text-primary"
+            data-testid="profile-menu-name"
+          >
+            {displayName}
+          </div>
+          {user?.email && (
+            <div
+              className="truncate text-[11px] text-text-muted"
+              data-testid="profile-menu-email"
+            >
+              {user.email}
+            </div>
+          )}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem asChild>
           <Link to="/projects/profile" className={menuItem} data-testid="profile-menu-profile">
@@ -125,8 +167,12 @@ export const ProfileMenu = () => {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/projects/manage" className={menuItem} data-testid="profile-menu-help">
-            <Cog className="h-4 w-4" /> Manage Project
+          <Link
+            to={isEnterprise ? '/enterprise/bu' : '/projects/manage'}
+            className={menuItem}
+            data-testid="profile-menu-manage"
+          >
+            <Cog className="h-4 w-4" /> {isEnterprise ? 'Enterprise' : 'Manage Project'}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
@@ -136,7 +182,10 @@ export const ProfileMenu = () => {
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-1 h-px bg-border" />
         <DropdownMenuItem
-          onSelect={(e) => { e.preventDefault(); onSignOut(); }}
+          onSelect={(e) => {
+            e.preventDefault();
+            onSignOut();
+          }}
           className={cn(menuItem, 'text-danger hover:bg-danger-muted')}
           data-testid="profile-menu-signout"
         >

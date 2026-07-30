@@ -19,6 +19,7 @@ import { useActiveRunsTracker } from '@/hooks/useActiveRunsTracker';
 import { FloatingChatbot } from '@/components/chatbot/FloatingChatbot';
 import { GlobalShortcuts } from '@/components/common/GlobalShortcuts';
 import { GlobalContextMenu } from '@/components/common/GlobalContextMenu';
+import { EnterpriseSidebar } from '@/components/enterprise/EnterpriseSidebar';
 
 /** Pages where the contextual left sidebar (collections/history/mcp/mock/etc.)
  *  is irrelevant — we hide it so the main content owns the width. */
@@ -54,12 +55,20 @@ export const AppShell = () => {
   const showRight = useLayout((s) => s.showRightSidebar);
   const mode = useLayout((s) => s.sideRailMode);
   const { pathname } = useLocation();
+
+  const isEnterprise = pathname.startsWith('/enterprise');
+
   const hideContext =
     HIDE_CONTEXT_SIDEBAR.has(pathname) ||
     [...HIDE_CONTEXT_SIDEBAR].some((p) => pathname.startsWith(p + '/'));
   const hideRight =
+    isEnterprise ||
     HIDE_RIGHT.has(pathname) ||
     [...HIDE_RIGHT].some((p) => pathname.startsWith(p + '/'));
+
+  // For enterprise routes, we always show the enterprise sidebar (even if hideContext would hide it)
+  const showEnterpriseSidebar = isEnterprise;
+  const showContextSidebar = !isEnterprise && !hideContext;
 
   return (
     <div
@@ -71,7 +80,8 @@ export const AppShell = () => {
       <Header />
       <div className="flex min-h-0 flex-1">
         {mode === 'left' && <FeatureRail />}
-        {!hideContext && <ContextSidebar />}
+        {showEnterpriseSidebar && <EnterpriseSidebar />}
+        {showContextSidebar && <ContextSidebar />}
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Outlet />
         </main>

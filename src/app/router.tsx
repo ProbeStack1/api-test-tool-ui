@@ -12,12 +12,15 @@
  * can warm the chunk on `pointerenter`. Combined with React Query's
  * `keepPreviousData`, page switches feel instant after the first visit.
  */
-import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, useParams, Outlet } from 'react-router-dom';  // <-- added Outlet
 import { lazy, Suspense } from 'react';
 import { RouteFallback } from '@/components/skeletons/RouteFallback';
 import { RouteErrorBoundary } from './RouteErrorBoundary';
 import { RequireAuth } from './RequireAuth';
 import { AiTestingFeaturePage } from '@/pages/landing';
+import { useScrollToTop } from '@/hooks/useScrollToTop';
+import { RequireIndividual } from '@/components/guards/RequireIndividual';
+import { RequireEnterprise } from '@/components/guards/RequireEnterprise';
 
 type LazyWithPrefetch<T = any> = React.LazyExoticComponent<React.ComponentType<T>> & {
   prefetch: () => Promise<unknown>;
@@ -90,6 +93,15 @@ const SettingsPage = l(() => import('@/pages/settings'), (m: any) => m.SettingsP
 const HistoryPage = l(() => import('@/pages/history'), (m: any) => m.HistoryPage);
 const SharedEntityPage = l(() => import('@/pages/collab/SharedEntityPage'), (m: any) => m.SharedEntityPage);
 
+const EnterpriseLayout = l(() => import('@/layouts/EnterpriseLayout'), (m: any) => m.EnterpriseLayout);
+const BusinessUnitDetail = l(() => import('@/pages/enterprise/BusinessUnitDetail'), (m: any) => m.BusinessUnitDetail);
+const ProjectDetail = l(() => import('@/pages/enterprise/ProjectDetail'), (m: any) => m.ProjectDetail);
+const ApplicationDetail = l(() => import('@/pages/enterprise/ApplicationDetail'), (m: any) => m.ApplicationDetail);
+const BusinessUnitList = l(() => import('@/pages/enterprise/BusinessUnitList'), (m: any) => m.BusinessUnitList);
+const ProjectList = l(() => import('@/pages/enterprise/ProjectList'), (m: any) => m.ProjectList);
+const ApplicationList = l(() => import('@/pages/enterprise/ApplicationList'), (m: any) => m.ApplicationList);
+
+
 /** Public prefetch map keyed by sidebar nav `to` path. Sidebar `<Link>`s
  *  call `prefetchRoute(to)` on `pointerenter` to warm the chunk. */
 export const ROUTE_PREFETCH: Record<string, () => Promise<unknown>> = {
@@ -124,118 +136,149 @@ const StatusPagePublicSlugRoute = () => {
   return <StatusPagePublic slug={slug ?? ''} />;
 };
 
+// ===== NEW: Root layout with scroll‑to‑top logic =====
+const RootLayout = () => {
+  useScrollToTop();
+  return <Outlet />;
+};
+// =====================================================
+
+// The original router array is now wrapped inside a parent route.
 const router = createBrowserRouter([
-  { path: '/', element: r(<LandingPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/products', element: <Navigate to="/capabilities" replace /> },
-  { path: '/features', element: r(<FeaturesPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/how-it-works', element: r(<HowItWorksPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/contact', element: r(<GetAccessPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/capabilities', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/capabilities/request-builder', element: r(<ApiFuzzingPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/capabilities/load-functional-testing', element: r(<TestingSuitePage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/capabilities/ai-llm-testing', element: r(<AiTestingFeaturePage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/capabilities/mock-sandbox', element: r(<MockSandboxPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/pricing', element: r(<PricingPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/blog', element: r(<BlogPage />), errorElement: <RouteErrorBoundary /> },
-  // Home shell — left rail (Home / Workspaces /
-  // Integrations / API Catalog / Reports + Private/Public API Network).
-  // Nested children render inside `HomeShell`'s `<Outlet/>`.
   {
-    path: '/home',
-    element: r(<HomeShell />),
-    errorElement: <RouteErrorBoundary />,
-    children: [
-      { index: true, element: r(<HomeIntroPage />) },
-      { path: 'api-catalog', element: <Navigate to="/home/api-catalog/public" replace /> },
-      { path: 'api-catalog/:variant', element: r(<ApiCatalogPage />) },
-      { path: 'governance', element: r(<GovernancePage />) },
-      { path: 'reports', element: r(<ReportsPlaceholder />) },
+    element: <RootLayout />,          // <-- added parent
+    children: [                       // <-- wrap all existing routes inside 'children'
+      { path: '/', element: r(<LandingPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/products', element: <Navigate to="/capabilities" replace /> },
+      { path: '/features', element: r(<FeaturesPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/how-it-works', element: r(<HowItWorksPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/contact', element: r(<GetAccessPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/capabilities', element: r(<SolutionsPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/capabilities/request-builder', element: r(<ApiFuzzingPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/capabilities/load-functional-testing', element: r(<TestingSuitePage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/capabilities/ai-llm-testing', element: r(<AiTestingFeaturePage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/capabilities/mock-sandbox', element: r(<MockSandboxPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/pricing', element: r(<PricingPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/blog', element: r(<BlogPage />), errorElement: <RouteErrorBoundary /> },
+      // Home shell — left rail (Home / Workspaces /
+      // Integrations / API Catalog / Reports + Private/Public API Network).
+      // Nested children render inside `HomeShell`'s `<Outlet/>`.
+      {
+        path: '/home',
+        element: r(<HomeShell />),
+        errorElement: <RouteErrorBoundary />,
+        children: [
+          { index: true, element: r(<HomeIntroPage />) },
+          { path: 'api-catalog', element: <Navigate to="/home/api-catalog/public" replace /> },
+          { path: 'api-catalog/:variant', element: r(<ApiCatalogPage />) },
+          { path: 'governance', element: r(<GovernancePage />) },
+          { path: 'reports', element: r(<ReportsPlaceholder />) },
+        ],
+      },
+      { path: '/login', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
+      // Register is the same component with mode=signup pre-selected, so existing
+      // bookmark or marketing links don't 404. The query string already controls mode.
+      { path: '/register', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/accept-invitation', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/invite/accept', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/auth/verify-email', element: r(<VerifyEmailPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/status/:slug', element: r(<StatusPagePublicSlugRoute />), errorElement: <RouteErrorBoundary /> },
+
+      { path: '/password', element: r(<PasswordVerifyPage />), errorElement: <RouteErrorBoundary /> },
+
+      // Public API Hub — auth-free discovery surface + per-doc viewer.
+      // The Java service mints share links as `${frontend}/docs/{slug}`, so this
+      // route catches them and the React app calls the public JSON endpoint.
+      { path: '/api-hub', element: r(<MarketplacePage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/api-hub/public/:apiId', element: r(<PublicApiDetailPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/api-hub/agents/:agentId', element: r(<PublicAiAgentDetailPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/docs/:slug', element: r(<PublicDocViewerPage />), errorElement: <RouteErrorBoundary /> },
+
+      // Standalone create/manage project page — minimal chrome, own sidebar.
+      {
+        path: '/project',
+        element: <RequireIndividual>{r(<ProjectStandaloneLayout />)}</RequireIndividual>,
+        errorElement: <RouteErrorBoundary />,
+        children: [
+          { index: true, element: r(<ProjectWorkspacePage />) },
+          { path: ':id', element: r(<ProjectWorkspacePage />) },
+        ],
+      },
+
+      // Main app shell — everything under /projects (gated by RequireAuth,
+      // which is a no-op while VITE_DEV_BYPASS_AUTH=true).
+      { path: '/projects', element: <Navigate to="/projects/collections" replace /> },
+      {
+        path: '/projects',
+        element: <RequireAuth>{r(<AppShell />)}</RequireAuth>,
+        errorElement: <RouteErrorBoundary />,
+        children: [
+          { path: 'collections', element: r(<RequestBuilderPage />) },
+          { path: 'dashboard', element: r(<DashboardPage />) },
+          { path: 'manage', element: <RequireIndividual>{r(<ProjectManagementPage />)}</RequireIndividual> },
+          // Legacy environments page → variables workspace (env scope is a tab there).
+          { path: 'environments', element: <Navigate to="/projects/variables" replace /> },
+          { path: 'variables', element: r(<VariablesWorkspacePage />) },
+          { path: 'mcp', element: r(<McpPage />) },
+          { path: 'mocks', element: r(<MocksPage />) },
+          { path: 'mocks/:id', element: r(<MockDetailPage />) },
+          // Testing module — Specs / Cases / Library / Functional / Load / Monitors
+          // Testing module — single URL, internal state-driven sub-nav.
+          // All sub-routes (specs / cases / library / functional / load /
+          // monitors) and any deep views (run detail, spec detail) live
+          // inside `<TestingPage />` via `useTestingStore` so the URL
+          // never changes while moving between them.
+          { path: 'testing', element: r(<TestingPage />) },
+          { path: 'testing/*', element: <Navigate to="/projects/testing" replace /> },
+          { path: 'monitors', element: r(<MonitorsPage />) },
+          { path: 'integrations', element: r(<IntegrationsPage />) },
+          { path: 'api-docs', element: r(<ApiDocsPage />) },
+          { path: 'security', element: r(<SecurityScanPage />) },
+          { path: 'security/escalation-rules', element: r(<EscalationRulesPage />) },
+          { path: 'audit', element: r(<AuditPage />) },
+          { path: 'trash', element: r(<TrashPage />) },
+          { path: 'heartbeats', element: r(<HeartbeatsPage />) },
+          { path: 'digests', element: r(<DigestsPage />) },
+          { path: 'bug-tracker', element: r(<BugTrackerPage />) },
+          { path: 'ai-assisted', element: r(<AiAssistedPage />) },
+          { path: 'ai-testing', element: r(<AiTestingPage />) },
+          { path: 'profile', element: r(<ProfilePage />) },
+          { path: 'notifications', element: r(<NotificationsPage />) },
+          { path: 'support', element: r(<SupportPage />) },
+          { path: 'support/:ticketId', element: r(<SupportTicketPage />) },
+          { path: 'settings', element: r(<SettingsPage />) },
+          { path: 'history', element: r(<HistoryPage />) },
+        ],
+      },
+
+// Enterprise routes
+{
+  path: '/enterprise',
+  element: <Navigate to="/enterprise/bu" replace />,
+},
+{
+  path: '/enterprise',
+  element: <RequireEnterprise><RequireAuth>{r(<AppShell />)}</RequireAuth></RequireEnterprise>,
+  children: [
+    { path: 'bu', element: r(<BusinessUnitList />) },
+    { path: 'project', element: r(<ProjectList />) },
+    { path: 'application', element: r(<ApplicationList />) },
+    { path: 'bu/:buId', element: r(<BusinessUnitDetail />) },
+    { path: 'project/:projectId', element: r(<ProjectDetail />) },
+    { path: 'application/:appId', element: r(<ApplicationDetail />) },
+  ],
+},
+
+      // legacy /app/* → /projects/*
+      { path: '/app', element: <Navigate to="/projects/collections" replace /> },
+      { path: '/app/*', element: <Navigate to="/projects/collections" replace /> },
+
+      // Public shared-entity landing page — no auth, no shell.
+      { path: '/shared/:token', element: r(<SharedEntityPage />) },
+
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-  { path: '/login', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
-  // Register is the same component with mode=signup pre-selected, so existing
-  // bookmark or marketing links don't 404. The query string already controls mode.
-  { path: '/register', element: r(<LoginPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/accept-invitation', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/invite/accept', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/auth/verify-email', element: r(<VerifyEmailPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/status/:slug', element: r(<StatusPagePublicSlugRoute />), errorElement: <RouteErrorBoundary /> },
-
-  { path: '/password', element: r(<PasswordVerifyPage />), errorElement: <RouteErrorBoundary /> },
-
-  // Public API Hub — auth-free discovery surface + per-doc viewer.
-  // The Java service mints share links as `${frontend}/docs/{slug}`, so this
-  // route catches them and the React app calls the public JSON endpoint.
-  { path: '/api-hub', element: r(<MarketplacePage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/api-hub/public/:apiId', element: r(<PublicApiDetailPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/api-hub/agents/:agentId', element: r(<PublicAiAgentDetailPage />), errorElement: <RouteErrorBoundary /> },
-  { path: '/docs/:slug', element: r(<PublicDocViewerPage />), errorElement: <RouteErrorBoundary /> },
-
-  // Standalone create/manage project page — minimal chrome, own sidebar.
-  {
-    path: '/project',
-    element: r(<ProjectStandaloneLayout />),
-    errorElement: <RouteErrorBoundary />,
-    children: [
-      { index: true, element: r(<ProjectWorkspacePage />) },
-      { path: ':id', element: r(<ProjectWorkspacePage />) },
-    ],
-  },
-
-  // Main app shell — everything under /projects (gated by RequireAuth,
-  // which is a no-op while VITE_DEV_BYPASS_AUTH=true).
-  { path: '/projects', element: <Navigate to="/projects/collections" replace /> },
-  {
-    path: '/projects',
-    element: <RequireAuth>{r(<AppShell />)}</RequireAuth>,
-    errorElement: <RouteErrorBoundary />,
-    children: [
-      { path: 'collections', element: r(<RequestBuilderPage />) },
-      { path: 'dashboard', element: r(<DashboardPage />) },
-      { path: 'manage', element: r(<ProjectManagementPage />) },
-      // Legacy environments page → variables workspace (env scope is a tab there).
-      { path: 'environments', element: <Navigate to="/projects/variables" replace /> },
-      { path: 'variables', element: r(<VariablesWorkspacePage />) },
-      { path: 'mcp', element: r(<McpPage />) },
-      { path: 'mocks', element: r(<MocksPage />) },
-      { path: 'mocks/:id', element: r(<MockDetailPage />) },
-      // Testing module — Specs / Cases / Library / Functional / Load / Monitors
-      // Testing module — single URL, internal state-driven sub-nav.
-      // All sub-routes (specs / cases / library / functional / load /
-      // monitors) and any deep views (run detail, spec detail) live
-      // inside `<TestingPage />` via `useTestingStore` so the URL
-      // never changes while moving between them.
-      { path: 'testing', element: r(<TestingPage />) },
-      { path: 'testing/*', element: <Navigate to="/projects/testing" replace /> },
-      { path: 'monitors', element: r(<MonitorsPage />) },
-      { path: 'integrations', element: r(<IntegrationsPage />) },
-      { path: 'api-docs', element: r(<ApiDocsPage />) },
-      { path: 'security', element: r(<SecurityScanPage />) },
-      { path: 'security/escalation-rules', element: r(<EscalationRulesPage />) },
-      { path: 'audit', element: r(<AuditPage />) },
-      { path: 'trash', element: r(<TrashPage />) },
-      { path: 'heartbeats', element: r(<HeartbeatsPage />) },
-      { path: 'digests', element: r(<DigestsPage />) },
-      { path: 'bug-tracker', element: r(<BugTrackerPage />) },
-      { path: 'ai-assisted', element: r(<AiAssistedPage />) },
-      { path: 'ai-testing', element: r(<AiTestingPage />) },
-      { path: 'profile', element: r(<ProfilePage />) },
-      { path: 'notifications', element: r(<NotificationsPage />) },
-      { path: 'support', element: r(<SupportPage />) },
-      { path: 'support/:ticketId', element: r(<SupportTicketPage />) },
-      { path: 'settings', element: r(<SettingsPage />) },
-      { path: 'history', element: r(<HistoryPage />) },
-    ],
-  },
-
-  // legacy /app/* → /projects/*
-  { path: '/app', element: <Navigate to="/projects/collections" replace /> },
-  { path: '/app/*', element: <Navigate to="/projects/collections" replace /> },
-
-  // Public shared-entity landing page — no auth, no shell.
-  { path: '/shared/:token', element: r(<SharedEntityPage />) },
-
-  { path: '*', element: <Navigate to="/" replace /> },
 ]);
 
 export const AppRouter = () => <RouterProvider router={router} />;

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap, Rocket, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { bootstrapUser } from '@/services/user.service';
+import { useAuth } from '@/stores/auth.store';
 import StartTestingModal from '../modals/StartTestingModal';
 import AnimatedTerminal from './AnimatedTerminal';
 const API_LINES = [
@@ -164,6 +165,7 @@ function RocketButton({ onClick, children }: { onClick: () => void; children: Re
 export default function HeroSection() {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
+  const isAuthed = useAuth((s) => s.isAuthenticated());
   const prefill =
     new URL(window.location.href).searchParams.get('email') ||
     localStorage.getItem('userEmail') ||
@@ -217,7 +219,7 @@ export default function HeroSection() {
              production microservices · SOC2-ready audit trail · powered by ForgeFuzz
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up animation-delay-300">
-            <RocketButton onClick={() => navigate('/login')}>
+            <RocketButton onClick={() => navigate(isAuthed ? '/projects/collections' : '/login')}>
               Start free →
             </RocketButton>
             <a

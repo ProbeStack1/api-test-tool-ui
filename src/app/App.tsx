@@ -52,6 +52,14 @@ export const App = () => {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('authToken') || params.has('userEmail') || params.has('userRole')) {
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState(null, '', cleanUrl);
+  }
+}, []);
+
   return (
     <Providers>
       <AppRouter />

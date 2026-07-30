@@ -53,9 +53,6 @@ export const ProfileMenu = () => {
     : 'Guest';
   const initials = initialsOf(user);
 
-  // Trigger pe kya dikhana hai (name ya email)
-  // Name chahiye to: shortName(displayName, 5)
-  // Email chahiye to: shortName(user?.email ?? displayName, 5)
   const triggerText = shortName(user?.email ?? displayName, 20);
 
   const onSignOut = async () => {

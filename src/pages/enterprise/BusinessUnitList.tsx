@@ -46,7 +46,7 @@ export const BusinessUnitList = () => {
         {bus.map((bu) => (
           <Link
             key={bu.id}
-            to={`/enterprise/bu/${bu.id}`}
+            to={`/onboarding/bu/${bu.id}`}
             className="group rounded-xl border border-border bg-surface p-5 transition-all hover:border-primary/50 hover:shadow-md"
           >
             <div className="flex items-start justify-between">

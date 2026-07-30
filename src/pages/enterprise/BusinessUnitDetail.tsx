@@ -29,7 +29,7 @@ export const BusinessUnitDetail = () => {
         <Building2 className="h-16 w-16 text-text-muted" />
         <p className="mt-4 text-lg text-text-muted">Business unit not found</p>
         <button
-          onClick={() => navigate('/enterprise/bu')}
+          onClick={() => navigate('/onboarding/bu')}
           className="mt-6 rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
         >
           Back to list
@@ -44,7 +44,7 @@ export const BusinessUnitDetail = () => {
     <div className="p-6">
       {/* Back button */}
       <button
-        onClick={() => navigate('/enterprise/bu')}
+        onClick={() => navigate('/onboarding/bu')}
         className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-text-muted hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" /> Back to business units
@@ -100,7 +100,7 @@ export const BusinessUnitDetail = () => {
             {projects.map((project) => (
               <div key={project.id} className="rounded-xl border border-border bg-surface p-5">
                 <Link
-                  to={`/enterprise/project/${project.id}`}
+                  to={`/onboarding/project/${project.id}`}
                   className="flex items-center justify-between group"
                 >
                   <div>
@@ -133,7 +133,7 @@ export const BusinessUnitDetail = () => {
                     {project.applications.map((app) => (
                       <Link
                         key={app.id}
-                        to={`/enterprise/application/${app.id}`}
+                        to={`/onboarding/application/${app.id}`}
                         className="flex items-center justify-between rounded-lg bg-probestack-bg px-4 py-3 hover:bg-hover"
                       >
                         <div className="flex flex-wrap items-center gap-4">

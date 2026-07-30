@@ -74,7 +74,7 @@ export const ApplicationList = () => {
           filteredApps.map((app) => (
             <Link
               key={app.id}
-              to={`/enterprise/application/${app.id}`}
+              to={`/onboarding/application/${app.id}`}
               className="group rounded-xl border border-border bg-surface p-5 transition-all hover:border-primary/50 hover:shadow-md"
             >
               <div className="flex items-start justify-between">

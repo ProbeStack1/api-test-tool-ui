@@ -38,7 +38,7 @@ export const ApplicationDetail = () => {
         <Info className="h-16 w-16 text-text-muted" />
         <p className="mt-4 text-lg text-text-muted">Application not found</p>
         <button
-          onClick={() => navigate('/enterprise/application')}
+          onClick={() => navigate('/onboarding/application')}
           className="mt-6 rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
         >
           Back to applications
@@ -51,7 +51,7 @@ export const ApplicationDetail = () => {
     <div className="p-6">
       {/* Back button */}
       <button
-        onClick={() => navigate('/enterprise/application')}
+        onClick={() => navigate('/onboarding/application')}
         className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-text-muted hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" /> Back to applications
@@ -59,13 +59,13 @@ export const ApplicationDetail = () => {
 
       {/* Breadcrumb / Hierarchy */}
       <div className="mb-5 flex flex-wrap items-center gap-1 text-sm text-text-muted">
-        <Link to="/enterprise/bu" className="hover:text-primary">Enterprise</Link>
+        <Link to="/onboarding/bu" className="hover:text-primary">Enterprise</Link>
         <ChevronRight className="h-4 w-4" />
-        <Link to={`/enterprise/bu/${app.businessUnitId}`} className="hover:text-primary">
+        <Link to={`/onboarding/bu/${app.businessUnitId}`} className="hover:text-primary">
           {app.businessUnitName}
         </Link>
         <ChevronRight className="h-4 w-4" />
-        <Link to={`/enterprise/project/${app.projectId}`} className="hover:text-primary">
+        <Link to={`/onboarding/project/${app.projectId}`} className="hover:text-primary">
           {app.projectName}
         </Link>
         <ChevronRight className="h-4 w-4" />

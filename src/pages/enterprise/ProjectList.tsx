@@ -73,7 +73,7 @@ export const ProjectList = () => {
           filteredProjects.map((project) => (
             <Link
               key={project.id}
-              to={`/enterprise/project/${project.id}`}
+              to={`/onboarding/project/${project.id}`}
               className="group rounded-xl border border-border bg-surface p-5 transition-all hover:border-primary/50 hover:shadow-md"
             >
               <div className="flex items-start justify-between">

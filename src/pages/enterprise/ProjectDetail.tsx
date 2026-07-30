@@ -36,7 +36,7 @@ export const ProjectDetail = () => {
         <FolderOpen className="h-16 w-16 text-text-muted" />
         <p className="mt-4 text-lg text-text-muted">Project not found</p>
         <button
-          onClick={() => navigate('/enterprise/project')}
+          onClick={() => navigate('/onboarding/project')}
           className="mt-6 rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
         >
           Back to projects
@@ -49,7 +49,7 @@ export const ProjectDetail = () => {
     <div className="p-6">
       {/* Back button */}
       <button
-        onClick={() => navigate('/enterprise/project')}
+        onClick={() => navigate('/onboarding/project')}
         className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-text-muted hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" /> Back to projects
@@ -99,7 +99,7 @@ export const ProjectDetail = () => {
             {applications.map((app) => (
               <Link
                 key={app.id}
-                to={`/enterprise/application/${app.id}`}
+                to={`/onboarding/application/${app.id}`}
                 className="flex items-center justify-between rounded-xl border border-border bg-surface p-4 hover:border-primary/50 hover:shadow-sm"
               >
                 <div className="flex flex-wrap items-center gap-4">

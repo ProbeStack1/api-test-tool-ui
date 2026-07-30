@@ -38,7 +38,7 @@ export interface UserView {
  * Helper to read a cookie by name.
  * Used for enterprise auth (ps_auth_token) bootstrap.
  */
-const getCookie = (name: string): string | null => {
+export const getCookie = (name: string): string | null => {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
   return match ? decodeURIComponent(match[2]) : null;
@@ -72,8 +72,8 @@ interface AuthState {
   /** Internal: apply state pushed by another tab without re-broadcasting. */
   _hydrateFromBroadcast(p: Partial<AuthState>): void;
 
-  /** NEW: Bootstrap enterprise session using the ps_auth_token cookie. */
-  bootstrapFromCookie(): Promise<void>;
+  /** NEW: Bootstrap enterprise session using the ps_auth_token cookie. Returns true if successful. */
+  bootstrapFromCookie(): Promise<boolean>;
   /** NEW: Convenience helper to check if the current user is enterprise. */
   isEnterprise(): boolean;
   isAuthenticated(): boolean;
@@ -128,16 +128,17 @@ export const useAuth = create<AuthState>()(
        * Bootstraps an enterprise session from the ps_auth_token cookie.
        * Called once on app load. If the cookie exists, we call /me
        * with it to hydrate the store without showing the login page.
+       * Returns true if bootstrapping succeeded, false otherwise.
        */
-      bootstrapFromCookie: async () => {
+      bootstrapFromCookie: async (): Promise<boolean> => {
         // If we already have a valid Firebase session, skip bootstrap.
         const { accessToken, expiresAt } = get();
         if (accessToken && expiresAt && Date.now() < expiresAt) {
-          return;
+          return true;
         }
 
         const cookieToken = getCookie('ps_auth_token');
-        if (!cookieToken) return;
+        if (!cookieToken) return false;
 
         try {
           // Dynamically import http to avoid circular dependency issues.
@@ -174,10 +175,12 @@ export const useAuth = create<AuthState>()(
               user: userData 
             } 
           });
+          return true;
         } catch (err) {
           console.warn('Enterprise bootstrap failed:', err);
           // If /me fails (expired/revoked cookie), do nothing.
           // The user will be redirected to login if they navigate to a protected route.
+          return false;
         }
       },
 

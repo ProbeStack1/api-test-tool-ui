@@ -253,11 +253,11 @@ const router = createBrowserRouter([
 
 // Enterprise routes
 {
-  path: '/enterprise',
-  element: <Navigate to="/enterprise/bu" replace />,
+  path: '/onboarding',
+  element: <Navigate to="/onboarding/bu" replace />,
 },
 {
-  path: '/enterprise',
+  path: '/onboarding',
   element: <RequireEnterprise><RequireAuth>{r(<AppShell />)}</RequireAuth></RequireEnterprise>,
   children: [
     { path: 'bu', element: r(<BusinessUnitList />) },

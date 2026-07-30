@@ -4,14 +4,14 @@ import { cn } from '@/utils/cn';
 
 export const EnterpriseSidebar = () => {
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
       <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold text-text-primary">Enterprise</h2>
-        <p className="text-[11px] text-text-muted">Navigate</p>
+        <h2 className="text-sm font-semibold text-text-primary">ProbeStack Enterprise</h2>
+        <p className="text-[11px] text-text-muted">Business units, projects & applications</p>
       </div>
       <nav className="flex-1 p-2 space-y-1">
         <NavLink
-          to="/enterprise/bu"
+          to="/onboarding/bu"
           className={({ isActive }) =>
             cn(
               'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
@@ -25,7 +25,7 @@ export const EnterpriseSidebar = () => {
           Business Units
         </NavLink>
         <NavLink
-          to="/enterprise/project"
+          to="/onboarding/project"
           className={({ isActive }) =>
             cn(
               'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
@@ -39,7 +39,7 @@ export const EnterpriseSidebar = () => {
           Projects
         </NavLink>
         <NavLink
-          to="/enterprise/application"
+          to="/onboarding/application"
           className={({ isActive }) =>
             cn(
               'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
@@ -53,9 +53,9 @@ export const EnterpriseSidebar = () => {
           Applications
         </NavLink>
       </nav>
-      <div className="border-t border-border p-3 text-[10px] text-text-muted">
+      {/* <div className="border-t border-border p-3 text-[10px] text-text-muted">
         ProbeStack Enterprise
-      </div>
+      </div> */}
     </aside>
   );
 };

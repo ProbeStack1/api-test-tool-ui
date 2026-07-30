@@ -9,7 +9,7 @@ export const RequireIndividual = ({ children }: { children: React.ReactNode }) =
   }
 
   if (accountType !== 'INDIVIDUAL') {
-    return <Navigate to="/enterprise/bu" replace />;
+    return <Navigate to="/onboarding/bu" replace />;
   }
 
   return children;

@@ -56,7 +56,7 @@ export const AppShell = () => {
   const mode = useLayout((s) => s.sideRailMode);
   const { pathname } = useLocation();
 
-  const isEnterprise = pathname.startsWith('/enterprise');
+  const isEnterprise = pathname.startsWith('/onboarding');
 
   const hideContext =
     HIDE_CONTEXT_SIDEBAR.has(pathname) ||

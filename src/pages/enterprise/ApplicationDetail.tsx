@@ -97,7 +97,7 @@ export const ApplicationDetail = () => {
           className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
         >
           <ExternalLink className="h-4 w-4" />
-          Edit in Probestack
+          Edit
         </a>
       </div>
 

@@ -559,10 +559,10 @@ const RAIL: { key: RightPanelTab; icon: IconName; label: string }[] = [
   { key: 'ai', icon: 'zap', label: 'AI' },
 ];
 
-// ============================================================
-//  UPDATED RightRail — auto‑expands on hover
-// ============================================================
 export const RightRail = () => {
+  const navigate = useNavigate();
+  const { accountType } = useAuth();
+  const isEnterprise = accountType === 'ENTERPRISE';
   const activeTab = useLayout((s) => s.rightPanelTab);
   const setTab = useLayout((s) => s.setRightTab);
   const expanded = useLayout((s) => s.showRightSidebar);
@@ -571,7 +571,6 @@ export const RightRail = () => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<number | null>(null);
 
-  // Hover handlers for each button
   const handleButtonMouseEnter = () => {
     if (hoverTimeoutRef.current) {
       window.clearTimeout(hoverTimeoutRef.current);
@@ -598,11 +597,7 @@ export const RightRail = () => {
   };
 
   return (
-    <aside
-      data-testid="right-rail"
-      // 🔥 Removed onMouseEnter/Leave from here
-      className="relative w-14 shrink-0 flex flex-col py-2 overflow-visible"
-    >
+    <aside className="relative w-14 shrink-0 flex flex-col py-2 overflow-visible">
       <div
         className={cn(
           'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-9',
@@ -610,14 +605,50 @@ export const RightRail = () => {
         )}
         style={{ willChange: 'width' }}
       >
+        {/*  Enterprise Onboarding button (only visible for enterprise) */}
+        {isEnterprise && (
+          <>
+            <button
+              onClick={() => navigate('/onboarding/bu')}
+              onMouseEnter={handleButtonMouseEnter}
+              onMouseLeave={handleButtonMouseLeave}
+              className={cn(
+                'group relative flex mt-2 h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
+                isHovered ? 'w-full' : 'w-9',
+                'text-text-secondary hover:bg-hover hover:text-primary'
+              )}
+            >
+              <AppIcon
+                name="building"
+                animated
+                className={cn(
+                  'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
+                  'text-text-secondary group-hover:text-primary'
+                )}
+              />
+              <span
+                className={cn(
+                  'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
+                  isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
+                  'text-text-secondary group-hover:text-primary'
+                )}
+              >
+                Onboarding
+              </span>
+            </button>
+            {/* <div className="mx-2 border-t border-border" /> */}
+          </>
+        )}
+
+        {/* Regular rail items */}
         {RAIL.map(({ key, icon, label }) => {
           const active = expanded && activeTab === key;
 
           const button = (
             <button
+              key={key}
               data-testid={`right-rail-${key}`}
               onClick={() => onClick(key)}
-              // 🔥 Hover handlers on button
               onMouseEnter={handleButtonMouseEnter}
               onMouseLeave={handleButtonMouseLeave}
               className={cn(
@@ -643,7 +674,7 @@ export const RightRail = () => {
                 className={cn(
                   'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
                   isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
-                  active ? 'text-primary' : 'text-text-secondary',
+                  active ? 'text-primary' : 'text-text-secondary group-hover:text-primary',
                 )}
               >
                 {label}
@@ -667,6 +698,7 @@ export const RightRail = () => {
     </aside>
   );
 };
+
 
 // ============================================================
 // Rest of the file — unchanged
@@ -765,7 +797,7 @@ const ProjectTab = () => {
     {accountType === 'ENTERPRISE' ? (
       <button
         data-testid="project-manage-btn"
-        onClick={() => navigate('/enterprise/bu')}
+        onClick={() => navigate('/onboarding/bu')}
         className="flex h-8 shrink-0 items-center gap-1 rounded-md border border-primary/60 bg-transparent px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary-muted"
       >
         <AppIcon name="settings" animated className="h-3.5 w-3.5" /> Manage
@@ -837,10 +869,10 @@ const ProjectTab = () => {
             if (accountType === 'ENTERPRISE') {
               const appId = selected.settings?.applicationId;
               if (appId) {
-                navigate(`/enterprise/application/${appId}`);
+                navigate(`/onboarding/application/${appId}`);
               } else {
                 // fallback – go to enterprise home
-                navigate('/enterprise/bu');
+                navigate('/onboarding/bu');
               }
             } else {
               navigate('/projects/manage');

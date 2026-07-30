@@ -4,17 +4,25 @@
 import { Providers } from './providers';
 import { AppRouter } from './router';
 import { useEffect } from 'react';
-import { useAuth } from '@/stores/auth.store';
+import { useAuth, getCookie } from '@/stores/auth.store';
 import { useRequests } from '@/stores/requests.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useVariablesUi } from '@/stores/variables-ui.store';
-// import { useRunHistoryStore } from '@/stores/runHistory.store'; 
+import { toast } from 'sonner';
+// import { useRunHistoryStore } from '@/stores/runHistory.store';
 
 export const App = () => {
   // NEW: Bootstrap enterprise session on application mount.
   useEffect(() => {
     const bootstrap = async () => {
-      await useAuth.getState().bootstrapFromCookie();
+      const hasCookie = !!getCookie('ps_auth_token');
+      const success = await useAuth.getState().bootstrapFromCookie();
+      if (!success && hasCookie) {
+        // Only show toast if a cookie existed but bootstrapping failed (expired/invalid token)
+        toast.error('Your session has expired. Please try logging in again.', {
+          duration: 5000,
+        });
+      }
     };
     bootstrap();
   }, []);
@@ -52,13 +60,14 @@ export const App = () => {
     return unsubscribe;
   }, []);
 
+  // Clean up enterprise SSO query parameters from the URL.
   useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.has('authToken') || params.has('userEmail') || params.has('userRole')) {
-    const cleanUrl = window.location.pathname + window.location.hash;
-    window.history.replaceState(null, '', cleanUrl);
-  }
-}, []);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('authToken') || params.has('userEmail') || params.has('userRole')) {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  }, []);
 
   return (
     <Providers>

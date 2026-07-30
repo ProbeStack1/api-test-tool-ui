@@ -33,7 +33,7 @@ import {
   ClipboardList, BookOpen, Compass, LayoutDashboard, LineChart,
   Globe, Link, Code2, Terminal, Zap, AlertTriangle, AlertCircle,
   CheckCircle2, Clock, Star, Tag, History, Variable,
-  TestTube2, Sparkles, Shield, FlaskConical,
+  TestTube2, Sparkles, Shield, FlaskConical,Building2
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -49,6 +49,7 @@ export type IconName =
   | 'audit' | 'trash' | 'apidoc' | 'public-hub' | 'testing' | 'load-test'
   | 'functional-test' | 'spec' | 'mcp' | 'reports' | 'flask'
   | 'history' | 'replay' | 'variables' | 'dashboard'
+  | 'building'
   // Actions
   | 'create' | 'edit' | 'delete' | 'restore' | 'duplicate' | 'refresh'
   | 'send' | 'copy' | 'rotate' | 'pause' | 'play' | 'stop' | 'search'
@@ -147,6 +148,7 @@ const ICON_MAP: Record<IconName, IconEntry> = {
   zap:              { static: Zap,             hover: 'pop' },
   flask:            { static: FlaskConical,    hover: 'pop' },
   message:          { static: MessageSquare,   hover: 'wiggle' },
+   building:         { static: Building2,       hover: 'pop' },
 };
 
 interface AppIconProps {

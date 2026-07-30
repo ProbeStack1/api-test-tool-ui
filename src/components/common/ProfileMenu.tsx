@@ -165,7 +165,7 @@ export const ProfileMenu = () => {
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link
-            to={isEnterprise ? '/enterprise/bu' : '/projects/manage'}
+            to={isEnterprise ? '/onboarding/bu' : '/projects/manage'}
             className={menuItem}
             data-testid="profile-menu-manage"
           >

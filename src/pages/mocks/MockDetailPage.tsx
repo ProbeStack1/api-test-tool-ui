@@ -42,7 +42,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: any }> = [
   { key: 'hits',      label: 'Hits',          icon: History },
   { key: 'settings',  label: 'Settings',      icon: Settings },
   { key: 'sharing',   label: 'Sharing',       icon: Share2 },
-  { key: 'diff',      label: 'Contract Diff', icon: Bug },
+  // { key: 'diff',      label: 'Contract Diff', icon: Bug },
   { key: 'export',    label: 'Export',        icon: Download },
 ];
 

@@ -50,6 +50,9 @@ export interface LayoutState {
 
   isResizing: boolean;
 
+  // 👇 NEW: hover state for right panel (overlay mode)
+  rightPanelHoverOpen: boolean;
+
   setPrimaryTab: (t: PrimaryTab) => void;
   toggleSideRailMode: () => void;
   toggleLeft: () => void;
@@ -67,6 +70,9 @@ export interface LayoutState {
   expandResponse: () => void;
   collapseResponse: () => void;
   setResizing: (r: boolean) => void;
+
+  // 👇 NEW: setter for hover state
+  setRightPanelHoverOpen: (open: boolean) => void;
 }
 
 const DEFAULTS = {
@@ -81,6 +87,8 @@ const DEFAULTS = {
   responseExpanded: false,
   responseHeight: 340,
   isResizing: false,
+  // 👇 NEW default
+  rightPanelHoverOpen: false,
 };
 
 const clamp = (n: number, min: number, max: number) =>
@@ -115,6 +123,9 @@ export const useLayout = create<LayoutState>()(
       expandResponse: () => set({ responseExpanded: true }),
       collapseResponse: () => set({ responseExpanded: false }),
       setResizing: (isResizing) => set({ isResizing }),
+
+      // 👇 NEW method
+      setRightPanelHoverOpen: (open) => set({ rightPanelHoverOpen: open }),
     }),
     {
       name: 'forgeq-layout',

@@ -567,30 +567,65 @@ export const RightRail = () => {
   const setTab = useLayout((s) => s.setRightTab);
   const expanded = useLayout((s) => s.showRightSidebar);
   const toggle = useLayout((s) => s.toggleRight);
+  const setHoverOpen = useLayout((s) => s.setRightPanelHoverOpen);
 
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<number | null>(null);
+  const railTimeoutRef = useRef<number | null>(null);
+
+  // Rail expands ONLY when hovering over a button (icon)
+  const railExpanded = isHovered;
 
   const handleButtonMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
+    if (railTimeoutRef.current) {
+      window.clearTimeout(railTimeoutRef.current);
+      railTimeoutRef.current = null;
     }
     setIsHovered(true);
   };
 
   const handleButtonMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
+    if (railTimeoutRef.current) {
+      window.clearTimeout(railTimeoutRef.current);
     }
-    hoverTimeoutRef.current = window.setTimeout(() => {
+    railTimeoutRef.current = window.setTimeout(() => {
       setIsHovered(false);
     }, 150);
   };
 
-  const onClick = (key: RightPanelTab) => {
-    if (expanded && activeTab === key) toggle();
-    else {
+  const handleIconMouseEnter = (key: RightPanelTab) => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setHoverOpen(true);
+    if (!expanded) {
+      setTab(key);
+    }
+  };
+
+  const handleIconMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      if (!expanded) {
+        setHoverOpen(false);
+      }
+    }, 150);
+  };
+
+  const handleIconClick = (key: RightPanelTab) => {
+    if (hoverTimeoutRef.current) {
+      window.clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setHoverOpen(false);
+    if (expanded && activeTab === key) {
+      // Close panel if clicking the same active tab
+      toggle();
+    } else {
+      // Open panel and switch tab – no flicker because we keep panel open
       if (!expanded) toggle();
       setTab(key);
     }
@@ -601,62 +636,70 @@ export const RightRail = () => {
       <div
         className={cn(
           'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-9',
-          isHovered ? 'w-48' : 'w-14'
+          railExpanded ? 'w-48' : 'w-14'
         )}
         style={{ willChange: 'width' }}
       >
-        {/*  Enterprise Onboarding button (only visible for enterprise) */}
+        {/* Onboarding button (enterprise only) */}
         {isEnterprise && (
-          <>
-            <button
-              onClick={() => navigate('/onboarding/bu')}
-              onMouseEnter={handleButtonMouseEnter}
-              onMouseLeave={handleButtonMouseLeave}
+          <button
+            onClick={() => navigate('/onboarding/bu')}
+            onMouseEnter={() => {
+              handleButtonMouseEnter();
+              handleIconMouseEnter('project');
+            }}
+            onMouseLeave={() => {
+              handleButtonMouseLeave();
+              handleIconMouseLeave();
+            }}
+            className={cn(
+              'group relative flex mt-2 h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
+              railExpanded ? 'w-full' : 'w-9',
+              'text-text-secondary hover:bg-hover hover:text-primary'
+            )}
+          >
+            <AppIcon
+              name="building"
+              animated
               className={cn(
-                'group relative flex mt-2 h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
-                isHovered ? 'w-full' : 'w-9',
-                'text-text-secondary hover:bg-hover hover:text-primary'
+                'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
+                'text-text-secondary group-hover:text-primary'
+              )}
+            />
+            <span
+              className={cn(
+                'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
+                railExpanded ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
+                'text-text-secondary group-hover:text-primary'
               )}
             >
-              <AppIcon
-                name="building"
-                animated
-                className={cn(
-                  'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
-                  'text-text-secondary group-hover:text-primary'
-                )}
-              />
-              <span
-                className={cn(
-                  'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
-                  isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
-                  'text-text-secondary group-hover:text-primary'
-                )}
-              >
-                Onboarding
-              </span>
-            </button>
-            {/* <div className="mx-2 border-t border-border" /> */}
-          </>
+              Onboarding
+            </span>
+          </button>
         )}
 
         {/* Regular rail items */}
         {RAIL.map(({ key, icon, label }) => {
           const active = expanded && activeTab === key;
-
-          const button = (
+          return (
             <button
               key={key}
               data-testid={`right-rail-${key}`}
-              onClick={() => onClick(key)}
-              onMouseEnter={handleButtonMouseEnter}
-              onMouseLeave={handleButtonMouseLeave}
+              onClick={() => handleIconClick(key)}
+              onMouseEnter={() => {
+                handleButtonMouseEnter();
+                handleIconMouseEnter(key);
+              }}
+              onMouseLeave={() => {
+                handleButtonMouseLeave();
+                handleIconMouseLeave();
+              }}
               className={cn(
                 'group relative flex h-9 items-center justify-start rounded-md px-3 transition-all duration-300 ease-in-out',
-                isHovered ? 'w-full' : 'w-9',
+                railExpanded ? 'w-full' : 'w-9',
                 active
                   ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 to-transparent text-primary'
-                  : 'text-text-secondary hover:bg-hover hover:text-text-primary',
+                  : 'text-text-secondary hover:bg-hover hover:text-primary',
               )}
             >
               <AppIcon
@@ -673,7 +716,7 @@ export const RightRail = () => {
               <span
                 className={cn(
                   'ml-2 text-sm font-medium transition-all duration-500 ease-in-out overflow-hidden whitespace-nowrap',
-                  isHovered ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
+                  railExpanded ? 'max-w-48 opacity-100' : 'max-w-0 opacity-0',
                   active ? 'text-primary' : 'text-text-secondary group-hover:text-primary',
                 )}
               >
@@ -681,29 +724,15 @@ export const RightRail = () => {
               </span>
             </button>
           );
-
-          return (
-            <div key={key} className="flex w-full items-center justify-start">
-              {isHovered ? (
-                button
-              ) : (
-                <Tooltip content={label} side="left">
-                  {button}
-                </Tooltip>
-              )}
-            </div>
-          );
         })}
       </div>
     </aside>
   );
 };
 
-
 // ============================================================
-// Rest of the file — unchanged
+// UPDATED RightPanel — reads hover state, adds outside-click close
 // ============================================================
-
 export const RightPanel = () => {
   const tab = useLayout((s) => s.rightPanelTab);
   const width = useLayout((s) => s.rightPanelWidth);
@@ -711,6 +740,31 @@ export const RightPanel = () => {
   const isResizing = useLayout((s) => s.isResizing);
   const expanded = useLayout((s) => s.showRightSidebar);
   const toggle = useLayout((s) => s.toggleRight);
+  const hoverOpen = useLayout((s) => s.rightPanelHoverOpen);
+
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close panel on outside click when expanded (persistent)
+  useEffect(() => {
+    if (!expanded) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      // Close if click is outside the panel AND outside the rail (to avoid closing when clicking rail icons)
+      const target = event.target as Node;
+      if (panelRef.current && !panelRef.current.contains(target)) {
+        // Check if click is inside the rail element (sibling)
+        const rail = document.querySelector('[data-testid="right-rail"]'); // or use a class
+        if (rail && rail.contains(target)) {
+          return; // don't close if clicking the rail
+        }
+        toggle();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [expanded, toggle]);
+
+  const isVisible = expanded || hoverOpen;
+  const panelWidth = expanded ? width : hoverOpen ? width : 0;
 
   return (
     <>
@@ -721,13 +775,17 @@ export const RightPanel = () => {
         testId="right-panel-resize"
       />
       <aside
+        ref={panelRef}
         data-testid="right-panel"
-        style={{ width }}
+        style={{ width: panelWidth }}
         className={cn(
-          'flex shrink-0 flex-col overflow-hidden border-l border-border bg-surface',
-          !isResizing && 'transition-[width] duration-200 ease-out',
+          'flex shrink-0 flex-col overflow-hidden border-l border-border bg-surface transition-[width] duration-200 ease-out',
+          hoverOpen && !expanded ? 'absolute right-0 top-0 bottom-0 z-10 shadow-2xl' : '',
+          !isVisible && 'w-0',
+          isResizing && 'transition-none',
         )}
       >
+        {/* Panel content unchanged */}
         <header className="flex h-10 items-center border-b border-border px-3">
           {expanded && (
             <Tooltip content="Collapse panel" side="bottom">

@@ -339,7 +339,7 @@ export const TerminalPane = () => {
       className="flex h-full flex-col bg-surface"
       data-testid="terminal-pane"
     >
-      <header className="flex h-8 shrink-0 items-center justify-between border-b border-border bg-elevated px-3 text-[11px] text-text-secondary">
+      <header className="flex h-8 shrink-0 z-9 items-center justify-between border-b border-border bg-elevated px-3 text-[11px] text-text-secondary">
         <div className="flex items-center gap-2">
           <Terminal className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-text-primary">Terminal</span>

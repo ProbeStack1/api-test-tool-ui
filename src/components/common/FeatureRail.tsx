@@ -217,18 +217,7 @@
 
 
 
-/**
- * FeatureRail — narrow left icon column (primary tab selector).
- *
- * Theme-friendly: every icon uses {@link AppIcon} (Lordicon) which adapts
- * its accent colour from the live CSS theme variable. The selected state
- * highlights the rail with a primary-muted background + a left accent
- * stripe — same look in light and dark themes.
- *
- * Hover behavior: rail expands/collapses smoothly with duration-500.
- * API Hub shows right flyout when collapsed, inline sub-items when expanded
- * with staggered slide-in animation. On hover, only icon turns primary.
- */
+
 /**
  * FeatureRail — narrow left icon column (primary tab selector).
  *
@@ -257,7 +246,7 @@ const ITEMS: { key: PrimaryTab; icon: IconName; label: string; route: string }[]
   { key: 'mcp',          icon: 'mcp',         label: 'MCP',          route: '/projects/mcp' },
   { key: 'mock',         icon: 'mock',        label: 'Mock',         route: '/projects/mocks' },
   { key: 'testing',      icon: 'testing',     label: 'Testing',      route: '/projects/testing' },
-  { key: 'aiAssisted',   icon: 'zap',         label: 'AI Assisted',  route: '/projects/ai-assisted' },
+  { key: 'aiAssisted',   icon: 'zap',         label: 'AI Assistant',  route: '/projects/ai-assistant' },
   { key: 'aiTesting',    icon: 'flask',       label: 'AI Testing',   route: '/projects/ai-testing' },
   { key: 'dashboard',    icon: 'dashboard',   label: 'Dashboard',    route: '/projects/dashboard' },
 ];
@@ -268,7 +257,7 @@ const ROUTE_TAB: Array<[RegExp, PrimaryTab]> = [
   [/^\/projects\/mocks/,        'mock'],
   [/^\/projects\/testing/,      'testing'],
   [/^\/projects\/dashboard/,    'dashboard'],
-  [/^\/projects\/ai-assisted/,  'aiAssisted'],
+  [/^\/projects\/ai-assistant/,  'aiAssisted'],
   [/^\/projects\/ai-testing/,   'aiTesting'],
   [/^\/projects\/history/,      'history'],
   [/^\/projects\/collections/,  'collection'],
@@ -284,7 +273,7 @@ export const FeatureRail = () => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<number | null>(null);
 
-  // 🔥 Hover handlers for each button
+  // Hover handlers for each button
   const handleButtonMouseEnter = () => {
     if (hoverTimeoutRef.current) {
       window.clearTimeout(hoverTimeoutRef.current);
@@ -327,7 +316,7 @@ export const FeatureRail = () => {
       {/* Inner container that visually expands on hover */}
       <div
         className={cn(
-          'absolute left-0 top-0 h-full flex flex-col gap-1 border-r border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-50',
+          'absolute left-0 top-0 h-full flex flex-col gap-1 border-r border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-10',
           isHovered ? 'w-48' : 'w-12'
         )}
         style={{ willChange: 'width' }}

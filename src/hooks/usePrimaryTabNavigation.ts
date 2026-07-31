@@ -18,8 +18,8 @@ export const PRIMARY_ROUTE: Record<PrimaryTab, string> = {
   mcp: '/projects/mcp',
   mock: '/projects/mocks',
   testing: '/projects/testing',
-  aiAssisted: '/projects/ai-assisted',
-  ai: '/projects/ai-assisted',
+  aiAssisted: '/projects/ai-assistant',
+  ai: '/projects/ai-assistant',
   aiTesting: '/projects/ai-testing',
   dashboard: '/projects/dashboard',
 };

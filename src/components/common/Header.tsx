@@ -56,7 +56,7 @@ export const Header = () => {
       data-testid="app-header"
       className="grid h-17 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
     >
-      <Link to="/" data-testid="app-header-logo" className="flex items-center gap-1">
+      <Link to="/" data-testid="app-header-logo" className="flex items-center w-40 gap-1">
         <Logo variant="mark" className="h-12 w-10" />
         <div className="text-left">
           <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">

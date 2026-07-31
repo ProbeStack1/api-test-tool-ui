@@ -35,7 +35,7 @@ const TABS: { key: PrimaryTab; label: string; icon: LucideIcon; route: string }[
   { key: 'mcp', label: 'MCP', icon: Boxes, route: '/projects/mcp' },
   { key: 'mock', label: 'Mock', icon: Server, route: '/projects/mocks' },
   { key: 'testing', label: 'Testing', icon: TestTube2, route: '/projects/testing' },
-  { key: 'aiAssisted' as PrimaryTab, label: 'AI Assistant', icon: Sparkles, route: '/projects/ai-assisted' },
+  { key: 'aiAssistant' as PrimaryTab, label: 'AI Assistant', icon: Sparkles, route: '/projects/ai-assistant' },
   { key: 'aiTesting' as PrimaryTab,  label: 'AI Testing',   icon: FlaskConical, route: '/projects/ai-testing' },
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, route: '/projects/dashboard' },
 ];

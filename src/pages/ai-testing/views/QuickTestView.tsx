@@ -79,7 +79,7 @@ export const QuickTestView = ({ workspaceId }: { workspaceId: string }) => {
     <div className="p-6" data-testid="ai-testing-quick-view">
       <div className="flex items-center gap-2">
         <Zap className="h-4 w-4 text-primary" />
-        <h2 className="text-lg font-semibold">Quick test</h2>
+        <h2 className="text-lg font-semibold">LLM test</h2>
       </div>
       <p className="mb-5 text-[11px] text-text-muted">
         One-shot LLM call — useful to validate a prompt before turning it into a suite.

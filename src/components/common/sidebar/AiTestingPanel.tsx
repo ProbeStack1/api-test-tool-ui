@@ -26,7 +26,7 @@ import { SidebarShell } from './SidebarShell';
 import { cn } from '@/utils/cn';
 
 type View =
-  | 'overview' | 'quick' | 'suites' | 'runs'
+  | 'overview' | 'LLM' | 'suites' | 'runs'
   | 'agents'   | 'agent-testing' | 'marketplace'
   | 'mcp'   | 'webhooks' | 'analytics' | 'keys' | 'docs';
 
@@ -83,7 +83,7 @@ export const AiTestingPanel = () => {
     // { key: 'overview',      icon: Sparkles,     label: 'Overview',       sub: 'Live metrics · trends' },
     { key: 'analytics',     icon: BarChart3,    label: 'Analytics',      sub: 'Model · cost · latency' },
     { key: 'marketplace',   icon: Store,        label: 'Marketplace',    sub: 'Discover · try agents' },
-    { key: 'quick',         icon: Zap,          label: 'Quick test',     sub: 'One-shot probe · no save' },
+    { key: 'LLM',           icon: Zap,          label: 'LLM test',       sub: 'One-shot probe · no save' },
     { key: 'suites',        icon: FlaskConical, label: 'Test Suites',    sub: 'Author cases · run them',
       badge: suites.length > 0 ? String(suites.length) : null },
       { key: 'agent-testing', icon: Cpu,          label: 'Agent Testing',  sub: 'Direct · A2A · ACP · MCP' },

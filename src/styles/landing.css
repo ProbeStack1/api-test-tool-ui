@@ -429,3 +429,19 @@ header.fixed nav a:not(.text-primary):hover {
 footer a:not(.text-primary):hover {
   color: var(--color-primary) !important;
 }
+
+/* Sign-in link visibility (LandingNavbar), scoped custom class instead of
+ * Tailwind's `hidden`/`sm:*`. That pair works fine on its own, but the
+ * ProbeStack UI library ALSO ships its own `.hidden{display:none}` (it
+ * uses that class internally too), and whichever of the two same-named
+ * rules loads later in the page wins the responsive override — order
+ * depends on Vite's module graph, not on which app "owns" the class. A
+ * name nothing else defines sidesteps that entirely. */
+.landing-signin-link {
+  display: none;
+}
+@media (min-width: 640px) {
+  .landing-signin-link {
+    display: inline-flex;
+  }
+}

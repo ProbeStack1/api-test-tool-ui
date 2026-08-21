@@ -845,6 +845,37 @@ const SingletonScope = ({
   }, [existing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!existing) {
+    // Previously this fell straight through to the skeleton with no error
+    // path at all — if initMut failed (or the env genuinely existed server-
+    // side but this query's cache hadn't caught up), the user was stuck on
+    // a permanent loading skeleton with zero feedback and no way to retry.
+    if (initMut.isError) {
+      return (
+        <div className="flex h-full items-center justify-center p-10"
+             data-testid={`vars-init-${kind.toLowerCase()}-error`}>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+            <div className="text-xs text-red-500">
+              Could not load or create "{expectedName}".
+            </div>
+            <div className="text-[11px] text-text-muted">
+              {(initMut.error as any)?.message ?? "Unknown error from environment service."}
+            </div>
+            <Button
+              variant="outline"
+              data-testid={`vars-init-${kind.toLowerCase()}-retry`}
+              onClick={() => {
+                triedRef.current = false;
+                initMut.reset();
+                qc.invalidateQueries({ queryKey: ["environments"] });
+              }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Retry
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className=" p-6" data-testid={`vars-init-${kind.toLowerCase()}`}>
         <header className="mb-4 flex items-center gap-2">

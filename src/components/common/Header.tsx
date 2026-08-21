@@ -1,14 +1,16 @@
 /**
- * Header — brand + adaptive center (search in 'left' mode, tabs in 'top' mode).
- * Search button + Cmd/Ctrl+K shortcut open the CommandPalette (jump-to nav).
- * Cmd/Ctrl+Shift+L toggles theme (no browser conflict).
+ * Header — uses library's generic Header component with custom slots.
+ * 
+ * - Left slot: Logo (with ProbeStack/ForgeFuzz branding)
+ * - Center slot: HeaderTabs (when mode === 'top') or Search button (when mode === 'left')
+ * - Right slot: Theme toggle, Settings, Notification bell, ProfileMenu
+ * 
+ * Command palette (⌘K) and theme toggle (⌘⇧L) shortcuts work globally.
  */
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Settings } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Logo } from './Logo';
 import { ProfileMenu } from './ProfileMenu';
 import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
@@ -16,6 +18,10 @@ import { HeaderTabs } from './HeaderTabs';
 import { CommandPalette } from './CommandPalette';
 import { useLayout } from '@/stores/layout.store';
 import { useSettings } from '@/stores/settings.store';
+import '@probestack/probestack-ui-library/style.css'; 
+
+// ✅ Import library Header
+import { Header as LibraryHeader } from '@probestack/probestack-ui-library';
 
 export const Header = () => {
   const mode = useLayout((s) => s.sideRailMode);
@@ -23,19 +29,18 @@ export const Header = () => {
   const theme = useSettings((s) => s.theme);
   const setTheme = useSettings((s) => s.setTheme);
 
+  // ─── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
 
-      // Cmd/Ctrl+K -> command palette
       if (isCmdOrCtrl && key === 'k') {
         e.preventDefault();
         setPaletteOpen(true);
         return;
       }
 
-      // Cmd/Ctrl+Shift+L -> toggle theme (conflict-free)
       if (isCmdOrCtrl && e.shiftKey && key === 'l') {
         e.preventDefault();
         setTheme(theme === 'dark' ? 'light' : 'dark');
@@ -51,63 +56,77 @@ export const Header = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [paletteOpen, theme, setTheme]);
 
-  return (
-    <header
-      data-testid="app-header"
-      className="grid h-17 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3"
-    >
-      <Link to="/" data-testid="app-header-logo" className="flex items-center w-40 gap-1">
-        <Logo variant="mark" className="h-12 w-10" />
-        <div className="text-left">
-          <div className="text-[0.8rem] text-text-secondary tracking-normal leading-tight mb-[-2px]">
-            ProbeStack
-          </div>
-          <div className="font-bold text-2xl tracking-normal leading-tight gradient-text">
-            ForgeFuzz
-          </div>
-        </div>
-      </Link>
+  // ─── Slots ────────────────────────────────────────────────────────
 
-      {mode === 'top' ? <HeaderTabs /> : <SearchButton onOpen={() => setPaletteOpen(true)} />}
+  // 1️⃣ Left slot – Logo is now data-driven (logoImageSrc/productName/
+  // logoHref passed directly on <LibraryHeader> below). `Logo` (mark
+  // variant) turned out to just be `<img src="/justlogo.png">` under a
+  // wrapper, so the simple prop path fits — same pattern used in
+  // probestack-forgegateway and forgesphere-api-lifecycle.
 
-      <div className="flex items-center justify-end gap-1">
-        {mode === 'top' && (
-          <Tooltip content="Search" shortcut="⌘K">
-            <Button
-              variant="ghost"
-              size="icon"
-              data-testid="header-search-icon"
-              onClick={() => setPaletteOpen(true)}
-              aria-label="Search"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-        )}
+  // 2️⃣ Center slot – Search or HeaderTabs
+  const centerSlot =
+    mode === 'top' ? (
+      <HeaderTabs />
+    ) : (
+      <SearchButton onOpen={() => setPaletteOpen(true)} />
+    );
 
-        <Tooltip content="Toggle theme" shortcut="⌘⇧L">
-          <span className="inline-flex">
-            <ThemeToggle />
-          </span>
-        </Tooltip>
-
-        <Tooltip content="Settings" shortcut="⌘,">
-          <Button asChild variant="ghost" size="icon" data-testid="header-settings-btn">
-            <Link to="/projects/settings" aria-label="Settings">
-              <Settings className="h-4 w-4" />
-            </Link>
+  // 3️⃣ Right slot – Actions
+  const rightSlot = (
+    <>
+      {mode === 'top' && (
+        <Tooltip content="Search" shortcut="⌘K">
+          <Button
+            variant="ghost"
+            size="icon"
+            data-testid="header-search-icon"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search"
+          >
+            <Search className="h-4 w-4" />
           </Button>
         </Tooltip>
-        <div className="mx-1 h-6 w-px bg-border" />
-        <NotificationBell />
-        <ProfileMenu />
-      </div>
+      )}
 
+      {/* <Tooltip content="Toggle theme" shortcut="⌘⇧L">
+        <span className="inline-flex">
+          <ThemeToggle />
+        </span>
+      </Tooltip> */}
+
+      {/* Settings moved into the ProfileMenu dropdown as a list item —
+          right slot only carries the bell and the profile dropdown now. */}
+      <NotificationBell />
+      <ProfileMenu />
+    </>
+  );
+
+  // ─── Render ────────────────────────────────────────────────────────
+  return (
+    <>
+    {/* `data-theme` must be applied here explicitly — the library's dark
+        palette is declared directly on `.probestack-ui-library` (not just
+        `[data-theme="dark"]`), so without this the header always renders
+        dark regardless of the app's actual theme. Same pattern already
+        used correctly in LandingNavbar.tsx. */}
+    <div data-theme={theme}>
+      <LibraryHeader
+        logoImageSrc="/justlogo.png"
+        productName="ForgeFuzz"
+        logoHref="/"
+        centerSlot={centerSlot}
+        rightSlot={rightSlot}
+        className="border-b border-border h-17"
+        theme={theme}
+      />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-    </header>
+    </div>
+    </>
   );
 };
 
+// ─── SearchButton ──────────────────────────────────────────────────
 const SearchButton = ({ onOpen }: { onOpen: () => void }) => (
   <button
     data-testid="header-search"

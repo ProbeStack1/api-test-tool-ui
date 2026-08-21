@@ -211,7 +211,7 @@ export default function ParticleBackground() {
       <style>{styleContent}</style>
       <div className="absolute inset-0 overflow-hidden">
         <CanvasParticles />
-        <CSSParticles />
+        {/* <CSSParticles /> */}
         <GridLines />   
       </div>
     </>

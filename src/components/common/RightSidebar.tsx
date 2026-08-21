@@ -635,7 +635,7 @@ export const RightRail = () => {
     <aside className="relative w-14 shrink-0 flex flex-col py-2 overflow-visible">
       <div
         className={cn(
-          'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-9',
+          'absolute right-0 top-0 h-full flex flex-col items-stretch border-l border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-1',
           railExpanded ? 'w-48' : 'w-14'
         )}
         style={{ willChange: 'width' }}

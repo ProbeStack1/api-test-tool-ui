@@ -1,27 +1,29 @@
 /**
- * Profile page — premium presentation backed by the live auth session.
- *
- * Hydrates the form from `useAuth.user` (the `UserView` returned by
- * `forgeq-test-user-mgmt-svc` after login). Email is treated as the
- * source-of-truth identifier and is rendered read-only — a future
- * "change email" flow will need a verification round-trip, so we don't
- * pretend the inline input can save it. Optional profile-only fields
- * (title, company, location, timezone, bio) live in localStorage until
- * the user-mgmt service exposes a real PATCH /me endpoint.
- *
- * Password change IS wired to `userMgmtService.changePassword` so the
- * security tab works end-to-end against the deployed service.
+ * Profile page — uses the generic `ProfilePage` from the UI library.
+ * 
+ * Verified badge is automatically injected by the library in the
+ * "Personal information" section title based on user.emailVerified.
+ * Security tab shows sign-in methods, API token, and active sessions
+ * with real device info + green status indicator on the right.
  */
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Bell, Camera, CircleUser, Globe, KeyRound, Mail, MapPin, Save,
-  ShieldCheck, User as UserIcon,
-} from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { CircleUser, Lock, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/utils/cn';
 import { useAuth } from '@/stores/auth.store';
+import { useNavigate } from 'react-router-dom';
 import { userMgmtService } from '@/services/userMgmt.service';
-import { notificationsApi, type NotificationPreferences } from '@/services/notifications.service';
+import { useSettings } from '@/stores/settings.store';
+import {
+  auth,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+} from '@/lib/firebase';
+
+import { ProfilePage as LibraryProfilePage } from '@probestack/probestack-ui-library';
+import type { ProfilePageConfig } from '@probestack/probestack-ui-library';
+import '@probestack/probestack-ui-library/style.css';
+
+// ─── Types & helpers ──────────────────────────────────────────────
 
 interface ProfileExtras {
   title: string;
@@ -46,36 +48,164 @@ const loadExtras = (userId: string): ProfileExtras => {
     const raw = localStorage.getItem(EXTRAS_KEY(userId));
     if (!raw) return DEFAULT_EXTRAS;
     return { ...DEFAULT_EXTRAS, ...(JSON.parse(raw) as Partial<ProfileExtras>) };
-  } catch { return DEFAULT_EXTRAS; }
+  } catch {
+    return DEFAULT_EXTRAS;
+  }
 };
 
-const fullNameOf = (u: { firstName?: string; lastName?: string; username: string; email: string } | null): string => {
-  if (!u) return '';
-  const fn = (u.firstName ?? '').trim();
-  const ln = (u.lastName ?? '').trim();
-  if (fn || ln) return `${fn} ${ln}`.trim();
-  if (u.username) return u.username;
-  return u.email.split('@')[0] ?? '';
+// ─── Change password / change email ────────────────────────────
+//
+// Both endpoints accept `currentPassword` but the backend (Firebase Admin
+// SDK) can't actually verify it server-side — the comment in
+// AuthService.changePassword/requestEmailChange says so explicitly: "the
+// client must re-authenticate before calling this endpoint." Without that
+// re-auth step, `currentPassword` would be pure decoration — anyone with a
+// valid session token could change the password/email without knowing the
+// current one. So both cards call Firebase's reauthenticateWithCredential
+// FIRST (throws on a wrong password) and only call our backend on success.
+
+const inputCls =
+  'h-9 w-full rounded-md border border-border bg-probestack-bg px-2 text-xs outline-none focus:border-primary';
+
+const ChangePasswordCard = ({ email }: { email: string }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const accessToken = useAuth((s) => s.accessToken);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (!accessToken || !auth.currentUser) {
+      toast.error('You must be signed in.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await reauthenticateWithCredential(
+        auth.currentUser,
+        EmailAuthProvider.credential(email, currentPassword),
+      );
+      await userMgmtService.changePassword(currentPassword, newPassword, accessToken);
+      toast.success('Password changed');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (e: any) {
+      const msg = e?.code === 'auth/wrong-password' || e?.code === 'auth/invalid-credential'
+        ? 'Current password is incorrect'
+        : e?.message ?? 'Could not change password';
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="flex w-full flex-col gap-2" data-testid="profile-change-password-form">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <Lock className="h-3.5 w-3.5" /> Change password
+      </span>
+      <input type="password" placeholder="Current password" value={currentPassword}
+             onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password"
+             maxLength={128} data-testid="profile-current-password" className={inputCls} />
+      <input type="password" placeholder="New password" value={newPassword}
+             onChange={(e) => setNewPassword(e.target.value)} required autoComplete="new-password"
+             maxLength={128} data-testid="profile-new-password" className={inputCls} />
+      <input type="password" placeholder="Confirm new password" value={confirmPassword}
+             onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password"
+             maxLength={128} data-testid="profile-confirm-password" className={inputCls} />
+      <button type="submit" disabled={busy} data-testid="profile-change-password-submit"
+              className="inline-flex w-fit items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-50">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+        Update password
+      </button>
+    </form>
+  );
 };
+
+const ChangeEmailCard = ({ email }: { email: string }) => {
+  const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const accessToken = useAuth((s) => s.accessToken);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newEmail.trim() || newEmail.trim().toLowerCase() === email.toLowerCase()) {
+      toast.error('Enter a different email address');
+      return;
+    }
+    if (!accessToken || !auth.currentUser) {
+      toast.error('You must be signed in.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await reauthenticateWithCredential(
+        auth.currentUser,
+        EmailAuthProvider.credential(email, currentPassword),
+      );
+      await userMgmtService.changeEmail(newEmail.trim(), currentPassword, accessToken);
+      toast.success('Check your new email to confirm the change');
+      setNewEmail('');
+      setCurrentPassword('');
+    } catch (e: any) {
+      const msg = e?.code === 'auth/wrong-password' || e?.code === 'auth/invalid-credential'
+        ? 'Current password is incorrect'
+        : e?.message ?? 'Could not start email change';
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="flex w-full flex-col gap-2" data-testid="profile-change-email-form">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <Mail className="h-3.5 w-3.5" /> Change email
+      </span>
+      <input type="email" placeholder="New email address" value={newEmail}
+             onChange={(e) => setNewEmail(e.target.value)} required autoComplete="email"
+             maxLength={254} data-testid="profile-new-email" className={inputCls} />
+      <input type="password" placeholder="Current password" value={currentPassword}
+             onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password"
+             maxLength={128} data-testid="profile-email-current-password" className={inputCls} />
+      <button type="submit" disabled={busy} data-testid="profile-change-email-submit"
+              className="inline-flex w-fit items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-50">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+        Send confirmation
+      </button>
+    </form>
+  );
+};
+
+// ─── Main Component ──────────────────────────────────────────────
 
 export const ProfilePage = () => {
   const user = useAuth((s) => s.user);
-  const [tab, setTab] = useState<'profile' | 'security' | 'notifications'>('profile');
-
-  const fullName = useMemo(() => fullNameOf(user), [user]);
+  const navigate = useNavigate();
+  const theme = useSettings((s) => s.theme);
 
   const [extras, setExtras] = useState<ProfileExtras>(() =>
-    user?.userId ? loadExtras(user.userId) : DEFAULT_EXTRAS,
+    user?.userId ? loadExtras(user.userId) : DEFAULT_EXTRAS
   );
 
-  // Re-hydrate extras whenever the logged-in user changes (login / switch account).
   useEffect(() => {
     if (user?.userId) setExtras(loadExtras(user.userId));
   }, [user?.userId]);
 
   if (!user) {
     return (
-      <div className="grid h-full place-items-center bg-probestack-bg p-10" data-testid="profile-page-unauth">
+      <div className="grid h-full place-items-center bg-probestack-bg p-10">
         <div className="text-center">
           <CircleUser className="mx-auto mb-3 h-10 w-10 text-text-muted" />
           <h2 className="text-base font-semibold">You're signed out</h2>
@@ -85,396 +215,198 @@ export const ProfilePage = () => {
     );
   }
 
-  const profile = {
-    fullName,
-    email: user.email,
-    ...extras,
-  };
+  // ─── Handle profile save ───────────────────────────────────────
 
-  const onSave = () => {
+  const handleProfileChange = (updatedUser: any) => {
+    if (!user?.userId) return;
+    const newExtras: ProfileExtras = {
+      title: updatedUser.jobTitle || '',
+      company: updatedUser.company || '',
+      location: updatedUser.location || '',
+      timezone: updatedUser.timezone || 'Asia/Kolkata',
+      bio: updatedUser.bio || '',
+    };
     try {
-      localStorage.setItem(EXTRAS_KEY(user.userId), JSON.stringify(extras));
-      toast.success('Profile updated', { description: 'Your changes have been saved.' });
+      localStorage.setItem(EXTRAS_KEY(user.userId), JSON.stringify(newExtras));
+      setExtras(newExtras);
+      toast.success('Profile updated');
     } catch {
-      toast.error('Could not save profile', { description: 'Local storage is unavailable.' });
+      toast.error('Could not save profile');
     }
   };
 
+  // ─── Get current device info for security session ─────────────
+
+  const getCurrentDevice = () => {
+    const ua = navigator.userAgent;
+    let device = 'Unknown Device';
+    let browser = 'Unknown Browser';
+
+    // Device detection
+    if (/iPhone|iPad|iPod/.test(ua)) device = 'iPhone';
+    else if (/Macintosh|Mac OS X/.test(ua)) device = 'Mac';
+    else if (/Windows NT/.test(ua)) device = 'Windows PC';
+    else if (/Android/.test(ua)) device = 'Android';
+    else if (/Linux/.test(ua) && !/Android/.test(ua)) device = 'Linux';
+
+    // Browser detection (Edge first)
+    if (/Edg/.test(ua)) browser = 'Edge';
+    else if (/OPR|Opera/.test(ua)) browser = 'Opera';
+    else if (/Chrome/.test(ua) && !/Edg/.test(ua)) browser = 'Chrome';
+    else if (/Firefox/.test(ua)) browser = 'Firefox';
+    else if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+
+    return `${device} — ${browser}`;
+  };
+
+  // ─── Send verification email ───────────────────────────────────
+
+  const handleSendVerification = async () => {
+    // BUG FIX: this was passing the JWT access token as the `email` field
+    // (resendVerification expects an email address) — the request would
+    // fail @Email validation server-side, so "Resend verification" from
+    // this page silently never worked.
+    if (!user?.email) {
+      toast.error('You must be signed in.');
+      return;
+    }
+    try {
+      await userMgmtService.resendVerification(user.email);
+      toast.success('Verification email sent! Check your inbox.');
+    } catch (e: any) {
+      toast.error('Failed to send verification email', {
+        description: e?.message || 'Please try again later.',
+      });
+    }
+  };
+
+  // ─── Build config ──────────────────────────────────────────────
+
+  const config: ProfilePageConfig = {
+    tabs: {
+      profile: {
+        sections: {
+          personal: {
+            description: 'Synced from your account. Email and username are read-only.',
+            fields: {
+              firstName: { label: 'First name', value: user.firstName || '', editable: true },
+              lastName: { label: 'Last name', value: user.lastName || '', editable: true },
+              email: { label: 'Email', value: user.email || '', editable: false, helper: 'Managed by your identity provider' },
+              username: { label: 'Username', value: user.username || '', editable: false, helper: 'Used for API and CLI authentication' },
+              jobTitle: { label: 'Job title', value: extras.title || '', editable: true },
+              role: { label: 'Role', value: user.roles?.[0] || 'Member', editable: false },
+              company: { label: 'Company', value: extras.company || '', editable: true },
+              location: { label: 'Location', value: extras.location || '', editable: true },
+              timezone: { label: 'Timezone', value: extras.timezone || 'Asia/Kolkata', editable: true },
+              bio: { label: 'Bio', value: extras.bio || '', editable: true, type: 'textarea' },
+              department: { label: 'Department', value: (user as any)?.department || '', editable: true, enabled: false },
+              phone: { label: 'Phone', value: (user as any)?.phone || '', editable: true, enabled: false },
+            },
+          },
+        },
+      },
+      // ── Security: custom render for session  ──
+      security: {
+        sections: {
+          sessions: {
+            fields: {
+              session: {
+                // No label needed – render handles everything
+                render: () => {
+                  const sessionInfo = getCurrentDevice();
+                  return (
+                    <div className="flex flex-col w-full gap-1">
+                      <span className="text-xs font-medium text-text-muted">Current session</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-text-primary">{sessionInfo}</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs text-success">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+                          </span>
+                          Active now
+                        </span>
+                      </div>
+                    </div>
+                  );
+                },
+              },
+            },
+          },
+          // Previously there was no way to change your password or email
+          // from anywhere in the app — the backend endpoints existed
+          // (change-password / change-email + confirm-email-change) but
+          // nothing in the UI called them.
+          credentials: {
+            fields: {
+              changePassword: {
+                render: () => <ChangePasswordCard email={user.email || ''} />,
+              },
+              changeEmail: {
+                render: () => <ChangeEmailCard email={user.email || ''} />,
+              },
+            },
+          },
+        },
+      },
+      // ── Notifications ──
+      notifications: {
+        sections: {
+          groups: {
+            fields: {
+              notifications: {
+                label: 'Notifications',
+                type: 'notificationGroup',
+                options: [
+                  { id: 'deployments', label: 'Deployments', description: 'Build results, rollbacks' },
+                  { id: 'securityAlerts', label: 'Security alerts', description: 'New sign-ins, failed logins' },
+                  { id: 'quota', label: 'Quota & usage', description: '80% and 100% thresholds' },
+                  { id: 'governance', label: 'Governance & approvals', description: 'Access requests, policy changes' },
+                ],
+                value: {
+                  deployments: { inApp: true, email: false },
+                  securityAlerts: { inApp: true, email: false },
+                  quota: { inApp: false, email: false },
+                  governance: { inApp: true, email: false },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  // ─── Map user to library's expected type ──────────────────────
+
+  const libraryUser = {
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    email: user.email || '',
+    username: user.username || '',
+    jobTitle: (user as any).jobTitle || '',
+    department: (user as any).department || '',
+    phone: (user as any).phone || '',
+    accountType: (user.accountType?.toLowerCase() as any) || 'enterprise',
+    emailVerified: user.emailVerified || false,
+  };
+
+  // ─── Render ──────────────────────────────────────────────────
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-probestack-bg" data-testid="profile-page">
-      <header className="flex items-center gap-3 border-b border-border bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent px-6 py-4">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-          <CircleUser className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight">Your profile</h1>
-          <p className="text-xs text-text-muted">Manage your account, security &amp; notification preferences.</p>
-        </div>
-      </header>
-
-      {/* Hero card */}
-      <div className="border-b border-border bg-surface/30 px-6 py-6">
-        <div className="flex w-full max-w-5xl items-center gap-5">
-          <button
-            type="button"
-            data-testid="profile-avatar-upload"
-            className="group relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-purple-500 text-2xl font-bold text-white shadow-lg ring-2 ring-primary/30"
-          >
-            {profile.fullName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
-            <span className="absolute inset-0 grid place-items-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-              <Camera className="h-4 w-4" />
-            </span>
-          </button>
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-xl font-semibold tracking-tight" data-testid="profile-hero-name">{profile.fullName}</h2>
-            <p className="text-xs text-text-muted">
-              {profile.title || user.roles?.[0] || 'Member'}
-              {profile.company && <> · {profile.company}</>}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-muted">
-              <span className="inline-flex items-center gap-1" data-testid="profile-hero-email"><Mail className="h-3 w-3" /> {profile.email}</span>
-              {profile.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {profile.location}</span>}
-              <span className="inline-flex items-center gap-1"><Globe className="h-3 w-3" /> {profile.timezone}</span>
-              {user.emailVerified ? (
-                <span className="inline-flex items-center gap-1 rounded bg-success/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-success" data-testid="profile-hero-verified">verified</span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded bg-warning/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-warning" data-testid="profile-hero-unverified">unverified</span>
-              )}
-              {user.roles?.map((r) => (
-                <span key={r} className="inline-flex items-center gap-1 rounded bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">{r}</span>
-              ))}
-            </div>
-          </div>
-          {/* <div className="hidden items-center gap-2 sm:flex">
-            <Stat label="Workspaces" value="3" />
-            <Stat label="Collections" value="42" />
-            <Stat label="Monitors" value="9" />
-          </div> */}
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-1 border-b border-border bg-surface/40 px-4">
-        <Tab active={tab === 'profile'}       onClick={() => setTab('profile')}       icon={UserIcon}       label="Profile"       testId="profile-tab-profile" />
-        <Tab active={tab === 'security'}      onClick={() => setTab('security')}      icon={ShieldCheck}    label="Security"      testId="profile-tab-security" />
-        <Tab active={tab === 'notifications'} onClick={() => setTab('notifications')} icon={Bell}           label="Notifications" testId="profile-tab-notifications" />
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto w-full max-w-5xl p-6">
-          {tab === 'profile'       && <ProfileTab profile={profile} extras={extras} setExtras={setExtras} onSave={onSave} />}
-          {tab === 'security'      && <SecurityTab />}
-          {tab === 'notifications' && <NotificationsTab onSave={onSave} />}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Stat = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border border-border bg-surface px-3 py-2 text-center">
-    <div className="text-base font-semibold tabular-nums">{value}</div>
-    <div className="text-[9px] uppercase tracking-wider text-text-muted">{label}</div>
-  </div>
-);
-
-const Tab = ({ active, onClick, icon: Icon, label, testId }: any) => (
-  <button
-    type="button"
-    onClick={onClick}
-    data-testid={testId}
-    className={cn(
-      'inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
-      active ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-primary',
-    )}
-  >
-    <Icon className="h-3.5 w-3.5" /> {label}
-  </button>
-);
-
-const ProfileTab = ({ profile, extras, setExtras, onSave }: any) => (
-  <div className="space-y-5" data-testid="profile-tab-profile-pane">
-    <Section title="Personal information" subtitle="Synced from your ForgeFuzz account. Email and name come from the user-mgmt service.">
-      <Grid>
-        <Field label="Full name"><Input value={profile.fullName} readOnly testId="profile-fullName" /></Field>
-        <Field label="Email"><Input type="email" value={profile.email} readOnly testId="profile-email" /></Field>
-        <Field label="Job title"><Input value={extras.title} onChange={(v: string) => setExtras({ ...extras, title: v })} testId="profile-title" /></Field>
-        <Field label="Company"><Input value={extras.company} onChange={(v: string) => setExtras({ ...extras, company: v })} testId="profile-company" /></Field>
-        <Field label="Location"><Input value={extras.location} onChange={(v: string) => setExtras({ ...extras, location: v })} testId="profile-location" /></Field>
-        <Field label="Timezone"><Input value={extras.timezone} onChange={(v: string) => setExtras({ ...extras, timezone: v })} testId="profile-timezone" /></Field>
-      </Grid>
-    </Section>
-
-    <Section title="About" subtitle="A short bio shown on team pages.">
-      <textarea
-        data-testid="profile-bio"
-        value={extras.bio}
-        onChange={(e) => setExtras({ ...extras, bio: e.target.value })}
-        rows={4}
-        className="w-full resize-none rounded-md border border-border bg-probestack-bg p-2 text-xs outline-none focus:border-primary"
+    // `data-theme` applied explicitly here for the same reason as
+    // Header.tsx — the library's dark palette is declared directly on
+    // `.probestack-ui-library`, so without this the page always renders
+    // dark regardless of the app's actual theme.
+    <div data-theme={theme}>
+      <LibraryProfilePage
+        user={libraryUser}
+        config={config}
+        onBack={() => navigate('/projects')}
+        onChange={handleProfileChange}
+        onVerifyEmail={handleSendVerification}
+        theme={theme}
       />
-    </Section>
-
-    <SaveBar onSave={onSave} />
-  </div>
-);
-
-const SecurityTab = () => {
-  const accessToken = useAuth((s) => s.accessToken);
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const onSubmit = async () => {
-    if (!accessToken) { toast.error('You must be signed in.'); return; }
-    if (!current || !next) { toast.error('Fill current and new password.'); return; }
-    if (next.length < 8) { toast.error('New password must be at least 8 characters.'); return; }
-    if (next !== confirm) { toast.error('New passwords do not match.'); return; }
-    setBusy(true);
-    try {
-      await userMgmtService.changePassword(current, next, accessToken);
-      toast.success('Password changed', { description: 'Sign in again on other devices.' });
-      setCurrent(''); setNext(''); setConfirm('');
-    } catch (e: any) {
-      toast.error('Could not change password', { description: e?.message ?? 'Unexpected error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="space-y-5" data-testid="profile-tab-security-pane">
-      <Section title="Password" subtitle="Pick a strong, unique password (min 8 characters).">
-        <Grid>
-          <Field label="Current password"><Input type="password" value={current} onChange={setCurrent} testId="profile-currentPassword" /></Field>
-          <Field label="New password"><Input type="password" value={next} onChange={setNext} testId="profile-newPassword" /></Field>
-          <Field label="Confirm new password"><Input type="password" value={confirm} onChange={setConfirm} testId="profile-confirmPassword" /></Field>
-        </Grid>
-      </Section>
-
-      <Section title="Two-factor authentication" subtitle="Add an extra layer to keep your account safe.">
-        <div className="flex items-center justify-between rounded-md border border-border bg-elevated px-4 py-3">
-          <div className="flex items-center gap-3">
-            <KeyRound className="h-4 w-4 text-primary" />
-            <div>
-              <div className="text-sm font-medium">Authenticator app</div>
-              <div className="text-[11px] text-text-muted">Use Google Authenticator, 1Password or any TOTP app.</div>
-            </div>
-          </div>
-          <button type="button" data-testid="profile-2fa-enable" className="rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20" disabled>Coming soon</button>
-        </div>
-      </Section>
-
-      <div className="flex items-center justify-end gap-2">
-        <button type="button" data-testid="profile-cancel" onClick={() => { setCurrent(''); setNext(''); setConfirm(''); }} className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-elevated">Cancel</button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={busy}
-          data-testid="profile-change-password"
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-primary-hover hover:shadow-md hover:shadow-primary/30 disabled:opacity-60"
-        >
-          <Save className="h-3.5 w-3.5" /> {busy ? 'Updating…' : 'Change password'}
-        </button>
-      </div>
     </div>
   );
 };
-
-const NotificationsTab = ({ onSave: _onSave }: any) => {
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    notificationsApi.prefs()
-      .then((p) => { if (!cancelled && p) setPrefs(p); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
-
-  if (loading || !prefs) {
-    return <div className="grid place-items-center py-8 text-xs text-text-muted">Loading preferences…</div>;
-  }
-
-  const setFlag = (key: keyof NotificationPreferences) => (v: boolean) =>
-    setPrefs({ ...prefs, [key]: v } as NotificationPreferences);
-  const setInApp = (type: string) => (v: boolean) =>
-    setPrefs({ ...prefs, inApp: { ...prefs.inApp, [type]: v } });
-  const setEmail = (type: string) => (v: boolean) =>
-    setPrefs({ ...prefs, emailChannel: { ...prefs.emailChannel, [type]: v } });
-
-  const inAppOn  = (type: string) => prefs.inApp?.[type] !== false;          // default ON
-  const emailOn  = (type: string) => prefs.emailChannel?.[type] === true;    // default OFF
-
-  // Events that always have BOTH toggles available to the user.
-  const events: { type: string; label: string; sub: string }[] = [
-    { type: 'INVITE_RECEIVED', label: 'Invitations received',  sub: 'Someone invited you to a workspace.' },
-    { type: 'INVITE_ACCEPTED', label: 'Invitations accepted',  sub: 'A user accepted an invitation you sent.' },
-    { type: 'INVITE_REJECTED', label: 'Invitations declined',  sub: 'A user declined an invitation you sent.' },
-    { type: 'ROLE_CHANGED',    label: 'Role changes',          sub: 'Your role in a workspace was updated.' },
-    { type: 'MEMBER_REMOVED',  label: 'Removed from workspace', sub: 'You were removed from a workspace.' },
-    { type: 'TEST_FAILED',     label: 'Test failures',         sub: 'A functional or load run finished as FAILED.' },
-    { type: 'MONITOR_ALERT',   label: 'Monitor alerts',        sub: 'A monitor went DOWN or recovered.' },
-  ];
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      const updated = await notificationsApi.savePrefs(prefs);
-      if (updated) setPrefs(updated);
-      toast.success('Preferences saved');
-    } catch (e: any) {
-      toast.error('Could not save preferences', { description: e?.message ?? '' });
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <div className="space-y-5" data-testid="profile-tab-notifications-pane">
-      <Section title="Global toggles" subtitle="Master switches applied across all event types.">
-        <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
-          <Row label="Brand newsletter"
-               sub="Occasional product news, hand-curated. Off by default."
-               checked={prefs.brandNewsletter}
-               onChange={setFlag('brandNewsletter')}
-               testId="profile-pref-brandNewsletter" />
-          <Row label="Product updates"
-               sub="Release notes & changelog highlights."
-               checked={prefs.productUpdates}
-               onChange={setFlag('productUpdates')}
-               testId="profile-pref-productUpdates" />
-          <Row label="Email on every login"
-               sub="Off by default — we already keep an audit log."
-               checked={prefs.loginEmailAlert}
-               onChange={setFlag('loginEmailAlert')}
-               testId="profile-pref-loginEmail" />
-          <Row label="In-app notification on every login"
-               sub="On by default — single bell entry per device + browser."
-               checked={prefs.loginInAppAlert}
-               onChange={setFlag('loginInAppAlert')}
-               testId="profile-pref-loginInApp" />
-        </ul>
-      </Section>
-
-      <Section title="Event preferences" subtitle="Choose which events reach your bell and which also go to email.">
-        <ul className="divide-y divide-border rounded-md border border-border bg-elevated">
-          <li className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-1.5 text-[10px] uppercase tracking-wider text-text-muted">
-            <span>Event</span>
-            <span className="w-14 text-center">Bell</span>
-            <span className="w-14 text-center">Email</span>
-          </li>
-          {events.map((e) => (
-            <li key={e.type} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2.5">
-              <div className="min-w-0">
-                <div className="text-sm font-medium">{e.label}</div>
-                <div className="text-[11px] text-text-muted">{e.sub}</div>
-              </div>
-              <div className="flex w-14 justify-center">
-                <Toggle checked={inAppOn(e.type)} onChange={setInApp(e.type)} testId={`profile-pref-inApp-${e.type}`} />
-              </div>
-              <div className="flex w-14 justify-center">
-                <Toggle checked={emailOn(e.type)} onChange={setEmail(e.type)} testId={`profile-pref-email-${e.type}`} />
-              </div>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 px-1 text-[11px] text-text-muted">
-          Security-critical events (password / email change, account lock) ignore these toggles and are always delivered.
-        </p>
-      </Section>
-
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          data-testid="profile-pref-save"
-          onClick={save}
-          disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
-        >
-          <Save className="h-3.5 w-3.5" /> {busy ? 'Saving…' : 'Save preferences'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const Row = ({ label, sub, checked, onChange, testId }:
-  { label: string; sub: string; checked: boolean; onChange: (v: boolean) => void; testId: string }) => (
-  <li className="flex items-center justify-between gap-4 px-4 py-2.5">
-    <div className="min-w-0">
-      <div className="text-sm font-medium">{label}</div>
-      <div className="text-[11px] text-text-muted">{sub}</div>
-    </div>
-    <Toggle checked={checked} onChange={onChange} testId={testId} />
-  </li>
-);
-
-const Toggle = ({ checked, onChange, testId }: { checked: boolean; onChange: (v: boolean) => void; testId: string }) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={checked}
-    data-testid={testId}
-    onClick={() => onChange(!checked)}
-    className={cn(
-      'relative h-5 w-9 shrink-0 rounded-full transition-colors',
-      checked ? 'bg-primary' : 'bg-elevated border border-border',
-    )}
-  >
-    <span className={cn(
-      'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all',
-      checked ? 'left-[18px]' : 'left-0.5',
-    )} />
-  </button>
-);
-
-const Section = ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
-  <section className="rounded-lg border border-border bg-surface p-5">
-    <header className="mb-3">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {subtitle && <p className="text-[11px] text-text-muted">{subtitle}</p>}
-    </header>
-    {children}
-  </section>
-);
-
-const Grid = ({ children }: { children: React.ReactNode }) => (
-  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
-);
-
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <label className="block">
-    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-text-muted">{label}</span>
-    {children}
-  </label>
-);
-
-const Input = ({ type = 'text', value, onChange, testId, readOnly }: { type?: string; value?: string; onChange?: (v: string) => void; testId?: string; readOnly?: boolean }) => (
-  <input
-    type={type}
-    value={value ?? ''}
-    onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-    data-testid={testId}
-    readOnly={readOnly}
-    className={cn(
-      'h-9 w-full rounded-md border border-border bg-probestack-bg px-2 text-xs outline-none focus:border-primary',
-      readOnly && 'cursor-not-allowed text-text-muted',
-    )}
-  />
-);
-
-const SaveBar = ({ onSave }: { onSave: () => void }) => (
-  <div className="flex items-center justify-end gap-2">
-    <button type="button" data-testid="profile-cancel" className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted hover:bg-elevated">Cancel</button>
-    <button
-      type="button"
-      onClick={onSave}
-      data-testid="profile-save"
-      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-primary-hover hover:shadow-md hover:shadow-primary/30"
-    >
-      <Save className="h-3.5 w-3.5" /> Save changes
-    </button>
-  </div>
-);

@@ -18,6 +18,20 @@ import { cn } from '@/utils/cn';
 
 type Status = 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
 
+// Helper to compute status from the server object
+const getStatus = (server: any): Status => {
+  if (server.is_healthy === true || server.isHealthy === true) return 'UP';
+  if (server.is_healthy === false || server.isHealthy === false) return 'DOWN';
+  if (server.status === 'UP') return 'UP';
+  if (server.status === 'DOWN') return 'DOWN';
+  return 'UNKNOWN';
+};
+
+// Helper to get last connected timestamp
+const getLastSeen = (server: any): string | undefined => {
+  return server.last_connected_at || server.lastConnectedAt || server.lastSeenAt;
+};
+
 export const HealthTab = () => {
   const qc = useQueryClient();
   const [zone] = useGlobalTimezone();
@@ -38,7 +52,8 @@ export const HealthTab = () => {
       await Promise.all(servers.map(async (s: any) => {
         try {
           const res = await probeServer(s.id);
-          const newStatus: Status = res?.status === 'UP' ? 'UP' : res?.status === 'DOWN' ? 'DOWN' : 'UNKNOWN';
+          // The probe response may contain status: 'UP' | 'DOWN'
+          const newStatus: Status = res?.status === 'UP' ? 'UP' : res?.status === 'DOWN' ? 'DOWN' : getStatus(s);
           const prev = lastStatuses.current[s.id];
           if (prev && prev !== newStatus) {
             if (newStatus === 'DOWN')
@@ -56,8 +71,8 @@ export const HealthTab = () => {
   }, [autoPing, servers, qc]);
 
   const summary = useMemo(() => {
-    const up = servers.filter((s: any) => s.status === 'UP').length;
-    const down = servers.filter((s: any) => s.status === 'DOWN').length;
+    const up = servers.filter((s: any) => getStatus(s) === 'UP').length;
+    const down = servers.filter((s: any) => getStatus(s) === 'DOWN').length;
     const unknown = servers.length - up - down;
     return { up, down, unknown, total: servers.length };
   }, [servers]);
@@ -73,7 +88,7 @@ export const HealthTab = () => {
           <label className="flex items-center gap-1.5 text-xs">
             <input
               type="checkbox"
-              checked={autoPing}
+              // checked={autoPing}
               data-testid="health-autoping-toggle"
               onChange={(e) => setAutoPing(e.target.checked)}
               className="h-3 w-3"
@@ -124,18 +139,22 @@ const Tile = ({ label, value, icon: Icon, tone = 'default' }: { label: string; v
 };
 
 const HealthRow = ({ server }: { server: any }) => {
-  // Compute uptime % from history success rate (last 7 days).
+  // Compute status from is_healthy (or fallback to status field)
+  const status: Status = getStatus(server);
+  const lastSeen = getLastSeen(server);
+
+  // Uptime % from history success rate (last 7 days)
   const upQ = useQuery({
     queryKey: ['mcp-server-uptime', server.id],
-    queryFn:  () => historyStats({ serverId: server.id, fromDate: new Date(Date.now() - 7 * 86400_000).toISOString() }),
+    queryFn: () => historyStats({ serverId: server.id, fromDate: new Date(Date.now() - 7 * 86400_000).toISOString() }),
     refetchInterval: 60_000,
   });
   const uptime = upQ.data?.successRate ?? 100;
-  const status: Status = server.status ?? 'UNKNOWN';
+
   const statusTone: Record<Status, { dot: string; text: string; bg: string }> = {
-    UP:       { dot: 'bg-success', text: 'text-success', bg: 'bg-success/10 border-success/30' },
-    DOWN:     { dot: 'bg-danger',  text: 'text-danger',  bg: 'bg-danger/10  border-danger/30' },
-    DEGRADED: { dot: 'bg-warning', text: 'text-warning', bg: 'bg-warning/10 border-warning/30' },
+    UP:       { dot: 'bg-success', text: 'text-success', bg: 'bg-success/0 border-success/30' },
+    DOWN:     { dot: 'bg-danger',  text: 'text-danger',  bg: 'bg-danger/0  border-danger/30' },
+    DEGRADED: { dot: 'bg-warning', text: 'text-warning', bg: 'bg-warning/0 border-warning/30' },
     UNKNOWN:  { dot: 'bg-text-muted', text: 'text-text-muted', bg: 'bg-elevated border-border' },
   };
   const t = statusTone[status];
@@ -151,8 +170,8 @@ const HealthRow = ({ server }: { server: any }) => {
         <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
           <Globe2 className="h-3 w-3" /><span className="truncate font-mono">{server.serverUrl}</span>
           <span>·</span><span>{server.transport}</span>
-          {server.lastSeenAt && (
-            <><span>·</span><span>last seen {fmtRelative(server.lastSeenAt)}</span></>
+          {lastSeen && (
+            <><span>·</span><span>last seen {fmtRelative(lastSeen)}</span></>
           )}
         </div>
       </div>

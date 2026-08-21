@@ -22,7 +22,8 @@ import {
 import {
   fetchCatalog, listAgentTools, runDirectAgent,
   a2aDiscover, a2aSend, acpSend, mcpListTools, mcpCallTool,
-  type Catalog, type AgentToolDef, type AgentExecMode, type DirectAgentRunResult,
+  listAgentPlaygroundRuns, mcpHealth,
+  type Catalog, type AgentToolDef, type AgentExecMode, type DirectAgentRunResult, type AgentPlaygroundRun, type McpHealth,
 } from '@/services/aiTesting.service';
 import {
   sandboxChat, sandboxRun, sandboxStatus, authenticatedRun, getAgentInfo,
@@ -159,7 +160,7 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
         const p = PROTOCOLS.find((x) => x.id === proto)!;
         const Icon = p.icon;
         return (
-          <div className={cn('flex items-center gap-3 rounded-lg p-3', p.chip)}>
+          <div className={cn('flex items-center gap-3 bg-probestack-bg rounded-lg p-3', p.chip)}>
             <Icon className={cn('h-5 w-5', p.chipText)} />
             <div>
               <div className={cn('text-sm font-semibold', p.chipText)}>{p.label}</div>
@@ -168,6 +169,8 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
           </div>
         );
       })()}
+
+      {proto === 'direct' && <PlaygroundHistoryPanel workspaceId={workspaceId} />}
 
       {/* ─── Body — two-column layout: config + result ─── */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr,1fr]">
@@ -180,6 +183,87 @@ export const AgentTestingView = ({ workspaceId }: { workspaceId: string }) => {
         </div>
         <ResultPanel />
       </div>
+    </div>
+  );
+};
+
+/* ════════════════════════ Playground history ══════════════════════════
+ * Direct-agent runs are persisted server-side now (see
+ * AgentExecutionService#persistPlaygroundRun) — this surfaces that
+ * history so a page refresh no longer loses every past trace. Clicking a
+ * row replays it through the exact same ResultPanel / ExecutionTrace the
+ * live run used, via the same `forgeq:agent-result` event.
+ */
+const PlaygroundHistoryPanel = ({ workspaceId }: { workspaceId: string }) => {
+  const [open, setOpen] = useState(false);
+  const [runs, setRuns] = useState<AgentPlaygroundRun[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    listAgentPlaygroundRuns(workspaceId, 0, 20)
+      .then((r) => setRuns(Array.isArray(r) ? r : []))
+      .catch(() => setRuns([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { if (open && runs.length === 0) load(); }, [open]); // eslint-disable-line
+
+  // Refresh the list whenever a new run completes so it appears without
+  // the user having to manually reopen the panel.
+  useEffect(() => {
+    const h = () => { if (open) load(); };
+    window.addEventListener('forgeq:agent-result', h as any);
+    return () => window.removeEventListener('forgeq:agent-result', h as any);
+  }, [open]); // eslint-disable-line
+
+  const replay = (run: AgentPlaygroundRun) => {
+    setActiveId(run.id);
+    window.dispatchEvent(new CustomEvent('forgeq:agent-result', { detail: { ...run.result, id: run.id } }));
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-surface" data-testid="ai-testing-playground-history">
+      <button type="button" onClick={() => setOpen((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-2.5 text-left">
+        <span className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+          <ChevronDown className={cn('h-4 w-4 transition-transform', !open && '-rotate-90')} />
+          History{runs.length > 0 && <span className="text-text-muted font-normal">({runs.length})</span>}
+        </span>
+        {open && loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-text-muted" />}
+      </button>
+      {open && (
+        <div className="max-h-56 overflow-auto border-t border-border">
+          {!loading && runs.length === 0 ? (
+            <div className="px-4 py-4 text-xs text-text-muted">No runs yet — configure the agent below and hit Run.</div>
+          ) : (
+            <ul className="divide-y divide-border/50">
+              {runs.map((r) => (
+                <li key={r.id}>
+                  <button type="button" onClick={() => replay(r)}
+                          className={cn(
+                            'flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-xs hover:bg-elevated',
+                            activeId === r.id && 'bg-elevated',
+                          )}>
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className={cn('mr-2 rounded px-1.5 py-0.5 font-mono text-[10px]',
+                        r.ok ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger')}>
+                        {r.ok ? 'ok' : 'error'}
+                      </span>
+                      <span className="text-text-secondary">{r.mode}</span>
+                      {r.userMessage && <span className="text-text-muted"> · {r.userMessage}</span>}
+                    </span>
+                    <span className="shrink-0 font-mono text-[10px] text-text-muted">
+                      {r.latencyMs != null ? `${r.latencyMs}ms` : ''} · {new Date(r.createdAt).toLocaleTimeString()}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -784,6 +868,24 @@ const McpForm = ({ workspaceId, prefill }: { workspaceId: string; prefill: Marke
   // pick a tool without scrolling to the right-hand ResultPanel.
   const [inlineTools, setInlineTools] = useState<Array<{ name: string; description?: string; inputSchema?: any }>>([]);
 
+  // Live health dot — a real tools/list probe against whatever URL is
+  // currently typed, debounced so we don't fire on every keystroke.
+  // Previously the only feedback for "server is down" was a generic
+  // error after clicking List Tools / Call Tool.
+  const [health, setHealth] = useState<McpHealth | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  useEffect(() => {
+    if (!baseUrl.trim()) { setHealth(null); return; }
+    setCheckingHealth(true);
+    const t = setTimeout(() => {
+      mcpHealth(workspaceId, baseUrl.trim(), transport)
+        .then(setHealth)
+        .catch(() => setHealth({ status: 'down', circuitOpen: false }))
+        .finally(() => setCheckingHealth(false));
+    }, 700);
+    return () => clearTimeout(t);
+  }, [workspaceId, baseUrl, transport]);
+
   // Listen for "Use this tool" clicks coming from the result panel —
   // populates the tool name + a JSON skeleton from the tool's inputSchema
   // so users don't have to copy-paste from the response.
@@ -837,7 +939,25 @@ const McpForm = ({ workspaceId, prefill }: { workspaceId: string; prefill: Marke
         <h3 className="text-base font-semibold">MCP Server Configuration</h3>
       </div>
       <Field label="MCP Server URL (include /mcp suffix for Streamable HTTP)">
-        <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className={inputCls} />
+        <div className="relative">
+          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className={cn(inputCls, 'pr-8')} />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2" title={
+            checkingHealth ? 'Checking…'
+              : health?.status === 'up' ? `Server reachable${health.lastLatencyMs != null ? ` (${health.lastLatencyMs}ms)` : ''}`
+              : health?.status === 'down' ? (health.circuitOpen ? 'Circuit open — repeated failures, backing off' : `Server unreachable${health.error ? `: ${health.error}` : ''}`)
+              : health?.status === 'degraded' ? 'Last call failed — may be flaky'
+              : 'Not checked yet'
+          }>
+            {checkingHealth ? (
+              <Loader2 className="h-3 w-3 animate-spin text-text-muted" />
+            ) : (
+              <span className={cn('block h-2 w-2 rounded-full',
+                health?.status === 'up' ? 'bg-success' :
+                health?.status === 'down' ? 'bg-danger' :
+                health?.status === 'degraded' ? 'bg-amber-500' : 'bg-text-muted/30')} />
+            )}
+          </span>
+        </div>
       </Field>
       <Field label="Transport">
         <select value={transport} onChange={(e) => setTransport(e.target.value as any)} className={inputCls}>

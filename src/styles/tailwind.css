@@ -9,6 +9,7 @@
 @import 'tailwindcss';
 @import './tokens.css';
 
+@custom-variant dark (&:where(.dark, .dark *));
 /* ------------------------------------------------------------------ */
 /* @theme → maps CSS variables to Tailwind utility classes.
    So `bg-probestack-bg`, `text-primary`, `border-border` etc. auto-exist. */
@@ -483,4 +484,16 @@ button:disabled,
   background-color: #ffffff !important;
   border-color: var(--terminal-border) !important;
   box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.18) !important;
+}
+
+/* Hide hamburger on large screens */
+.hamburger-large-hide {
+  display: none !important;
+}
+
+/* Show on screens < 1024px */
+@media (max-width: 1023px) {
+  .hamburger-large-hide {
+    display: inline-flex !important;
+  }
 }

@@ -164,6 +164,7 @@ export const useSettings = create<SettingsState>()(
 if (typeof document !== 'undefined') {
   const apply = (s: SettingsState) => {
     document.documentElement.setAttribute('data-theme', s.theme);
+    document.documentElement.classList.toggle('dark', s.theme === 'dark');
     document.documentElement.style.setProperty('--font-size-base', `${s.fontSize}px`);
     document.documentElement.setAttribute('data-density', s.density);
   };

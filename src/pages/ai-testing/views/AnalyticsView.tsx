@@ -20,7 +20,11 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { BarChart3, Filter, Loader2, RotateCw } from 'lucide-react';
-import { fetchAnalytics, fetchTokenUsage, type AnalyticsRollup, type TokenUsageRollup } from '@/services/aiTesting.service';
+import { toast } from 'sonner';
+import {
+  fetchAnalytics, fetchTokenUsage, getOtelConfig, putOtelConfig, testOtelConfig,
+  type AnalyticsRollup, type TokenUsageRollup, type OtelExportConfig,
+} from '@/services/aiTesting.service';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/utils/cn';
 
@@ -129,6 +133,44 @@ export const AnalyticsView = ({ workspaceId }: { workspaceId: string }) => {
             <Tile label="Total spend (USD)" value={'$' + (tu?.totalCostUsd ?? 0).toFixed(6)}         testid="kpi-spend" />
           </div>
 
+          {/* ─── Spend by API key ───────────────────────────────────────
+               Previously this detail (per-key spend, prompt/completion
+               split) only existed inside a hover-only tooltip crammed
+               into the sidebar's token badge — easy to miss and cramped
+               next to the nav rows. Same `tu` data is already fetched
+               here, so surface it as a normal, always-visible card with
+               real spacing instead of asking users to hover to find it. */}
+          {tu && tu.keys.length > 0 && (
+            <Card title="Spend by API key" subtitle={`Last ${days} days`}>
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {tu.keys.map((k) => (
+                  <div key={k.id}
+                       data-testid={`ai-testing-analytics-key-${k.provider}`}
+                       className="rounded-md border border-border/60 bg-elevated/30 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-text-primary">{k.provider}</span>
+                      <span className="font-mono text-[11px] text-text-muted">••••{k.last4}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-baseline justify-between gap-2">
+                      <span className="font-mono text-sm font-semibold tabular-nums text-text-primary">
+                        ${k.spendUsd.toFixed(6)}
+                      </span>
+                      <span className="font-mono text-[11px] tabular-nums text-text-muted">
+                        {k.tokensUsed.toLocaleString()} tok
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <MiniStat label="Prompt"     value={tu.totalTokensIn.toLocaleString()  + ' tok'} />
+                <MiniStat label="Completion" value={tu.totalTokensOut.toLocaleString() + ' tok'} />
+                <MiniStat label="Total tokens" value={tu.totalTokens.toLocaleString()  + ' tok'} />
+                <MiniStat label="Total spend" value={'$' + tu.totalCostUsd.toFixed(6)} />
+              </div>
+            </Card>
+          )}
+
           {/* ─── Model comparison table ─── */}
           <Card title="Model comparison">
             <div className="overflow-x-auto rounded-md border border-border bg-surface">
@@ -232,9 +274,131 @@ export const AnalyticsView = ({ workspaceId }: { workspaceId: string }) => {
               </Card>
             )}
           </div>
+
+          <OtelExportCard workspaceId={workspaceId} />
         </>
       )}
     </div>
+  );
+};
+
+/* ─── Distributed tracing — OpenTelemetry export ─────────────────────── */
+const OtelExportCard = ({ workspaceId }: { workspaceId: string }) => {
+  const [cfg, setCfg] = useState<OtelExportConfig | null>(null);
+  const [endpoint, setEndpoint] = useState('');
+  const [serviceName, setServiceName] = useState('forgefuzz-ai-testing');
+  const [enabled, setEnabled] = useState(false);
+  const [headersText, setHeadersText] = useState(''); // "Header: value" per line
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    getOtelConfig(workspaceId).then((c) => {
+      setCfg(c);
+      setEndpoint(c.endpoint ?? '');
+      setServiceName(c.serviceName || 'forgefuzz-ai-testing');
+      setEnabled(!!c.enabled);
+      setHeadersText(Object.entries(c.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join('\n'));
+    }).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [workspaceId]); // eslint-disable-line
+
+  const parseHeaders = (): Record<string, string> => {
+    const out: Record<string, string> = {};
+    headersText.split('\n').forEach((line) => {
+      const i = line.indexOf(':');
+      if (i <= 0) return;
+      const k = line.slice(0, i).trim();
+      const v = line.slice(i + 1).trim();
+      if (k) out[k] = v;
+    });
+    return out;
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const saved = await putOtelConfig(workspaceId, {
+        enabled, endpoint: endpoint.trim(), serviceName: serviceName.trim() || 'forgefuzz-ai-testing',
+        headers: parseHeaders(),
+      });
+      setCfg(saved);
+      toast.success('Tracing config saved');
+    } catch (e: any) { toast.error('Failed', { description: e?.message ?? '' }); }
+    finally { setSaving(false); }
+  };
+
+  const sendTest = async () => {
+    setTesting(true);
+    try {
+      const r = await testOtelConfig(workspaceId);
+      if (r.ok) toast.success('Test trace sent', { description: `traceId ${r.traceId}` });
+      else toast.error('Test trace failed', { description: r.error });
+      load();
+    } catch (e: any) { toast.error('Test trace failed', { description: e?.message ?? '' }); }
+    finally { setTesting(false); }
+  };
+
+  if (loading) return <Skeleton className="h-48 w-full" />;
+
+  return (
+    <Card title="Distributed tracing" subtitle="Export runs to your own observability stack">
+      <p className="mb-3 text-xs text-text-muted">
+        Every completed run also ships as an OpenTelemetry trace (OTLP/HTTP JSON) — one span per run, one child span
+        per case, one grandchild per agent step — to any collector you point at: Grafana Tempo, Honeycomb, Datadog's
+        OTLP intake, a self-hosted otel-collector. Disabled by default; nothing is sent until you turn it on below.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[10px] uppercase tracking-wide text-text-muted">OTLP endpoint</label>
+          <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)}
+                 placeholder="https://collector.example.com:4318/v1/traces"
+                 data-testid="ai-testing-otel-endpoint"
+                 className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] outline-none focus:border-primary" />
+        </div>
+        <div>
+          <label className="mb-1 block text-[10px] uppercase tracking-wide text-text-muted">Service name</label>
+          <input value={serviceName} onChange={(e) => setServiceName(e.target.value)}
+                 className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] outline-none focus:border-primary" />
+        </div>
+      </div>
+      <div className="mt-3">
+        <label className="mb-1 block text-[10px] uppercase tracking-wide text-text-muted">
+          Headers (one per line, "Header-Name: value" — e.g. an auth header your collector expects)
+        </label>
+        <textarea value={headersText} onChange={(e) => setHeadersText(e.target.value)} rows={2}
+                  placeholder={'Authorization: Bearer …\nx-honeycomb-team: …'}
+                  data-testid="ai-testing-otel-headers"
+                  className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] font-mono outline-none focus:border-primary" />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-[12px] font-medium">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)}
+                 data-testid="ai-testing-otel-enabled" />
+          Export future runs
+        </label>
+        <div className="flex items-center gap-2">
+          {cfg?.lastExportAt && (
+            <span className={cn('text-[10px]', cfg.lastExportOk ? 'text-success' : 'text-danger')}
+                  title={cfg.lastExportError ?? ''}>
+              last export {cfg.lastExportOk ? 'ok' : 'failed'} · {new Date(cfg.lastExportAt).toLocaleString()}
+            </span>
+          )}
+          <button type="button" onClick={sendTest} disabled={testing || !endpoint.trim()}
+                  data-testid="ai-testing-otel-test"
+                  className="rounded-md border border-border bg-surface px-3 py-1.5 text-[11px] font-semibold hover:bg-elevated disabled:opacity-50">
+            {testing ? 'Sending…' : 'Send test trace'}
+          </button>
+          <button type="button" onClick={save} disabled={saving}
+                  data-testid="ai-testing-otel-save"
+                  className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-primary/90 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 };
 
@@ -254,6 +418,13 @@ const Card = ({ title, subtitle, children }: { title: string; subtitle?: string;
       {subtitle && <span className="text-xs text-text-muted">{subtitle}</span>}
     </div>
     {children}
+  </div>
+);
+
+const MiniStat = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-md border border-border/60 bg-elevated/40 px-2.5 py-2">
+    <div className="text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
+    <div className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-text-primary">{value}</div>
   </div>
 );
 

@@ -52,10 +52,17 @@ export interface TokenPair {
   user: UserView;
 }
 
+export interface EmailDispatchResult {
+  emailDispatched: boolean;
+}
+
 export const userMgmtService = {
   //  CHANGED: register now expects userId (Firebase UID) and no password.
+  //  Response now also reports whether our own verification email actually
+  //  went out (`emailDispatched`) — false means the caller should fall back
+  //  to Firebase's own sendEmailVerification() using the live session.
   register: (req: { userId: string; email: string; firstName?: string; lastName?: string }) =>
-    userMgmtHttp.post<UserView>('/api/v1/users/register', req).then((r) => r.data),
+    userMgmtHttp.post<{ user: UserView; emailDispatched: boolean }>('/api/v1/users/register', req).then((r) => r.data),
 
   //  REMOVED: login and refresh are deprecated (handled by Firebase SDK).
   // login: ...   // removed
@@ -77,10 +84,10 @@ export const userMgmtService = {
     userMgmtHttp.post<UserView>('/api/v1/users/verify-email', { token }).then((r) => r.data),
 
   resendVerification: (email: string) =>
-    userMgmtHttp.post<void>('/api/v1/users/resend-verification', { email }).then((r) => r.data),
+    userMgmtHttp.post<EmailDispatchResult>('/api/v1/users/resend-verification', { email }).then((r) => r.data),
 
   forgotPassword: (email: string) =>
-    userMgmtHttp.post<void>('/api/v1/users/forgot-password', { email }).then((r) => r.data),
+    userMgmtHttp.post<EmailDispatchResult>('/api/v1/users/forgot-password', { email }).then((r) => r.data),
 
   resetPassword: (token: string, newPassword: string) =>
     userMgmtHttp.post<void>('/api/v1/users/reset-password', { token, newPassword }).then((r) => r.data),
@@ -89,4 +96,21 @@ export const userMgmtService = {
     userMgmtHttp.post<void>('/api/v1/users/change-password', { currentPassword, newPassword }, {
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then((r) => r.data),
+
+  changeEmail: (newEmail: string, currentPassword: string, accessToken: string) =>
+    userMgmtHttp.post<void>('/api/v1/users/change-email', { newEmail, currentPassword }, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then((r) => r.data),
+
+  confirmEmailChange: (token: string) =>
+    userMgmtHttp.post<UserView>('/api/v1/users/confirm-email-change', { token }).then((r) => r.data),
+
+  // Passwordless email-OTP login. verifyOtp returns a Firebase custom
+  // token — exchange it with signInWithCustomToken() to get a normal
+  // Firebase session, same as every other sign-in path.
+  requestOtp: (email: string) =>
+    userMgmtHttp.post<EmailDispatchResult>('/api/v1/users/otp/request', { email }).then((r) => r.data),
+
+  verifyOtp: (email: string, code: string) =>
+    userMgmtHttp.post<{ customToken: string }>('/api/v1/users/otp/verify', { email, code }).then((r) => r.data),
 };

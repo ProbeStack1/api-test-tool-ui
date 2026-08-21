@@ -53,6 +53,7 @@ const LoginPage = l(() => import('@/pages/auth'), (m: any) => m.LoginPage);
 const PasswordVerifyPage = l(() => import('@/pages/auth'), (m: any) => m.PasswordVerifyPage);
 const AcceptInvitationPage = l(() => import('@/pages/auth'), (m: any) => m.AcceptInvitationPage);
 const VerifyEmailPage = l(() => import('@/pages/auth'), (m: any) => m.VerifyEmailPage);
+const ConfirmEmailChangePage = l(() => import('@/pages/auth'), (m: any) => m.ConfirmEmailChangePage);
 const NotificationsPage = l(() => import('@/pages/notifications/NotificationsPage'), (m: any) => m.NotificationsPage);
 const StatusPagePublic = l(() => import('@/pages/testing/monitors/PublicStatusPagePreview'), (m: any) => m.StatusPagePublicView);
 const MarketplacePage = l(() => import('@/pages/api-hub'), (m: any) => m.MarketplacePage);
@@ -100,6 +101,10 @@ const ApplicationDetail = l(() => import('@/pages/enterprise/ApplicationDetail')
 const BusinessUnitList = l(() => import('@/pages/enterprise/BusinessUnitList'), (m: any) => m.BusinessUnitList);
 const ProjectList = l(() => import('@/pages/enterprise/ProjectList'), (m: any) => m.ProjectList);
 const ApplicationList = l(() => import('@/pages/enterprise/ApplicationList'), (m: any) => m.ApplicationList);
+const McpServerDetailView = l(
+  () => import('@/components/integrations/tabs/McpServerDetailView'),
+  (m: any) => m.McpServerDetailView
+);
 
 
 /** Public prefetch map keyed by sidebar nav `to` path. Sidebar `<Link>`s
@@ -182,6 +187,7 @@ const router = createBrowserRouter([
       { path: '/accept-invitation', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
       { path: '/invite/accept', element: r(<AcceptInvitationPage />), errorElement: <RouteErrorBoundary /> },
       { path: '/auth/verify-email', element: r(<VerifyEmailPage />), errorElement: <RouteErrorBoundary /> },
+      { path: '/auth/confirm-email-change', element: r(<ConfirmEmailChangePage />), errorElement: <RouteErrorBoundary /> },
       { path: '/status/:slug', element: r(<StatusPagePublicSlugRoute />), errorElement: <RouteErrorBoundary /> },
 
       { path: '/password', element: r(<PasswordVerifyPage />), errorElement: <RouteErrorBoundary /> },
@@ -219,6 +225,7 @@ const router = createBrowserRouter([
           // Legacy environments page → variables workspace (env scope is a tab there).
           { path: 'environments', element: <Navigate to="/projects/variables" replace /> },
           { path: 'variables', element: r(<VariablesWorkspacePage />) },
+          { path: 'mcp/server/:slug', element: r(<McpServerDetailView />) },
           { path: 'mcp', element: r(<McpPage />) },
           { path: 'mocks', element: r(<MocksPage />) },
           { path: 'mocks/:id', element: r(<MockDetailPage />) },

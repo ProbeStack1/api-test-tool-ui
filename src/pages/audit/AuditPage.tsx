@@ -35,7 +35,7 @@ const SEVERITY_TONE: Record<string, { dot: string; pill: string; icon: any }> = 
   CRITICAL: { dot: 'bg-fuchsia-500',     pill: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-400', icon: ShieldAlert },
 };
 
-const RESOURCES = ['workspace', 'collection', 'request', 'environment', 'mock', 'monitor', 'apiDoc', 'testSpec', 'functionalTest', 'loadTest'];
+const RESOURCES = ['workspace', 'collection', 'request', 'environment', 'mock', 'monitor', 'apiDoc', 'testSpec', 'functionalTest', 'loadTest', 'mcp_server', 'mcp_tool', 'mcp_resource', 'mcp_prompt', 'suite', 'case', 'agent', 'api_key', 'webhook', 'run', 'quick'];
 
 const fmtRelative = (iso?: string | number | null): string => {
   if (!iso) return '—';

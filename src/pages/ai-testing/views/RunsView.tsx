@@ -212,6 +212,12 @@ const RunDetail = ({ workspaceId, runId }: { workspaceId: string; runId: string 
   const polling = useRef<number | null>(null);
   const confirm = useConfirm();
 
+  // Parallel-agent suites tag every result with which agent config ran it —
+  // when a run has 2+ distinct agents, default to the comparison grid.
+  const agentNames = useMemo(() => new Set(results.map((r) => r.agentConfigName).filter(Boolean)), [results]);
+  const [compareMode, setCompareMode] = useState(false);
+  useEffect(() => { if (agentNames.size > 1) setCompareMode(true); }, [agentNames.size]);
+
   const fetch = useCallback(async () => {
     try {
       const [r, rs] = await Promise.all([
@@ -400,11 +406,28 @@ const RunDetail = ({ workspaceId, runId }: { workspaceId: string; runId: string 
       </div>
 
       {/* Per-case results */}
-      <h3 className="mt-5 mb-2 text-sm font-semibold">Per-case results</h3>
+      <div className="mt-5 mb-2 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Per-case results</h3>
+        {agentNames.size > 1 && (
+          <div className="inline-flex rounded-md border border-border p-0.5 text-[11px]">
+            <button type="button" onClick={() => setCompareMode(true)}
+                    data-testid="ai-testing-results-compare-toggle"
+                    className={cn('rounded px-2 py-1 font-semibold', compareMode ? 'bg-primary text-white' : 'text-text-secondary hover:bg-elevated')}>
+              Compare agents
+            </button>
+            <button type="button" onClick={() => setCompareMode(false)}
+                    className={cn('rounded px-2 py-1 font-semibold', !compareMode ? 'bg-primary text-white' : 'text-text-secondary hover:bg-elevated')}>
+              List
+            </button>
+          </div>
+        )}
+      </div>
       {results.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-surface p-6 text-center text-[11px] text-text-muted">
           {inFlight ? 'Run in progress — results will appear as cases finish.' : 'No results recorded.'}
         </div>
+      ) : compareMode && agentNames.size > 1 ? (
+        <AgentComparisonGrid results={results} />
       ) : (
         <ul className="space-y-1.5">
           {results.map((res) => (
@@ -438,7 +461,14 @@ const ResultRow = ({ res }: { res: TestResult }) => {
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px]">
         <VerdictIcon v={res.verdict} />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{res.caseName}</div>
+          <div className="truncate font-medium">
+            {res.caseName}
+            {res.agentConfigName && (
+              <span className="ml-1.5 rounded bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-600 dark:text-indigo-300">
+                {res.agentConfigName}
+              </span>
+            )}
+          </div>
           <div className="truncate text-[10px] text-text-muted">
             {res.tokensPrompt ?? 0}+{res.tokensCompletion ?? 0} tok · ${(res.costUsd ?? 0).toFixed(6)} · {(res.latencyMs ?? 0)}ms
           </div>
@@ -475,6 +505,38 @@ const ResultRow = ({ res }: { res: TestResult }) => {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {res.toolCallSummary && (
+            <div className="mt-2 rounded border border-border bg-elevated/30 p-2">
+              <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                Tool-call accuracy
+                {res.toolCallSummary.sequenceMatches != null && (
+                  <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold normal-case',
+                    res.toolCallSummary.sequenceMatches ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger')}>
+                    {res.toolCallSummary.sequenceMatches ? 'matches expected' : 'does not match expected'}
+                  </span>
+                )}
+                {res.toolCallSummary.invalidCalls > 0 && (
+                  <span className="rounded bg-warning/10 px-1.5 py-0.5 text-[9px] font-bold normal-case text-warning">
+                    {res.toolCallSummary.invalidCalls} invalid arg{res.toolCallSummary.invalidCalls > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(res.toolCallSummary.callCounts).map(([tool, count]) => (
+                  <span key={tool} className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[10px]">{tool} ×{count}</span>
+                ))}
+                {Object.keys(res.toolCallSummary.callCounts).length === 0 && (
+                  <span className="text-text-muted">No tools called</span>
+                )}
+              </div>
+              {res.toolCallSummary.expectedSequence && (
+                <div className="mt-1.5 text-[10px] text-text-muted">
+                  expected: <span className="font-mono">{res.toolCallSummary.expectedSequence.join(' → ') || '(none)'}</span>{' '}
+                  · actual: <span className="font-mono">{res.toolCallSummary.actualSequence.join(' → ') || '(none)'}</span>
+                </div>
+              )}
             </div>
           )}
           {res.agentTrace && res.agentTrace.length > 0 && (
@@ -522,3 +584,100 @@ const VerdictIcon = ({ v }: { v: TestResult['verdict'] }) =>
   v === 'failed' ? <XCircle className="h-3.5 w-3.5 shrink-0 text-danger" /> :
   v === 'errored' ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" /> :
   <Clock className="h-3.5 w-3.5 shrink-0 text-text-muted" />;
+
+/* ─── Parallel-agent comparison grid ────────────────────────────────────
+ * One row per case, one column per agent config, so "which agent answered
+ * this case best?" is a glance instead of scrolling a flat list looking
+ * for matching case names across scattered rows. */
+const AgentComparisonGrid = ({ results }: { results: TestResult[] }) => {
+  const [selected, setSelected] = useState<TestResult | null>(null);
+
+  const agents = useMemo(() => {
+    const seen = new Map<string, string>();
+    results.forEach((r) => { if (r.agentConfigId && !seen.has(r.agentConfigId)) seen.set(r.agentConfigId, r.agentConfigName || r.agentConfigId); });
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [results]);
+
+  const cases = useMemo(() => {
+    const seen = new Map<string, string>();
+    results.forEach((r) => { if (!seen.has(r.caseId)) seen.set(r.caseId, r.caseName); });
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [results]);
+
+  const agentStats = useMemo(() => agents.map((a) => {
+    const rows = results.filter((r) => r.agentConfigId === a.id);
+    const passed = rows.filter((r) => r.verdict === 'passed').length;
+    const avgCost = rows.length ? rows.reduce((s, r) => s + (r.costUsd ?? 0), 0) / rows.length : 0;
+    const avgLatency = rows.length ? rows.reduce((s, r) => s + (r.latencyMs ?? 0), 0) / rows.length : 0;
+    return { ...a, passed, total: rows.length, avgCost, avgLatency };
+  }), [agents, results]);
+
+  const cellFor = (caseId: string, agentId: string) =>
+    results.find((r) => r.caseId === caseId && r.agentConfigId === agentId);
+
+  return (
+    <div className="space-y-3" data-testid="ai-testing-agent-comparison-grid">
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full border-collapse text-[11px]">
+          <thead>
+            <tr className="bg-elevated/60">
+              <th className="sticky left-0 z-1 min-w-[140px] bg-elevated/60 px-3 py-2 text-left font-semibold">Case</th>
+              {agentStats.map((a) => (
+                <th key={a.id} className="min-w-[150px] px-3 py-2 text-left font-semibold">
+                  <div className="truncate">{a.name}</div>
+                  <div className="mt-0.5 font-normal tabular-nums text-text-muted">
+                    {a.passed}/{a.total} passed · ${a.avgCost.toFixed(5)} avg · {Math.round(a.avgLatency)}ms avg
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {cases.map((c) => (
+              <tr key={c.id} className="border-t border-border">
+                <td className="sticky left-0 z-1 max-w-[160px] truncate bg-surface px-3 py-2 font-medium">{c.name}</td>
+                {agents.map((a) => {
+                  const r = cellFor(c.id, a.id);
+                  if (!r) return <td key={a.id} className="px-3 py-2 text-text-muted">—</td>;
+                  return (
+                    <td key={a.id} className="px-2 py-1.5">
+                      <button type="button" onClick={() => setSelected(r)}
+                              data-testid={`ai-testing-compare-cell-${c.id}-${a.id}`}
+                              className={cn(
+                                'flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left transition-colors hover:opacity-80',
+                                selected?.id === r.id && 'ring-2 ring-primary',
+                                r.verdict === 'passed' ? 'bg-success/10 text-success' :
+                                r.verdict === 'failed' ? 'bg-danger/10 text-danger' :
+                                'bg-warning/10 text-warning',
+                              )}>
+                            <VerdictIcon v={r.verdict} />
+                            <span className="tabular-nums">{r.latencyMs ?? 0}ms</span>
+                          </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selected ? (
+        <div className="rounded-md border border-border bg-surface p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[12px] font-semibold">
+              {selected.caseName} <span className="text-text-muted">·</span> {selected.agentConfigName}
+            </div>
+            <button type="button" onClick={() => setSelected(null)}
+                    className="text-[11px] text-text-muted hover:text-text-primary">
+              Close
+            </button>
+          </div>
+          <ResultRow res={selected} />
+        </div>
+      ) : (
+        <p className="text-[11px] text-text-muted">Click any cell to inspect that agent's output for that case.</p>
+      )}
+    </div>
+  );
+};

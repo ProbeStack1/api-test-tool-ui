@@ -30,12 +30,15 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/common/Logo";
 import { useSettings } from "@/stores/settings.store";
+import { useAuth } from "@/stores/auth.store";
 import {
   sendPasswordResetEmail,
   confirmPasswordReset,
   verifyPasswordResetCode,
+  signInWithCustomToken,
   auth,
 } from "@/lib/firebase";
+import { userMgmtService } from "@/services/userMgmt.service";
 import { cn } from "@/utils/cn";
 
 type PasswordMode = "forgot" | "reset" | "otp";
@@ -295,16 +298,26 @@ export const PasswordVerifyPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
 
-  const oobCode = params.get("oobCode");
+  const oobCode = params.get("oobCode"); // Firebase fallback link
+  const ourToken = params.get("token");  // our own reset link (primary)
 
-  // Validate oobCode for reset mode
+  // Validate the incoming link for reset mode.
+  //   • Our own `?token=...` link: no pre-check round-trip needed — same
+  //     as VerifyEmailPage, the token gets consumed server-side on submit.
+  //   • Firebase's `?oobCode=...` fallback link: still needs Firebase's
+  //     own pre-validation call, same as before.
   const [isValidCode, setIsValidCode] = useState<boolean | null>(null);
   useEffect(() => {
-    if (mode === "reset" && oobCode) {
+    if (mode !== "reset") return;
+    if (ourToken) {
+      setIsValidCode(true);
+      return;
+    }
+    if (oobCode) {
       verifyPasswordResetCode(auth, oobCode)
-        .then((email) => {
+        .then((resolvedEmail) => {
           setIsValidCode(true);
-          setEmail(email);
+          setEmail(resolvedEmail);
         })
         .catch(() => {
           setIsValidCode(false);
@@ -313,7 +326,7 @@ export const PasswordVerifyPage = () => {
           );
         });
     }
-  }, [mode, oobCode]);
+  }, [mode, oobCode, ourToken]);
 
   // Shared handlers
   const handleForgotPassword = async (e: FormEvent) => {
@@ -326,7 +339,15 @@ export const PasswordVerifyPage = () => {
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      // Our own backend + SendGrid template is primary. Firebase's native
+      // sendPasswordResetEmail only fires as a fallback, and only when our
+      // send genuinely failed — so a SendGrid outage never blocks a user
+      // from resetting their password, but the happy path always uses our
+      // branded email.
+      const { emailDispatched } = await userMgmtService.forgotPassword(email.trim());
+      if (!emailDispatched) {
+        await sendPasswordResetEmail(auth, email.trim()).catch(() => {});
+      }
       setInfoMsg("Reset link sent! Check your email (including spam/junk).");
     } catch (err: any) {
       setErrorMsg(
@@ -339,7 +360,7 @@ export const PasswordVerifyPage = () => {
 
   const handleResetPassword = async (e: FormEvent) => {
     e.preventDefault();
-    if (!oobCode) return;
+    if (!ourToken && !oobCode) return;
     if (newPassword.length < 6) {
       setErrorMsg("Password must be at least 6 characters.");
       return;
@@ -352,7 +373,11 @@ export const PasswordVerifyPage = () => {
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      await confirmPasswordReset(auth, oobCode, newPassword);
+      if (ourToken) {
+        await userMgmtService.resetPassword(ourToken, newPassword);
+      } else if (oobCode) {
+        await confirmPasswordReset(auth, oobCode, newPassword);
+      }
       setInfoMsg("Password reset successfully! You can now sign in.");
       setTimeout(() => navigate("/login"), 2000);
     } catch (err: any) {
@@ -374,11 +399,10 @@ export const PasswordVerifyPage = () => {
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      // Simulate OTP send – replace with your actual API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await userMgmtService.requestOtp(email.trim());
       setOtpSent(true);
       setResendTimer(60);
-      setInfoMsg(`OTP sent to ${email}`);
+      setInfoMsg(`If that email exists, a code was sent to ${email.trim()}.`);
       const interval = setInterval(() => {
         setResendTimer((t) => {
           if (t <= 1) {
@@ -389,7 +413,7 @@ export const PasswordVerifyPage = () => {
         });
       }, 1000);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Failed to send OTP.");
+      setErrorMsg(err?.message || "Failed to send code. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -398,19 +422,34 @@ export const PasswordVerifyPage = () => {
   const handleVerifyOtp = async (e: FormEvent) => {
     e.preventDefault();
     if (otp.length !== 6) {
-      setErrorMsg("Please enter a valid 6-digit OTP.");
+      setErrorMsg("Please enter a valid 6-digit code.");
       return;
     }
     setErrorMsg(null);
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      // Simulate OTP verification – replace with your actual API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setInfoMsg("OTP verified! Redirecting...");
-      setTimeout(() => navigate("/projects/collections"), 1500);
+      // Verifying the code mints a Firebase custom token server-side —
+      // exchange it for a real Firebase session, exactly like every other
+      // sign-in path (password, Google, GitHub) ends up with one.
+      const { customToken } = await userMgmtService.verifyOtp(email.trim(), otp);
+      const userCred = await signInWithCustomToken(auth, customToken);
+      const idToken = await userCred.user.getIdToken();
+      const payload = JSON.parse(atob(idToken.split(".")[1]));
+      const expiresInSec = payload.exp - Math.floor(Date.now() / 1000);
+      const user = await userMgmtService.me(idToken);
+
+      useAuth.getState().setSession({
+        accessToken: idToken,
+        refreshToken: "",
+        expiresInSec,
+        user,
+      });
+
+      setInfoMsg("Signed in! Redirecting…");
+      setTimeout(() => navigate("/projects/collections"), 800);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Invalid OTP. Please try again.");
+      setErrorMsg(err?.message || "Invalid code. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -458,6 +497,7 @@ export const PasswordVerifyPage = () => {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
+            maxLength={254}
             isDark={isDark}
           />
           <button
@@ -610,6 +650,7 @@ export const PasswordVerifyPage = () => {
               onChange={(e) => setNewPassword(e.target.value)}
               required
               autoComplete="new-password"
+              maxLength={128}
               isDark={isDark}
               trailing={
                 <button
@@ -639,6 +680,7 @@ export const PasswordVerifyPage = () => {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               autoComplete="new-password"
+              maxLength={128}
               isDark={isDark}
             />
             <button
@@ -840,6 +882,24 @@ export const PasswordVerifyPage = () => {
                         `input[name="otp-${i - 1}"]`,
                       );
                       if (prev) prev.focus();
+                    }
+                  }}
+                  onPaste={(e) => {
+                    // Users typically copy the whole code and paste it into
+                    // the first box — without this, a single-char maxLength
+                    // silently truncates the paste to just its first digit
+                    // and drops the rest on the floor.
+                    const digits = e.clipboardData
+                      .getData("text")
+                      .replace(/[^0-9]/g, "")
+                      .slice(0, 6);
+                    if (digits.length > 1) {
+                      e.preventDefault();
+                      setOtp(digits);
+                      const target = document.querySelector<HTMLInputElement>(
+                        `input[name="otp-${Math.min(digits.length, 5)}"]`,
+                      );
+                      target?.focus();
                     }
                   }}
                   name={`otp-${i}`}

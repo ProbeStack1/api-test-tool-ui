@@ -55,6 +55,13 @@ export interface TestSuite {
   maxTokens?: number;
   config?: Record<string, any>;
   agentConfigId?: string | null;
+  /** 2+ ids → the suite runs every case against each agent config so results
+   *  can be compared side by side. Leave unset for the normal single-agent case. */
+  agentConfigIds?: string[];
+  /** Which model grades llm_judge / semantic_similarity / toxicity / pii_check / jailbreak / grounded
+   *  assertions in this suite. Defaults to openai/gpt-4o-mini server-side when unset. */
+  judgeProvider?: string;
+  judgeModel?: string;
   tags?: string[];
   createdByEmail?: string;
   createdAt?: string;
@@ -72,11 +79,22 @@ export interface TestResult {
   runId: string;
   caseId: string;
   caseName: string;
+  /** Set when the suite compares multiple agent configs on the same case. */
+  agentConfigId?: string;
+  agentConfigName?: string;
   verdict: Verdict;
   output?: string;
   errorMessage?: string;
   assertionResults?: AssertionResult[];
   agentTrace?: Array<Record<string, any>>;
+  /** Actual vs. expected tool-call sequence, when the linked agent config declares one. */
+  toolCallSummary?: {
+    actualSequence: string[];
+    callCounts: Record<string, number>;
+    invalidCalls: number;
+    expectedSequence?: string[];
+    sequenceMatches?: boolean;
+  };
   tokensPrompt?: number;
   tokensCompletion?: number;
   costUsd?: number;
@@ -300,6 +318,8 @@ export interface AgentConfig {
   systemPrompt?: string;
   maxIterations?: number;
   tools?: Array<Record<string, any>>;
+  /** Expected order of tool calls — diffed against the actual sequence on suite runs. */
+  expectedToolSequence?: string[];
   agents?: Array<Record<string, any>>;
   mcpServerId?: string;
   config?: Record<string, any>;
@@ -412,6 +432,31 @@ export const fetchTokenUsage = (workspaceId: string, days = 30) =>
   http.get(`${BASE}/workspaces/${workspaceId}/token-usage`, { params: { days } })
       .then((r) => unwrap<TokenUsageRollup>(r));
 
+// ─── OpenTelemetry export (distributed tracing to your own stack) ────
+export interface OtelExportConfig {
+  id?: string;
+  workspaceId?: string;
+  enabled?: boolean;
+  endpoint?: string;
+  headers?: Record<string, string>;
+  serviceName?: string;
+  updatedAt?: string;
+  updatedByEmail?: string;
+  lastExportAt?: string;
+  lastExportOk?: boolean;
+  lastExportError?: string;
+}
+
+export const getOtelConfig = (workspaceId: string) =>
+  http.get(`${BASE}/workspaces/${workspaceId}/otel-config`).then((r) => unwrap<OtelExportConfig>(r));
+
+export const putOtelConfig = (workspaceId: string, body: OtelExportConfig) =>
+  http.put(`${BASE}/workspaces/${workspaceId}/otel-config`, body).then((r) => unwrap<OtelExportConfig>(r));
+
+export const testOtelConfig = (workspaceId: string) =>
+  http.post(`${BASE}/workspaces/${workspaceId}/otel-config/test`)
+      .then((r) => unwrap<{ ok: boolean; traceId?: string; error?: string }>(r));
+
 // ─── Agent Testing (playground) ──────────────────────────────────────
 export type AgentExecMode = 'single' | 'sequential' | 'parallel' | 'supervisor';
 
@@ -460,5 +505,44 @@ export const acpSend = (workspaceId: string, baseUrl: string, headers: Record<st
   http.post(`${BASE}/workspaces/${workspaceId}/agent-run/acp/send`, { baseUrl, headers, message }).then((r) => unwrap<any>(r));
 export const mcpListTools = (workspaceId: string, baseUrl: string, extra: Record<string,string> = {}) =>
   http.post(`${BASE}/workspaces/${workspaceId}/agent-run/mcp/list-tools`, { baseUrl, ...extra }).then((r) => unwrap<any>(r));
+
+export interface McpHealth {
+  status: 'up' | 'down' | 'degraded' | 'unknown';
+  ok?: boolean;
+  circuitOpen: boolean;
+  consecutiveFailures?: number;
+  lastLatencyMs?: number;
+  latencyMs?: number;
+  error?: string;
+}
+/** Live probe (real tools/list call) — also feeds the shared circuit breaker. */
+export const mcpHealth = (workspaceId: string, baseUrl: string, transport = 'STREAMABLE_HTTP') =>
+  http.get(`${BASE}/workspaces/${workspaceId}/agent-run/mcp/health`, { params: { baseUrl, transport } })
+      .then((r) => unwrap<McpHealth>(r));
 export const mcpCallTool = (workspaceId: string, baseUrl: string, extra: Record<string,string>, tool: string, args: any) =>
   http.post(`${BASE}/workspaces/${workspaceId}/agent-run/mcp/call`, { baseUrl, ...extra, tool, arguments: args }).then((r) => unwrap<any>(r));
+
+// ─── Agent playground history ─────────────────────────────────────────
+// Every /agent-run/direct call is now persisted server-side so a page
+// refresh doesn't lose the trace — this was previously in-memory only.
+export interface AgentPlaygroundRun {
+  id: string;
+  mode: AgentExecMode;
+  provider?: string;
+  model?: string;
+  userMessage?: string;
+  result: DirectAgentRunResult;
+  ok: boolean;
+  totalCostUsd?: number;
+  totalTokens?: number;
+  latencyMs?: number;
+  createdByEmail?: string;
+  createdAt: string;
+}
+
+export const listAgentPlaygroundRuns = (workspaceId: string, page = 0, size = 20) =>
+  http.get(`${BASE}/workspaces/${workspaceId}/agent-runs`, { params: { page, size } })
+      .then((r) => unwrap<AgentPlaygroundRun[]>(r));
+
+export const getAgentPlaygroundRun = (workspaceId: string, id: string) =>
+  http.get(`${BASE}/workspaces/${workspaceId}/agent-runs/${id}`).then((r) => unwrap<AgentPlaygroundRun>(r));

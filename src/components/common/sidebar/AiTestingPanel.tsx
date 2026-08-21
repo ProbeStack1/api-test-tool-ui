@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Activity, FlaskConical, Zap, History, Bot, Server, Webhook as WebhookIcon,
-  BarChart3, KeyRound, ChevronRight, RotateCw, Sparkles, Plug, Store, Cpu, Coins, BookOpen,
+  BarChart3, KeyRound, ChevronRight, RotateCw, Sparkles, Plug, Store, Cpu, BookOpen,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -113,8 +113,12 @@ export const AiTestingPanel = () => {
               <Badge color="success" label={`${stats?.succeeded ?? 0} passed`} />
               <Badge color={stats?.failed ? 'danger' : 'muted'} label={`${stats?.failed ?? 0} failed`} />
               <Badge color={stats?.running ? 'warning' : 'muted'} label={`${stats?.running ?? 0} running`} />
-              <TokenBudgetBadge tu={tu} />
             </div>
+            {tu && (
+              <p className="mt-2 text-[11px] text-text-muted" data-testid="ai-testing-token-budget">
+                ${tu.totalCostUsd.toFixed(4)} · {tu.totalTokens.toLocaleString()} tok · last {tu.windowDays}d
+              </p>
+            )}
           </div>
         </div>
 
@@ -123,35 +127,50 @@ export const AiTestingPanel = () => {
   {NAV.map(({ key, icon: Icon, label, sub, badge }) => {
     const active = view === key;
     return (
-      <button
-        key={key}
-        type="button"
-        onClick={() => goView(key)}
-        data-testid={`ai-testing-nav-${key}`}
+<button
+  key={key}
+  type="button"
+  onClick={() => goView(key)}
+  data-testid={`ai-testing-nav-${key}`}
+  className={cn(
+    'flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
+    active
+      ? 'border-border border-2 bg-transparent text-text-primary'   // <── changed: no text-primary, keep default color
+      : 'border-transparent text-text-primary hover:bg-hover hover:text-white',
+  )}
+>
+  <div className="flex min-w-0 items-center gap-2">
+    <Icon
+      className={cn(
+        'h-4 w-4 shrink-0',
+        active ? 'text-primary' : 'text-text-primary'    // icon stays primary when active
+      )}
+    />
+    <div className="min-w-0">
+      {/* Label – slightly thicker when active */}
+      <div className={cn('truncate text-sm', active && 'font-medium')}>
+        {label}
+      </div>
+      {/* Sub – also slightly thicker when active */}
+      <div className={cn('truncate text-xs text-text-muted', active && 'font-medium')}>
+        {sub}
+      </div>
+    </div>
+  </div>
+  <div className="flex shrink-0 items-center gap-1">
+    {badge && (
+      <span
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-          active
-            ? 'bg-primary-muted text-primary'
-            : 'text-text-primary hover:bg-hover hover:text-white',
+          'rounded-full px-1.5 py-0.5 font-mono text-[11px]',
+          active ? 'bg-primary/10 text-primary' : 'bg-elevated text-text-muted',
         )}
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-primary')} />
-          <div className="min-w-0">
-            <div className="truncate text-sm">{label}</div>
-            <div className="truncate text-xs text-text-muted">{sub}</div>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {badge && (
-            <span className={cn(
-              'rounded-full px-1.5 py-0.5 font-mono text-[11px]',
-              active ? 'bg-primary/30 text-primary' : 'bg-elevated text-text-muted',
-            )}>{badge}</span>
-          )}
-          {active && <ChevronRight className="h-3 w-3 text-primary" />}
-        </div>
-      </button>
+        {badge}
+      </span>
+    )}
+    {active && <ChevronRight className="h-3 w-3 text-primary" />}
+  </div>
+</button>
     );
   })}
 </nav>
@@ -203,7 +222,7 @@ export const AiTestingPanel = () => {
             className={cn(
               'flex w-full items-center justify-between gap-2 rounded-md border px-2 py-2 text-left transition-colors',
               view === 'keys'
-                ? 'border-primary/40 bg-primary-muted text-primary'
+                ? 'border-primary/40 bg-transparent text-primary'
                 : 'border-border bg-surface/40 text-text-secondary hover:border-primary/40 hover:bg-hover/50',
             )}
           >
@@ -236,88 +255,8 @@ const Badge = ({ color, label }: { color: 'success' | 'danger' | 'warning' | 'mu
   </span>
 );
 
-/**
- * TokenBudgetBadge — shows total cost · tokens for the last 30 days
- * with a rich custom tooltip on hover (per-key spend, per-model
- * breakdown, total prompt vs completion tokens).
- */
-const TokenBudgetBadge = ({ tu }: { tu: TokenUsageRollup | null }) => {
-  const [open, setOpen] = useState(false);
-  if (!tu) {
-    return <Badge color="muted" label="$0 · 0 tok" />;
-  }
-  const totalToks = tu.totalTokens.toLocaleString();
-  return (
-    <span className="relative inline-block"
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-          data-testid="ai-testing-token-budget">
-      <span className="inline-flex cursor-help items-center gap-1 rounded-full border border-primary/40 bg-primary-muted px-1.5 py-0.5 text-xs font-semibold text-primary">
-        <Coins className="h-2.5 w-2.5" />
-        ${tu.totalCostUsd.toFixed(4)} · {totalToks} tok
-      </span>
-      {open && (
-        <div className="absolute left-0 top-full z-50 w-72 rounded-md border border-border bg-surface p-3 shadow-xl"
-             data-testid="ai-testing-token-tooltip">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold text-text-primary">Token usage · last {tu.windowDays}d</span>
-            <span className="font-mono text-xs text-text-muted">{tu.totalRuns} runs</span>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 text-xs">
-            <Mini label="Prompt"     value={tu.totalTokensIn.toLocaleString()  + ' tok'} />
-            <Mini label="Completion" value={tu.totalTokensOut.toLocaleString() + ' tok'} />
-            <Mini label="Total"      value={totalToks + ' tok'} />
-            <Mini label="Spend"      value={'$' + tu.totalCostUsd.toFixed(6)} />
-          </div>
-
-          {tu.keys.length > 0 && (
-            <div className="mt-3">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                Per-key spend
-              </div>
-              <ul className="space-y-1">
-                {tu.keys.slice(0, 5).map((k) => (
-                  <li key={k.id} className="flex items-center justify-between gap-2 text-xs"
-                      data-testid={`ai-testing-token-key-${k.provider}`}>
-                    <span className="truncate">
-                      <strong className="text-text-primary">{k.provider}</strong>
-                      <span className="text-text-muted"> · ••••{k.last4}</span>
-                    </span>
-                    <span className="shrink-0 font-mono tabular-nums text-text-secondary">
-                      ${k.spendUsd.toFixed(6)} · {k.tokensUsed.toLocaleString()} tok
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {tu.perModel.length > 0 && (
-            <div className="mt-3">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                Top models by cost
-              </div>
-              <ul className="space-y-1">
-                {tu.perModel.slice(0, 4).map((m, i) => (
-                  <li key={i} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate font-mono">{m.provider}/{m.model}</span>
-                    <span className="shrink-0 font-mono tabular-nums text-text-secondary">
-                      ${m.cost.toFixed(6)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </span>
-  );
-};
-
-const Mini = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-border/60 bg-elevated/40 px-2 py-1.5">
-    <div className="text-[11px] uppercase tracking-wide text-text-muted">{label}</div>
-    <div className="font-mono text-xs font-semibold tabular-nums text-text-primary">{value}</div>
-  </div>
-);
+// Token cost used to render as a bordered badge with a hover tooltip here —
+// too heavy for a sidebar that's already tight on space. The full breakdown
+// (per-key spend, per-model, prompt/completion split) now lives in the
+// Analytics tab's "Spend by API key" card; this sidebar just needs a quick
+// glance, which the plain text line above the nav rows already covers.

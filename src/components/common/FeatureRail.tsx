@@ -316,7 +316,7 @@ export const FeatureRail = () => {
       {/* Inner container that visually expands on hover */}
       <div
         className={cn(
-          'absolute left-0 top-0 h-full flex flex-col gap-1 border-r border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-10',
+          'absolute left-0 top-0 h-full flex flex-col gap-1 border-r border-border bg-surface py-2 transition-all duration-500 ease-in-out overflow-hidden z-100',
           isHovered ? 'w-48' : 'w-12'
         )}
         style={{ willChange: 'width' }}

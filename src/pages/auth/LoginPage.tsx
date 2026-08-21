@@ -50,6 +50,11 @@ import { userMgmtService } from "@/services/userMgmt.service";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signOut,
+  sendEmailVerification,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   auth,
   GoogleAuthProvider,
   GithubAuthProvider,
@@ -329,6 +334,10 @@ export const LoginPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  // Set when sign-in is blocked by an unverified email — drives the inline
+  // "resend verification" affordance next to the error message.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resendingVerify, setResendingVerify] = useState(false);
   const setSession = useAuth((s) => s.setSession);
   const [form, setForm] = useState({
     name: "",
@@ -363,6 +372,7 @@ export const LoginPage = () => {
     e.preventDefault();
     setErrorMsg(null);
     setInfoMsg(null);
+    setUnverifiedEmail(null);
     setSubmitting(true);
     try {
       if (mode === "signup") {
@@ -375,13 +385,23 @@ export const LoginPage = () => {
         const firebaseUser = userCred.user;
         const uid = firebaseUser.uid;
 
-        await userMgmtService.register({
+        const { emailDispatched } = await userMgmtService.register({
           userId: uid,
           email: form.email.trim(),
           firstName: form.name.trim() || undefined,
           lastName: undefined,
         });
 
+        // Our SendGrid template is primary. Only fall back to Firebase's
+        // native verification email if ours genuinely failed to send —
+        // we still have a live Firebase session right here (right after
+        // sign-up) which is the only place this fallback is even possible,
+        // since sendEmailVerification() requires a signed-in user.
+        if (!emailDispatched) {
+          await sendEmailVerification(firebaseUser).catch(() => {});
+        }
+
+        await signOut(auth).catch(() => {});
         setInfoMsg(
           "Account created — check your inbox for the verification link, then sign in.",
         );
@@ -390,12 +410,32 @@ export const LoginPage = () => {
       }
 
       // Signin flow
+      // "Remember me" governs Firebase's OWN client-side session persistence
+      // too, not just our store — must be set BEFORE signing in. Unchecked
+      // means the Firebase session itself won't survive closing the browser,
+      // matching how our own store switches to sessionStorage below.
+      await setPersistence(auth, form.remember ? browserLocalPersistence : browserSessionPersistence);
       const userCred = await signInWithEmailAndPassword(
         auth,
         form.email.trim(),
         form.password,
       );
       const firebaseUser = userCred.user;
+
+      // Gate unverified accounts here too — the backend also enforces this
+      // (AUTH_EMAIL_NOT_VERIFIED on every authenticated call), but catching
+      // it right at sign-in gives a clear message instead of a confusing
+      // failure on whatever the next screen tries to load. Sign back out so
+      // we don't leave a half-authenticated Firebase session sitting around.
+      if (!firebaseUser.emailVerified) {
+        await signOut(auth).catch(() => {});
+        setErrorMsg(
+          "Please verify your email before signing in. Check your inbox for the verification link, or resend it below.",
+        );
+        setUnverifiedEmail(form.email.trim());
+        return;
+      }
+
       const idToken = await firebaseUser.getIdToken();
 
       const payload = JSON.parse(atob(idToken.split(".")[1]));
@@ -408,6 +448,7 @@ export const LoginPage = () => {
         refreshToken: "",
         expiresInSec,
         user,
+        remember: form.remember,
       });
 
       const next = params.get("next");
@@ -429,6 +470,20 @@ export const LoginPage = () => {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+    setResendingVerify(true);
+    try {
+      await userMgmtService.resendVerification(unverifiedEmail);
+      setInfoMsg("Verification email sent. Check your inbox.");
+      setErrorMsg(null);
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "Could not resend verification email");
+    } finally {
+      setResendingVerify(false);
+    }
+  };
+
   const handleOAuthLogin = async (
     provider: GoogleAuthProvider | GithubAuthProvider,
   ) => {
@@ -436,6 +491,9 @@ export const LoginPage = () => {
     setInfoMsg(null);
     setSubmitting(true);
     try {
+      // Same "Remember me" checkbox applies here too — it's visible on the
+      // same screen regardless of which sign-in method the user clicks.
+      await setPersistence(auth, form.remember ? browserLocalPersistence : browserSessionPersistence);
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
       const idToken = await firebaseUser.getIdToken();
@@ -469,6 +527,7 @@ export const LoginPage = () => {
         refreshToken: "",
         expiresInSec,
         user,
+        remember: form.remember,
       });
 
       nav("/projects/collections");
@@ -830,6 +889,17 @@ export const LoginPage = () => {
                       )}
                     >
                       {errorMsg}
+                      {unverifiedEmail && (
+                        <button
+                          type="button"
+                          data-testid="auth-resend-verification"
+                          onClick={handleResendVerification}
+                          disabled={resendingVerify}
+                          className="mt-1.5 block font-semibold underline underline-offset-2 disabled:opacity-50"
+                        >
+                          {resendingVerify ? "Sending…" : "Resend verification email"}
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -842,6 +912,7 @@ export const LoginPage = () => {
                         value={form.name}
                         onChange={onChange("name")}
                         required
+                        maxLength={50}
                         isDark={isDark}
                       />
                       <Field
@@ -850,6 +921,7 @@ export const LoginPage = () => {
                         placeholder="Company / Team (optional)"
                         value={form.company}
                         onChange={onChange("company")}
+                        maxLength={80}
                         isDark={isDark}
                       />
                     </>
@@ -864,6 +936,7 @@ export const LoginPage = () => {
                     onChange={onChange("email")}
                     required
                     autoComplete="email"
+                    maxLength={254}
                     isDark={isDark}
                   />
 
@@ -882,6 +955,7 @@ export const LoginPage = () => {
                     autoComplete={
                       mode === "signup" ? "new-password" : "current-password"
                     }
+                    maxLength={128}
                     isDark={isDark}
                     trailing={
                       <button

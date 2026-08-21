@@ -55,6 +55,34 @@ const deleteCookie = (name: string) => {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${window.location.hostname}`;
 };
 
+/**
+ * Storage adapter that picks localStorage vs sessionStorage PER WRITE based
+ * on the `rememberMe` flag inside the state being persisted — this is what
+ * actually implements the "Remember me" checkbox. Unchecked → sessionStorage,
+ * so the session is gone the moment the browser/tab closes, same as
+ * Firebase's own `browserSessionPersistence` we set alongside it at sign-in.
+ * `getItem` checks both since we don't know in advance which one holds the
+ * live session (and the other is guaranteed empty — we always clear it).
+ */
+const rememberAwareStorage = {
+  getItem: (name: string) => localStorage.getItem(name) ?? sessionStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    let remember = true;
+    try { remember = JSON.parse(value)?.state?.rememberMe !== false; } catch { /* default true */ }
+    if (remember) {
+      localStorage.setItem(name, value);
+      sessionStorage.removeItem(name);
+    } else {
+      sessionStorage.setItem(name, value);
+      localStorage.removeItem(name);
+    }
+  },
+  removeItem: (name: string) => {
+    localStorage.removeItem(name);
+    sessionStorage.removeItem(name);
+  },
+};
+
 interface AuthState {
   user:         UserView | null;
   accessToken:  string | null;
@@ -62,9 +90,12 @@ interface AuthState {
   expiresAt:    number | null;     // epoch-ms; renew before this when possible
   /** NEW: Cached account type to avoid repeated checks and allow early renders. */
   accountType:  'INDIVIDUAL' | 'ENTERPRISE' | null;
+  /** "Remember me" from the sign-in form — false = session-only (cleared on browser close). */
+  rememberMe:   boolean;
 
-  /** Set after a successful login (or hydrated from a sibling tab). */
-  setSession(t: { accessToken: string; refreshToken: string; expiresInSec: number; user: UserView }): void;
+  /** Set after a successful login (or hydrated from a sibling tab). `remember` defaults to true
+   *  for flows that don't surface the checkbox (OAuth, OTP, enterprise cookie bootstrap). */
+  setSession(t: { accessToken: string; refreshToken: string; expiresInSec: number; user: UserView; remember?: boolean }): void;
   /** Replace just the access token after a /refresh round-trip. */
   setAccessToken(t: { accessToken: string; expiresInSec: number }): void;
   /** Explicit sign-out (or hydrated from a sibling tab). */
@@ -88,15 +119,17 @@ export const useAuth = create<AuthState>()(
       refreshToken: null,
       expiresAt: null,
       accountType: null,
+      rememberMe: true,
 
-      setSession({ accessToken, refreshToken, expiresInSec, user }) {
+      setSession({ accessToken, refreshToken, expiresInSec, user, remember }) {
         const expiresAt = Date.now() + expiresInSec * 1000;
-        set({ 
-          user, 
-          accessToken, 
-          refreshToken, 
-          expiresAt, 
-          accountType: user?.accountType || 'INDIVIDUAL' 
+        set({
+          user,
+          accessToken,
+          refreshToken,
+          expiresAt,
+          accountType: user?.accountType || 'INDIVIDUAL',
+          rememberMe: remember ?? true,
         });
         broadcastAuth({ type: 'login', payload: { accessToken, refreshToken, expiresAt, user } });
       },
@@ -112,12 +145,13 @@ export const useAuth = create<AuthState>()(
         deleteCookie('ps_auth_token');
         deleteCookie('ps_auth_session');
 
-        set({ 
-          user: null, 
-          accessToken: null, 
-          refreshToken: null, 
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
           expiresAt: null,
-          accountType: null 
+          accountType: null,
+          rememberMe: true,
         });
         broadcastAuth({ type: 'logout' });
       },
@@ -197,7 +231,7 @@ export const useAuth = create<AuthState>()(
     }),
     {
       name: 'forgefuzz.auth',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => rememberAwareStorage),
     },
   ),
 );

@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuPortal, DropdownMenuTrigger,
 } from '@radix-ui/react-dropdown-menu';
 import { Bell, CheckCheck, Loader2, MailCheck, UserPlus, UserX, AlertTriangle, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -184,11 +184,12 @@ export const NotificationBell = () => {
           )}
         </button>
       </DropdownMenuTrigger>
+      <DropdownMenuPortal>
       <DropdownMenuContent
         align="end"
         sideOffset={8}
         className={cn(
-          'z-50 w-[380px] rounded-lg border border-border bg-elevated p-0 shadow-lg',
+          'z-[999] w-[380px] rounded-lg border border-border bg-elevated p-0 shadow-lg',
           'animate-in fade-in-0 zoom-in-95',
         )}
       >
@@ -275,6 +276,7 @@ export const NotificationBell = () => {
           </Link>
         </div>
       </DropdownMenuContent>
+      </DropdownMenuPortal>
     </DropdownMenu>
   );
 };

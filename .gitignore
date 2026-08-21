@@ -67,3 +67,8 @@ node_modules/
 .dataconnect
 
 dist/
+
+# Google service account keys
+*.json
+!package.json
+!tsconfig.json

@@ -593,7 +593,7 @@ const ToolResultView = ({
         {showRaw ? 'Hide raw JSON' : 'Show raw JSON'}
       </button>
       {showRaw && (
-        <div className="h-32 overflow-hidden rounded border border-border/60">
+        <div className="h-64 overflow-hidden rounded border border-border/60">
           <CodeEditor value={JSON.stringify(result, null, 2)} onChange={() => {}} language="json" readOnly testId={`${testIdPrefix}-result-raw`} />
         </div>
       )}

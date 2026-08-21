@@ -33,26 +33,33 @@ import { WebhooksView } from './views/WebhooksView';
 import { AnalyticsView } from './views/AnalyticsView';
 import { AgentTestingView } from './views/AgentTestingView';
 import { AgentMarketplaceView } from './views/AgentMarketplaceView';
+import { AgentDetailView } from './views/AgentDetailView';
 import { DocsView } from './views/DocsView';
 
 type View =
-  | 'overview' | 'quick' | 'suites' | 'runs'
+  | 'overview' | 'LLM' | 'suites' | 'runs'
   | 'agents'   | 'agent-testing' | 'marketplace'
   | 'mcp'      | 'webhooks' | 'analytics' | 'keys' | 'docs';
 
 const ALL_VIEWS: View[] = [
-  'overview', 'quick', 'suites', 'runs', 'agents', 'agent-testing',
+  'overview', 'LLM', 'suites', 'runs', 'agents', 'agent-testing',
   'marketplace', 'mcp', 'webhooks', 'analytics', 'keys', 'docs',
 ];
 
-function viewComponent(v: View, workspaceId: string) {
+function viewComponent(v: View, workspaceId: string, params: URLSearchParams) {
   switch (v) {
     case 'overview':      return <OverviewView workspaceId={workspaceId} />;
-    case 'quick':         return <QuickTestView workspaceId={workspaceId} />;
+    case 'LLM':           return <QuickTestView workspaceId={workspaceId} />;
     case 'suites':        return <SuitesView workspaceId={workspaceId} />;
     case 'runs':          return <RunsView workspaceId={workspaceId} />;
     case 'agent-testing': return <AgentTestingView workspaceId={workspaceId} />;
-    case 'marketplace':   return <AgentMarketplaceView workspaceId={workspaceId} />;
+    case 'marketplace': {
+      const id = params.get('id');
+      if (id) {
+        return <AgentDetailView workspaceId={workspaceId} agentId={id} />;
+      }
+      return <AgentMarketplaceView workspaceId={workspaceId} />;
+    }
     case 'agents':        return <AgentsView workspaceId={workspaceId} />;
     case 'mcp':           return <McpServersView workspaceId={workspaceId} />;
     case 'webhooks':      return <WebhooksView workspaceId={workspaceId} />;
@@ -99,7 +106,7 @@ export const AiTestingPage = () => {
              data-testid={`ai-testing-view-${v}`}
              aria-hidden={v !== view}
              style={{ display: v === view ? 'block' : 'none' }}>
-          {viewComponent(v, workspaceId)}
+          {viewComponent(v, workspaceId, params)}
         </div>
       ))}
     </div>

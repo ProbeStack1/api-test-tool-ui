@@ -6,7 +6,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY .npmrc ./
 
-# Just export the token and run npm ci. npm handles the ${} interpolation automatically!
+ENV CI=false
+
 RUN --mount=type=secret,id=google_artifact_token \
     export GOOGLE_ARTIFACT_TOKEN="$(cat /run/secrets/google_artifact_token)" && npm ci
 

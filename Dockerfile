@@ -6,20 +6,17 @@ WORKDIR /app
 COPY package*.json ./
 COPY .npmrc ./
 
+# Just export the token and run npm ci. npm handles the ${} interpolation automatically!
 RUN --mount=type=secret,id=google_artifact_token \
-    export TOKEN="$(cat /run/secrets/google_artifact_token)" && \
-    sed -i "s|{{GOOGLE_ARTIFACT_TOKEN}}|${TOKEN}|g" .npmrc && \
-    npm ci
+    export GOOGLE_ARTIFACT_TOKEN="$(cat /run/secrets/google_artifact_token)" && npm ci
 
 COPY . .
 RUN npm run build
 
 # ---- Runtime stage ----
 FROM nginx:alpine
-
 RUN rm /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

@@ -195,7 +195,7 @@ const AgentFormModal = ({ mode, workspaceId, catalog, mcps, initial, onClose, on
   const [agentType, setAgentType]     = useState<AgentType>(initial?.agentType ?? 'single');
   const [protocol, setProtocol]       = useState<AgentProto>(initial?.protocol ?? 'direct');
   const [provider, setProvider]       = useState<string>(initial?.provider ?? catalog.providers[0]?.id ?? 'openai');
-  const [model, setModel]             = useState<string>(initial?.model ?? catalog.providers[0]?.models[0] ?? 'gpt-4o-mini');
+  const [model, setModel]             = useState<string>(initial?.model ?? catalog.providers[0]?.models[0]?.name ?? 'gpt-4o-mini');
   const [systemPrompt, setSystemPrompt] = useState(initial?.systemPrompt ?? '');
   const [maxIterations, setMaxIters]  = useState(initial?.maxIterations ?? 8);
   const [mcpServerId, setMcp]         = useState<string>(initial?.mcpServerId ?? '');
@@ -289,14 +289,19 @@ const AgentFormModal = ({ mode, workspaceId, catalog, mcps, initial, onClose, on
               <select value={provider} onChange={(e) => {
                 setProvider(e.target.value);
                 const p = catalog.providers.find((x) => x.id === e.target.value);
-                setModel(p?.models[0] ?? 'gpt-4o-mini');
+                setModel(p?.models[0]?.name ?? 'gpt-4o-mini');
               }} className={inputCls}>
                 {catalog.providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>
             </Field>
             <Field label="Model">
               <select value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}>
-                {providerObj?.models.map((m) => <option key={m} value={m}>{m}</option>)}
+                {providerObj?.models.map((m) => (
+                  <option key={m.name} value={m.name}
+                          title={`$${m.promptCostPer1k}/1k prompt tok · $${m.completionCostPer1k}/1k completion tok`}>
+                    {m.name}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>

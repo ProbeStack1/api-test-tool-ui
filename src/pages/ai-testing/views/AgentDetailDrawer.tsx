@@ -237,7 +237,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
           {/* deployment info — Cloud Run URL + region + service */}
           {(deploymentUrl || region || serviceName) && (
             <Section title="Deployment" icon={ServerCog}>
-              <div className="space-y-2 rounded-lg border border-border bg-elevated/40 p-3 text-sm">
+              <div className="space-y-2 rounded-lg border border-border bg-probestack-bg p-3 text-sm">
                 {deploymentUrl && (
                   <KvRow label="Base URL">
                     <div className="flex min-w-0 items-center gap-1.5">
@@ -280,7 +280,7 @@ export const AgentDetailDrawer = ({ agent, onClose, onTrySandbox, onImportCollec
 
           {/* token quota */}
           {quota && (
-            <div className="rounded-lg border border-border bg-elevated/40 p-3">
+            <div className="rounded-lg border border-border bg-probestack-bg p-3">
               <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="font-semibold">Public sandbox quota</span>
                 <span className="font-mono text-text-muted">

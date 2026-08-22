@@ -220,7 +220,7 @@ export default function HeroSection() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 animate-fade-in-up animation-delay-300">
             <RocketButton onClick={() => navigate(isAuthed ? '/projects/collections' : '/login')}>
-              Start free →
+              Start Testing →
             </RocketButton>
             <a
               href="#pillars"

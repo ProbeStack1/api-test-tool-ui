@@ -30,7 +30,7 @@ export const QuickTestView = ({ workspaceId }: { workspaceId: string }) => {
   useEffect(() => { fetchCatalog(workspaceId).then(setCatalog).catch(() => {}); }, [workspaceId]);
   useEffect(() => {
     const ms = catalog?.providers.find((p) => p.id === provider)?.models ?? [];
-    if (ms.length && !ms.includes(model)) setModel(ms[0]);
+    if (ms.length && !ms.some((m) => m.name === model)) setModel(ms[0].name);
   }, [provider, catalog]); // eslint-disable-line
 
   const models = useMemo(
@@ -96,7 +96,12 @@ export const QuickTestView = ({ workspaceId }: { workspaceId: string }) => {
           <Field label="Model">
             <select value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}
                     data-testid="ai-testing-quick-model">
-              {models.map((m) => <option key={m} value={m}>{m}</option>)}
+              {models.map((m) => (
+                <option key={m.name} value={m.name}
+                        title={`$${m.promptCostPer1k}/1k prompt tok · $${m.completionCostPer1k}/1k completion tok`}>
+                  {m.name}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
@@ -157,12 +162,12 @@ export const QuickTestView = ({ workspaceId }: { workspaceId: string }) => {
               <pre className="whitespace-pre-wrap">{resp.error}</pre>
             </div>
           ) : (
-            <pre className="whitespace-pre-wrap rounded bg-elevated/40 p-3 text-[12px] text-text-primary">
+            <pre className="whitespace-pre-wrap rounded border border-border/60 bg-probestack-bg p-3 text-[12px] text-text-primary">
               {resp.text || '(empty response)'}
             </pre>
           )}
           {resp.toolCalls && resp.toolCalls.length > 0 && (
-            <details className="mt-2 rounded border border-border bg-elevated/40 p-2 text-[11px]">
+            <details className="mt-2 rounded border border-border bg-probestack-bg p-2 text-[11px]">
               <summary className="cursor-pointer font-semibold">{resp.toolCalls.length} tool call(s)</summary>
               <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(resp.toolCalls, null, 2)}</pre>
             </details>

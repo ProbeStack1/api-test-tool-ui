@@ -171,8 +171,15 @@ export interface QuickTestResult {
   error?: string | null;
 }
 
+/** A model entry from the catalog — carries per-1k-token cost alongside the name. */
+export interface CatalogModel {
+  name: string;
+  promptCostPer1k: number;
+  completionCostPer1k: number;
+}
+
 export interface Catalog {
-  providers: Array<{ id: Provider; label: string; models: string[] }>;
+  providers: Array<{ id: Provider; label: string; models: CatalogModel[] }>;
   assertions: Array<{ id: string; label: string }>;
   suiteTypes: SuiteType[];
   executionModes: ExecutionMode[];
@@ -243,6 +250,28 @@ export const getRun = (workspaceId: string, id: string) =>
 export const listResults = (workspaceId: string, runId: string, page = 0, size = 200) =>
   http.get(`${BASE}/workspaces/${workspaceId}/runs/${runId}/results`, { params: { page, size } })
       .then((r) => unwrap<{ items: TestResult[]; total: number }>(r));
+
+/** One node in a run's execution trace tree — run → case → step (llm/tool). */
+export interface TraceNode {
+  id: string;
+  name: string;
+  kind: 'run' | 'case' | 'llm' | 'tool' | 'agent';
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  status: 'ok' | 'error';
+  errorMessage: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  costUsd: number | null;
+  model: string | null;
+  input: string | null;
+  output: string | null;
+  children: TraceNode[];
+}
+
+export const getRunTrace = (workspaceId: string, runId: string) =>
+  http.get(`${BASE}/workspaces/${workspaceId}/runs/${runId}/trace`).then((r) => unwrap<TraceNode>(r));
 
 export const setBaseline = (workspaceId: string, runId: string) =>
   http.post(`${BASE}/workspaces/${workspaceId}/runs/${runId}/baseline`).then((r) => unwrap<TestRun>(r));

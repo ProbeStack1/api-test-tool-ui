@@ -146,7 +146,7 @@ export const AnalyticsView = ({ workspaceId }: { workspaceId: string }) => {
                 {tu.keys.map((k) => (
                   <div key={k.id}
                        data-testid={`ai-testing-analytics-key-${k.provider}`}
-                       className="rounded-md border border-border/60 bg-elevated/30 px-3 py-2.5">
+                       className="rounded-md border border-border/60 bg-probestack-bg px-3 py-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold text-text-primary">{k.provider}</span>
                       <span className="font-mono text-[11px] text-text-muted">••••{k.last4}</span>
@@ -422,7 +422,7 @@ const Card = ({ title, subtitle, children }: { title: string; subtitle?: string;
 );
 
 const MiniStat = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-border/60 bg-elevated/40 px-2.5 py-2">
+  <div className="rounded-md border border-border/60 bg-probestack-bg px-2.5 py-2">
     <div className="text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
     <div className="mt-0.5 font-mono text-xs font-semibold tabular-nums text-text-primary">{value}</div>
   </div>

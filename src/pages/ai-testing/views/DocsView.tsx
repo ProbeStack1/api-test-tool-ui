@@ -428,7 +428,7 @@ function Code({ children }: { children: string }) {
     <div className="group relative">
       <pre
         ref={preRef}
-        className="overflow-x-auto rounded-lg border border-border bg-elevated/60 p-4 font-mono text-xs leading-relaxed text-text-primary shadow-inner"
+        className="overflow-x-auto rounded-lg border border-border bg-probestack-bg p-4 font-mono text-xs leading-relaxed text-text-primary shadow-inner"
         tabIndex={0}
       >
         <code>{children}</code>

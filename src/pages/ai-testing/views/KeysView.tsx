@@ -90,7 +90,7 @@ export const KeysView = ({ workspaceId }: { workspaceId: string }) => {
         </button>
       </div>
 
-      <div className="mt-4 rounded-md border border-border/60 bg-elevated/30 p-3 text-[11px] text-text-secondary">
+      <div className="mt-4 rounded-md border border-border/60 bg-surface p-3 text-[11px] text-text-secondary">
         <Info className="mr-1.5 inline h-3.5 w-3.5 text-primary" />
         Without a provider key, runs targeting that provider will fail. Add the
         keys you control here — one active key per provider; adding a new one

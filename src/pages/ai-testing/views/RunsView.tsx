@@ -14,7 +14,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ArrowLeft, BookmarkCheck, BookmarkX, CheckCircle2, ChevronRight,
-  Clock, AlertTriangle, History, Loader2, Play, RefreshCw, XCircle, Zap,
+  Clock, AlertTriangle, History, Loader2, Play, RefreshCw, XCircle, Zap, Workflow,
 } from 'lucide-react';
 import {
   cancelRun, clearBaseline, getRun, listResults, listRuns, rerunRun, setBaseline,
@@ -23,6 +23,7 @@ import {
 import { cn } from '@/utils/cn';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { TraceDrawer } from './TraceDrawer';
 
 export const RunsView = ({ workspaceId }: { workspaceId: string }) => {
   const [params] = useSearchParams();
@@ -39,6 +40,7 @@ const RunsList = ({ workspaceId }: { workspaceId: string }) => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | TestRun['status']>('all');
   const [query, setQuery]     = useState('');
+  const [showSample, setShowSample] = useState(false);
 
   const fetch = useCallback(async () => {
     try {
@@ -85,12 +87,22 @@ const RunsList = ({ workspaceId }: { workspaceId: string }) => {
             <span className="font-mono text-xs">{filtered.length} of {runs.length} shown</span>
           </p>
         </div>
-        <button type="button" onClick={fetch}
-                data-testid="ai-testing-runs-refresh"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold hover:bg-elevated">
-          <RefreshCw className="h-3 w-3" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setShowSample(true)}
+                  data-testid="ai-testing-runs-sample-trace"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold hover:bg-elevated">
+            <Workflow className="h-3 w-3 text-primary" /> View sample trace
+          </button>
+          <button type="button" onClick={fetch}
+                  data-testid="ai-testing-runs-refresh"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold hover:bg-elevated">
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </button>
+        </div>
       </div>
+      {showSample && (
+        <TraceDrawer workspaceId={workspaceId} runId="sample" sample title="Trace · Sample" onClose={() => setShowSample(false)} />
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3"
@@ -114,12 +126,27 @@ const RunsList = ({ workspaceId }: { workspaceId: string }) => {
       {loading ? (
         <RunsListSkeleton />
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-surface p-10 text-center text-sm text-text-muted">
-          <History className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          {runs.length === 0
-            ? <>No runs yet. Trigger a suite from <strong className="text-text-primary">Suites</strong> or run a one-shot probe from <strong className="text-text-primary">Quick test</strong>.</>
-            : <>No runs match the current filter. Reset or try a different search.</>}
-        </div>
+        runs.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-surface p-10 text-center" data-testid="ai-testing-runs-empty">
+            <Workflow className="mx-auto mb-3 h-8 w-8 text-primary opacity-70" />
+            <h3 className="text-sm font-semibold">Get started with tracing</h3>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-text-muted">
+              Every suite or agent run you trigger is automatically captured as a step-by-step
+              trace — no setup needed. Trigger a suite from <strong className="text-text-primary">Suites</strong>,
+              or a one-shot probe from <strong className="text-text-primary">Quick test</strong>.
+            </p>
+            <button type="button" onClick={() => setShowSample(true)}
+                    data-testid="ai-testing-runs-empty-sample-trace"
+                    className="mx-auto mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90">
+              <Workflow className="h-3.5 w-3.5" /> View sample trace
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border bg-surface p-10 text-center text-sm text-text-muted">
+            <History className="mx-auto mb-2 h-8 w-8 opacity-50" />
+            No runs match the current filter. Reset or try a different search.
+          </div>
+        )
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <table className="w-full text-sm">
@@ -209,6 +236,7 @@ const RunDetail = ({ workspaceId, runId }: { workspaceId: string; runId: string 
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<'baseline' | 'rerun' | 'cancel' | null>(null);
+  const [showTrace, setShowTrace] = useState(false);
   const polling = useRef<number | null>(null);
   const confirm = useConfirm();
 
@@ -405,6 +433,25 @@ const RunDetail = ({ workspaceId, runId }: { workspaceId: string; runId: string 
         </div>
       </div>
 
+      {/* Trace — step-by-step waterfall of the whole run, in our own UI
+           (not just an external export). Opens in a side drawer so it
+           doesn't push the rest of the run page around. */}
+      {results.length > 0 && (
+        <div className="mt-5">
+          <button type="button" onClick={() => setShowTrace(true)}
+                  data-testid="ai-testing-trace-toggle"
+                  className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-left hover:border-primary/40 hover:bg-hover/50">
+            <Workflow className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="text-sm font-semibold">View trace</span>
+            <span className="text-[11px] text-text-muted">— step-by-step waterfall for this run</span>
+          </button>
+          {showTrace && (
+            <TraceDrawer workspaceId={workspaceId} runId={runId} title={run.suiteName ? `Trace · ${run.suiteName}` : 'Trace'}
+                         onClose={() => setShowTrace(false)} />
+          )}
+        </div>
+      )}
+
       {/* Per-case results */}
       <div className="mt-5 mb-2 flex items-center justify-between">
         <h3 className="text-sm font-semibold">Per-case results</h3>
@@ -484,7 +531,7 @@ const ResultRow = ({ res }: { res: TestResult }) => {
             </div>
           )}
           {res.output && (
-            <details className="mb-2 rounded border border-border bg-elevated/40 p-2" open>
+            <details className="mb-2 rounded border border-border bg-probestack-bg p-2" open>
               <summary className="cursor-pointer font-semibold">Model output</summary>
               <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap">{res.output}</pre>
             </details>
@@ -508,7 +555,7 @@ const ResultRow = ({ res }: { res: TestResult }) => {
             </div>
           )}
           {res.toolCallSummary && (
-            <div className="mt-2 rounded border border-border bg-elevated/30 p-2">
+            <div className="mt-2 rounded border border-border bg-probestack-bg p-2">
               <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
                 Tool-call accuracy
                 {res.toolCallSummary.sequenceMatches != null && (
@@ -540,7 +587,7 @@ const ResultRow = ({ res }: { res: TestResult }) => {
             </div>
           )}
           {res.agentTrace && res.agentTrace.length > 0 && (
-            <details className="mt-2 rounded border border-border bg-elevated/30 p-2">
+            <details className="mt-2 rounded border border-border bg-probestack-bg p-2">
               <summary className="cursor-pointer font-semibold">{res.agentTrace.length} agent step(s)</summary>
               <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap text-[10px]">
                 {JSON.stringify(res.agentTrace, null, 2)}

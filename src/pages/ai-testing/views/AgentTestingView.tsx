@@ -377,7 +377,7 @@ const DirectAgentForm = ({ workspaceId, prefill }: { workspaceId: string; prefil
               <select value={provider} onChange={(e) => {
                 setProvider(e.target.value);
                 const p = cat?.providers.find((x) => x.id === e.target.value);
-                setModel(p?.models[0] ?? 'gpt-4o-mini');
+                setModel(p?.models[0]?.name ?? 'gpt-4o-mini');
               }} data-testid="ai-testing-direct-provider" className={inputCls}>
                 {cat?.providers.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
               </select>
@@ -385,7 +385,12 @@ const DirectAgentForm = ({ workspaceId, prefill }: { workspaceId: string; prefil
             <Field label="Model">
               <select value={model} onChange={(e) => setModel(e.target.value)}
                       data-testid="ai-testing-direct-model" className={inputCls}>
-                {providerObj?.models.map((m) => <option key={m} value={m}>{m}</option>)}
+                {providerObj?.models.map((m) => (
+                  <option key={m.name} value={m.name}
+                          title={`$${m.promptCostPer1k}/1k prompt tok · $${m.completionCostPer1k}/1k completion tok`}>
+                    {m.name}
+                  </option>
+                ))}
               </select>
             </Field>
           </div>
@@ -409,7 +414,7 @@ const DirectAgentForm = ({ workspaceId, prefill }: { workspaceId: string; prefil
             </div>
             <div className="space-y-3">
               {agents.map((a, i) => (
-                <div key={i} className="rounded-lg border border-border bg-elevated/30 p-3"
+                <div key={i} className="rounded-lg border border-border bg-probestack-bg p-3"
                      data-testid={`ai-testing-agent-def-${i}`}>
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-[11px] font-semibold text-text-muted">Agent {i + 1}</span>
@@ -428,13 +433,17 @@ const DirectAgentForm = ({ workspaceId, prefill }: { workspaceId: string; prefil
                     <select value={a.provider} onChange={(e) => {
                       updateAgent(i, 'provider', e.target.value);
                       const p = cat?.providers.find((x) => x.id === e.target.value);
-                      updateAgent(i, 'model', p?.models[0] ?? '');
+                      updateAgent(i, 'model', p?.models[0]?.name ?? '');
                     }} className={inputCls}>
                       {cat?.providers.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
                     </select>
                     <select value={a.model} onChange={(e) => updateAgent(i, 'model', e.target.value)} className={inputCls}>
-                      {(cat?.providers.find((p) => p.id === a.provider)?.models ?? []).map((m) =>
-                        <option key={m} value={m}>{m}</option>)}
+                      {(cat?.providers.find((p) => p.id === a.provider)?.models ?? []).map((m) => (
+                        <option key={m.name} value={m.name}
+                                title={`$${m.promptCostPer1k}/1k prompt tok · $${m.completionCostPer1k}/1k completion tok`}>
+                          {m.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <input value={a.systemPrompt} onChange={(e) => updateAgent(i, 'systemPrompt', e.target.value)}
@@ -1170,7 +1179,7 @@ const ResultPanel = () => {
         <h3 className="text-sm font-semibold text-text-muted">Execution Result</h3>
       </div>
       {!result ? (
-        <div className="grid h-48 place-items-center rounded-md border border-dashed border-border bg-elevated/20 text-sm text-text-muted">
+        <div className="grid h-48 place-items-center rounded-md border border-dashed border-border bg-probestack-bg text-sm text-text-muted">
           Configure the agent on the left and hit <strong className="text-text-primary">Run</strong> to see results here.
         </div>
       ) : (
@@ -1235,7 +1244,7 @@ const ResultPanel = () => {
           {/* Execution Trace — Postman-style step breakdown */}
           <ExecutionTrace result={result} />
 
-          <details className="rounded-md border border-border bg-elevated/30 p-2">
+          <details className="rounded-md border border-border bg-probestack-bg p-2">
             <summary className="cursor-pointer text-xs font-semibold text-text-muted">Raw JSON</summary>
             <pre className="mt-2 max-h-80 overflow-auto text-xs">{JSON.stringify(result, null, 2)}</pre>
           </details>

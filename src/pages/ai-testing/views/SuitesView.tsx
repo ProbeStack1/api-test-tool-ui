@@ -270,7 +270,7 @@ const SuiteDetail = ({ workspaceId, suiteId, catalog }: { workspaceId: string; s
         <p className="mt-2 text-[12px] text-text-secondary">{suite.description}</p>
       )}
       {suite.systemPrompt && (
-        <details className="mt-2 rounded-md border border-border bg-elevated/40 p-2 text-[11px]" open>
+        <details className="mt-2 rounded-md border border-border bg-surface p-2 text-[11px]" open>
           <summary className="cursor-pointer font-semibold">System prompt</summary>
           <pre className="mt-1 whitespace-pre-wrap text-text-secondary">{suite.systemPrompt}</pre>
         </details>
@@ -366,7 +366,7 @@ const SuiteForm = ({ mode, workspaceId, catalog, initial, onSaved, onCancel }: {
     setSelectedAgentIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const models = useMemo(() => catalog?.providers.find((p) => p.id === provider)?.models ?? [], [catalog, provider]);
-  useEffect(() => { if (models.length && !models.includes(model)) setModel(models[0]); }, [provider, models]); // eslint-disable-line
+  useEffect(() => { if (models.length && !models.some((m) => m.name === model)) setModel(models[0].name); }, [provider, models]); // eslint-disable-line
   const judgeModels = useMemo(() => catalog?.providers.find((p) => p.id === judgeProvider)?.models ?? [], [catalog, judgeProvider]);
 
   const submit = async () => {
@@ -420,7 +420,12 @@ const SuiteForm = ({ mode, workspaceId, catalog, initial, onSaved, onCancel }: {
           <Field label="Model">
             <select value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}
                     data-testid="ai-testing-new-suite-model">
-              {models.map((m) => <option key={m} value={m}>{m}</option>)}
+              {models.map((m) => (
+                <option key={m.name} value={m.name}
+                        title={`$${m.promptCostPer1k}/1k prompt tok · $${m.completionCostPer1k}/1k completion tok`}>
+                  {m.name}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
@@ -429,7 +434,7 @@ const SuiteForm = ({ mode, workspaceId, catalog, initial, onSaved, onCancel }: {
             {agentsLoading ? (
               <div className="flex items-center gap-2 text-[11px] text-text-muted"><Loader2 className="h-3 w-3 animate-spin" /> Loading agents…</div>
             ) : agents.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border bg-elevated/30 p-2 text-[11px] text-text-muted">
+              <p className="rounded-md border border-dashed border-border bg-probestack-bg p-2 text-[11px] text-text-muted">
                 No agent configs in this workspace yet — create one in the <strong className="text-text-primary">Agents</strong> tab first.
               </p>
             ) : (
@@ -469,7 +474,7 @@ const SuiteForm = ({ mode, workspaceId, catalog, initial, onSaved, onCancel }: {
           {showJudge ? '− Hide' : '+ Set'} judge model (for LLM-judge / grounded / toxicity assertions)
         </button>
         {showJudge && (
-          <div className="grid grid-cols-2 gap-3 rounded-md border border-dashed border-border bg-elevated/30 p-3">
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-dashed border-border bg-probestack-bg p-3">
             <Field label="Judge provider">
               <select value={judgeProvider} onChange={(e) => { setJudgeProvider(e.target.value); setJudgeModel(''); }}
                       className={inputCls} data-testid="ai-testing-new-suite-judge-provider">
@@ -481,7 +486,12 @@ const SuiteForm = ({ mode, workspaceId, catalog, initial, onSaved, onCancel }: {
               <select value={judgeModel} onChange={(e) => setJudgeModel(e.target.value)} className={inputCls}
                       disabled={!judgeProvider} data-testid="ai-testing-new-suite-judge-model">
                 <option value="">{judgeProvider ? 'Provider default' : '—'}</option>
-                {judgeModels.map((m) => <option key={m} value={m}>{m}</option>)}
+                {judgeModels.map((m) => (
+                  <option key={m.name} value={m.name}
+                          title={`$${m.promptCostPer1k}/1k prompt tok · $${m.completionCostPer1k}/1k completion tok`}>
+                    {m.name}
+                  </option>
+                ))}
               </select>
             </Field>
             <p className="col-span-2 text-[10px] text-text-muted">
@@ -567,7 +577,7 @@ const CaseAdder = ({ catalog, suiteType, initial, onSubmit, onCancel }: {
   const rmA  = (i: number) => setAssertions((p) => p.filter((_, idx) => idx !== i));
 
   return (
-    <div className="rounded-md border border-dashed border-border bg-elevated/30 p-3"
+    <div className="rounded-md border border-dashed border-border bg-surface p-3"
          data-testid="ai-testing-case-adder">
       <div className="grid gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls}

@@ -32,16 +32,13 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build React app
-        run: npm run build
+      # Node install/build used to run here too, on the bare runner, before
+      # any GCP auth existed — npm ci would 403 fetching the private
+      # @probestack package (no token wired into this shell yet), and its
+      # output (node_modules/dist) was never used anyway: the Docker build
+      # below does its own npm ci + npm run build inside the image, with
+      # GOOGLE_ARTIFACT_TOKEN correctly wired via a BuildKit secret
+      # (see Dockerfile). Removed as dead, broken duplication.
 
       - name: Authenticate to Google Cloud
         id: auth

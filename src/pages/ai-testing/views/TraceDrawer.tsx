@@ -17,6 +17,7 @@ export const TraceDrawer = ({ workspaceId, runId, title, sample, onClose }: {
   <div data-testid="ai-testing-trace-drawer" className="fixed inset-0 z-40 flex justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
     <div
       onClick={(e) => e.stopPropagation()}
+      data-trace-panel
       className="flex h-full w-full max-w-5xl flex-col border-l border-border bg-surface shadow-2xl"
     >
       <header className="flex items-center gap-2 border-b border-border bg-surface/80 px-5 py-3.5">

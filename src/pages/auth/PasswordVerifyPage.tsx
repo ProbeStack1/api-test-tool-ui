@@ -40,6 +40,12 @@ import {
 } from "@/lib/firebase";
 import { userMgmtService } from "@/services/userMgmt.service";
 import { cn } from "@/utils/cn";
+import {
+  isValidEmail,
+  isValidPassword,
+  EMAIL_PATTERN_ERROR,
+  PASSWORD_PATTERN_ERROR,
+} from "@/utils/authValidation";
 
 type PasswordMode = "forgot" | "reset" | "otp";
 
@@ -241,38 +247,72 @@ const Field = ({
   testid,
   trailing,
   isDark = true,
+  error,
+  hint,
   ...rest
 }: {
   icon: any;
   testid: string;
   trailing?: React.ReactNode;
   isDark?: boolean;
+  error?: string;
+  /** Persistent helper text shown below the field when there's no error. */
+  hint?: string;
 } & React.InputHTMLAttributes<HTMLInputElement>) => (
-  <div
-    className={cn(
-      "group relative flex items-center rounded-lg border transition-all",
-      isDark
-        ? "border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]"
-        : "border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white",
+  <div>
+    <div
+      className={cn(
+        "group relative flex items-center rounded-lg border transition-all",
+        error
+          ? "border-rose-500/60"
+          : isDark
+            ? "border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]"
+            : "border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white",
+      )}
+    >
+      <Icon
+        className={cn(
+          "ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]",
+          isDark ? "text-white/40" : "text-gray-400",
+        )}
+      />
+      <input
+        {...rest}
+        data-testid={testid}
+        aria-invalid={!!error}
+        // See the matching comment in LoginPage.tsx's Field — opts this
+        // input out of tailwind.css's global focus border/box-shadow rule,
+        // which otherwise stacks a second glow box on top of this
+        // component's own focus-within border.
+        className={cn(
+          "no-global-focus-ring flex-1 bg-transparent px-3 py-2.5 text-sm outline-none",
+          isDark
+            ? "text-white placeholder-white/35"
+            : "text-gray-900 placeholder-gray-400",
+        )}
+      />
+      {trailing && <div className="mr-3">{trailing}</div>}
+    </div>
+    {error ? (
+      <p
+        data-testid={`${testid}-error`}
+        className="mt-1 text-[11px] text-rose-500"
+      >
+        {error}
+      </p>
+    ) : (
+      hint && (
+        <p
+          data-testid={`${testid}-hint`}
+          className={cn(
+            "mt-1 text-[11px]",
+            isDark ? "text-white/40" : "text-gray-400",
+          )}
+        >
+          {hint}
+        </p>
+      )
     )}
-  >
-    <Icon
-      className={cn(
-        "ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]",
-        isDark ? "text-white/40" : "text-gray-400",
-      )}
-    />
-    <input
-      {...rest}
-      data-testid={testid}
-      className={cn(
-        "flex-1 bg-transparent px-3 py-2.5 text-sm outline-none",
-        isDark
-          ? "text-white placeholder-white/35"
-          : "text-gray-900 placeholder-gray-400",
-      )}
-    />
-    {trailing && <div className="mr-3">{trailing}</div>}
   </div>
 );
 
@@ -291,12 +331,28 @@ export const PasswordVerifyPage = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
+  // "Try another way (OTP sign in)" / "Try reset password" only change the
+  // `?mode=` query param — this component stays mounted, so without this,
+  // a stale banner (or a leftover in-progress OTP screen) from the
+  // PREVIOUS mode kept showing under the new mode's own form.
+  useEffect(() => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setEmailFieldError(undefined);
+    setOtpSent(false);
+    setOtp("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  // Field-level email pattern error — shown under the email input itself,
+  // separate from `errorMsg`/`infoMsg` (the top-of-form banners).
+  const [emailFieldError, setEmailFieldError] = useState<string | undefined>();
 
   const oobCode = params.get("oobCode"); // Firebase fallback link
   const ourToken = params.get("token");  // our own reset link (primary)
@@ -335,6 +391,18 @@ export const PasswordVerifyPage = () => {
       setErrorMsg("Please enter your email address.");
       return;
     }
+    // Validate the email SHAPE before ever calling the backend — previously
+    // an obviously malformed address (e.g. "abc@") still hit
+    // userMgmtService.forgotPassword and came back as a generic success,
+    // since that endpoint intentionally never discloses whether an address
+    // exists (to avoid user enumeration). That's correct for "email not
+    // found", but it was also masking "email isn't even a valid shape",
+    // which should never get a success message.
+    if (!isValidEmail(email)) {
+      setEmailFieldError(EMAIL_PATTERN_ERROR);
+      return;
+    }
+    setEmailFieldError(undefined);
     setErrorMsg(null);
     setInfoMsg(null);
     setSubmitting(true);
@@ -348,7 +416,10 @@ export const PasswordVerifyPage = () => {
       if (!emailDispatched) {
         await sendPasswordResetEmail(auth, email.trim()).catch(() => {});
       }
-      setInfoMsg("Reset link sent! Check your email (including spam/junk).");
+      // Echo back exactly what the user typed — lets them visually catch
+      // their own typo (e.g. a mistyped company email) without us ever
+      // disclosing whether that address is actually registered.
+      setInfoMsg(`If ${email.trim()} is registered, we've sent a reset link.`);
     } catch (err: any) {
       setErrorMsg(
         err?.message || "Failed to send reset link. Please try again.",
@@ -361,8 +432,13 @@ export const PasswordVerifyPage = () => {
   const handleResetPassword = async (e: FormEvent) => {
     e.preventDefault();
     if (!ourToken && !oobCode) return;
-    if (newPassword.length < 6) {
-      setErrorMsg("Password must be at least 6 characters.");
+    // Match the backend's actual requirement (ResetPasswordRequest —
+    // @Size(min=8, max=128), plus AuthService requiring a letter + digit).
+    // This used to only check length >= 6, so a 6-7 char password sailed
+    // through here and only failed later at the backend with a generic
+    // error — now it's caught up front with the real reason.
+    if (!isValidPassword(newPassword)) {
+      setErrorMsg(PASSWORD_PATTERN_ERROR);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -395,6 +471,14 @@ export const PasswordVerifyPage = () => {
       setErrorMsg("Please enter your email address.");
       return;
     }
+    // Same as forgot-password: reject an invalid SHAPE before calling the
+    // backend, instead of always showing "a code was sent" regardless of
+    // whether the address could even be real.
+    if (!isValidEmail(email)) {
+      setEmailFieldError(EMAIL_PATTERN_ERROR);
+      return;
+    }
+    setEmailFieldError(undefined);
     setErrorMsg(null);
     setInfoMsg(null);
     setSubmitting(true);
@@ -466,7 +550,7 @@ export const PasswordVerifyPage = () => {
             <div
               data-testid="auth-error"
               className={cn(
-                "rounded-lg border px-3 py-2 text-[12px]",
+                "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                 isDark
                   ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
                   : "border-rose-500/40 bg-rose-50 text-rose-700",
@@ -479,7 +563,7 @@ export const PasswordVerifyPage = () => {
             <div
               data-testid="auth-info"
               className={cn(
-                "rounded-lg border px-3 py-2 text-[12px]",
+                "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                 isDark
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                   : "border-emerald-500/40 bg-emerald-50 text-emerald-800",
@@ -494,11 +578,15 @@ export const PasswordVerifyPage = () => {
             type="email"
             placeholder="you@company.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setEmailFieldError(undefined);
+            }}
             required
             autoComplete="email"
             maxLength={254}
             isDark={isDark}
+            error={emailFieldError}
           />
           <button
             type="submit"
@@ -619,7 +707,7 @@ export const PasswordVerifyPage = () => {
               <div
                 data-testid="auth-error"
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-[12px]",
+                  "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                   isDark
                     ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
                     : "border-rose-500/40 bg-rose-50 text-rose-700",
@@ -632,7 +720,7 @@ export const PasswordVerifyPage = () => {
               <div
                 data-testid="auth-info"
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-[12px]",
+                  "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                   isDark
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                     : "border-emerald-500/40 bg-emerald-50 text-emerald-800",
@@ -652,6 +740,7 @@ export const PasswordVerifyPage = () => {
               autoComplete="new-password"
               maxLength={128}
               isDark={isDark}
+              hint="At least 8 characters, with letters and numbers"
               trailing={
                 <button
                   type="button"
@@ -726,7 +815,7 @@ export const PasswordVerifyPage = () => {
                 <div
                   data-testid="auth-error"
                   className={cn(
-                    "rounded-lg border px-3 py-2 text-[12px]",
+                    "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                     isDark
                       ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
                       : "border-rose-500/40 bg-rose-50 text-rose-700",
@@ -739,7 +828,7 @@ export const PasswordVerifyPage = () => {
                 <div
                   data-testid="auth-info"
                   className={cn(
-                    "rounded-lg border px-3 py-2 text-[12px]",
+                    "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                     isDark
                       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                       : "border-emerald-500/40 bg-emerald-50 text-emerald-800",
@@ -754,10 +843,14 @@ export const PasswordVerifyPage = () => {
                 type="email"
                 placeholder="you@company.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailFieldError(undefined);
+                }}
                 required
                 autoComplete="email"
                 isDark={isDark}
+                error={emailFieldError}
               />
               <button
                 type="submit"
@@ -774,6 +867,27 @@ export const PasswordVerifyPage = () => {
                   </>
                 )}
               </button>
+              {/* Pre-send confirmation — lets the user proofread their own
+                  typed address before we act on it (WhatsApp/Telegram-style
+                  "code will be sent to +91 xxxxx" nudge), without disclosing
+                  whether that address is actually registered. */}
+              {email.trim() && (
+                <p
+                  className={cn(
+                    "flex items-start gap-1.5 text-[11px] italic",
+                    isDark ? "text-white/45" : "text-gray-500",
+                  )}
+                >
+                  <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span>
+                    If{" "}
+                    <span className="not-italic font-medium">
+                      {email.trim()}
+                    </span>{" "}
+                    matches an account, an OTP will be sent to it.
+                  </span>
+                </p>
+              )}
               <div className="mt-6 flex items-center gap-3">
                 <span
                   className={cn(
@@ -831,7 +945,7 @@ export const PasswordVerifyPage = () => {
               <div
                 data-testid="auth-error"
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-[12px]",
+                  "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                   isDark
                     ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
                     : "border-rose-500/40 bg-rose-50 text-rose-700",
@@ -844,7 +958,7 @@ export const PasswordVerifyPage = () => {
               <div
                 data-testid="auth-info"
                 className={cn(
-                  "rounded-lg border px-3 py-2 text-[12px]",
+                  "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                   isDark
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                     : "border-emerald-500/40 bg-emerald-50 text-emerald-800",
@@ -853,6 +967,40 @@ export const PasswordVerifyPage = () => {
                 {infoMsg}
               </div>
             )}
+            {/* WhatsApp/Telegram-style "code sent to <address>" line with an
+                inline Edit — going back to the email step keeps the typed
+                email intact (unlike the old "Change email" button, which
+                blanked it and forced a full retype after a simple typo). */}
+            <p
+              className={cn(
+                "text-center text-[13px]",
+                isDark ? "text-white/60" : "text-gray-500",
+              )}
+            >
+              Code sent to{" "}
+              <span
+                className={cn(
+                  "font-medium",
+                  isDark ? "text-white" : "text-gray-900",
+                )}
+              >
+                {email}
+              </span>{" "}
+              ·{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpSent(false);
+                  setOtp("");
+                  setErrorMsg(null);
+                  setInfoMsg(null);
+                  setEmailFieldError(undefined);
+                }}
+                className="font-medium text-[#ff8c4a] underline-offset-2 hover:text-[#ffb400] hover:underline"
+              >
+                Edit
+              </button>
+            </p>
             <div className="flex justify-center gap-2">
               {[...Array(6)].map((_, i) => (
                 <input
@@ -927,7 +1075,7 @@ export const PasswordVerifyPage = () => {
                 </>
               )}
             </button>
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-center text-xs">
               {resendTimer > 0 ? (
                 <span className={isDark ? "text-white/45" : "text-gray-500"}>
                   Resend in {resendTimer}s
@@ -941,21 +1089,6 @@ export const PasswordVerifyPage = () => {
                   Resend OTP
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setOtpSent(false);
-                  setEmail("");
-                  setOtp("");
-                }}
-                className={
-                  isDark
-                    ? "text-white/45 hover:text-white"
-                    : "text-gray-500 hover:text-gray-900"
-                }
-              >
-                Change email
-              </button>
             </div>
             <p
               className={cn(

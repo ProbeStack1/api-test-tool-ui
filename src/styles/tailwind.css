@@ -300,20 +300,24 @@ select:focus-visible {
 }
 
 /* Hover — thin primary tint (only when not disabled, and the border
- * isn't already explicitly set to a different colour by the component). */
-input:not(:disabled):not([type='checkbox']):not([type='radio']):hover,
-textarea:not(:disabled):hover,
-select:not(:disabled):hover {
+ * isn't already explicitly set to a different colour by the component).
+ * `.no-global-focus-ring` opts out: components that paint their OWN
+ * focus border/halo (e.g. the auth pages' local Field) would otherwise
+ * get a second border+glow stacked directly on the raw <input>, on top
+ * of their own — visible as a stray extra box. */
+input:not(:disabled):not([type='checkbox']):not([type='radio']):not(.no-global-focus-ring):hover,
+textarea:not(:disabled):not(.no-global-focus-ring):hover,
+select:not(:disabled):not(.no-global-focus-ring):hover {
   border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
 }
 
 /* Focus — full primary border + soft glow halo. */
-input:not(:disabled):not([type='checkbox']):not([type='radio']):focus,
-input:not(:disabled):not([type='checkbox']):not([type='radio']):focus-visible,
-textarea:not(:disabled):focus,
-textarea:not(:disabled):focus-visible,
-select:not(:disabled):focus,
-select:not(:disabled):focus-visible {
+input:not(:disabled):not([type='checkbox']):not([type='radio']):not(.no-global-focus-ring):focus,
+input:not(:disabled):not([type='checkbox']):not([type='radio']):not(.no-global-focus-ring):focus-visible,
+textarea:not(:disabled):not(.no-global-focus-ring):focus,
+textarea:not(:disabled):not(.no-global-focus-ring):focus-visible,
+select:not(:disabled):not(.no-global-focus-ring):focus,
+select:not(:disabled):not(.no-global-focus-ring):focus-visible {
   border-color: var(--color-primary) !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
@@ -324,6 +328,36 @@ textarea:disabled,
 select:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+/* ------------------------------------------------------------------ */
+/* Neutralize the browser's own autofill highlight (Chrome/Edge paint a  */
+/* yellow/blue background + force black text behind an autofilled       */
+/* input) — it showed as an "unwanted box" appearing over our own field  */
+/* background the moment the browser autofilled a saved password/email.  */
+/* The huge transition delay is the standard trick: Chrome only lets you */
+/* override autofill styling via -webkit-box-shadow / a (very) deferred  */
+/* background-color transition, not background-color directly.          */
+/* `currentColor` keeps whatever text colour the field already has, so   */
+/* this works in both dark and light theme without hardcoding either.    */
+/* ------------------------------------------------------------------ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill {
+  /* !important on every property: Chrome/Edge apply their internal
+   * autofill styling at a specificity plain rules can't out-rank —
+   * without !important these get silently ignored and the native
+   * yellow/blue box still shows through. */
+  -webkit-text-fill-color: currentColor !important;
+  caret-color: currentColor !important;
+  -webkit-box-shadow: inset 0 0 0 1000px transparent !important;
+  box-shadow: inset 0 0 0 1000px transparent !important;
+  background-color: transparent !important;
+  transition:
+    background-color 600000s ease-in-out 0s,
+    color 600000s ease-in-out 0s !important;
 }
 
 /* ------------------------------------------------------------------ */

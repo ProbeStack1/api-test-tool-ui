@@ -61,6 +61,12 @@ import {
   signInWithPopup,
 } from "@/lib/firebase";
 import { cn } from "@/utils/cn";
+import {
+  isValidEmail,
+  isValidPassword,
+  EMAIL_PATTERN_ERROR,
+  PASSWORD_PATTERN_ERROR,
+} from "@/utils/authValidation";
 
 type Mode = "signin" | "signup";
 type Audience = "individual" | "enterprise";
@@ -346,6 +352,14 @@ export const LoginPage = () => {
     company: "",
     remember: true,
   });
+  // Field-level pattern errors (shown under the input itself) — separate
+  // from `errorMsg`, which is the top-of-form banner for server/Firebase
+  // rejections. Keeps "your email looks malformed" distinct from "wrong
+  // credentials" instead of flattening both into one generic message.
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
 
   // Keep URL state in sync so deep-links bookmark correctly.
   useEffect(() => {
@@ -356,23 +370,59 @@ export const LoginPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  // Switching Sign in <-> Create account re-renders the SAME component
+  // (no remount) — without this, a stale error banner (or a "wrong
+  // password" from the last mode) kept showing under the new mode's form.
+  useEffect(() => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setUnverifiedEmail(null);
+    setFieldErrors({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const title = mode === "signin" ? "Welcome back" : "Create your account";
   const subtitle =
     mode === "signin"
       ? "Sign in to your ForgeFuzz workspace."
       : "Start shipping reliable APIs in minutes.";
 
-  const onChange = (k: keyof typeof form) => (e: any) =>
+  const onChange = (k: keyof typeof form) => (e: any) => {
     setForm((f) => ({
       ...f,
       [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
     }));
+    // Clear that field's pattern error as soon as the user edits it, rather
+    // than leaving a stale "Email pattern is incorrect" up while they type
+    // a fix.
+    if (k === "email" || k === "password") {
+      setFieldErrors((fe) => ({ ...fe, [k]: undefined }));
+    }
+  };
+
+  // Validates email/password shape BEFORE we ever call Firebase — this is
+  // what surfaces "Email/Password pattern is incorrect" under the relevant
+  // field instead of only finding out after a round-trip (or, worse, never
+  // finding out because Firebase's own error gets flattened to one generic
+  // banner). Returns whether the form is valid.
+  const validateFields = () => {
+    const errs: typeof fieldErrors = {};
+    if (!isValidEmail(form.email)) {
+      errs.email = EMAIL_PATTERN_ERROR;
+    }
+    if (!isValidPassword(form.password)) {
+      errs.password = PASSWORD_PATTERN_ERROR;
+    }
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setInfoMsg(null);
     setUnverifiedEmail(null);
+    if (!validateFields()) return;
     setSubmitting(true);
     try {
       if (mode === "signup") {
@@ -869,7 +919,7 @@ export const LoginPage = () => {
                     <div
                       data-testid="auth-info"
                       className={cn(
-                        "rounded-lg border px-3 py-2 text-[12px]",
+                        "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                         isDark
                           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                           : "border-emerald-500/40 bg-emerald-50 text-emerald-800",
@@ -882,7 +932,7 @@ export const LoginPage = () => {
                     <div
                       data-testid="auth-error"
                       className={cn(
-                        "rounded-lg border px-3 py-2 text-[12px]",
+                        "rounded-lg border px-3 py-2 text-[12px] leading-relaxed text-balance",
                         isDark
                           ? "border-rose-500/35 bg-rose-500/10 text-rose-200"
                           : "border-rose-500/40 bg-rose-50 text-rose-700",
@@ -938,6 +988,7 @@ export const LoginPage = () => {
                     autoComplete="email"
                     maxLength={254}
                     isDark={isDark}
+                    error={fieldErrors.email}
                   />
 
                   <Field
@@ -957,6 +1008,8 @@ export const LoginPage = () => {
                     }
                     maxLength={128}
                     isDark={isDark}
+                    error={fieldErrors.password}
+                    hint="At least 8 characters, with letters and numbers"
                     trailing={
                       <button
                         type="button"
@@ -1135,38 +1188,80 @@ const Field = ({
   testid,
   trailing,
   isDark = true,
+  error,
+  hint,
   ...rest
 }: {
   icon: any;
   testid: string;
   trailing?: React.ReactNode;
   isDark?: boolean;
+  error?: string;
+  /** Persistent helper text shown below the field when there's no error —
+   *  e.g. the password requirement — so the user knows the expected shape
+   *  BEFORE getting it wrong, instead of only finding out from an error
+   *  after submitting. */
+  hint?: string;
 } & React.InputHTMLAttributes<HTMLInputElement>) => (
-  <div
-    className={cn(
-      "group relative flex items-center rounded-lg border transition-all",
-      isDark
-        ? "border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]"
-        : "border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white",
+  <div>
+    <div
+      className={cn(
+        "group relative flex items-center rounded-lg border transition-all",
+        error
+          ? "border-rose-500/60"
+          : isDark
+            ? "border-white/10 bg-white/[0.03] focus-within:border-[#ff5b1f]/55 focus-within:bg-white/[0.06]"
+            : "border-black/10 bg-black/[0.03] focus-within:border-[#ff5b1f]/65 focus-within:bg-white",
+        error && (isDark ? "bg-white/[0.03]" : "bg-black/[0.03]"),
+      )}
+    >
+      <Icon
+        className={cn(
+          "ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]",
+          isDark ? "text-white/40" : "text-gray-400",
+        )}
+      />
+      <input
+        {...rest}
+        data-testid={testid}
+        aria-invalid={!!error}
+        // `no-global-focus-ring` opts this input out of tailwind.css's global
+        // input:focus border/box-shadow rule — that rule is meant for the
+        // shared <Input> component (which has its own transparent baseline
+        // border for it to paint over), not this locally-styled auth Field,
+        // whose OWN wrapper div already paints the focus border above. Left
+        // in, the global rule adds a second border+glow directly on the
+        // raw <input> — visible as a stray "box" nested inside this one,
+        // most noticeable on the password field.
+        className={cn(
+          "no-global-focus-ring flex-1 bg-transparent px-3 py-2.5 text-sm outline-none",
+          isDark
+            ? "text-white placeholder-white/35"
+            : "text-gray-900 placeholder-gray-400",
+        )}
+      />
+      {trailing && <div className="mr-3">{trailing}</div>}
+    </div>
+    {error ? (
+      <p
+        data-testid={`${testid}-error`}
+        className="mt-1 text-[11px] text-rose-500"
+      >
+        {error}
+      </p>
+    ) : (
+      hint && (
+        <p
+          data-testid={`${testid}-hint`}
+          className={cn(
+            "mt-1 text-[11px]",
+            isDark ? "text-white/40" : "text-gray-400",
+          )}
+        >
+          {hint}
+        </p>
+      )
     )}
-  >
-    <Icon
-      className={cn(
-        "ml-3 h-4 w-4 shrink-0 transition-colors group-focus-within:text-[#ff8c4a]",
-        isDark ? "text-white/40" : "text-gray-400",
-      )}
-    />
-    <input
-      {...rest}
-      data-testid={testid}
-      className={cn(
-        "flex-1 bg-transparent px-3 py-2.5 text-sm outline-none",
-        isDark
-          ? "text-white placeholder-white/35"
-          : "text-gray-900 placeholder-gray-400",
-      )}
-    />
-    {trailing && <div className="mr-3">{trailing}</div>}
   </div>
 );
 

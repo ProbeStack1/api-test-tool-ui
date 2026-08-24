@@ -105,6 +105,8 @@ export const LandingNavbar = () => {
     [loc.pathname],
   );
   const isSolutionsActive = !!activeSolution;
+  // Pointer for the selected indicator inside the mega-dropdown grid
+  const selectedId = hoveredId ?? activeSolution?.id ?? null;
 
   // ─── Scroll hide (unchanged) ──────────────────────────────
   useEffect(() => {
@@ -209,7 +211,93 @@ export const LandingNavbar = () => {
               onMouseEnter={openSolutions}
               onMouseLeave={scheduleClose}
             >
-              {/* ... solutions dropdown content (unchanged) ... */}
+              <div className="absolute -top-2 left-0 right-0 h-2" />
+              <div className="relative overflow-hidden rounded-md bg-elevated border border-border bg-background/95 shadow-xl backdrop-blur-xl">
+                <div className="grid grid-cols-2 gap-1 p-2">
+                  {SOLUTIONS.map((s) => {
+                    const isActive = activeSolution?.id === s.id;
+                    const isHovered = hoveredId === s.id;
+                    const isSelected = selectedId === s.id;
+                    return (
+                      <Link
+                        key={s.id}
+                        to={s.to}
+                        onClick={() => setSolutionsOpen(false)}
+                        onMouseEnter={() => setHoveredId(s.id)}
+                        onMouseLeave={() => setHoveredId(null)}
+                        className="group relative flex items-start gap-2 rounded-lg px-2 py-2"
+                      >
+                        {isSelected && (
+                          <motion.span
+                            layoutId="solution-selected"
+                            className="absolute inset-0 rounded-lg border border-primary/40 bg-primary/[0.08]"
+                            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                          />
+                        )}
+                        <motion.span
+                          className={`relative inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border/60 bg-surface/60 ${s.accent}`}
+                          animate={
+                            isActive || isHovered
+                              ? { rotate: [0, -8, 8, -4, 4, 0], scale: [1, 1.08, 1] }
+                              : { rotate: 0, scale: 1 }
+                          }
+                          transition={{ duration: 0.8, ease: "easeInOut" }}
+                        >
+                          <s.icon className="h-4 w-4" />
+                        </motion.span>
+                        <div className="relative min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`truncate text-[12.5px] font-semibold ${isActive ? "text-primary" : ""}`}
+                            >
+                              {s.label}
+                            </span>
+                            {isActive && (
+                              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider text-primary">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-text-secondary">
+                            {s.desc}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+
+                  <Link
+                    to="/capabilities"
+                    onClick={() => setSolutionsOpen(false)}
+                    onMouseEnter={() => setHoveredId("__all")}
+                    onMouseLeave={() => setHoveredId(null)}
+                    className="group relative col-span-2 mt-1 flex items-center justify-center gap-2 rounded-lg border-t border-border/60 px-2 py-2"
+                  >
+                    {selectedId === "__all" && (
+                      <motion.span
+                        layoutId="solution-selected"
+                        className="absolute inset-0 rounded-lg border border-primary/40 bg-primary/[0.08]"
+                        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                      />
+                    )}
+                    <motion.span
+                      className="relative inline-flex h-6 w-6 items-center justify-center rounded-md text-primary"
+                      animate={
+                        hoveredId === "__all"
+                          ? { rotate: [0, -8, 8, -4, 4, 0], scale: [1, 1.08, 1] }
+                          : { rotate: 0, scale: 1 }
+                      }
+                      transition={{ duration: 0.8, ease: "easeInOut" }}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </motion.span>
+                    <span className="relative text-[12.5px] font-semibold text-primary">
+                      View all Capabilities
+                    </span>
+                    <ArrowRight className="relative h-3.5 w-3.5 text-primary transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

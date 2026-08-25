@@ -4,7 +4,7 @@
 import { Providers } from './providers';
 import { AppRouter } from './router';
 import { useEffect } from 'react';
-import { useAuth, getCookie } from '@/stores/auth.store';
+import { useAuth } from '@/stores/auth.store';
 import { useRequests } from '@/stores/requests.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useVariablesUi } from '@/stores/variables-ui.store';
@@ -12,13 +12,26 @@ import { toast } from 'sonner';
 // import { useRunHistoryStore } from '@/stores/runHistory.store';
 
 export const App = () => {
-  // NEW: Bootstrap enterprise session on application mount.
+  // Bootstrap enterprise session on application mount.
+  //
+  // `ps_auth_token` is HttpOnly now, so we can no longer check via JS
+  // whether the cookie exists before deciding to call bootstrapFromCookie —
+  // that check (`getCookie('ps_auth_token')`) always came back empty for an
+  // HttpOnly cookie, same as trying to read its value. We just always
+  // attempt bootstrap and let the backend's response be the source of
+  // truth (see auth.store.ts).
+  //
+  // We only surface the "session expired" toast on a probestack.io host —
+  // that's the only place this cookie is ever plausibly set, so a failed
+  // bootstrap there likely means a real expired/revoked session worth
+  // telling the user about. On forgefuzz.com, every individual visitor
+  // without an enterprise session would otherwise see a false "expired"
+  // toast on every single page load.
   useEffect(() => {
     const bootstrap = async () => {
-      const hasCookie = !!getCookie('ps_auth_token');
       const success = await useAuth.getState().bootstrapFromCookie();
-      if (!success && hasCookie) {
-        // Only show toast if a cookie existed but bootstrapping failed (expired/invalid token)
+      const onProbestackHost = /(^|\.)probestack\.io$/i.test(window.location.hostname);
+      if (!success && onProbestackHost) {
         toast.error('Your session has expired. Please try logging in again.', {
           duration: 5000,
         });

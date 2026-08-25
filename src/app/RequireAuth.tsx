@@ -20,19 +20,23 @@ import { useAuth } from '@/stores/auth.store';
 import { env } from '@/lib/env';
 
 export const RequireAuth = ({ children }: { children: ReactNode }) => {
-  const { accessToken, refreshToken, accountType } = useAuth();
+  const { accessToken, refreshToken, accountType, isBootstrapping } = useAuth();
   const location = useLocation();
 
   if (env.devBypassAuth) return <>{children}</>;
-  
-  // NEW: Allow rendering if an enterprise cookie exists (even before bootstrap finishes).
-  // This prevents a flash of login page while we validate the cookie.
-  const hasEnterpriseCookie = typeof document !== 'undefined' && 
-    document.cookie.includes('ps_auth_token=');
-  
-  // Allow if we have a token, a refresh token, are explicitly enterprise,
-  // or the browser has the enterprise cookie waiting to be validated.
-  if (accessToken || refreshToken || accountType === 'ENTERPRISE' || hasEnterpriseCookie) {
+
+  // `ps_auth_token` is HttpOnly now — we can no longer peek at its
+  // presence via `document.cookie` to avoid a login-page flash while an
+  // enterprise session is still being validated. The only reliable check
+  // is the actual `/me` bootstrap call (see auth.store.ts), so wait for
+  // it to resolve instead of guessing from a cookie we can't see anymore.
+  if (isBootstrapping) {
+    return null;
+  }
+
+  // Allow if we have a token, a refresh token, or are explicitly enterprise
+  // (set by a successful bootstrap /me call).
+  if (accessToken || refreshToken || accountType === 'ENTERPRISE') {
     return <>{children}</>;
   }
 

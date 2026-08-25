@@ -28,30 +28,21 @@ export interface ApiError {
 }
 
 /**
- * Helper to read a cookie by name.
- * Used for enterprise auth (ps_auth_token).
- */
-const getCookie = (name: string): string | null => {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : null;
-};
-
-/**
  * Auth header strategy:
- *   1. Enterprise cookie (ps_auth_token) – Highest priority for enterprise users.
- *   2. Try to get a fresh Firebase ID token from the current user.
- *   3. If no user, fall back to stored token (from Zustand) – though it might be stale.
- *   4. Dev‑bypass fallback (if enabled).
+ *   1. Try to get a fresh Firebase ID token from the current user (individual).
+ *   2. If no user, fall back to stored token (from Zustand) – though it might be stale.
+ *   3. Dev‑bypass fallback (if enabled).
+ *
+ * Enterprise sessions are NOT handled here. The `ps_auth_token` cookie is
+ * HttpOnly (set by probestack.io) — JS can never read it, by design (XSS
+ * protection), so there is nothing to forward as a header. Instead,
+ * `createHttp` below sends every request `withCredentials: true`, and
+ * `env.ts` rewrites service URLs to the page's own origin when running on
+ * a `*.probestack.io` host, so the browser attaches the cookie
+ * automatically on same-origin requests — no JS involvement needed.
  */
 const authHeader = async (): Promise<Record<string, string>> => {
-  // STEP 1: Enterprise Cookie (Highest Priority)
-  const enterpriseToken = getCookie('ps_auth_token');
-  if (enterpriseToken) {
-    return { Authorization: `Bearer ${enterpriseToken}` };
-  }
-
-  // STEP 2: Individual Firebase
+  // Individual (Firebase)
   try {
     const token = await getIdToken();
     return { Authorization: `Bearer ${token}` };
@@ -69,6 +60,12 @@ export const createHttp = (service: ServiceName): AxiosInstance => {
     baseURL: serviceUrl(service),
     timeout: 30_000,
     headers: { 'Content-Type': 'application/json' },
+    // Lets the browser attach the HttpOnly `ps_auth_token` cookie
+    // automatically on same-origin requests (see env.ts's same-origin
+    // rewrite for the *.probestack.io case). No-op for individual users'
+    // Firebase-header auth and for genuinely cross-origin calls without a
+    // matching CORS credentials config — harmless either way.
+    withCredentials: true,
   });
 
   // Re-resolve baseURL on every request — keeps env.ts as the single

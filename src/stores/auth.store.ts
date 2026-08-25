@@ -35,8 +35,11 @@ export interface UserView {
 }
 
 /**
- * Helper to read a cookie by name.
- * Used for enterprise auth (ps_auth_token) bootstrap.
+ * Helper to read a NON-HttpOnly cookie by name. `ps_auth_token` itself is
+ * HttpOnly now (probestack.io sets it that way, deliberately, so JS can
+ * never read or forward it — that's the whole point of HttpOnly) so this
+ * can no longer see it; kept as a general-purpose utility for anything
+ * else that isn't HttpOnly.
  */
 export const getCookie = (name: string): string | null => {
   if (typeof document === 'undefined') return null;
@@ -45,8 +48,11 @@ export const getCookie = (name: string): string | null => {
 };
 
 /**
- * Helper to delete a cookie by name (sets expiry to epoch).
- * Used during logout to clear ps_auth_token and ps_auth_session.
+ * Helper to delete a NON-HttpOnly cookie by name (sets expiry to epoch).
+ * Cannot clear `ps_auth_token` (HttpOnly blocks JS writes to it too, not
+ * just reads — the assignment below silently no-ops for it). Enterprise
+ * logout needs the cookie expired server-side by probestack.io; tracked
+ * as a follow-up, not something fixable from this side.
  */
 const deleteCookie = (name: string) => {
   if (typeof document === 'undefined') return;
@@ -92,6 +98,12 @@ interface AuthState {
   accountType:  'INDIVIDUAL' | 'ENTERPRISE' | null;
   /** "Remember me" from the sign-in form — false = session-only (cleared on browser close). */
   rememberMe:   boolean;
+  /** True until the initial `bootstrapFromCookie()` call resolves (success
+   *  or failure). We can no longer peek at the HttpOnly cookie via JS to
+   *  decide "should I even try" — the only way to know is to actually ask
+   *  the backend, so route guards must wait for this instead of assuming
+   *  "no token yet" means "not logged in". */
+  isBootstrapping: boolean;
 
   /** Set after a successful login (or hydrated from a sibling tab). `remember` defaults to true
    *  for flows that don't surface the checkbox (OAuth, OTP, enterprise cookie bootstrap). */
@@ -120,6 +132,7 @@ export const useAuth = create<AuthState>()(
       expiresAt: null,
       accountType: null,
       rememberMe: true,
+      isBootstrapping: true,
 
       setSession({ accessToken, refreshToken, expiresInSec, user, remember }) {
         const expiresAt = Date.now() + expiresInSec * 1000;
@@ -141,7 +154,10 @@ export const useAuth = create<AuthState>()(
       },
 
       clear: async () => {
-        // Frontend cookies clear
+        // Best-effort — cannot actually clear ps_auth_token from here, see
+        // deleteCookie's javadoc (HttpOnly blocks the write too). Local
+        // state below is what actually signs the user out on this device;
+        // full enterprise logout also needs the cookie expired server-side.
         deleteCookie('ps_auth_token');
         deleteCookie('ps_auth_session');
 
@@ -152,6 +168,10 @@ export const useAuth = create<AuthState>()(
           expiresAt: null,
           accountType: null,
           rememberMe: true,
+          // Explicit sign-out, not a fresh page load — stay false so
+          // RequireAuth redirects immediately instead of showing a loading
+          // state waiting for a bootstrap that isn't going to happen again.
+          isBootstrapping: false,
         });
         broadcastAuth({ type: 'logout' });
       },
@@ -160,60 +180,72 @@ export const useAuth = create<AuthState>()(
 
       /**
        * Bootstraps an enterprise session from the ps_auth_token cookie.
-       * Called once on app load. If the cookie exists, we call /me
-       * with it to hydrate the store without showing the login page.
-       * Returns true if bootstrapping succeeded, false otherwise.
+       * Called once on app load. Returns true if bootstrapping succeeded,
+       * false otherwise.
+       *
+       * <p>We used to read the cookie's VALUE via JS first and only call
+       * `/me` if one was found. That no longer works — `ps_auth_token` is
+       * HttpOnly (probestack.io sets it that way on purpose, so it can
+       * never be read or forwarded by JS, XSS protection), which means
+       * `document.cookie` can't even tell us whether it EXISTS, let alone
+       * its value. So we can no longer "peek" — we just always ask the
+       * backend by calling `/me`. As long as this request is same-origin
+       * (see env.ts's rewrite for `*.probestack.io` pages) and sent with
+       * `withCredentials: true` (see http.ts), the browser attaches the
+       * cookie automatically if one exists; the backend's response is the
+       * only reliable signal of whether there's a valid enterprise session.
        */
       bootstrapFromCookie: async (): Promise<boolean> => {
         // If we already have a valid Firebase session, skip bootstrap.
         const { accessToken, expiresAt } = get();
         if (accessToken && expiresAt && Date.now() < expiresAt) {
+          set({ isBootstrapping: false });
           return true;
         }
-
-        const cookieToken = getCookie('ps_auth_token');
-        if (!cookieToken) return false;
 
         try {
           // Dynamically import http to avoid circular dependency issues.
           const { createHttp } = await import('@/lib/http');
           const http = createHttp('userMgmt');
-          const res = await http.get('/api/v1/users/me', {
-            headers: { Authorization: `Bearer ${cookieToken}` }
-          });
-          
+          const res = await http.get('/api/v1/users/me', { withCredentials: true });
+
           const userData = res.data as UserView;
-          
-          // If backend doesn't send accountType yet, derive it from cookie presence.
           if (!userData.accountType) {
             userData.accountType = 'ENTERPRISE';
           }
 
-          // We set a fake refreshToken & a 1-hour expiry guess.
-          // The backend will reject the token if truly expired, triggering 401 -> logout.
+          // NOTE: unlike the Firebase path, there is no JWT string to store
+          // as `accessToken` here — the credential lives entirely in the
+          // HttpOnly cookie, which JS never sees. `accessToken` stays null;
+          // `accountType`/`expiresAt` below are what `isAuthenticated()`
+          // and `RequireAuth` key off for an enterprise session instead.
+          // The backend will reject the cookie if it's truly expired,
+          // triggering a 401 the next time any protected call is made.
           const expiresAt = Date.now() + 3600 * 1000;
-          set({ 
-            user: userData, 
-            accessToken: cookieToken, 
-            refreshToken: null, 
+          set({
+            user: userData,
+            accessToken: null,
+            refreshToken: null,
             expiresAt,
-            accountType: userData.accountType 
+            accountType: userData.accountType,
+            isBootstrapping: false,
           });
-          
-          broadcastAuth({ 
-            type: 'login', 
-            payload: { 
-              accessToken: cookieToken, 
-              refreshToken: '', 
-              expiresAt, 
-              user: userData 
-            } 
+
+          broadcastAuth({
+            type: 'login',
+            payload: {
+              accessToken: '',
+              refreshToken: '',
+              expiresAt,
+              user: userData,
+            },
           });
           return true;
         } catch (err) {
           console.warn('Enterprise bootstrap failed:', err);
-          // If /me fails (expired/revoked cookie), do nothing.
-          // The user will be redirected to login if they navigate to a protected route.
+          // No/invalid/expired cookie — nothing to do. The user gets
+          // redirected to login if they navigate to a protected route.
+          set({ isBootstrapping: false });
           return false;
         }
       },
@@ -221,8 +253,12 @@ export const useAuth = create<AuthState>()(
       isEnterprise: () => get().accountType === 'ENTERPRISE',
 
       isAuthenticated() {
-        const { accessToken, expiresAt } = get();
-        return !!accessToken && !!expiresAt && Date.now() < expiresAt;
+        const { accessToken, expiresAt, accountType } = get();
+        if (!expiresAt || Date.now() >= expiresAt) return false;
+        // Individual (Firebase): a real bearer token. Enterprise: no token
+        // string (HttpOnly cookie, invisible to JS) — accountType +
+        // expiresAt from a successful bootstrap /me call is the signal.
+        return !!accessToken || accountType === 'ENTERPRISE';
       },
 
       hasRole(role) {
@@ -232,6 +268,16 @@ export const useAuth = create<AuthState>()(
     {
       name: 'forgefuzz.auth',
       storage: createJSONStorage(() => rememberAwareStorage),
+      // `isBootstrapping` must NOT persist — it needs to start `true` on
+      // every fresh page load (that's the whole point: block RequireAuth
+      // until the new bootstrap call resolves). Persisting it would
+      // restore last session's terminal value (usually `false`) before
+      // App.tsx's bootstrap effect even runs, letting RequireAuth redirect
+      // to /login on the very first render despite a still-valid cookie.
+      partialize: (state) => {
+        const { isBootstrapping: _isBootstrapping, ...rest } = state;
+        return rest;
+      },
     },
   ),
 );

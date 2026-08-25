@@ -61,6 +61,35 @@ const readEnv = (key: string, fallback = ''): string => {
        */
       return pageOrigin;
     }
+
+    /*
+     * Enterprise same-origin guard.
+     *
+     * The enterprise SPA is served from a `*.probestack.io` subdomain
+     * (e.g. `forgefuzz.probestack.io`), but the configured service URL is
+     * typically baked at build time to `forgefuzz.com` (the individual
+     * users' domain) — same backend, reachable at both hostnames, but a
+     * DIFFERENT registrable domain from the browser's point of view.
+     *
+     * That distinction matters because the enterprise session lives in an
+     * HttpOnly `ps_auth_token` cookie set on the probestack.io domain:
+     * HttpOnly means JS can never read it (by design — XSS protection),
+     * and cookies never cross registrable domains, so calling
+     * forgefuzz.com directly would silently carry no credentials at all.
+     * Rewriting to the page's own origin makes the request same-origin,
+     * so the browser attaches the cookie automatically — no JS
+     * involvement, no CORS config needed.
+     */
+    const pageHost = window.location.hostname || '';
+    const isProbestackHost = /(^|\.)probestack\.io$/i.test(pageHost);
+    if (isProbestackHost) {
+      let resolvedHost = '';
+      try { resolvedHost = new URL(resolved).hostname; } catch { /* not an absolute URL — leave as-is */ }
+      const resolvedIsForgefuzzCom = /(^|\.)forgefuzz\.com$/i.test(resolvedHost);
+      if (resolvedIsForgefuzzCom) {
+        return pageOrigin;
+      }
+    }
   }
 
   return resolved;

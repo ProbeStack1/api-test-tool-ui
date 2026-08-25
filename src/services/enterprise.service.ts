@@ -20,9 +20,21 @@ import { useAuth } from '@/stores/auth.store';
 const ORG_ID = 'f52c02e6-d67a-4bc9-8e94-36e9d4b8d30c';
 
 // Create an axios instance for Probestack Onboarding API
+//
+// KNOWN GAP (2026-08-23): the `Authorization: Bearer <ps_auth_token>` header
+// this file tries to set below (from `getAccessToken()`) can no longer be
+// populated for enterprise sessions — `ps_auth_token` is HttpOnly, so we
+// have no JS-readable value to forward as a header (see auth.store.ts).
+// `withCredentials: true` lets the browser attach the cookie automatically
+// if probestack.io's onboarding-api accepts it directly (same registrable
+// domain as where the cookie is set) — but that's unconfirmed. If these
+// calls start failing with 401, this needs its own follow-up with the
+// probestack.io team: does /onboarding-api accept the session cookie
+// directly, the way our own backend now does?
 const probestackApi: AxiosInstance = axios.create({
   baseURL: 'https://probestack.io/onboarding-api',
   timeout: 30000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     'X-Partner-Id': 'probestack',
